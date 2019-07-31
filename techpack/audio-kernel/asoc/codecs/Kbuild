@@ -344,6 +344,3 @@ lpass_bt_swr_dlkm-y := $(LPASS_BT_SWR_OBJS)
 
 obj-$(CONFIG_SND_SOC_TYPEC_ANALOG_ACC) += typec_analog_acc_dlkm.o
 typec_analog_acc_dlkm-y := $(TYPEC_ANALOG_ACC_OBJS)
-
-# inject some build related information
-DEFINES += -DBUILD_TIMESTAMP=\"$(shell date -u +'%Y-%m-%dT%H:%M:%SZ')\"

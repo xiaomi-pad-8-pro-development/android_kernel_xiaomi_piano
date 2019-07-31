@@ -324,5 +324,3 @@ msm_drm-$(CONFIG_DRM_MSM) += driver_novatek/vis_display/vis_display_spi.o \
 			     driver_novatek/vis_display/vis_display_notify.o \
 			     driver_novatek/vis_display/vis_display_test.o  \
 			     driver_novatek/vis_display/vis_display_common.o
-
-CDEFINES += -DBUILD_TIMESTAMP=\"$(shell date -u +'%Y-%m-%dT%H:%M:%SZ')\"
