@@ -6,6 +6,9 @@ KBUILD_OPTIONS += MODNAME=camera
 # MIUI ADD: Camera_CameraSkyNet
 KBUILD_OPTIONS += MODNAME=cameralog
 # END Camera_CameraSkyNet
+KBUILD_OPTIONS += KBUILD_EXTRA_SYMBOLS+=$(M)/../mmrm-driver/Module.symvers
+KBUILD_OPTIONS += KBUILD_EXTRA_SYMBOLS+=$(M)/../securemsm-kernel/Module.symvers
+KBUILD_OPTIONS += KBUILD_EXTRA_SYMBOLS+=$(M)/../synx-kernel/Module.symvers
 
 # MIUI ADD: Camera_CameraOpt
 KBUILD_OPTIONS += MODNAME=cameramsger
