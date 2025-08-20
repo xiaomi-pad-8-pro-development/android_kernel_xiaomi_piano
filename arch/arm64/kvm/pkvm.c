@@ -319,17 +319,21 @@ static int __reclaim_dying_guest_page_call(u64 pfn, u64 gfn, u8 order, void *arg
 
 static void __pkvm_destroy_hyp_vm(struct kvm *host_kvm)
 {
-	struct kvm_pinned_page *tmp, *ppage;
 	struct mm_struct *mm = current->mm;
+	struct kvm_pinned_page *ppage;
 	struct kvm_vcpu *host_vcpu;
-	unsigned long idx;
+	unsigned long idx, ipa = 0;
 
 	if (!host_kvm->arch.pkvm.handle)
 		goto out_free;
 
 	WARN_ON(kvm_call_hyp_nvhe(__pkvm_start_teardown_vm, host_kvm->arch.pkvm.handle));
 
-	for_ppage_node_in_range(host_kvm, 0, ULONG_MAX, ppage, tmp) {
+	mt_clear_in_rcu(&host_kvm->arch.pkvm.pinned_pages);
+
+	mt_for_each(&host_kvm->arch.pkvm.pinned_pages, ppage, ipa, ULONG_MAX) {
+		if (WARN_ON(ppage == KVM_DUMMY_PPAGE))
+			continue;
 		WARN_ON(pkvm_call_hyp_nvhe_ppage(ppage,
 						 __reclaim_dying_guest_page_call,
 						 host_kvm, true));
@@ -337,9 +341,9 @@ static void __pkvm_destroy_hyp_vm(struct kvm *host_kvm)
 
 		account_locked_vm(mm, 1, false);
 		unpin_user_pages_dirty_lock(&ppage->page, 1, host_kvm->arch.pkvm.enabled);
-		kvm_pinned_pages_remove(ppage, &host_kvm->arch.pkvm.pinned_pages);
 		kfree(ppage);
 	}
+	mtree_destroy(&host_kvm->arch.pkvm.pinned_pages);
 
 	WARN_ON(kvm_call_hyp_nvhe(__pkvm_finalize_teardown_vm, host_kvm->arch.pkvm.handle));
 
@@ -534,21 +538,21 @@ void pkvm_host_reclaim_page(struct kvm *host_kvm, phys_addr_t ipa)
 {
 	struct mm_struct *mm = current->mm;
 	struct kvm_pinned_page *ppage;
+	unsigned long index = ipa;
 	u16 pins;
 
 	write_lock(&host_kvm->mmu_lock);
-	ppage = kvm_pinned_pages_iter_first(&host_kvm->arch.pkvm.pinned_pages,
-					    ipa, ipa + PAGE_SIZE - 1);
-	if (ppage) {
-		WARN_ON_ONCE(ppage->pins != 1);
-
+	ppage = mt_find(&host_kvm->arch.pkvm.pinned_pages, &index,
+			index + PAGE_SIZE - 1);
+	if (ppage && ppage != KVM_DUMMY_PPAGE) {
 		if (ppage->pins)
 			ppage->pins--;
+		else
+			WARN_ON(1);
 
 		pins = ppage->pins;
 		if (!pins)
-			kvm_pinned_pages_remove(ppage,
-						&host_kvm->arch.pkvm.pinned_pages);
+			mtree_erase(&host_kvm->arch.pkvm.pinned_pages, ipa);
 	}
 	write_unlock(&host_kvm->mmu_lock);
 

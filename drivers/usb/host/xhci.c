@@ -18,7 +18,6 @@
 #include <linux/slab.h>
 #include <linux/dmi.h>
 #include <linux/dma-mapping.h>
-#include <trace/hooks/usb.h>
 
 #include "xhci.h"
 #include "xhci-trace.h"
@@ -197,7 +196,6 @@ int xhci_reset(struct xhci_hcd *xhci, u64 timeout_us)
 	u32 command;
 	u32 state;
 	int ret;
-	bool full_reset = 0;
 
 	state = readl(&xhci->op_regs->status);
 
@@ -226,11 +224,8 @@ int xhci_reset(struct xhci_hcd *xhci, u64 timeout_us)
 	if (xhci->quirks & XHCI_INTEL_HOST)
 		udelay(1000);
 
-	trace_android_vh_xhci_full_reset_on_remove(&full_reset);
-
 	ret = xhci_handshake_check_state(xhci, &xhci->op_regs->command,
-				CMD_RESET, 0, timeout_us,
-				full_reset ? 0 : XHCI_STATE_REMOVING);
+				CMD_RESET, 0, timeout_us, XHCI_STATE_REMOVING);
 	if (ret)
 		return ret;
 
