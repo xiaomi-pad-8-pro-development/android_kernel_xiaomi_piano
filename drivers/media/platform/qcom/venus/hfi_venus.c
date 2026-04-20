@@ -1050,6 +1050,12 @@ static void venus_sfr_print(struct venus_hfi_device *hdev)
 
 	if (!sfr)
 		return;
+	size = sfr->buf_size;
+	if (!size)
+		return;
+
+	if (size > ALIGNED_SFR_SIZE)
+		size = ALIGNED_SFR_SIZE;
 
 	size = sfr->buf_size;
 	if (!size)

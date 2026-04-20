@@ -2806,6 +2806,7 @@ static void gsm_queue(struct gsm_mux *gsm)
 		gsm_response(gsm, address, UA|PF);
 		gsm_dlci_close(dlci);
 		break;
+	case UA:
 	case UA|PF:
 		if (cr == 0 || dlci == NULL)
 			break;
@@ -4247,8 +4248,11 @@ static bool gsm_carrier_raised(struct tty_port *port)
 	if (gsm->encoding == GSM_BASIC_OPT &&
 	    gsm->dlci[0]->mode == DLCI_MODE_ADM && !dlci->modem_rx)
 		return true;
-
-	return dlci->modem_rx & TIOCM_CD;
+	/*MIUI ADD: Feature_MUX_TT_XW*/
+	/*to fix detect issue, return direcly without checking CD bits*/
+	return true;
+	//return dlci->modem_rx & TIOCM_CD;
+	/*END Feature_MUX_TT_XW*/ 
 }
 
 static void gsm_dtr_rts(struct tty_port *port, bool active)

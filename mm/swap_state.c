@@ -555,6 +555,7 @@ struct page *read_swap_cache_async(swp_entry_t entry, gfp_t gfp_mask,
 
 	return retpage;
 }
+EXPORT_SYMBOL_GPL(read_swap_cache_async);
 
 EXPORT_SYMBOL_GPL(read_swap_cache_async);
 

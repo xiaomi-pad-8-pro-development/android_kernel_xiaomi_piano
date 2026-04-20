@@ -124,6 +124,8 @@ int qrtr_get_service_id(unsigned int node_id, unsigned int port_id)
 	}
 	xa_unlock(&node->servers);
 
+	xa_unlock(&node->servers);
+
 	return -EINVAL;
 }
 EXPORT_SYMBOL_GPL(qrtr_get_service_id);

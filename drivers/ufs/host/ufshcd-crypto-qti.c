@@ -2,7 +2,6 @@
 /*
  * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
-
 #include <ufs/ufshcd.h>
 #include <ufs/ufshcd-crypto.h>
 #include <linux/crypto-qti-common.h>
