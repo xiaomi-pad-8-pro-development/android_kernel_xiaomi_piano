@@ -574,7 +574,7 @@ static int adsp_pd_protocol_probe(struct platform_device *pdev)
 	mca_event_block_notify_register(MCA_EVENT_TYPE_CHARGER_CONNECT,
 					&pd->event_nb);
 	pd->abnormal_nb.notifier_call = adsp_pd_protocol_abnormal_cb;
-	mca_event_block_notify_register(MCA_EVENT_TYPE_THERMAL_TEMP,
+	mca_event_block_notify_register(MCA_EVENT_CHARGE_STATUS,
 					&pd->abnormal_nb);
 
 	mca_log_err("probe ok\n");
