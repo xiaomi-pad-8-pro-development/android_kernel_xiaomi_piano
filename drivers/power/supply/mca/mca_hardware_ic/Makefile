@@ -1,3 +1,4 @@
 obj-$(CONFIG_XM_POWER_SUPPLY)	+= fuelgauge_ic/
+obj-$(CONFIG_XM_POWER_SUPPLY)	+= charge_pump_ic/
 
-# charge_pump_ic, boost_ic, redriver, subpmic, wireless_ic
+# boost_ic, redriver, subpmic, wireless_ic
