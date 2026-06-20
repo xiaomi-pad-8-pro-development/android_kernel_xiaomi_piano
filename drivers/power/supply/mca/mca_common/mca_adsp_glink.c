@@ -165,7 +165,7 @@ out:
 }
 EXPORT_SYMBOL(mca_adsp_glink_read_prop);
 
-int mca_adsp_glink_register_ops(struct mca_adsp_glink_ops *ops, void *priv)
+int mca_adsp_glink_resister_ops(struct mca_adsp_glink_ops *ops, void *priv)
 {
 	struct mca_adsp_ops_node *n;
 
@@ -178,7 +178,7 @@ int mca_adsp_glink_register_ops(struct mca_adsp_glink_ops *ops, void *priv)
 	list_add(&n->node, &g_mca_adsp_ops_list);
 	return 0;
 }
-EXPORT_SYMBOL(mca_adsp_glink_register_ops);
+EXPORT_SYMBOL(mca_adsp_glink_resister_ops);
 
 static int
 mca_adsp_glink_handle_notification(struct mca_adsp_glink_dev *mca,
@@ -239,7 +239,7 @@ static void mca_adsp_glink_sync_work(struct work_struct *work)
 	}
 }
 
-static void mca_adsp_glink_state_cb(void *priv, enum pmic_glink_state state)
+void mca_adsp_glink_state_cb(void *priv, enum pmic_glink_state state)
 {
 	struct mca_adsp_glink_dev *mca = priv;
 	struct mca_adsp_ops_node *n;
@@ -254,6 +254,7 @@ static void mca_adsp_glink_state_cb(void *priv, enum pmic_glink_state state)
 		}
 	}
 }
+EXPORT_SYMBOL(mca_adsp_glink_state_cb);
 
 static int mca_adsp_glink_probe(struct platform_device *pdev)
 {

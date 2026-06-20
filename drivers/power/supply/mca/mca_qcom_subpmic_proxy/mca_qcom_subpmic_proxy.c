@@ -1269,7 +1269,7 @@ static int qcom_subpmic_probe(struct platform_device *pdev)
 		goto err;
 	}
 
-	rc = mca_adsp_glink_register_ops(&g_qcom_subpmic_glink_cb, sc);
+	rc = mca_adsp_glink_resister_ops(&g_qcom_subpmic_glink_cb, sc);
 	if (rc) {
 		mca_log_err("%s register glink ops fail\n", __func__);
 		goto err;
