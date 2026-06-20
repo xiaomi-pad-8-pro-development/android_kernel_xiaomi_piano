@@ -1711,8 +1711,6 @@ mca_wireless_rev_process_int_change(int value, struct mca_wireless_revchg *info)
 	mca_wireless_reverse_chg_handler(info);
 }
 
-static ATOMIC_NOTIFIER_HEAD(pen_charge_state_notifier);
-
 static void
 mca_wireless_rev_process_hall_change(int value,
 				     struct mca_wireless_revchg *info)
@@ -1758,9 +1756,6 @@ mca_wireless_rev_process_hall_change(int value,
 				WIRELESS_ROLE_MASTER, 0);
 		}
 	}
-
-	atomic_notifier_call_chain(&pen_charge_state_notifier, is_pen_attached,
-				   NULL);
 
 	len = snprintf(event, MCA_EVENT_NOTIFY_SIZE,
 		       "POWER_SUPPLY_PEN_HALL3=%d", pen_hall3_gpio_value);
@@ -2178,18 +2173,6 @@ static int mca_wireless_usbin_rev_disable_voter_cb(struct mca_votable *votable,
 
 	return 0;
 }
-
-int pen_charge_state_notifier_register_client(struct notifier_block *nb)
-{
-	return atomic_notifier_chain_register(&pen_charge_state_notifier, nb);
-}
-EXPORT_SYMBOL(pen_charge_state_notifier_register_client);
-
-int pen_charge_state_notifier_unregister_client(struct notifier_block *nb)
-{
-	return atomic_notifier_chain_unregister(&pen_charge_state_notifier, nb);
-}
-EXPORT_SYMBOL(pen_charge_state_notifier_unregister_client);
 
 static int mca_wireless_rev_shutdown_cb(struct notifier_block *nb,
 					unsigned long code, void *unused)

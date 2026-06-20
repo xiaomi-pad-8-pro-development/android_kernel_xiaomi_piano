@@ -171,6 +171,20 @@ int unregister_hboost_event_notifier(struct notifier_block *nb)
 }
 EXPORT_SYMBOL(unregister_hboost_event_notifier);
 
+static ATOMIC_NOTIFIER_HEAD(pen_charge_state_notifier);
+
+int pen_charge_state_notifier_register_client(struct notifier_block *nb)
+{
+	return atomic_notifier_chain_register(&pen_charge_state_notifier, nb);
+}
+EXPORT_SYMBOL(pen_charge_state_notifier_register_client);
+
+int pen_charge_state_notifier_unregister_client(struct notifier_block *nb)
+{
+	return atomic_notifier_chain_unregister(&pen_charge_state_notifier, nb);
+}
+EXPORT_SYMBOL(pen_charge_state_notifier_unregister_client);
+
 int qti_battery_charger_get_prop(const char *name, int prop_id, int *val)
 {
 	if (!val)
