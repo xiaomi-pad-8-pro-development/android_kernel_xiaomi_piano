@@ -11,3 +11,4 @@ obj-$(CONFIG_XM_POWER_SUPPLY)	+= mca_hwid.o
 obj-$(CONFIG_XM_POWER_SUPPLY)	+= mca_adsp_glink.o
 obj-$(CONFIG_XM_POWER_SUPPLY)	+= mca_charge_interface.o
 obj-$(CONFIG_XM_POWER_SUPPLY)	+= mca_qcom_panel.o
+obj-$(CONFIG_XM_POWER_SUPPLY)	+= mca_qcom_smem.o
