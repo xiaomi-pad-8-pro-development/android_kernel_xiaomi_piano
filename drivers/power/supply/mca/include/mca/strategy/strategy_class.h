@@ -41,6 +41,14 @@ enum mca_strategy_event {
 	MCA_EVENT_BQ_FG_ERROR = 0,
 };
 
+enum adp_icon_type {
+	ADP_ICON_TYPE_NORMAL = 0,
+	ADP_ICON_TYPE_FAST,
+	ADP_ICON_TYPE_FLASH,
+	ADP_ICON_TYPE_SUPER,
+	ADP_ICON_TYPE_TURBO,
+};
+
 typedef enum {
 	REV_EN_BOOST = 0,
 	OTG_EN_BOOST,

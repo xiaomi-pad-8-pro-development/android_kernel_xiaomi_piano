@@ -14,6 +14,11 @@ enum mca_wls_debug_set_fod_cmd {
 	DEBUG_SET_ALL_FOD = 0,
 	DEBUG_SET_ALL_EPP_FOD,
 	DEBUG_SET_ONE_EPP_FOD,
+	DEBUG_SET_FCC,
+	DEBUG_SET_ICL,
+	DEBUG_SET_VOUT,
+	DEBUG_SET_FOD_TYPE,
+	DEBUG_SET_FOD_NONE,
 };
 
 enum mca_wireless_role {
