@@ -40,12 +40,6 @@ platform_class_buckchg_get_ops_data(unsigned int role)
 	return &platform_buckchg_ops_data[role];
 }
 
-bool platform_class_buckchg_is_init_ok(void)
-{
-	return (platform_buckchg_ops_data[MAIN_BUCK_CHARGER].ops != NULL);
-}
-EXPORT_SYMBOL(platform_class_buckchg_is_init_ok);
-
 int platform_class_buckchg_ops_register(unsigned int role, void *data,
 					struct platform_class_buckchg_ops *ops)
 {
@@ -435,18 +429,6 @@ int platform_class_buckchg_ops_set_buck_fsw(unsigned int role, int mv)
 }
 EXPORT_SYMBOL(platform_class_buckchg_ops_set_buck_fsw);
 
-int platform_class_buckchg_set_otg_en(unsigned int role, bool en, int mv)
-{
-	struct platform_class_buckchg_data *temp_data =
-		platform_class_buckchg_get_ops_data(role);
-
-	if (platform_class_buckchg_invalid_ops(temp_data, set_otg_en))
-		return -1;
-
-	return temp_data->ops->set_otg_en(temp_data->data, en, mv);
-}
-EXPORT_SYMBOL(platform_class_buckchg_set_otg_en);
-
 int platform_class_buckchg_ops_set_otg_curr(unsigned int role, int ma)
 {
 	struct platform_class_buckchg_data *temp_data =
@@ -518,18 +500,6 @@ int platform_class_buckchg_ops_adc_enable(unsigned int role, bool en)
 	return temp_data->ops->adc_enable(temp_data->data, en);
 }
 EXPORT_SYMBOL(platform_class_buckchg_ops_adc_enable);
-
-int platform_class_buckchg_ops_get_adc_enable(unsigned int role, bool *en)
-{
-	struct platform_class_buckchg_data *temp_data =
-		platform_class_buckchg_get_ops_data(role);
-
-	if (platform_class_buckchg_invalid_ops(temp_data, get_adc_enable))
-		return -1;
-
-	return temp_data->ops->get_adc_enable(temp_data->data, en);
-}
-EXPORT_SYMBOL(platform_class_buckchg_ops_get_adc_enable);
 
 int platform_class_buckchg_ops_set_prechg_volt(unsigned int role, int mv)
 {
@@ -679,18 +649,6 @@ int platform_class_buckchg_ops_set_qc3_volt(unsigned int role, int mv)
 }
 EXPORT_SYMBOL(platform_class_buckchg_ops_set_qc3_volt);
 
-int platform_class_buckchg_ops_get_real_type(unsigned int role, int *real_type)
-{
-	struct platform_class_buckchg_data *temp_data =
-		platform_class_buckchg_get_ops_data(role);
-
-	if (platform_class_buckchg_invalid_ops(temp_data, get_real_chg_type))
-		return -1;
-
-	return temp_data->ops->get_real_chg_type(temp_data->data, real_type);
-}
-EXPORT_SYMBOL(platform_class_buckchg_ops_get_real_type);
-
 int platform_class_buckchg_ops_get_otg_boost_src(unsigned int role,
 						 int *otg_boost_src)
 {
@@ -835,18 +793,6 @@ int platform_class_buckchg_ops_get_ship_mode(unsigned int role, bool *en)
 	return temp_data->ops->get_ship_mode(temp_data->data, en);
 }
 EXPORT_SYMBOL(platform_class_buckchg_ops_get_ship_mode);
-
-int platform_class_buckchg_ops_set_vac_pd(unsigned int role, bool en)
-{
-	struct platform_class_buckchg_data *temp_data =
-		platform_class_buckchg_get_ops_data(role);
-
-	if (platform_class_buckchg_invalid_ops(temp_data, set_vac_pd))
-		return -1;
-
-	return temp_data->ops->set_vac_pd(temp_data->data, en);
-}
-EXPORT_SYMBOL(platform_class_buckchg_ops_set_vac_pd);
 
 int platform_class_buckchg_ops_set_wls_vdd_flag(unsigned int role, bool en)
 {
@@ -1045,6 +991,78 @@ int platform_class_buckchg_ops_set_eu_model(unsigned int role, bool en)
 	return temp_data->ops->set_eu_model(temp_data->data, en);
 }
 EXPORT_SYMBOL(platform_class_buckchg_ops_set_eu_model);
+
+int platform_class_buckchg_ops_is_init_ok(unsigned int role)
+{
+	struct platform_class_buckchg_data *temp_data =
+		platform_class_buckchg_get_ops_data(role);
+
+	if (platform_class_buckchg_invalid_ops(temp_data, is_init_ok))
+		return -1;
+
+	return temp_data->ops->is_init_ok(temp_data->data);
+}
+EXPORT_SYMBOL(platform_class_buckchg_ops_is_init_ok);
+
+int platform_class_buckchg_ops_set_restart_aicl(unsigned int role, bool en)
+{
+	struct platform_class_buckchg_data *temp_data =
+		platform_class_buckchg_get_ops_data(role);
+
+	if (platform_class_buckchg_invalid_ops(temp_data, set_restart_aicl))
+		return -1;
+
+	return temp_data->ops->set_restart_aicl(temp_data->data, en);
+}
+EXPORT_SYMBOL(platform_class_buckchg_ops_set_restart_aicl);
+
+int platform_class_buckchg_ops_get_pack_ibat(unsigned int role, int *ibat)
+{
+	struct platform_class_buckchg_data *temp_data =
+		platform_class_buckchg_get_ops_data(role);
+
+	if (platform_class_buckchg_invalid_ops(temp_data, get_pack_ibat))
+		return -1;
+
+	return temp_data->ops->get_pack_ibat(temp_data->data, ibat);
+}
+EXPORT_SYMBOL(platform_class_buckchg_ops_get_pack_ibat);
+
+int platform_class_buckchg_ops_get_pack_tbat(unsigned int role, int *tbat)
+{
+	struct platform_class_buckchg_data *temp_data =
+		platform_class_buckchg_get_ops_data(role);
+
+	if (platform_class_buckchg_invalid_ops(temp_data, get_pack_tbat))
+		return -1;
+
+	return temp_data->ops->get_pack_tbat(temp_data->data, tbat);
+}
+EXPORT_SYMBOL(platform_class_buckchg_ops_get_pack_tbat);
+
+int platform_class_buckchg_ops_get_aicl_status(unsigned int role, int *status)
+{
+	struct platform_class_buckchg_data *temp_data =
+		platform_class_buckchg_get_ops_data(role);
+
+	if (platform_class_buckchg_invalid_ops(temp_data, get_aicl_status))
+		return -1;
+
+	return temp_data->ops->get_aicl_status(temp_data->data, status);
+}
+EXPORT_SYMBOL(platform_class_buckchg_ops_get_aicl_status);
+
+int platform_class_buckchg_ops_set_too_hot_limit(unsigned int role, int limit)
+{
+	struct platform_class_buckchg_data *temp_data =
+		platform_class_buckchg_get_ops_data(role);
+
+	if (platform_class_buckchg_invalid_ops(temp_data, set_too_hot_limit))
+		return -1;
+
+	return temp_data->ops->set_too_hot_limit(temp_data->data, limit);
+}
+EXPORT_SYMBOL(platform_class_buckchg_ops_set_too_hot_limit);
 
 static struct platform_driver platform_class_buckchg_driver = {
 	.driver	= {

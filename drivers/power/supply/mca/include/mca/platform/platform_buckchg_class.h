@@ -98,7 +98,6 @@ struct platform_class_buckchg_ops {
 	int (*set_too_hot_limit)(void *data, int);
 };
 
-bool platform_class_buckchg_is_init_ok(void);
 int platform_class_buckchg_ops_register(unsigned int role, void *data,
 					struct platform_class_buckchg_ops *ops);
 int platform_class_buckchg_ops_enable_hvdcp(unsigned int role, int en);
@@ -136,14 +135,12 @@ int platform_class_buckchg_ops_set_input_volt_lmt(unsigned int role, int mv);
 int platform_class_buckchg_ops_set_ichg(unsigned int role, int ma);
 int platform_class_buckchg_ops_set_chg(unsigned int role, bool en);
 int platform_class_buckchg_ops_set_buck_fsw(unsigned int role, int mv);
-int platform_class_buckchg_set_otg_en(unsigned int role, bool en, int mv);
 int platform_class_buckchg_ops_set_otg_curr(unsigned int role, int ma);
 int platform_class_buckchg_ops_set_otg_volt(unsigned int role, int mv);
 int platform_class_buckchg_ops_set_term(unsigned int role, bool en);
 int platform_class_buckchg_ops_set_term_curr(unsigned int role, int ma);
 int platform_class_buckchg_ops_set_term_volt(unsigned int role, int mv);
 int platform_class_buckchg_ops_adc_enable(unsigned int role, bool en);
-int platform_class_buckchg_ops_get_adc_enable(unsigned int role, bool *en);
 int platform_class_buckchg_ops_set_prechg_volt(unsigned int role, int mv);
 int platform_class_buckchg_ops_set_prechg_curr(unsigned int role, int ma);
 int platform_class_buckchg_ops_force_dpdm(unsigned int role, int en);
@@ -158,7 +155,6 @@ int platform_class_buckchg_ops_set_opt_fws(unsigned int role, int mv);
 int platform_class_buckchg_ops_usb_adapter_allow_override(unsigned int role,
 							  bool en);
 int platform_class_buckchg_ops_set_qc3_volt(unsigned int role, int mv);
-int platform_class_buckchg_ops_get_real_type(unsigned int role, int *real_type);
 int platform_class_buckchg_ops_get_otg_boost_src(unsigned int role,
 						 int *otg_boost_src);
 int platform_class_buckchg_ops_get_otg_boost_enable_status(
@@ -176,7 +172,6 @@ int platform_class_buckchg_ops_set_rerun_aicl(unsigned int role, bool en);
 int platform_class_buckchg_ops_is_support_cid(unsigned int role, bool *en);
 int platform_class_buckchg_ops_set_ship_mode(unsigned int role, bool en);
 int platform_class_buckchg_ops_get_ship_mode(unsigned int role, bool *en);
-int platform_class_buckchg_ops_set_vac_pd(unsigned int role, bool en);
 int platform_class_buckchg_ops_set_wls_vdd_flag(unsigned int role, bool en);
 int platform_class_buckchg_ops_get_lpd_enable(unsigned int role, int *lpd_en);
 int platform_class_buckchg_ops_get_lpd_status(unsigned int role,
@@ -198,5 +193,11 @@ int platform_class_buckchg_ops_get_lpd_uart_control(unsigned int role,
 						    int *lpd_uart_control);
 int platform_class_buckchg_ops_get_pack_vbat(unsigned int role, int *pvbat);
 int platform_class_buckchg_ops_set_eu_model(unsigned int role, bool en);
+int platform_class_buckchg_ops_is_init_ok(unsigned int role);
+int platform_class_buckchg_ops_set_restart_aicl(unsigned int role, bool en);
+int platform_class_buckchg_ops_get_pack_ibat(unsigned int role, int *ibat);
+int platform_class_buckchg_ops_get_pack_tbat(unsigned int role, int *tbat);
+int platform_class_buckchg_ops_get_aicl_status(unsigned int role, int *status);
+int platform_class_buckchg_ops_set_too_hot_limit(unsigned int role, int limit);
 
 #endif /* _MCA_PLATFORM_PLATFORM_BUCKCHG_CLASS_H_ */
