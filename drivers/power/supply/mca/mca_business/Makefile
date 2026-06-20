@@ -1,3 +1,4 @@
 obj-$(CONFIG_XM_POWER_SUPPLY)	+= business_battery/
+obj-$(CONFIG_XM_POWER_SUPPLY)	+= business_misc/
 
-#   business_charger/  business_misc/  business_wireless/
+#   business_charger/ business_wireless/
