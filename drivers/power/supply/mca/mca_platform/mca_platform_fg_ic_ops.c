@@ -289,17 +289,6 @@ int platform_fg_ops_set_fastcharge(unsigned int ic_role, bool en)
 }
 EXPORT_SYMBOL(platform_fg_ops_set_fastcharge);
 
-int platform_fg_ops_get_soc_decimal(unsigned int ic_role)
-{
-	struct fuelguage_info *temp_info = platform_get_fg_ic_ops(ic_role);
-
-	if (platform_fg_ops_invalid(temp_info, fg_ic_get_soc_decimal))
-		return -EOPNOTSUPP;
-
-	return temp_info->ops->fg_ic_get_soc_decimal(temp_info->data);
-}
-EXPORT_SYMBOL(platform_fg_ops_get_soc_decimal);
-
 int platform_fg_ops_get_chg_vol(unsigned int ic_role, int *volt)
 {
 	struct fuelguage_info *temp_info = platform_get_fg_ic_ops(ic_role);
@@ -332,17 +321,6 @@ int platform_fg_ops_get_cyclecount(unsigned int ic_role, int *cc)
 	return temp_info->ops->fg_ic_get_cyclecount(temp_info->data, cc);
 }
 EXPORT_SYMBOL(platform_fg_ops_get_cyclecount);
-
-int platform_fg_ops_get_chg_voltage(unsigned int ic_role)
-{
-	struct fuelguage_info *temp_info = platform_get_fg_ic_ops(ic_role);
-
-	if (platform_fg_ops_invalid(temp_info, fg_ic_get_chg_voltage))
-		return -EOPNOTSUPP;
-
-	return temp_info->ops->fg_ic_get_chg_voltage(temp_info->data);
-}
-EXPORT_SYMBOL(platform_fg_ops_get_chg_voltage);
 
 int platform_fg_ops_get_tte(unsigned int ic_role, int *tte)
 {
