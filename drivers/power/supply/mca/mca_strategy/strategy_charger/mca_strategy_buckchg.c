@@ -195,8 +195,6 @@ static void strategy_buckchg_parse_dt(struct strategy_buckchg_dev *info)
 			  &info->ffc_temp_high, ALLOW_FFC_TEMP_HIGH_THR);
 	mca_parse_dts_u32(info->dev->of_node, "pmic_fv_compensation",
 			  &info->pmic_fv_compensation, 0);
-	mca_parse_dts_u32(info->dev->of_node, "mca_wire_use_sc_buck",
-			  &info->use_sc_buck, CHARGE_BATT_USE_SC6601A_BUCK);
 	mca_parse_dts_u32(info->dev->of_node, "support_hw_bc12", &info->hw_bc12,
 			  DEFAULT_SUPPORT_HW_BC12);
 	mca_parse_dts_u32(info->dev->of_node, "vbat_fg_to_pmic_ratio",
@@ -692,24 +690,6 @@ strategy_buckchg_reset_charge_para(struct strategy_buckchg_dev *info)
 		 STATEGY_CHARGE_DISENABLE);
 	mca_vote(info->charge_limit_voter, "full_replug", false, 0);
 	info->csd_flag = false;
-
-	/*xring system abnormal use default ibus and ibat 500mA */
-	if (info->use_sc_buck) {
-		mca_vote(info->chg_enable_voter, "online", true,
-			 STATEGY_CHARGE_ENABLE);
-		mca_vote(info->buck_5v_in_voter, "wire_chg_type", false,
-			 STATEGY_INPUT_DEFAULT_VALUE);
-		mca_vote(info->buck_5v_ich_voter, "wire_chg_type", false,
-			 STATEGY_INPUT_DEFAULT_VALUE);
-		mca_vote(info->buck_9v_in_voter, "wire_chg_type", false,
-			 STATEGY_INPUT_DEFAULT_VALUE);
-		mca_vote(info->input_limit_voter, "icl_limit", false,
-			 STATEGY_INPUT_DEFAULT_VALUE);
-		mca_vote(info->input_limit_voter, "subpmic_hw", true,
-			 MCA_WIRE_CHARGE_DEFAULT_IBUS_CURRENT);
-		mca_vote(info->charge_limit_voter, "subpmic_hw", true,
-			 MCA_WIRE_CHARGE_DEFAULT_IBUS_CURRENT);
-	}
 }
 
 static void strategy_buckchg_stop_charging(struct strategy_buckchg_dev *info)

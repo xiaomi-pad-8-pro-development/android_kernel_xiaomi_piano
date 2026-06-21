@@ -90,8 +90,6 @@
 #define CHARGE_SW_CV_WORK_FAST_INTERVAL 2000
 #define CHARGE_SW_CV_VBAT_ALARM_DELTA 10
 
-//use sc6601a buck remove vbus default ibus and ibat
-#define MCA_WLS_CHARGE_USE_SC6601A_BUCK 0
 #define MCA_WLS_CHARGE_DEFAULT_IBUS_CURRENT 500
 #define MCA_WLS_CHARGE_DEFAULT_IBAT_CURRENT 500
 
@@ -467,7 +465,6 @@ struct strategy_wireless_dev {
 	int batt_overhot;
 	int batt_cold;
 	int head_cnt;
-	int use_sc_buck;
 };
 
 #endif /* __MCA_BASIC_WIRELESS_H__ */

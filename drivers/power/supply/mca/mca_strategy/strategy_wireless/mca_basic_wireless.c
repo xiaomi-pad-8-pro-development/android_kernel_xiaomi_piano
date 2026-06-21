@@ -498,29 +498,6 @@ static void strategy_wireless_fcc_setting(struct strategy_wireless_dev *info,
 }
 
 static void
-strategy_wireless_ibus_limit_setting(struct strategy_wireless_dev *info,
-				     bool en, int mA)
-{
-	mca_log_info("en: %d, ma: %u\n", en, mA);
-
-	if (en)
-		mca_vote(info->input_limit_voter, "subpmic_hw", true, mA);
-	else
-		mca_vote(info->input_limit_voter, "subpmic_hw", false, 0);
-}
-
-static void strategy_wireless_ichg_setting(struct strategy_wireless_dev *info,
-					   bool en, int mA)
-{
-	mca_log_info("en: %d, ma: %u\n", en, mA);
-
-	if (en)
-		mca_vote(info->charge_limit_voter, "subpmic_hw", true, mA);
-	else
-		mca_vote(info->charge_limit_voter, "subpmic_hw", false, 0);
-}
-
-static void
 strategy_wireless_otp_fcc_setting(struct strategy_wireless_dev *info, bool en,
 				  int mA)
 {
@@ -2308,11 +2285,6 @@ static void strategy_wireless_power_good_on(struct strategy_wireless_dev *info)
 	mca_vote(info->chg_enable_voter, "online", true, 1);
 	mca_vote(info->charge_limit_voter, "volt_thermal_limit", false, 0);
 
-	if (info->use_sc_buck) {
-		strategy_wireless_ibus_limit_setting(info, false, 0);
-		strategy_wireless_ichg_setting(info, false, 0);
-	}
-
 	strategy_wireless_icl_setting(info, true, 0);
 	schedule_delayed_work(&info->monitor_work, msecs_to_jiffies(150));
 	schedule_delayed_work(&info->trans_data_work, msecs_to_jiffies(0));
@@ -2360,16 +2332,7 @@ strategy_wireless_reset_charge_para(struct strategy_wireless_dev *info)
 	memset(&info->proc_data, 0, sizeof(info->proc_data));
 	memset(&info->wls_node, 0, sizeof(info->wls_node));
 
-	if (info->use_sc_buck) {
-		mca_vote(info->chg_enable_voter, "online", true, 1);
-		strategy_wireless_ibus_limit_setting(
-			info, true, MCA_WLS_CHARGE_DEFAULT_IBUS_CURRENT);
-		strategy_wireless_ichg_setting(
-			info, true, MCA_WLS_CHARGE_DEFAULT_IBAT_CURRENT);
-	} else {
-		mca_vote(info->chg_enable_voter, "online", true, 0);
-	}
-
+	mca_vote(info->chg_enable_voter, "online", true, 0);
 	mca_vote(info->chg_enable_voter, "vbat_ovp", false, 1);
 	mca_vote(info->input_limit_voter, "thermal_phone", false, 0);
 }
@@ -4102,9 +4065,6 @@ static int strategy_wireless_parse_dt(struct strategy_wireless_dev *info)
 	(void)mca_parse_dts_u32(node, "support-hall", &info->support_hall, 0);
 	(void)mca_parse_dts_u32(node, "pmic_fv_compensation",
 				&info->pmic_fv_compensation, 0);
-	(void)mca_parse_dts_u32(node, "mca_wireless_use_sc_buck",
-				&info->use_sc_buck,
-				MCA_WLS_CHARGE_USE_SC6601A_BUCK);
 	ret = mca_parse_dts_u32_array(node, "rx_max_iout", idata, CHG_MODE_MAX);
 	if (ret) {
 		info->rx_max_iout[CHG_MODE_DIV2] =
