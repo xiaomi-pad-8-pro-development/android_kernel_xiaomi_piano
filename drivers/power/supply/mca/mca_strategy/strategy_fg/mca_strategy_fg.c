@@ -150,10 +150,20 @@ static struct mca_sysfs_attr_info strategy_fg_auth_sysfs_field_tbl[] = {
 			  dod_count),
 	mca_sysfs_attr_rw(strategy_fg_auth_sysfs, 0664, FG_PROP_ENABLE_ROLLBACK,
 			  enable_rollback),
-	mca_sysfs_attr_rw(strategy_fg_auth_sysfs, 0664, FG_PROP_AUDIO_STATE,
-			  audio_state),
 	mca_sysfs_attr_ro(strategy_fg_auth_sysfs, 0440, FG_PROP_SOH_NEW,
 			  soh_new),
+	mca_sysfs_attr_ro(strategy_fg_auth_sysfs, 0440,
+			  FG_PROP_MASTER_SELF_EQUAL_COUNT,
+			  master_self_equal_count),
+	mca_sysfs_attr_ro(strategy_fg_auth_sysfs, 0440,
+			  FG_PROP_SLAVE_SELF_EQUAL_COUNT,
+			  slave_self_equal_count),
+	mca_sysfs_attr_rw(strategy_fg_auth_sysfs, 0664,
+			  FG_PROP_SELF_EQUAL_MAX_COUNT, self_equal_max_count),
+	mca_sysfs_attr_ro(strategy_fg_auth_sysfs, 0440, FG_PROP_PACK_TEMP,
+			  pack_tbat),
+	mca_sysfs_attr_ro(strategy_fg_auth_sysfs, 0440, FG_PROP_RAW_SOC,
+			  raw_soc),
 	mca_sysfs_attr_ro(strategy_fg_auth_sysfs, 0440, FG_PROP_CALC_RVALUE,
 			  calc_rvalue),
 };
@@ -297,10 +307,11 @@ static ssize_t strategy_fg_auth_sysfs_store(struct device *dev,
 		mca_log_err("set enable_rollback: %d\n", val);
 		info->enable_rollback = !!val;
 		break;
-	case FG_PROP_AUDIO_STATE:
+	case FG_PROP_SELF_EQUAL_MAX_COUNT:
 		if (kstrtoint(buf, 10, &val))
 			return -EINVAL;
-		info->audio_state = val;
+		mca_log_err("set self_equal_count_max: %d\n", val);
+		info->self_equal_max_count = val;
 		break;
 	default:
 		break;
@@ -367,17 +378,15 @@ static ssize_t strategy_fg_auth_sysfs_show(struct device *dev,
 		count = scnprintf(buf, PAGE_SIZE, "%d\n", info->fake_temp);
 		break;
 	case FG_PROP_BATTERY_NUM:
-		if (info->cfg.fg_type == MCA_FG_TYPE_PARALLEL)
-			count = scnprintf(buf, PAGE_SIZE, "%d\n",
-					  info->cfg.fg_type);
-		else
-			count = scnprintf(buf, PAGE_SIZE, "%d\n", 0);
+		count = scnprintf(
+			buf, PAGE_SIZE, "%d\n",
+			info->cfg.fg_type == MCA_FG_TYPE_PARALLEL ? 1 : 0);
 		break;
 	case FG_PROP_UPDATE_PERIOD:
 		count = scnprintf(buf, PAGE_SIZE, "%d\n", info->update_period);
 		break;
 	case FG_PROP_PACK_VOLTAGE:
-		platform_class_buckchg_ops_get_batt_volt(MAIN_BUCK_CHARGER,
+		platform_class_buckchg_ops_get_pack_vbat(MAIN_BUCK_CHARGER,
 							 &val);
 		count = scnprintf(buf, PAGE_SIZE, "%d\n", val);
 		break;
@@ -389,13 +398,29 @@ static ssize_t strategy_fg_auth_sysfs_show(struct device *dev,
 		count = scnprintf(buf, PAGE_SIZE, "%d\n",
 				  info->enable_rollback);
 		break;
-	case FG_PROP_AUDIO_STATE:
-		count = scnprintf(buf, PAGE_SIZE, "%d\n",
-				  info->audio_state);
-		break;
 	case FG_PROP_SOH_NEW:
 		strategy_fg_get_soh_new(info, &val);
 		count = scnprintf(buf, PAGE_SIZE, "%d\n", val);
+		break;
+	case FG_PROP_MASTER_SELF_EQUAL_COUNT:
+		count = scnprintf(buf, PAGE_SIZE, "%d\n",
+				  info->self_equal_count[FG_IC_MASTER]);
+		break;
+	case FG_PROP_SLAVE_SELF_EQUAL_COUNT:
+		count = scnprintf(buf, PAGE_SIZE, "%d\n",
+				  info->self_equal_count[FG_IC_SLAVE]);
+		break;
+	case FG_PROP_SELF_EQUAL_MAX_COUNT:
+		count = scnprintf(buf, PAGE_SIZE, "%d\n",
+				  info->self_equal_max_count);
+		break;
+	case FG_PROP_PACK_TEMP:
+		platform_class_buckchg_ops_get_pack_tbat(MAIN_BUCK_CHARGER,
+							 &val);
+		count = scnprintf(buf, PAGE_SIZE, "%d\n", val);
+		break;
+	case FG_PROP_RAW_SOC:
+		count = scnprintf(buf, PAGE_SIZE, "%d\n", info->batt_raw_soc);
 		break;
 	case FG_PROP_CALC_RVALUE:
 		rvalue = strategy_fg_get_calc_rvalue(info);

@@ -222,7 +222,6 @@ struct strategy_fg {
 	struct power_supply *batt_psy;
 	bool fast_charge;
 	bool screen_status;
-	int audio_state;
 	int dod_count;
 	int vcutoff_fw;
 	int vcutoff_shutdown_delay;
@@ -268,6 +267,7 @@ struct strategy_fg {
 	bool ffc_continue_charge;
 	bool self_equal_flag[FG_IC_MAX];
 	bool self_equal_count[FG_IC_MAX];
+	int self_equal_max_count;
 };
 
 enum fg_auth_attr_list {
@@ -286,8 +286,12 @@ enum fg_auth_attr_list {
 	FG_PROP_PACK_VOLTAGE,
 	FG_PROP_DOD_COUNT,
 	FG_PROP_ENABLE_ROLLBACK,
-	FG_PROP_AUDIO_STATE,
 	FG_PROP_SOH_NEW,
+	FG_PROP_MASTER_SELF_EQUAL_COUNT,
+	FG_PROP_SLAVE_SELF_EQUAL_COUNT,
+	FG_PROP_SELF_EQUAL_MAX_COUNT,
+	FG_PROP_PACK_TEMP,
+	FG_PROP_RAW_SOC,
 	FG_PROP_CALC_RVALUE,
 };
 
