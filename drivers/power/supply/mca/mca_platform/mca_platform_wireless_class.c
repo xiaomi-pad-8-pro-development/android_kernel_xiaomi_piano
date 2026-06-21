@@ -853,21 +853,6 @@ int platform_class_wireless_notify_cp_status(unsigned int role, int status)
 }
 EXPORT_SYMBOL(platform_class_wireless_notify_cp_status);
 
-int platform_class_wireless_set_external_boost_enable(unsigned int role,
-						      bool enable)
-{
-	struct platform_wireless_class_ops_data *temp_data =
-		platform_wireless_class_get_ic_ops(role);
-
-	if (platform_wireless_ops_invalid(temp_data,
-					  wls_set_external_boost_enable))
-		return -EOPNOTSUPP;
-
-	return temp_data->ops->wls_set_external_boost_enable(enable,
-							     temp_data->data);
-}
-EXPORT_SYMBOL(platform_class_wireless_set_external_boost_enable);
-
 int platform_class_wireless_get_tx_vout(unsigned int role, int *vout)
 {
 	struct platform_wireless_class_ops_data *temp_data =

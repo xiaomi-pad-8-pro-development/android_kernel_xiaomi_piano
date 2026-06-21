@@ -193,8 +193,6 @@ int platform_class_wireless_enable_vsys_ctrl(unsigned int role, bool enable);
 int platform_class_wireless_get_trx_isense(unsigned int role, int *isense);
 int platform_class_wireless_get_trx_vrect(unsigned int role, int *vrect);
 int platform_class_wireless_notify_cp_status(unsigned int role, int status);
-int platform_class_wireless_set_external_boost_enable(unsigned int role,
-						      bool enable);
 int platform_class_wireless_get_tx_vout(unsigned int role, int *vout);
 int platform_class_wireless_get_tx_iout(unsigned int role, int *iout);
 int platform_class_wireless_get_tx_tdie(unsigned int role, int *temp);

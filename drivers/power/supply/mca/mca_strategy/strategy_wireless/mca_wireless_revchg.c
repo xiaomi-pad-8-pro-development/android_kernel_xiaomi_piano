@@ -566,40 +566,6 @@ static int mca_wireless_rev_charger_boost_config(int enable)
 	return ret;
 }
 
-static int mca_wireless_rev_external_boost_config(int enable)
-{
-	int ret = 0;
-	int retry_cnt = 0;
-	struct mca_wireless_revchg *info = g_wls_rev_info;
-
-	if (!info)
-		return -1;
-
-	if (enable) {
-		ret |= platform_class_wireless_set_external_boost_enable(
-			WIRELESS_ROLE_MASTER, true);
-		msleep(20);
-		while (retry_cnt < 3) {
-			ret = platform_class_wireless_check_i2c_is_ok(
-				WIRELESS_ROLE_MASTER);
-			if (!ret)
-				break;
-			msleep(20);
-			mca_log_err("trx i2c check fail!");
-			++retry_cnt;
-		}
-	} else {
-		ret |= platform_class_wireless_set_external_boost_enable(
-			WIRELESS_ROLE_MASTER, false);
-		msleep(100);
-		ret |= platform_class_cp_enable_ovpgate(CP_ROLE_MASTER, true);
-		mca_log_err("enable ovpgate!!!");
-	}
-
-	mca_log_err("set reverse boost done!!!,ret = %d", ret);
-	return ret;
-}
-
 static int mca_wireless_rev_firmware_update_boost_config(int enable)
 {
 	int ret = 0;
@@ -691,15 +657,11 @@ static int mca_wireless_rev_charge_config(int enable)
 		return -1;
 
 	if (info->proc_data.wls_sleep_fw_update) {
-		if (info->rev_boost_default == PMIC_REV_BOOST) {
+			if (info->rev_boost_default == PMIC_REV_BOOST ||
+		    	info->rev_boost_default == EXTERNAL_BOOST) {
 			ret = mca_wireless_rev_firmware_update_boost_config(
 				enable);
 			mca_log_err("fw update start boost config!!!");
-			return ret;
-		} else if (info->rev_boost_default == EXTERNAL_BOOST) {
-			ret = mca_wireless_rev_external_boost_config(enable);
-			mca_log_info(
-				"fw update start external boost config!!!");
 			return ret;
 		}
 	}
@@ -707,12 +669,10 @@ static int mca_wireless_rev_charge_config(int enable)
 	switch (info->rev_boost_src) {
 	case PMIC_REV_BOOST:
 	case PMIC_HBOOST:
+	case EXTERNAL_BOOST:
 		mca_log_err("start boost config!!!");
 		ret = mca_wireless_rev_charger_boost_config(enable);
 		mca_log_err("end boost config!!!");
-		break;
-	case EXTERNAL_BOOST:
-		ret = mca_wireless_rev_external_boost_config(enable);
 		break;
 	case CHARGER_ADAPTER:
 		ret = mca_wireless_rev_charger_adapter_config(enable);
