@@ -34,6 +34,8 @@
 #include <mca/platform/platform_buckchg_class.h>
 #include <mca/platform/platform_wireless_class.h>
 #include <mca/platform/platform_fg_ic_ops.h>
+#include <mca/platform/platform_loadsw_class.h>
+#include <mca/common/mca_charge_mievent.h>
 #include <mca/common/mca_log.h>
 #include <mca/common/mca_event.h>
 
@@ -99,6 +101,11 @@ static int mca_ibat_mon_get_ibat_ocp_status(struct mca_ibat_ocp_mon_dev *info)
 		if (!usb_online && !wireless_online) {
 			return 0;
 		} else {
+			bool loadsw_present = true;
+			platform_class_loadsw_get_present(LOADSW_ROLE_MASTER, &loadsw_present);
+			if (!loadsw_present)
+				mca_charge_mievent_report(CHARGE_DFX_LOAD_SWITCH_I2C_ERR, NULL, 0);
+
 			ffc_sts = strategy_class_fg_get_fastcharge();
 			if (!ffc_sts)
 				return 0;
