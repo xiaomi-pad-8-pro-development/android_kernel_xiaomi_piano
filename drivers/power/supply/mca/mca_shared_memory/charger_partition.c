@@ -459,6 +459,15 @@ int charger_partition_write_remove_temp_limit(int val)
 }
 EXPORT_SYMBOL(charger_partition_write_remove_temp_limit);
 
+int charger_partition_read_remove_temp_limit(int *val)
+{
+	charger_partition_info_1 info_1 = { 0 };
+
+	(void)charger_partition_read_info_1(&info_1);
+	*val = info_1.remove_temp_limit;
+	return 0;
+}
+
 int charger_partition_read_memory_test(int *val)
 {
 	charger_partition_info_1 info_1 = { 0 };
@@ -570,8 +579,6 @@ static ssize_t charger_partition_sysfs_show(struct device *dev,
 			return -1;
 		}
 		val = info_1->test;
-		mca_log_debug("ret: %d, info_1->test: %u, val: %u\n", ret,
-			      info_1->test, val);
 
 		ret = charger_partition_dealloc(
 			CHARGER_PARTITION_HOST_KERNEL, CHARGER_PARTITION_INFO_1,
@@ -607,8 +614,6 @@ static ssize_t charger_partition_sysfs_show(struct device *dev,
 			return -1;
 		}
 		val = info_1->power_off_mode;
-		mca_log_debug("ret: %d, info_1->power_off_mode: %u, val: %u\n",
-			      ret, info_1->power_off_mode, val);
 
 		ret = charger_partition_dealloc(
 			CHARGER_PARTITION_HOST_KERNEL, CHARGER_PARTITION_INFO_1,
@@ -645,9 +650,6 @@ static ssize_t charger_partition_sysfs_show(struct device *dev,
 			return -1;
 		}
 		val = info_2->eu_mode;
-		mca_log_debug(
-			"[ChgPartition] ret: %d, info_2->eu_mode: %u, val: %u\n",
-			ret, info_2->eu_mode, val);
 
 		ret = charger_partition_dealloc(
 			CHARGER_PARTITION_HOST_KERNEL, CHARGER_PARTITION_INFO_2,
@@ -715,8 +717,6 @@ static ssize_t charger_partition_sysfs_store(struct device *dev,
 			}
 			return -1;
 		}
-		mca_log_debug("ret: %d, info_1_a.test: %u\n", ret,
-			      info_1_a.test);
 
 		ret = charger_partition_dealloc(
 			CHARGER_PARTITION_HOST_KERNEL, CHARGER_PARTITION_INFO_1,
@@ -756,8 +756,6 @@ static ssize_t charger_partition_sysfs_store(struct device *dev,
 			}
 			return -1;
 		}
-		mca_log_debug("ret: %d, info_1_b.power_off_mode: %u\n", ret,
-			      info_1_b.power_off_mode);
 
 		ret = charger_partition_dealloc(
 			CHARGER_PARTITION_HOST_KERNEL, CHARGER_PARTITION_INFO_1,
@@ -795,8 +793,6 @@ static ssize_t charger_partition_sysfs_store(struct device *dev,
 			}
 			return -1;
 		}
-		mca_log_debug("ret: %d, info_2.eu_mode: %u\n", ret,
-			      info_2.eu_mode);
 
 		ret = charger_partition_dealloc(
 			CHARGER_PARTITION_HOST_KERNEL, CHARGER_PARTITION_INFO_2,
@@ -952,7 +948,7 @@ int check_charger_partition_header(void)
 	return ret;
 }
 
-int get_charger_partition_info_2(void)
+static int charger_partition_get_info_2(void)
 {
 	int ret = 0;
 	charger_partition_info_2 *info_2 = NULL;
@@ -1004,7 +1000,7 @@ int get_charger_partition_info_2(void)
 	return 0;
 }
 
-int get_charger_partition_info_1(void)
+static int charger_partition_get_info_1(void)
 {
 	int ret = 0;
 	charger_partition_info_1 *info_1 = NULL;
@@ -1045,7 +1041,7 @@ int get_charger_partition_info_1(void)
 	return 0;
 }
 
-int set_charger_partition_info_1(void)
+static int charger_partition_set_info_1(void)
 {
 	int ret = 0;
 	charger_partition_info_1 info_1 = { .power_off_mode = 2,
@@ -1086,6 +1082,27 @@ int set_charger_partition_info_1(void)
 	return 0;
 }
 
+static void charger_partition_prepare(void)
+{
+	charger_partition_info_1 info_1 = { 0 };
+
+	charger_partition_get_info_1();
+	charger_partition_set_info_1();
+	charger_partition_get_info_1();
+
+	(void)charger_partition_read_info_1(&info_1);
+	if (info_1.double85)
+		mca_event_block_notify(MCA_EVENT_TYPE_SUBPMIC_INFO, MCA_EVENT_DEBUG_CTRL_DOUBLE85, &info_1.double85);
+	if (info_1.remove_temp_limit)
+		mca_event_block_notify(MCA_EVENT_TYPE_SUBPMIC_INFO, MCA_EVENT_DEBUG_CTRL_REMOVE_TEMP_LIMIT, &info_1.remove_temp_limit);
+	if (info_1.memory_test)
+		mca_event_block_notify(MCA_EVENT_TYPE_SUBPMIC_INFO, MCA_EVENT_DEBUG_CTRL_MEMORY_TEST, &info_1.memory_test);
+	if (info_1.soc_limit)
+		mca_event_block_notify(MCA_EVENT_TYPE_SUBPMIC_INFO, MCA_EVENT_DEBUG_CTRL_SOC_LIMIT, &info_1.soc_limit);
+
+	charger_partition_get_info_2();
+}
+
 static void charger_partition_work(struct work_struct *work)
 {
 	int lun = 0;
@@ -1115,16 +1132,13 @@ static void charger_partition_work(struct work_struct *work)
 			charger_partition->is_charger_partition_rdy = true;
 			/*get info_2: is_eu_model*/
 			if (charger_partition->not_notify_module) {
-				get_charger_partition_info_2();
+				charger_partition_get_info_2();
 				charger_partition->not_notify_module = false;
 				charger_partition->is_charger_partition_rdy =
 					false;
 			} else {
-				/*reset info_1: power_off_mode and zero_speed_mode*/
-				get_charger_partition_info_1();
-				set_charger_partition_info_1();
-				get_charger_partition_info_1();
-				get_charger_partition_info_2();
+				/*reset info_1 + publish debug-control flags*/
+				charger_partition_prepare();
 			}
 			break;
 		}
@@ -1150,7 +1164,7 @@ static void charger_partition_work(struct work_struct *work)
 					/*get info_2: is_eu_model*/
 					if (charger_partition
 						    ->not_notify_module) {
-						get_charger_partition_info_2();
+						charger_partition_get_info_2();
 						charger_partition
 							->not_notify_module =
 							false;
@@ -1159,10 +1173,10 @@ static void charger_partition_work(struct work_struct *work)
 							false;
 					} else {
 						/*reset info_1: power_off_mode and zero_speed_mode*/
-						get_charger_partition_info_1();
-						set_charger_partition_info_1();
-						get_charger_partition_info_1();
-						get_charger_partition_info_2();
+						charger_partition_get_info_1();
+						charger_partition_set_info_1();
+						charger_partition_get_info_1();
+						charger_partition_get_info_2();
 					}
 				}
 			}
