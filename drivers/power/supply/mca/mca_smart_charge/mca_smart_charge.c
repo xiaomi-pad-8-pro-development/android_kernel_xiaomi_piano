@@ -1321,10 +1321,8 @@ static int smart_charge_file_close(struct inode *inode, struct file *filp)
 		return -EINVAL;
 	}
 
-	mutex_lock(&info->data_lock);
 	if (info && info->mmap_addr)
 		smart_charge_handle_mmap_data(info);
-	mutex_unlock(&info->data_lock);
 	mca_log_err("release memery succ\n");
 
 	return 0;
@@ -1502,7 +1500,6 @@ static int smart_charge_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
-	mutex_init(&info->data_lock);
 	info->dev = &pdev->dev;
 	platform_set_drvdata(pdev, info);
 	global_smartchg_info = info;
@@ -1593,7 +1590,6 @@ static int smart_charge_remove(struct platform_device *pdev)
 
 	unregister_chrdev_region(info->dev_num, 1);
 	cdev_del(&info->pri_dev);
-	mutex_destroy(&info->data_lock);
 	device_destroy(info->smart_charge_class, info->dev_num);
 	class_destroy(info->smart_charge_class);
 	smart_charge_sysfs_remove_group(&pdev->dev);

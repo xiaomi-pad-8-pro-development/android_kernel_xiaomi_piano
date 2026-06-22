@@ -201,7 +201,6 @@ struct smart_charge_info {
 	int night_enable_rsoc;
 	union SMART_CHG_MIEVENT ignore_upload;
 	size_t mmap_size;
-	struct mutex data_lock;
 };
 
 enum smartchg_attr_list {
