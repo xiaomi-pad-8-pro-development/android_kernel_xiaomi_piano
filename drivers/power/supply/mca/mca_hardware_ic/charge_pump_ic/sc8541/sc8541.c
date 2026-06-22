@@ -397,7 +397,7 @@ static void sc8541_dump_important_regs(struct sc8541_device *sc)
 	}
 }
 
-static void sc8541_irq_work(struct work_struct *work)
+static void sc8541_irq_handler(struct work_struct *work)
 {
 	struct sc8541_device *sc = container_of(to_delayed_work(work),
 						struct sc8541_device, irq_work);
@@ -470,32 +470,32 @@ static int ops_cp_get_present(bool *present, void *data)
 	return 0;
 }
 
-static int ops_cp_get_battery_voltage(int *val, void *data)
+static int ops_cp_get_vbatt(int *val, void *data)
 {
 	return sc8541_get_adc_data(data, SC8541_ADC_VBAT, (u32 *)val);
 }
 
-static int ops_cp_get_battery_current(int *val, void *data)
+static int ops_cp_get_ibatt(int *val, void *data)
 {
 	return sc8541_get_adc_data(data, SC8541_ADC_IBAT, (u32 *)val);
 }
 
-static int ops_cp_get_battery_temperature(int *val, void *data)
+static int ops_cp_get_battery_temmperature(int *val, void *data)
 {
 	return sc8541_get_adc_data(data, SC8541_ADC_TBAT, (u32 *)val);
 }
 
-static int ops_cp_get_bus_voltage(int *val, void *data)
+static int ops_cp_get_vbus(int *val, void *data)
 {
 	return sc8541_get_adc_data(data, SC8541_ADC_VBUS, (u32 *)val);
 }
 
-static int ops_cp_get_bus_current(int *val, void *data)
+static int ops_cp_get_ibus(int *val, void *data)
 {
 	return sc8541_get_adc_data(data, SC8541_ADC_IBUS, (u32 *)val);
 }
 
-static int ops_cp_get_usb_voltage(int *val, void *data)
+static int ops_cp_get_vusb(int *val, void *data)
 {
 	return sc8541_get_adc_data(data, SC8541_ADC_VUSB, (u32 *)val);
 }
@@ -627,7 +627,7 @@ static int ops_cp_get_chip_vendor(int *vendor, void *data)
 	return 0;
 }
 
-static int ops_cp_enable_acdrv_manual(bool en, void *data)
+static int ops_enable_acdrv_manual(bool en, void *data)
 {
 	struct sc8541_device *sc = data;
 	int ret;
@@ -704,12 +704,12 @@ static struct platform_class_cp_ops sc8541_chg_ops = {
 	.cp_set_enable = ops_cp_enable_charge,
 	.cp_get_enabled = ops_cp_get_charge_enable,
 	.cp_get_present = ops_cp_get_present,
-	.cp_get_battery_voltage = ops_cp_get_battery_voltage,
-	.cp_get_battery_current = ops_cp_get_battery_current,
-	.cp_get_battery_temperature = ops_cp_get_battery_temperature,
-	.cp_get_bus_voltage = ops_cp_get_bus_voltage,
-	.cp_get_bus_current = ops_cp_get_bus_current,
-	.cp_get_usb_voltage = ops_cp_get_usb_voltage,
+	.cp_get_battery_voltage = ops_cp_get_vbatt,
+	.cp_get_battery_current = ops_cp_get_ibatt,
+	.cp_get_battery_temperature = ops_cp_get_battery_temmperature,
+	.cp_get_bus_voltage = ops_cp_get_vbus,
+	.cp_get_bus_current = ops_cp_get_ibus,
+	.cp_get_usb_voltage = ops_cp_get_vusb,
 	.cp_get_tdie = ops_cp_get_tdie,
 	.cp_set_mode = ops_cp_set_mode,
 	.cp_get_mode = ops_cp_get_mode,
@@ -718,7 +718,7 @@ static struct platform_class_cp_ops sc8541_chg_ops = {
 	.cp_get_bypass_support = ops_cp_get_bypass_support,
 	.cp_dump_register = ops_cp_dump_register,
 	.cp_get_chip_vendor = ops_cp_get_chip_vendor,
-	.cp_enable_acdrv_manual = ops_cp_enable_acdrv_manual,
+	.cp_enable_acdrv_manual = ops_enable_acdrv_manual,
 	.cp_enable_ovpgate = ops_cp_enable_ovpgate,
 	.cp_enable_ovpgate_with_check = ops_cp_enable_ovpgate_with_check,
 	.cp_get_ovpgate_status = ops_cp_get_ovpgate_status,
@@ -981,7 +981,7 @@ static int sc8541_probe(struct i2c_client *client)
 
 	sc->chip_vendor = 0;
 	sc->present = true;
-	INIT_DELAYED_WORK(&sc->irq_work, sc8541_irq_work);
+	INIT_DELAYED_WORK(&sc->irq_work, sc8541_irq_handler);
 
 	ret = sc8541_init_device(sc);
 	if (ret) {
