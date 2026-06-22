@@ -225,7 +225,7 @@ static int qcom_subpmic_set_qc_volt(void *data, int volt)
 	int per_step_ms;
 	int rc;
 
-	start = ktime_get();
+	start = ktime_get_boottime();
 	real_type = sc->real_type;
 	settle_thd = (real_type != 8) ? 200 : 20;
 	per_step_ms = (real_type != 8) ? 50 : 5;
@@ -266,7 +266,7 @@ static int qcom_subpmic_set_qc_volt(void *data, int volt)
 		     (vbus <= target || delta >= 0)) ||
 		    (vbus < target && delta < 0))
 			break;
-	} while (ktime_ms_delta(ktime_get(), start) <=
+	} while (ktime_ms_delta(ktime_get_boottime(), start) <=
 		 (s64)(step_count * per_step_ms));
 
 	return 0;
@@ -964,12 +964,11 @@ static void qcom_subpmic_notify_change_work(struct work_struct *work)
 	struct qcom_subpmic *sc =
 		container_of(work, struct qcom_subpmic, notify_change_work);
 	struct qcom_subpmic_notify_entry *entry, *tmp;
-	unsigned long flags;
 
-	spin_lock_irqsave(&sc->notify_lock, flags);
+	spin_lock(&sc->notify_lock);
 	list_for_each_entry_safe(entry, tmp, &sc->notify_list, node) {
 		list_del(&entry->node);
-		spin_unlock_irqrestore(&sc->notify_lock, flags);
+		spin_unlock(&sc->notify_lock);
 
 		switch (entry->type) {
 		case SUBPMIC_NOTIFY_PLATE_SHOCK:
@@ -1008,9 +1007,9 @@ static void qcom_subpmic_notify_change_work(struct work_struct *work)
 		}
 
 		kfree(entry);
-		spin_lock_irqsave(&sc->notify_lock, flags);
+		spin_lock(&sc->notify_lock);
 	}
-	spin_unlock_irqrestore(&sc->notify_lock, flags);
+	spin_unlock(&sc->notify_lock);
 }
 
 static void qcom_subpmic_glink_down_cb(void *priv)
@@ -1038,7 +1037,6 @@ static void qcom_subpmic_queue_notify(struct qcom_subpmic *sc, int type,
 				      int val)
 {
 	struct qcom_subpmic_notify_entry *entry;
-	unsigned long flags;
 
 	entry = kmalloc(sizeof(*entry), GFP_ATOMIC);
 	if (!entry)
@@ -1050,9 +1048,9 @@ static void qcom_subpmic_queue_notify(struct qcom_subpmic *sc, int type,
 	if (type == SUBPMIC_NOTIFY_ENABLE_BOOST)
 		mca_log_err("recv enable boost notify: %d\n", val);
 
-	spin_lock_irqsave(&sc->notify_lock, flags);
+	spin_lock(&sc->notify_lock);
 	list_add_tail(&entry->node, &sc->notify_list);
-	spin_unlock_irqrestore(&sc->notify_lock, flags);
+	spin_unlock(&sc->notify_lock);
 
 	queue_work(system_wq, &sc->notify_change_work);
 }
@@ -1154,16 +1152,17 @@ static int qcom_subpmic_ship_mode(struct notifier_block *nb,
 	int rc;
 
 	if ((action & ~2UL) == 1 && sc->is_enable_shipmode) {
-		mca_log_info("set adsp shipmode\n");
+		/* shutdown/ship notifier path: stock logs via raw printk here */
+		pr_info("subpmic: set adsp shipmode\n");
 		platform_class_cp_get_chip_vendor(0, &chip_vendor);
-		mca_log_info("cp type: %d\n", chip_vendor);
+		pr_info("subpmic: cp type: %d\n", chip_vendor);
 		if (chip_vendor != 0)
 			platform_class_cp_enable_ovpgate(0, 0);
 
 		rc = mca_adsp_glink_write_prop(SUBPMIC_PROP_SHIP_MODE, &reason,
 					       sizeof(reason));
 		if (rc < 0)
-			mca_log_err("Failed to send ship mode, rc=%d\n", rc);
+			pr_err("subpmic: Failed to send ship mode, rc=%d\n", rc);
 	}
 
 	return NOTIFY_DONE;
@@ -1176,11 +1175,11 @@ static int qcom_subpmic_shutdown_cb(struct notifier_block *nb,
 	int rc;
 
 	if ((action & ~2UL) == 1) {
-		mca_log_info("start adsp shutdown\n");
+		pr_info("subpmic: start adsp shutdown\n");
 		rc = mca_adsp_glink_write_prop(SUBPMIC_PROP_SHUTDOWN, &reason,
 					       sizeof(reason));
 		if (rc < 0)
-			mca_log_err("Failed to send shutdown, rc=%d\n", rc);
+			pr_err("subpmic: Failed to send shutdown, rc=%d\n", rc);
 	}
 
 	return NOTIFY_DONE;
