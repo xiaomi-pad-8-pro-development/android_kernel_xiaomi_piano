@@ -520,8 +520,6 @@ static void mca_log_sysfs_remove_group(struct mca_log_buf_info *info)
 static int __init mca_log_init(void)
 {
 	struct mca_log_buf_info *info = &g_mca_log_info;
-	struct device_node *np;
-	bool log_uninitialized;
 
 	info->log_buff = kzalloc(PAGE_SIZE, GFP_KERNEL);
 	if (!info->log_buff)
@@ -539,24 +537,7 @@ static int __init mca_log_init(void)
 	info->console_level = MCA_LOG_LEVEL_ERROR;
 	info->init_flag = 1;
 	pr_err("charge_boot_mode %d\n", charge_boot_mode);
-
-	np = of_find_node_by_path("/mca_xring_usb");
-	if (!np) {
-		pr_err("Failed to find /mca_xring_usb node.\n");
-		log_uninitialized = false;
-	} else {
-		log_uninitialized =
-			of_property_read_bool(np, "mca_log_not_init");
-	}
-
-	if (log_uninitialized) {
-		pr_info("mca_log_not_init is set.\n");
-		info->info_level_flag = 0;
-	} else {
-		pr_info("mca_log_not_init is not set.\n");
-		info->info_level_flag = 1;
-	}
-	of_node_put(np);
+	info->info_level_flag = 1;
 
 	return 0;
 }
