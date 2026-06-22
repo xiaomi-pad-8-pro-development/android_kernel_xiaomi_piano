@@ -113,10 +113,10 @@ static const char *ut_vendor_suffix_of(int vendor_id)
 	return UT_VENDOR_DEFAULT;
 }
 
-static const char *ut_test_read_param(struct device_node *node, char *key,
-				      size_t keysz, const char *base,
-				      const char *vendor, const char *region,
-				      const char *type)
+static __always_inline const char *
+ut_test_read_param(struct device_node *node, char *key, size_t keysz,
+		   const char *base, const char *vendor, const char *region,
+		   const char *type)
 {
 	const char *val = NULL;
 
