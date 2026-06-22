@@ -44,7 +44,6 @@
 #include <mca/common/mca_sysfs.h>
 #include <mca/strategy/strategy_class.h>
 #include <mca/common/mca_event.h>
-#include <mca/common/mca_parse_dts.h>
 #include "inc/charger_partition.h"
 #include <mca/shared_memory/charger_partition_class.h>
 #include "hwid.h"
@@ -885,6 +884,12 @@ static bool get_charger_partition_info(void)
 		return false;
 	}
 
+	if (!part->bd_meta_info) {
+		mca_log_err("part_num %d has no meta_info, skip\n",
+			    part_number);
+		return false;
+	}
+
 	if (strncmp(part->bd_meta_info->volname, "charger",
 		    sizeof("charger"))) {
 		mca_log_err("[charger] this is not lun0\n");
@@ -1081,26 +1086,13 @@ int set_charger_partition_info_1(void)
 	return 0;
 }
 
-static void mca_charger_partition_parse_dt(void)
-{
-	struct device_node *xm_charger_partition_node =
-		of_find_node_by_name(NULL, "charger_partition");
-
-	if (xm_charger_partition_node) {
-		mca_parse_dts_u32(xm_charger_partition_node, "part_num",
-				  &charger_partition->part_info_part_number, 0);
-		mca_log_err("part_number = %d\n",
-			    charger_partition->part_info_part_number);
-	} else
-		mca_log_err("find part_number failed!\n");
-}
-
 static void charger_partition_work(struct work_struct *work)
 {
 	int lun = 0;
 	static int retry;
 
-	mca_charger_partition_parse_dt();
+	mca_log_err("get hw_country_ver: %u\n", get_hw_country_version());
+	charger_partition->part_info_part_number = 22;
 
 	// 1. find charger partition
 	for (lun = 0; lun < 6; lun++) {
