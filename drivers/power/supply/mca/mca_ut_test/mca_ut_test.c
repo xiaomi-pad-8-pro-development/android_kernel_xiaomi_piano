@@ -113,22 +113,18 @@ static const char *ut_vendor_suffix_of(int vendor_id)
 	return UT_VENDOR_DEFAULT;
 }
 
-static __always_inline const char *
-ut_test_read_param(struct device_node *node, char *key, size_t keysz,
-		   const char *base, const char *vendor, const char *region,
-		   const char *type)
-{
-	const char *val = NULL;
-
-	scnprintf(key, keysz, "%s%s%s%s", base, vendor, region, type);
-	mca_log_info("dts_key: %s\n", key);
-	of_property_read_string(node, key, &val);
-	mca_log_info("%s : %s\n", key, val);
-	if (!val)
-		mca_log_err("read property %s failed!\n", key);
-
-	return val;
-}
+#define ut_test_read_param(node, key, keysz, base, vendor, region, type)  \
+	({                                                                \
+		const char *__val = NULL;                                 \
+		scnprintf((key), (keysz), "%s%s%s%s", (base), (vendor),   \
+			  (region), (type));                              \
+		mca_log_info("dts_key: %s\n", (key));                     \
+		of_property_read_string((node), (key), &__val);           \
+		mca_log_info("%s : %s\n", (key), __val);                  \
+		if (!__val)                                               \
+			mca_log_err("read property %s failed!\n", (key)); \
+		__val;                                                    \
+	})
 
 static int ut_test_append_kv(char **p, bool comma, const char *key,
 			     const char *val)
