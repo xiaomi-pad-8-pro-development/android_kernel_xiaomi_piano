@@ -57,15 +57,24 @@ struct mca_debugfs_attr_data;
 struct mca_debugfs_attr_info {
 	const char *file;
 	umode_t mode;
-	int (*show)(struct mca_debugfs_attr_data *data, char *buf);
-	int (*store)(struct mca_debugfs_attr_data *data, char *buf,
-		     size_t size);
+	int debugfs_attr_name;
+	ssize_t (*show)(void *priv_data, char *buf);
+	ssize_t (*store)(void *priv_data, const char *buf, size_t count);
 };
 
 struct mca_debugfs_attr_data {
 	struct mca_debugfs_attr_info *attr_info;
 	void *private;
 };
+
+#define mca_debugfs_attr(_prefix, _mode, _name, _file) \
+	{                                              \
+		.file = #_file,                        \
+		.mode = (_mode),                       \
+		.debugfs_attr_name = (_name),          \
+		.show = _prefix##_show,                \
+		.store = _prefix##_store,              \
+	}
 
 struct device *mca_sysfs_create_group(const char *cls_name,
 				      const char *dev_name,
