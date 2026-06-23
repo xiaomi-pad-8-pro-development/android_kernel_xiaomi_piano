@@ -27,6 +27,14 @@ module_param_string(project_name, project_name, sizeof(project_name), 0444);
 static uint hwid_value;
 module_param(hwid_value, uint, 0444);
 
+static uint build_adc;
+module_param(build_adc, uint, 0444);
+MODULE_PARM_DESC(build_adc, "xiaomi adc value of build resistance");
+
+static uint project_adc;
+module_param(project_adc, uint, 0444);
+MODULE_PARM_DESC(project_adc, "xiaomi adc value of project resistance");
+
 const char *product_name_get(void)
 {
 	return project_name;
@@ -38,6 +46,18 @@ uint32_t get_hw_version_platform(void)
 	return project;
 }
 EXPORT_SYMBOL(get_hw_version_platform);
+
+uint32_t get_hw_project_adc(void)
+{
+	return project_adc;
+}
+EXPORT_SYMBOL(get_hw_project_adc);
+
+uint32_t get_hw_build_adc(void)
+{
+	return build_adc;
+}
+EXPORT_SYMBOL(get_hw_build_adc);
 
 uint32_t get_hw_id_value(void)
 {

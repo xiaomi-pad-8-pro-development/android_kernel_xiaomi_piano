@@ -34,5 +34,7 @@ uint32_t get_hw_country_version(void);
 uint32_t get_hw_version_major(void);
 uint32_t get_hw_version_minor(void);
 uint32_t get_hw_version_build(void);
+uint32_t get_hw_project_adc(void);
+uint32_t get_hw_build_adc(void);
 
 #endif /* __HWID_H__ */
