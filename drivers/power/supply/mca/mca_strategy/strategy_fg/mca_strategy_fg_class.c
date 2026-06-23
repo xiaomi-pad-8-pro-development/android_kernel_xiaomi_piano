@@ -279,6 +279,15 @@ int strategy_class_fg_dual_is_chip_ok(int index)
 }
 EXPORT_SYMBOL(strategy_class_fg_dual_is_chip_ok);
 
+int strategy_class_fg_ops_get_thermal_temperature(int *temp)
+{
+	if (is_invalid_ops(strategy_fg_get_thermal_temperature))
+		return -1;
+
+	return strategy_fg_class_ops_with_one_para(strategy_fg_get_thermal_temperature, temp);
+}
+EXPORT_SYMBOL(strategy_class_fg_ops_get_thermal_temperature);
+
 static struct platform_driver strategy_fg_class_driver = {
 	.driver	= {
 		.name = "strategy_fg_class",
