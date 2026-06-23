@@ -8,6 +8,7 @@ obj-$(CONFIG_XM_POWER_SUPPLY)	+= mca_log.o
 obj-$(CONFIG_XM_POWER_SUPPLY)	+= mca_workqueue.o
 obj-$(CONFIG_XM_POWER_SUPPLY)	+= mca_charge_mievent.o
 obj-$(CONFIG_XM_POWER_SUPPLY)	+= mca_hwid.o
+obj-$(CONFIG_XM_POWER_SUPPLY)	+= mca_adsp_glink.o
 
 #   mca_charge_interface.o
 #   mca_xring_panel.o
