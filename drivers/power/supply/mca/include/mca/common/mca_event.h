@@ -19,6 +19,13 @@ enum mca_event_type {
 	MCA_EVENT_TYPE_END,
 };
 
+enum mca_event_battery_code {
+	MCA_EVENT_BATTERY_STS_CHANGE = 0,
+	MCA_EVENT_BATTERY_HEALTH_CHANGE,
+	MCA_EVENT_BATTERY_FAKE_POWER,
+	MCA_EVENT_BATTERY_DTPT,
+};
+
 struct mca_event_notify_data {
 	const char *event;
 	int event_len;
