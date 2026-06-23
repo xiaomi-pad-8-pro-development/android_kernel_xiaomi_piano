@@ -90,6 +90,12 @@ struct platform_class_buckchg_ops {
 	int (*get_lpd_uart_control)(void *data, int *);
 	int (*get_pack_vbat)(void *data, int *);
 	int (*set_eu_model)(void *data, bool);
+	int (*is_init_ok)(void *data);
+	int (*set_restart_aicl)(void *data, bool);
+	int (*get_pack_ibat)(void *data, int *);
+	int (*get_pack_tbat)(void *data, int *);
+	int (*get_aicl_status)(void *data, int *);
+	int (*set_too_hot_limit)(void *data, int);
 };
 
 bool platform_class_buckchg_is_init_ok(void);

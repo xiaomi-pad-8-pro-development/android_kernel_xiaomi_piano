@@ -10,3 +10,4 @@ obj-$(CONFIG_XM_POWER_SUPPLY)	+= mca_business/
 obj-$(CONFIG_XM_POWER_SUPPLY)	+= mca_hardware_monitor/
 obj-$(CONFIG_XM_POWER_SUPPLY)	+= mca_smart_charge/
 obj-$(CONFIG_XM_POWER_SUPPLY)	+= mca_hardware_ic/
+obj-$(CONFIG_XM_POWER_SUPPLY)	+= mca_qcom_subpmic_proxy/

@@ -105,6 +105,7 @@ struct platform_class_cp_ops {
 	int (*cp_set_rcp)(bool, void *data);
 	int (*cp_check_iic_ok)(void *data);
 	int (*cp_set_pmid2outuvp_th)(int, void *data);
+	int (*cp_set_revchg)(bool, void *data);
 };
 int platform_class_cp_register_ops(unsigned int role,
 				   struct platform_class_cp_ops *ops,
@@ -112,6 +113,7 @@ int platform_class_cp_register_ops(unsigned int role,
 int platform_class_cp_set_charging_enable(unsigned int role, bool en);
 int platform_class_cp_get_charging_enabled(unsigned int role, bool *en);
 int platform_class_cp_set_present(unsigned int role, bool present);
+int platform_class_cp_set_revchg(unsigned int role, bool en);
 int platform_class_cp_get_vbus_present(unsigned int role, bool *present);
 int platform_class_cp_get_present(unsigned int role, bool *present);
 int platform_class_cp_get_battery_present(unsigned int role, bool *present);
