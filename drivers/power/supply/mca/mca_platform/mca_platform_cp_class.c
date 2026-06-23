@@ -139,6 +139,17 @@ int platform_class_cp_set_present(unsigned int role, bool present)
 }
 EXPORT_SYMBOL(platform_class_cp_set_present);
 
+int platform_class_cp_set_revchg(unsigned int role, bool en)
+{
+	struct platform_cp_class_ops_data *temp_data = platform_cp_class_get_ic_ops(role);
+
+	if (platform_cp_ops_invalid(temp_data, cp_set_revchg))
+		return -1;
+
+	return temp_data->ops->cp_set_revchg(en, temp_data->data);
+}
+EXPORT_SYMBOL(platform_class_cp_set_revchg);
+
 int platform_class_cp_get_vbus_present(unsigned int role, bool *present)
 {
 	struct platform_cp_class_ops_data *temp_data =
