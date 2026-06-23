@@ -393,9 +393,29 @@ static const struct power_supply_desc _batt_psy_desc = {
 	.property_is_writeable = batt_psy_prop_is_writeable,
 };
 
+static int power_supply_read_temp(struct thermal_zone_device *tzd, int *temp)
+{
+	static int last_temp;
+	int t = 0;
+
+	strategy_class_fg_ops_get_thermal_temperature(&t);
+	*temp = t * 100;
+	if (t != last_temp) {
+		last_temp = t;
+		pr_info("batt_thermal temp:%d\n", t);
+	}
+
+	return 0;
+}
+
+static struct thermal_zone_device_ops psy_tzd_ops = {
+	.get_temp = power_supply_read_temp,
+};
+
 static int battery_psy_init(struct batt_psy_info *info)
 {
 	struct power_supply_config batt_cfg = {};
+	struct thermal_zone_params tzp = {};
 	int rc = 0;
 
 	batt_cfg.drv_data = info;
@@ -406,6 +426,9 @@ static int battery_psy_init(struct batt_psy_info *info)
 		mca_log_err("Couldn't register battery power supply\n");
 		return PTR_ERR(info->batt_psy);
 	}
+
+	info->tzd = thermal_tripless_zone_device_register(
+			info->batt_psy->desc->name, info->batt_psy, &psy_tzd_ops, &tzp);
 
 	return rc;
 }
