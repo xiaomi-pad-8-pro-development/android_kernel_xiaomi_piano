@@ -1,5 +1,6 @@
 #include <linux/module.h>
 #include <linux/types.h>
+#include <linux/soc/qcom/qti_pmic_glink.h>
 #include <mca/common/mca_adsp_glink.h>
 
 #ifndef MCA_LOG_TAG
@@ -93,6 +94,39 @@ static void mca_adsp_glink_state_cb(void *priv, enum pmic_glink_state state)
 
 static int mca_adsp_glink_probe(struct platform_device *pdev)
 {
+	struct mca_adsp_glink_dev *mca;
+	struct pmic_glink_client_data client_data = { 0 };
+	int ret;
+
+	mca = devm_kzalloc(&pdev->dev, sizeof(*mca), GFP_KERNEL);
+	if (!mca)
+		return -ENOMEM;
+
+	mca->dev = &pdev->dev;
+	mca->cur_property_id = 0xffffffff;
+	mutex_init(&mca->rw_lock);
+	init_completion(&mca->ack);
+	mca->glink_state = 1;
+	INIT_WORK(&mca->sync_work, mca_adsp_glink_sync_work);
+
+	client_data.name = "mca_adap_glink";
+	client_data.id = MCA_ADSP_GLINK_OWNER;
+	client_data.priv = mca;
+	client_data.msg_cb = mca_adsp_glink_callback;
+	client_data.state_cb = mca_adsp_glink_state_cb;
+
+	mca->client = pmic_glink_register_client(&pdev->dev, &client_data);
+	if (IS_ERR(mca->client)) {
+		ret = PTR_ERR(mca->client);
+		if (ret == -EPROBE_DEFER)
+			return ret;
+		mca_log_err("Error in registering with pmic_glink %d\n", ret);
+		return ret;
+	}
+
+	platform_set_drvdata(pdev, mca);
+	g_mca_adsp_glink = mca;
+	mca_log_err("probe ok\n");
 	return 0;
 }
 
