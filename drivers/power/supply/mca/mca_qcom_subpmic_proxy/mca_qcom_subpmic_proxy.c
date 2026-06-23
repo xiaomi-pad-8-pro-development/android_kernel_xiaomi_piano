@@ -959,7 +959,7 @@ static void qcom_subpmic_notify_change_work(struct work_struct *work)
 
 		switch (entry->type) {
 		case SUBPMIC_NOTIFY_PLATE_SHOCK:
-			mca_event_block_notify(MCA_EVENT_TYPE_SUBPMIC_INFO,
+			mca_event_block_notify(MCA_EVENT_TYPE_TYPEC_PORT_STATUS,
 					       SUBPMIC_RAW_CODE_PLATE_SHOCK,
 					       NULL);
 			break;
@@ -1005,7 +1005,7 @@ static void qcom_subpmic_glink_down_cb(void *priv)
 
 	mca_log_info("glink down\n");
 	sc->glink_down = 1;
-	mca_event_block_notify(MCA_EVENT_TYPE_THERMAL_TEMP,
+	mca_event_block_notify(MCA_EVENT_CHARGE_STATUS,
 			       SUBPMIC_RAW_CODE_GLINK_DOWN, NULL);
 }
 
@@ -1014,7 +1014,7 @@ static void qcom_subpmic_sync_cb(void *priv)
 	struct qcom_subpmic *sc = priv;
 
 	mca_log_info("glink up\n");
-	mca_event_block_notify(MCA_EVENT_TYPE_THERMAL_TEMP,
+	mca_event_block_notify(MCA_EVENT_CHARGE_STATUS,
 			       SUBPMIC_RAW_CODE_GLINK_UP, NULL);
 	queue_delayed_work(system_wq, &sc->update_usb_type_work, 0);
 	queue_delayed_work(system_wq, &sc->sync_cfg_work, 0);
