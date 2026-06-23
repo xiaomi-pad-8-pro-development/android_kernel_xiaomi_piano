@@ -3310,6 +3310,16 @@ int strategy_fg_ops_get_high_temp_vterm(void *data)
 	return fg->cfg.fg_hightemp_vterm;
 }
 
+int strategy_fg_ops_get_pack_vendor_id(void *data, int *vendor_id)
+{
+	struct strategy_fg *fg = (struct strategy_fg *)data;
+
+	if (!fg || !fg->fg_init_flag)
+		return -1;
+
+	return platform_fg_ops_get_pack_vendor(FG_IC_MASTER, vendor_id);
+}
+
 static struct strategy_fg_class_ops g_strategy_fg_ops = {
 	.strategy_fg_is_init_ok = strategy_fg_ops_is_init_ok,
 	.strategy_fg_is_chip_ok = strategy_fg_ops_is_chip_ok,
@@ -3335,6 +3345,7 @@ static struct strategy_fg_class_ops g_strategy_fg_ops = {
 	.strategy_fg_get_fcc = strategy_fg_ops_get_fcc,
 	.strategy_fg_get_health = strategy_fg_ops_get_health,
 	.strategy_fg_get_high_temp_vterm = strategy_fg_ops_get_high_temp_vterm,
+	.strategy_fg_get_pack_vendor_id = strategy_fg_ops_get_pack_vendor_id,
 };
 
 static void delay_reset_full_flag_work(struct work_struct *work)
