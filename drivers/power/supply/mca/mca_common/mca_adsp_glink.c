@@ -1,6 +1,17 @@
 #include <linux/module.h>
-#include <linux/types.h>
+#include <linux/init.h>
+#include <linux/slab.h>
+#include <linux/device.h>
+#include <linux/platform_device.h>
+#include <linux/mutex.h>
+#include <linux/completion.h>
+#include <linux/workqueue.h>
+#include <linux/list.h>
+#include <linux/string.h>
+#include <linux/err.h>
+#include <linux/of_device.h>
 #include <linux/soc/qcom/qti_pmic_glink.h>
+#include <mca/common/mca_log.h>
 #include <mca/common/mca_adsp_glink.h>
 
 #ifndef MCA_LOG_TAG
@@ -14,6 +25,13 @@
 #define MCA_ADSP_GLINK_OPCODE_WRITE 2
 #define MCA_ADSP_PROP_DATA_LEN 256
 #define MCA_ADSP_GLINK_TIMEOUT_MS 250
+
+struct mca_adsp_glink_req_msg {
+	struct pmic_glink_hdr hdr;
+	u32 property_id;
+	u32 seq;
+	u8 data[MCA_ADSP_PROP_DATA_LEN];
+} __packed;
 
 struct mca_adsp_glink_resp_msg {
 	struct pmic_glink_hdr hdr;
@@ -42,23 +60,122 @@ struct mca_adsp_glink_dev {
 	u8 read_buf[MCA_ADSP_PROP_DATA_LEN];
 };
 
+struct mca_adsp_ops_node {
+	struct list_head node;
+	void *priv;
+	struct mca_adsp_glink_ops *ops;
+};
+
 static struct mca_adsp_glink_dev *g_mca_adsp_glink;
 static LIST_HEAD(g_mca_adsp_ops_list);
 
 int mca_adsp_glink_write_prop(int prop_id, void *value, size_t size)
 {
-	return 0;
+	struct mca_adsp_glink_dev *mca = g_mca_adsp_glink;
+	struct mca_adsp_glink_req_msg msg = { 0 };
+	int ret = -1;
+
+	if (!value || size >= MCA_ADSP_PROP_DATA_LEN || !mca)
+		return -1;
+
+	mutex_lock(&mca->rw_lock);
+	mca->seq++;
+	msg.hdr.owner = MCA_ADSP_GLINK_OWNER;
+	msg.hdr.type = MCA_ADSP_GLINK_MSG_REQ;
+	msg.hdr.opcode = MCA_ADSP_GLINK_OPCODE_WRITE;
+	msg.property_id = prop_id;
+	msg.seq = mca->seq;
+	memcpy(msg.data, value, size);
+
+	if (mca->glink_state == 0) {
+		mca_log_err("glink state is down\n");
+		ret = -ENOTCONN;
+		goto out;
+	}
+
+	reinit_completion(&mca->ack);
+	mca->retcode = 0;
+	mca->cur_property_id = prop_id;
+	ret = pmic_glink_write(mca->client, &msg, sizeof(msg));
+	if (ret == 0) {
+		if (wait_for_completion_timeout(
+			    &mca->ack,
+			    msecs_to_jiffies(MCA_ADSP_GLINK_TIMEOUT_MS)) == 0) {
+			mca_log_err("timed out sending message, prop_id: %d\n",
+				    mca->cur_property_id);
+			ret = -ETIMEDOUT;
+		} else {
+			ret = mca->retcode;
+		}
+		mca->cur_property_id = 0xffffffff;
+	}
+out:
+	mutex_unlock(&mca->rw_lock);
+	return ret;
 }
 EXPORT_SYMBOL(mca_adsp_glink_write_prop);
 
 int mca_adsp_glink_read_prop(int prop_id, void *value, size_t size)
 {
-	return 0;
+	struct mca_adsp_glink_dev *mca = g_mca_adsp_glink;
+	struct mca_adsp_glink_req_msg msg = { 0 };
+	int ret = -1;
+
+	if (!value || size >= MCA_ADSP_PROP_DATA_LEN || !mca)
+		return -1;
+
+	mutex_lock(&mca->rw_lock);
+	mca->seq++;
+	msg.hdr.owner = MCA_ADSP_GLINK_OWNER;
+	msg.hdr.type = MCA_ADSP_GLINK_MSG_REQ;
+	msg.hdr.opcode = MCA_ADSP_GLINK_OPCODE_READ;
+	msg.property_id = prop_id;
+	msg.seq = mca->seq;
+
+	if (mca->glink_state == 0) {
+		mca_log_err("glink state is down\n");
+		ret = -ENOTCONN;
+		goto out;
+	}
+
+	reinit_completion(&mca->ack);
+	mca->retcode = 0;
+	mca->cur_property_id = prop_id;
+	ret = pmic_glink_write(mca->client, &msg, sizeof(msg));
+	if (ret == 0) {
+		if (wait_for_completion_timeout(
+			    &mca->ack,
+			    msecs_to_jiffies(MCA_ADSP_GLINK_TIMEOUT_MS)) == 0) {
+			mca_log_err("timed out sending message, prop_id: %d\n",
+				    mca->cur_property_id);
+			ret = -ETIMEDOUT;
+		} else {
+			ret = mca->retcode;
+			if (ret == 0) {
+				memcpy(value, mca->read_buf, size);
+				memset(mca->read_buf, 0,
+				       MCA_ADSP_PROP_DATA_LEN);
+			}
+		}
+		mca->cur_property_id = 0xffffffff;
+	}
+out:
+	mutex_unlock(&mca->rw_lock);
+	return ret;
 }
 EXPORT_SYMBOL(mca_adsp_glink_read_prop);
 
 int mca_adsp_glink_register_ops(struct mca_adsp_glink_ops *ops, void *priv)
 {
+	struct mca_adsp_ops_node *n;
+
+	n = kzalloc(sizeof(*n), GFP_KERNEL);
+	if (!n)
+		return -ENOMEM;
+
+	n->ops = ops;
+	n->priv = priv;
+	list_add(&n->node, &g_mca_adsp_ops_list);
 	return 0;
 }
 EXPORT_SYMBOL(mca_adsp_glink_register_ops);
@@ -67,6 +184,14 @@ static int
 mca_adsp_glink_handle_notification(struct mca_adsp_glink_dev *mca,
 				   struct mca_adsp_glink_notify_msg *msg)
 {
+	struct mca_adsp_ops_node *n;
+
+	mca_log_info("mca_adsp receive notification %d\n", msg->property_id);
+	list_for_each_entry(n, &g_mca_adsp_ops_list, node) {
+		if (n->ops && n->ops->notification)
+			n->ops->notification(msg->property_id, msg->data,
+					     MCA_ADSP_PROP_DATA_LEN, n->priv);
+	}
 	return 0;
 }
 
@@ -74,22 +199,60 @@ static int mca_adsp_glink_handle_message(struct mca_adsp_glink_dev *mca,
 					 struct mca_adsp_glink_resp_msg *msg,
 					 size_t len)
 {
+	if (len == sizeof(*msg) && msg->retcode == 0) {
+		if (msg->seq != mca->seq) {
+			mca_log_err("invalid seq_num: %d != %d\n", mca->seq,
+				    msg->seq);
+			return 0;
+		}
+		if (msg->hdr.opcode == MCA_ADSP_GLINK_OPCODE_READ)
+			memcpy(mca->read_buf, msg->data,
+			       MCA_ADSP_PROP_DATA_LEN);
+	} else {
+		mca_log_err(
+			"glink retcode error, property_id: %d, retcode: %d, len: %lu %lu\n",
+			msg->property_id, msg->retcode, len, sizeof(*msg));
+		mca->retcode = msg->retcode;
+	}
+	complete(&mca->ack);
 	return 0;
 }
 
 static int mca_adsp_glink_callback(void *priv, void *data, size_t len)
 {
-	return 0;
+	struct mca_adsp_glink_dev *mca = priv;
+	struct pmic_glink_hdr *hdr = data;
+
+	if (hdr->type == MCA_ADSP_GLINK_MSG_NOTIFY)
+		return mca_adsp_glink_handle_notification(mca, data);
+
+	return mca_adsp_glink_handle_message(mca, data, len);
 }
 
 static void mca_adsp_glink_sync_work(struct work_struct *work)
 {
-	return 0;
+	struct mca_adsp_ops_node *n;
+
+	list_for_each_entry(n, &g_mca_adsp_ops_list, node) {
+		if (n->ops && n->ops->glink_state_up)
+			n->ops->glink_state_up(n->priv);
+	}
 }
 
 static void mca_adsp_glink_state_cb(void *priv, enum pmic_glink_state state)
 {
-	return 0;
+	struct mca_adsp_glink_dev *mca = priv;
+	struct mca_adsp_ops_node *n;
+
+	mca->glink_state = state;
+	if (state == PMIC_GLINK_STATE_UP) {
+		queue_work(system_wq, &mca->sync_work);
+	} else {
+		list_for_each_entry(n, &g_mca_adsp_ops_list, node) {
+			if (n->ops && n->ops->glink_state_down)
+				n->ops->glink_state_down(n->priv);
+		}
+	}
 }
 
 static int mca_adsp_glink_probe(struct platform_device *pdev)
