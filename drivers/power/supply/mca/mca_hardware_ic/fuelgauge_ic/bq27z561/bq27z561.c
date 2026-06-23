@@ -63,6 +63,7 @@
 static int fg_convert_bytes_to_volt(struct bq_fg_chip *fg, u8 *bytes);
 static int fg_convert_bytes_to_curr(struct bq_fg_chip *fg, u8 *bytes);
 static int fg_convert_bytes_to_temp(struct bq_fg_chip *fg, u8 *bytes);
+static int fg_convert_bytes_to_original_temp(struct bq_fg_chip *fg, u8 *bytes);
 static int fg_convert_bytes_to_rm(struct bq_fg_chip *fg, u8 *bytes);
 static int fg_convert_bytes_to_fcc(struct bq_fg_chip *fg, u8 *bytes);
 static int fg_convert_bytes_to_cycle_count(struct bq_fg_chip *fg, u8 *bytes);
@@ -70,6 +71,7 @@ static int fg_convert_bytes_to_cycle_count(struct bq_fg_chip *fg, u8 *bytes);
 static int fg_get_raw_soc(struct bq_fg_chip *bq, int *raw_soc);
 static int fg_read_current(struct bq_fg_chip *bq, int *curr);
 static int fg_read_temperature(struct bq_fg_chip *bq, int *temp);
+static int fg_read_original_temperature(struct bq_fg_chip *bq, int *temp);
 static int fg_get_chip_ok(struct bq_fg_chip *bq, int *ok);
 static int fg_get_seal(struct bq_fg_chip *bq, int *value);
 static int fg_update_record_voltage_level(struct bq_fg_chip *bq);
@@ -898,6 +900,26 @@ static int fg_read_temperature(struct bq_fg_chip *bq, int *temp)
 	return 0;
 }
 
+static int fg_read_original_temperature(struct bq_fg_chip *bq, int *temp)
+{
+	int ret;
+	u16 temp_now = 0;
+
+	if (bq->fg_error) {
+		*temp = FG_ERROR_FAKE_TEMP;
+		return 0;
+	}
+
+	ret = fg_read_word(bq, bq->regs[BQ_FG_REG_ORIGINAL_TEMP], &temp_now);
+	if (ret < 0) {
+		mca_log_info("could not read original temperature, ret = %d\n", ret);
+		return ret;
+	}
+
+	*temp = fg_convert_bytes_to_original_temp(bq, (u8 *)&temp_now);
+	return 0;
+}
+
 static int fg_set_temperature(void *data, int value)
 {
 	struct bq_fg_chip *bq = (struct bq_fg_chip *)data;
@@ -981,6 +1003,23 @@ static int fg_convert_bytes_to_temp(struct bq_fg_chip *fg, u8 *bytes)
 
 	fg->batt_temp = temp;
 	return fg->batt_temp;
+}
+
+static int fg_convert_bytes_to_original_temp(struct bq_fg_chip *fg, u8 *bytes)
+{
+	u16 value = BYTES_TO_U16(bytes);
+	int temp = value - 2730;
+
+	if (temp < FG_TEMP_LOW_TH || temp > FG_TEMP_HIGH_TH) {
+		mca_log_err("original temperature out of range: %d\n", temp);
+		temp = fg->original_temp;
+	}
+
+	if (fg->fake_temp != FG_FAKE_TEMP_NONE)
+		temp = fg->fake_temp;
+
+	fg->original_temp = temp;
+	return fg->original_temp;
 }
 
 static int fg_convert_bytes_to_rm(struct bq_fg_chip *fg, u8 *bytes)
@@ -4027,6 +4066,16 @@ static int fg_read_one_temperature(void *data, int *temp)
 	return rc;
 }
 
+static int fg_read_one_original_temperature(void *data, int *temp)
+{
+	struct bq_fg_chip *info = (struct bq_fg_chip *)data;
+	int rc;
+
+	rc = fg_read_original_temperature(info, temp);
+
+	return rc;
+}
+
 static int fg_read_one_status(void *data)
 {
 	struct bq_fg_chip *info = (struct bq_fg_chip *)data;
@@ -5148,6 +5197,7 @@ static struct fuelguage_ic_ops g_bq_fg_ops = {
 	.fg_ic_get_max_cell_volt = fg_get_one_max_cell_volt,
 	.fg_ic_set_temp = fg_set_temperature,
 	.fg_ic_get_temp = fg_read_one_temperature,
+	.fg_ic_get_original_temp = fg_read_one_original_temperature,
 	.fg_ic_get_charge_status = fg_read_one_status,
 	.fg_ic_get_rm = fg_read_one_rm,
 	.fg_ic_get_fastcharge = fg_get_one_fastcharge_mode,

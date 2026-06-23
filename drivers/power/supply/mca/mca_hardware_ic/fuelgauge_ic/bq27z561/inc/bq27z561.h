@@ -137,6 +137,7 @@ enum bq_fg_reg_idx {
 	BQ_FG_REG_CN,		/* Current Now */
 	BQ_FG_REG_AVER_CURRENT,		/* Average Current */
 	BQ_FG_REG_BATT_STATUS,	/* BatteryStatus */
+	BQ_FG_REG_ORIGINAL_TEMP,	/* InternalTemperature (raw die temp) */
 	BQ_FG_REG_TTE,		/* Time to Empty */
 	BQ_FG_REG_TTF,		/* Time to Full */
 	BQ_FG_REG_FCC,		/* Full Charge Capacity */
@@ -185,6 +186,7 @@ static u8 bq27z561_regs[NUM_REGS] = {
 	0x0C,	/* CURRENT NOW */
 	0x14,	/* AVG CURRENT */
 	0x0A,	/* FLAGS */
+	0x1E,	/* InternalTemperature (original/raw die temp) */
 	0x16,	/* Time to empty */
 	0x18,	/* Time to full */
 	0x12,	/* Full charge capacity */
@@ -427,6 +429,7 @@ struct bq_fg_chip {
 	int batt_id;
 	int Qmax_old;
 	int batt_temp;
+	int original_temp;
 	int batt_volt;
 	int batt_curr;
 	int batt_rm;
