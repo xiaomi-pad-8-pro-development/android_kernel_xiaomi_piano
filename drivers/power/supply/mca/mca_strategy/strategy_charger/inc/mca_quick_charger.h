@@ -388,7 +388,6 @@ struct mca_quick_charge_process_data {
 	int temp_max_fv[FG_IC_MAX];
 	int vbat[FG_IC_MAX];
 	int parall_vbat[FG_SITE_MAX];
-	int max_vcell[FG_IC_MAX];
 	int ibat[FG_IC_MAX];
 	int parall_ibat[FG_SITE_MAX];
 	int soc;

@@ -4048,14 +4048,6 @@ static int fg_read_one_volt(void *data, int *volt)
 	return fg_read_volt(info, volt);
 }
 
-
-static int fg_get_one_max_cell_volt(void *data, int *max_vcell)
-{
-	struct bq_fg_chip *info = (struct bq_fg_chip *)data;
-
-	return fg_read_max_cell_volt(info, max_vcell);
-}
-
 static int fg_read_one_temperature(void *data, int *temp)
 {
 	struct bq_fg_chip *info = (struct bq_fg_chip *)data;
@@ -5173,7 +5165,6 @@ static struct fuelguage_ic_ops g_bq_fg_ops = {
 	.fg_ic_get_rsoc = fg_read_one_rsoc,
 	.fg_ic_get_curr = fg_read_one_current,
 	.fg_ic_get_volt = fg_read_one_volt,
-	.fg_ic_get_max_cell_volt = fg_get_one_max_cell_volt,
 	.fg_ic_set_temp = fg_set_temperature,
 	.fg_ic_get_temp = fg_read_one_temperature,
 	.fg_ic_get_original_temp = fg_read_one_original_temperature,

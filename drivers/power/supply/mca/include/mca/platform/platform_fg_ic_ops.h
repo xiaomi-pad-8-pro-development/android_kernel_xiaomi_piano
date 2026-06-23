@@ -118,7 +118,6 @@ struct fuelguage_ic_ops {
 	int (*fg_ic_get_authentic)(void *data, int *);
 	int (*fg_ic_get_error_state)(void *data, bool *);
 	int (*fg_ic_get_volt)(void *data, int *);
-	int (*fg_ic_get_max_cell_volt)(void *data, int *);
 	int (*fg_ic_set_temp)(void *data, int);
 	int (*fg_ic_get_temp)(void *data, int *);
 	int (*fg_ic_set_iterm)(void *data, int);
@@ -178,7 +177,6 @@ int platform_fg_ops_set_authentic(unsigned int ic_role, int value);
 int platform_fg_ops_get_authentic(unsigned int ic_role, int *value);
 int platform_fg_ops_get_error_state(unsigned int ic_role, bool *error);
 int platform_fg_ops_get_volt(unsigned int ic_role, int *volt);
-int platform_fg_ops_get_max_cell_volt(unsigned int ic_role, int *max_volt);
 int platform_fg_ops_set_temp(unsigned int ic_role, int temp);
 int platform_fg_ops_get_temp(unsigned int ic_role, int *temp);
 int platform_fg_ops_set_iterm(unsigned int ic_role, int curr);

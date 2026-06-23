@@ -176,18 +176,6 @@ int platform_fg_ops_get_volt(unsigned int ic_role, int *volt)
 }
 EXPORT_SYMBOL(platform_fg_ops_get_volt);
 
-int platform_fg_ops_get_max_cell_volt(unsigned int ic_role, int *max_volt)
-{
-	struct fuelguage_info *temp_info = platform_get_fg_ic_ops(ic_role);
-
-	if (platform_fg_ops_invalid(temp_info, fg_ic_get_max_cell_volt))
-		return -EOPNOTSUPP;
-
-	return temp_info->ops->fg_ic_get_max_cell_volt(temp_info->data,
-						       max_volt);
-}
-EXPORT_SYMBOL(platform_fg_ops_get_max_cell_volt);
-
 int platform_fg_ops_set_temp(unsigned int ic_role, int temp)
 {
 	struct fuelguage_info *temp_info = platform_get_fg_ic_ops(ic_role);

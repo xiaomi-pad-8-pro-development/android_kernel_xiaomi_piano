@@ -102,8 +102,6 @@ static int mca_quick_charge_update_vbat(struct mca_quick_charge_info *info)
 
 	ret = strategy_class_fg_ops_get_voltage(
 		&info->proc_data.vbat[FG_IC_MASTER]);
-	ret |= platform_fg_ops_get_max_cell_volt(
-		FG_IC_MASTER, &info->proc_data.max_vcell[FG_IC_MASTER]);
 	if (ret)
 		return -1;
 
@@ -2040,28 +2038,16 @@ mca_quick_charge_check_charge_done(struct mca_quick_charge_info *info)
 
 	iterm = (iterm * info->curr_terminate_ratio) / 100;
 
-	/* judge chg termination by vbat or max cell volt based on battery type*/
+	/* judge chg termination by vbat */
 	switch (info->batt_type) {
 	case MCA_BATTERY_TYPE_SINGLE:
 	case MCA_BATTERY_TYPE_PARALLEL:
 	case MCA_BATTERY_TYPE_SERIES:
+	case MCA_BATTERY_TYPE_SINGLE_SERIES:
 		if (info->proc_data.vbat[FG_IC_MASTER] >= vterm &&
 		    info->proc_data.ibat[FG_IC_MASTER] <= iterm)
 			count++;
 		else
-			count = 0;
-		break;
-	case MCA_BATTERY_TYPE_SINGLE_SERIES:
-		if (info->proc_data.max_vcell[FG_IC_MASTER] * 2 >= vterm &&
-		    info->proc_data.ibat[FG_IC_MASTER] <= iterm) {
-			count++;
-			mca_log_debug("v:%d/%d/%d, i:%d/%d, count:%d done:%d\n",
-				      vterm, info->proc_data.vbat[FG_IC_MASTER],
-				      info->proc_data.max_vcell[FG_IC_MASTER] *
-					      2,
-				      iterm, info->proc_data.ibat[FG_IC_MASTER],
-				      count, charging_done);
-		} else
 			count = 0;
 		break;
 	default:
@@ -2102,9 +2088,8 @@ mca_quick_charge_check_charge_done(struct mca_quick_charge_info *info)
 			strategy_class_fg_ops_set_charging_done(true);
 
 		mca_log_err(
-			"quick charge done exit, v:%d/%d/%d, i:%d/%d, count:%d done:%d\n",
-			vterm, info->proc_data.vbat[FG_IC_MASTER],
-			info->proc_data.max_vcell[FG_IC_MASTER], iterm,
+			"quick charge done exit, v:%d/%d, i:%d/%d, count:%d done:%d\n",
+			vterm, info->proc_data.vbat[FG_IC_MASTER], iterm,
 			info->proc_data.ibat[FG_IC_MASTER], count,
 			charging_done);
 		count = 0;
@@ -2512,7 +2497,6 @@ strategy_quickchg_enable_buck_charging(struct mca_quick_charge_info *info,
 static int mca_quick_charge_regulation(struct mca_quick_charge_info *info)
 {
 	int vbat = info->proc_data.vbat[FG_IC_MASTER];
-	int vcell_max = info->proc_data.max_vcell[FG_IC_MASTER];
 	int ibat = info->proc_data.ibat_total;
 	int cur_stage = info->proc_data.cur_stage[FG_IC_MASTER];
 	int cur_min = info->proc_data.cur_volt_para[FG_IC_MASTER]
@@ -2654,9 +2638,9 @@ static int mca_quick_charge_regulation(struct mca_quick_charge_info *info)
 	info->proc_data.cur_adp_cur = info->proc_data.max_adp_curr;
 	platform_class_cp_get_bus_voltage(MCA_QUICK_CHG_CP_MASTER, &vbus_mv);
 	mca_log_err(
-		"cur_stage[%d]: adp_volt: %d/%d, ibat: %d/%d/%d/%d, vbat: %d/%d, vcell_max:%d, ibus: %d/%d, time_diff: %llu/%llu, final_vstep: %d\n",
+		"cur_stage[%d]: adp_volt: %d/%d, ibat: %d/%d/%d/%d, vbat: %d/%d, ibus: %d/%d, time_diff: %llu/%llu, final_vstep: %d\n",
 		cur_stage, info->proc_data.cur_adp_volt, vbus_mv, cur_max,
-		cur_min, ibat, cur_max - ibat, vbat_th, vbat, vcell_max, ibus,
+		cur_min, ibat, cur_max - ibat, vbat_th, vbat, ibus,
 		info->proc_data.ibus_compensation, boost_time_diff_ms,
 		buck_time_diff_ms, final_vstep);
 	ret = mca_quick_charge_req_adp_volt_and_cur(info);

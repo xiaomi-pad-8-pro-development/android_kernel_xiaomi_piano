@@ -1083,12 +1083,8 @@ static int strategy_fg_update_batt_volt(struct strategy_fg *fg)
 
 	switch (fg->cfg.fg_type) {
 	case MCA_FG_TYPE_SINGLE:
-		ret = platform_fg_ops_get_volt(FG_IC_MASTER, &fg->batt_voltage);
-		break;
 	case MCA_FG_TYPE_SINGLE_SERIES:
 		ret = platform_fg_ops_get_volt(FG_IC_MASTER, &fg->batt_voltage);
-		ret |= platform_fg_ops_get_max_cell_volt(FG_IC_MASTER,
-							 &fg->batt_vcell_max);
 		break;
 	case MCA_FG_TYPE_PARALLEL:
 		return strategy_fg_get_parallel_volt(fg);
