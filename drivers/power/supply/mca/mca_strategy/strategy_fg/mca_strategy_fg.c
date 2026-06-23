@@ -53,7 +53,6 @@
 #include <mca/common/mca_hwid.h>
 #include "hwid.h"
 #include <mca/shared_memory/charger_partition_class.h>
-#include "inc/mca_battery_full.h"
 
 #ifndef PROBE_CNT_MAX
 #define PROBE_CNT_MAX 10
@@ -392,7 +391,7 @@ static ssize_t strategy_fg_auth_sysfs_show(struct device *dev,
 		break;
 	case FG_PROP_AUDIO_STATE:
 		count = scnprintf(buf, PAGE_SIZE, "%d\n",
-				  info->cfg.support_full_curr_monitor);
+				  info->audio_state);
 		break;
 	case FG_PROP_SOH_NEW:
 		strategy_fg_get_soh_new(info, &val);
@@ -3038,12 +3037,6 @@ static int strategy_fg_parse_dt(struct strategy_fg *fg)
 		return ret;
 	}
 
-	ret = mca_battery_full_parse_dt(fg);
-	if (ret < 0) {
-		mca_log_err("parse battery full failed %d\n", ret);
-		return ret;
-	}
-
 	ret = strategy_lossless_rechg_parse_dt(fg);
 	if (ret < 0) {
 		mca_log_err("parse lossless recharging failed %d\n", ret);
@@ -3158,10 +3151,6 @@ static int strategy_fg_ops_set_charging_done(void *data, bool charging_done)
 	} else {
 		fg->charging_done = false;
 		fg->en_smooth_full = false;
-
-		if (fg->cfg.support_full_curr_monitor) {
-			mca_battery_full_cancel_curr_monitor_work(fg);
-		}
 	}
 
 	return 0;
@@ -3446,10 +3435,6 @@ static int strategy_fg_process_event(int event, int value, void *data)
 		info->en_smooth_full = false;
 		info->near_vterm = false;
 
-		if (info->cfg.support_full_curr_monitor) {
-			mca_battery_full_cancel_curr_monitor_work(info);
-		}
-
 		mca_log_info("plugout keep_full_flag = %d\n",
 			     info->keep_full_flag);
 		if (info->keep_full_flag)
@@ -3598,10 +3583,6 @@ static int strategy_fg_probe(struct platform_device *pdev)
 	fg->fake_temp = STRATEGY_FG_FAKE_TEMP_NONE;
 	fg->update_period = STRATEGY_FG_UPDATE_PERIOD_NONE;
 	fg->batt_health = POWER_SUPPLY_HEALTH_GOOD;
-
-	if (fg->cfg.support_full_curr_monitor) {
-		mca_battery_full_init(fg);
-	}
 	fg->panel_nb.notifier_call = strategy_fg_panel_notifier_cb;
 	mca_event_block_notify_register(MCA_EVENT_TYPE_PANEL, &fg->panel_nb);
 	fg->thermal_board_nb.notifier_call = strategy_fg_thermal_notifier_cb;
@@ -3668,8 +3649,6 @@ static void strategy_fg_shutdown(struct platform_device *pdev)
 {
 	struct strategy_fg *fg =
 		(struct strategy_fg *)platform_get_drvdata(pdev);
-
-	mca_battery_full_shutdown(fg);
 
 	mca_log_err(
 		"battery shutdown, soc: %d, rsoc: %d, vbat: %d, vbat_mean: %d, empty: %d\n",

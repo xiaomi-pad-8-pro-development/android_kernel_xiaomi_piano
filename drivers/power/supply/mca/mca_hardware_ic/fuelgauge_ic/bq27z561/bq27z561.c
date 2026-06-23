@@ -4346,27 +4346,6 @@ static int fg_get_one_device_name(void *data, const char **device_name)
 	return -1;
 }
 
-static int fg_set_one_co_mos(void *data, bool en)
-{
-	struct bq_fg_chip *info = (struct bq_fg_chip *)data;
-
-	return fg_set_co_mos(info, en);
-}
-
-static int fg_get_one_co_status(void *data)
-{
-	struct bq_fg_chip *info = (struct bq_fg_chip *)data;
-
-	return fg_get_co_status(info);
-}
-
-static int fg_get_one_chg_fet_status(void *data)
-{
-	struct bq_fg_chip *info = (struct bq_fg_chip *)data;
-
-	return fg_get_chg_fet_status(info);
-}
-
 static int bq_parse_dt(struct bq_fg_chip *bq)
 {
 	struct device_node *node = bq->dev->of_node;
@@ -5244,9 +5223,6 @@ static struct fuelguage_ic_ops g_bq_fg_ops = {
 	.fg_ic_get_real_supplement_energy = fg_get_one_real_supplement_energy,
 	.fg_ic_get_calibration_charge_energy = fg_get_one_calibration_charge_energy,
 	.fg_ic_fl4p0_enable_check = fg_fl4p0_enable_check,
-	.fg_ic_set_co_mos = fg_set_one_co_mos,
-	.fg_ic_get_co_status = fg_get_one_co_status,
-	.fg_ic_get_chg_fet_status = fg_get_one_chg_fet_status,
 	.fg_ic_get_ui_soh = fg_get_ui_soh,
 	.fg_ic_get_calc_rvalue = fg_get_one_calc_rvalue,
 };

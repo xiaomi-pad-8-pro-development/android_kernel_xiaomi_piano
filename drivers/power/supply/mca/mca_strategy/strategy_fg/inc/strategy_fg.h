@@ -23,7 +23,6 @@
 #include <linux/power_supply.h>
 #include <linux/ktime.h>
 #include "mca_battery_shutdown.h"
-#include "mca_battery_full.h"
 #include <mca/platform/platform_fg_ic_ops.h>
 
 #define STRATEGY_FG_FAKE_SOC_NONE -1
@@ -112,7 +111,6 @@ struct strategy_fg_cfg {
 	int support_dtpt;
 	int design_capacity;
 	int terminated_by_cp;
-	int support_full_curr_monitor;
 
 	const char *model_name;
 	const char *model_name_gl;
@@ -126,7 +124,6 @@ struct strategy_fg_cfg {
 	int fg_hightemp_vterm;
 	int support_fl4p0;
 	int ffc_safe_item[SAFE_ITERM_CYCLE_LEVEL][SAFE_ITERM_TEMP_LEVEL];
-	int full_volt_monitor[CYCLECOUNT][VOLT_THRESHOLD];
 	int support_global;
 };
 
@@ -172,8 +169,6 @@ struct strategy_fg {
 	struct delayed_work delay_reset_full_flag_work;
 	struct delayed_work dtpt_monitor_work;
 	struct delayed_work fl4p0_calibration_work;
-	struct delayed_work full_current_monitor_work;
-	struct delayed_work screen_and_audio_status_work;
 	struct delayed_work force_report_full_work;
 
 	struct notifier_block panel_nb;
@@ -227,7 +222,6 @@ struct strategy_fg {
 	struct power_supply *batt_psy;
 	bool fast_charge;
 	bool screen_status;
-	enum battery_full_status battery_full_status;
 	int audio_state;
 	int dod_count;
 	int vcutoff_fw;
@@ -274,9 +268,6 @@ struct strategy_fg {
 	bool ffc_continue_charge;
 	bool self_equal_flag[FG_IC_MAX];
 	bool self_equal_count[FG_IC_MAX];
-	int full_current_count;
-	int sa_status_last;
-	int sa_status;
 };
 
 enum fg_auth_attr_list {

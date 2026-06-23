@@ -671,39 +671,6 @@ int platform_fg_ops_set_co(unsigned int ic_role, bool value)
 }
 EXPORT_SYMBOL(platform_fg_ops_set_co);
 
-int platform_fg_ops_set_co_mos(unsigned int ic_role, bool en)
-{
-	struct fuelguage_info *temp_info = platform_get_fg_ic_ops(ic_role);
-
-	if (platform_fg_ops_invalid(temp_info, fg_ic_set_co_mos))
-		return -EOPNOTSUPP;
-
-	return temp_info->ops->fg_ic_set_co_mos(temp_info->data, en);
-}
-EXPORT_SYMBOL(platform_fg_ops_set_co_mos);
-
-int platform_fg_ops_get_co_status(unsigned int ic_role)
-{
-	struct fuelguage_info *temp_info = platform_get_fg_ic_ops(ic_role);
-
-	if (platform_fg_ops_invalid(temp_info, fg_ic_get_co_status))
-		return -EOPNOTSUPP;
-
-	return temp_info->ops->fg_ic_get_co_status(temp_info->data);
-}
-EXPORT_SYMBOL(platform_fg_ops_get_co_status);
-
-int platform_fg_ops_get_chg_fet_status(unsigned int ic_role)
-{
-	struct fuelguage_info *temp_info = platform_get_fg_ic_ops(ic_role);
-
-	if (platform_fg_ops_invalid(temp_info, fg_ic_get_chg_fet_status))
-		return -EOPNOTSUPP;
-
-	return temp_info->ops->fg_ic_get_chg_fet_status(temp_info->data);
-}
-EXPORT_SYMBOL(platform_fg_ops_get_chg_fet_status);
-
 void platform_fg_ops_get_ui_soh(unsigned int ic_role, int *ui_soh)
 {
 	struct fuelguage_info *temp_info = platform_get_fg_ic_ops(ic_role);

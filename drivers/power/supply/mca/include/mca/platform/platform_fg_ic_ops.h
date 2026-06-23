@@ -162,9 +162,6 @@ struct fuelguage_ic_ops {
 	void (*fg_ic_set_force_report_full)(void *data);
 	int (*fg_ic_get_fc)(void *data, bool *);
 	int (*fg_ic_set_co)(void *data, bool);
-	int (*fg_ic_set_co_mos)(void *data, bool);
-	int (*fg_ic_get_co_status)(void *data);
-	int (*fg_ic_get_chg_fet_status)(void *data);
 	void (*fg_ic_get_ui_soh)(void *data, int *);
 	unsigned long (*fg_ic_get_calc_rvalue)(void *data);
 };
@@ -227,9 +224,6 @@ int platform_fg_ops_get_temp_min(unsigned int ic_role, int *temp_min);
 void platform_fg_ops_set_force_report_full(unsigned int ic_role);
 int platform_fg_ops_get_fc(unsigned int ic_role, bool *fc);
 int platform_fg_ops_set_co(unsigned int ic_role, bool value);
-int platform_fg_ops_set_co_mos(unsigned int ic_role, bool en);
-int platform_fg_ops_get_co_status(unsigned int ic_role);
-int platform_fg_ops_get_chg_fet_status(unsigned int ic_role);
 void platform_fg_ops_get_ui_soh(unsigned int ic_role, int *ui_soh);
 unsigned long platform_fg_ops_get_calc_rvalue(unsigned int ic_role);
 #endif /* _MCA_PLATFORM_PLATFORM_FG_IC_OPS_H_ */
