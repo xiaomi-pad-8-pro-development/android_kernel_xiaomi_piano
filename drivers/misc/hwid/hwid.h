@@ -11,6 +11,12 @@
 #include <linux/types.h>
 
 #define HARDWARE_PROJECT_UNKNOWN    0
+#define HARDWARE_PROJECT_O1   4 //xuanyuan
+#define HARDWARE_PROJECT_O10U 7 //onyx
+#define HARDWARE_PROJECT_O2   1 //haotian
+#define HARDWARE_PROJECT_O3   2 //dada
+#define HARDWARE_PROJECT_O8   5 //bixi
+#define HARDWARE_PROJECT_O9   8 //luming
 
 typedef enum {
 	CountryCN = 0x00,
