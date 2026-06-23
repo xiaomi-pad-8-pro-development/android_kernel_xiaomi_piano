@@ -264,6 +264,8 @@ struct strategy_fg {
 	bool fg_lock_flag;
 	bool dual_force_full[FG_IC_MAX];
 	int dual_iterm[FG_IC_MAX];
+	bool dual_present[FG_IC_MAX];
+	bool dual_error[FG_IC_MAX];
 	bool monitor_soc_flag;
 	bool first_termination;
 	bool near_vterm;

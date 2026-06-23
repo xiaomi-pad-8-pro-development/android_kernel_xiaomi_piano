@@ -830,6 +830,9 @@ static int strategy_fg_get_parallel_error_state(struct strategy_fg *fg)
 	else
 		fg->fg_error = 0;
 
+	fg->dual_error[FG_IC_MASTER] = fg_error_slave;
+	fg->dual_error[FG_IC_SLAVE] = fg_error_master;
+
 	return 0;
 }
 
@@ -3281,8 +3284,24 @@ int strategy_fg_ops_is_chip_ok(void *data)
 {
 	struct strategy_fg *fg = (struct strategy_fg *)data;
 
-	return !fg->fg_error;
+	return fg->fg_init_flag && !fg->fg_error;
 }
+int strategy_fg_dual_ops_is_chip_ok(void *data, int index)
+{
+	struct strategy_fg *fg = (struct strategy_fg *)data;
+
+	if (index == FG_IC_SLAVE) {
+		if (!fg->dual_present[FG_IC_SLAVE])
+			return false;
+		return !fg->dual_error[FG_IC_SLAVE];
+	}
+
+	if (index != FG_IC_MASTER || !fg->dual_present[FG_IC_MASTER])
+		return false;
+
+	return !fg->dual_error[FG_IC_MASTER];
+}
+EXPORT_SYMBOL(strategy_fg_dual_ops_is_chip_ok);
 
 int strategy_fg_ops_get_high_temp_vterm(void *data)
 {
@@ -3294,6 +3313,7 @@ int strategy_fg_ops_get_high_temp_vterm(void *data)
 static struct strategy_fg_class_ops g_strategy_fg_ops = {
 	.strategy_fg_is_init_ok = strategy_fg_ops_is_init_ok,
 	.strategy_fg_is_chip_ok = strategy_fg_ops_is_chip_ok,
+	.strategy_fg_dual_is_chip_ok = strategy_fg_dual_ops_is_chip_ok,
 	.strategy_fg_get_rawsoc = strategy_fg_ops_get_rawsoc,
 	.strategy_fg_get_rsoc = strategy_fg_ops_get_rsoc,
 	.strategy_fg_get_soc = strategy_fg_ops_get_soc,
