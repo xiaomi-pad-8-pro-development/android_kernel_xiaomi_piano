@@ -18,12 +18,13 @@
 #include <linux/debugfs.h>
 
 enum mca_charge_log_id_ele {
-	MCA_CHARGE_LOG_ID_BATTERY_INFO = 0,
-	MCA_CHARGE_LOG_ID_BUSINESS_CHG,
-	MCA_CHARGE_LOG_ID_CP_MASTER_IC,
+	MCA_CHARGE_LOG_ID_BUSINESS_CHG = 0,
+	MCA_CHARGE_LOG_ID_THERMAL,
+	MCA_CHARGE_LOG_ID_BATTERY_INFO,
 	MCA_CHARGE_LOG_ID_FG_MASTER_IC,
 	MCA_CHARGE_LOG_ID_FG_SLAVE_IC,
-	MCA_CHARGE_LOG_ID_THERMAL,
+	MCA_CHARGE_LOG_ID_CP_MASTER_IC,
+	MCA_CHARGE_LOG_ID_CP_SLAVE_IC,
 	MCA_CHARGE_LOG_ID_USCP,
 	MCA_CHARGE_LOG_ID_MAX,
 };
@@ -42,11 +43,24 @@ void mca_log_charge_log_register(enum mca_charge_log_id_ele type,
 				 void *data);
 int mca_log_get_charge_boot_mode(void);
 
-#define mca_log_err(fmt, ...) \
-	__mca_log_err("[%s]" fmt, MCA_LOG_TAG, ##__VA_ARGS__)
-#define mca_log_info(fmt, ...) \
-	__mca_log_info("[%s]" fmt, MCA_LOG_TAG, ##__VA_ARGS__)
-#define mca_log_debug(fmt, ...) \
-	__mca_log_debug("[%s]" fmt, MCA_LOG_TAG, ##__VA_ARGS__)
+#define _mca_log_err(fmt, ...) __mca_log_err(fmt, ##__VA_ARGS__)
+#define _mca_log_info(fmt, ...) __mca_log_info(fmt, ##__VA_ARGS__)
+#define _mca_log_debug(fmt, ...) __mca_log_debug(fmt, ##__VA_ARGS__)
+#define mca_log_err(fmt, ...)            \
+	_mca_log_err("[" MCA_LOG_TAG "]" \
+		     "%s:%d " fmt,       \
+		     __func__, __LINE__, ##__VA_ARGS__)
+#define mca_log_info(fmt, ...)            \
+	_mca_log_info("[" MCA_LOG_TAG "]" \
+		      "%s:%d " fmt,       \
+		      __func__, __LINE__, ##__VA_ARGS__)
+#define mca_log_debug(fmt, ...)            \
+	_mca_log_debug("[" MCA_LOG_TAG "]" \
+		       "%s:%d " fmt,       \
+		       __func__, __LINE__, ##__VA_ARGS__)
+#define mca_log_jirabot(fmt, ...)                         \
+	_mca_log_err("[ARCH-TF-CHARGER][" MCA_LOG_TAG "]" \
+		     "%s:%d " fmt,                        \
+		     __func__, __LINE__, ##__VA_ARGS__)
 
 #endif /* _MCA_COMMON_MCA_LOG_H_ */
