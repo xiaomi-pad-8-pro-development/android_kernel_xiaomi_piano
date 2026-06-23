@@ -1,12 +1,35 @@
 #ifndef _MCA_PLATFORM_PLATFORM_WIRELESS_CLASS_H_
 #define _MCA_PLATFORM_PLATFORM_WIRELESS_CLASS_H_
 #include <linux/types.h>
-typedef int WLS_DEBUG_SET_FOD_TYPE;
+#include <mca/protocol/protocol_class.h>
+
+typedef enum {
+	WLS_DEBUG_SET_FOD_NONE = 0,
+	WLS_DEBUG_SET_FOD_ALL_DIRECTLY,
+	WLS_DEBUG_SET_FOD_EPP_ALL,
+	WLS_DEBUG_SET_FOD_EPP_ONE,
+} WLS_DEBUG_SET_FOD_TYPE;
+
+enum mca_wls_debug_set_fod_cmd {
+	DEBUG_SET_ALL_FOD = 0,
+	DEBUG_SET_ALL_EPP_FOD,
+	DEBUG_SET_ONE_EPP_FOD,
+};
+
 enum mca_wireless_role {
 	WIRELESS_ROLE_MASTER = 0,
 	WIRELESS_ROLE_SLAVE,
 	WIRELESS_ROLE_MAX,
 };
+
+enum wls_chip_vendor {
+	WLS_CHIP_VENDOR_FUDA1651 = 0,
+	WLS_CHIP_VENDOR_FUDA1661,
+	WLS_CHIP_VENDOR_FUDA1665,
+	WLS_CHIP_VENDOR_SC9625,
+	WLS_CHIP_VENDOR_SC96281,
+};
+
 struct platform_class_wireless_ops {
 	int (*wls_enable_reverse_chg)(bool, void *data);
 	int (*wls_is_present)(int *, void *data);

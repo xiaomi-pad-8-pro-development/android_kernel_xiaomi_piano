@@ -3,4 +3,16 @@
 
 #include <linux/types.h>
 
+enum mca_adapter_type {
+	ADAPTER_NONE = 0,
+	ADAPTER_SDP,
+	ADAPTER_DCP,
+	ADAPTER_CDP,
+	ADAPTER_QC2,
+	ADAPTER_QC3,
+	ADAPTER_PD,
+	ADAPTER_XIAOMI_QC3,
+	ADAPTER_AUTH_FAILED,
+};
+
 #endif /* _MCA_PROTOCOL_PROTOCOL_CLASS_H_ */
