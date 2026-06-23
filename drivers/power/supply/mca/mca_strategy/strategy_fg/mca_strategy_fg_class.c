@@ -261,6 +261,15 @@ int strategy_class_fg_get_high_temp_vterm(void)
 }
 EXPORT_SYMBOL(strategy_class_fg_get_high_temp_vterm);
 
+int strategy_class_fg_get_pack_vendor_id(int *vendor_id)
+{
+	if (is_invalid_ops(strategy_fg_get_pack_vendor_id))
+		return -1;
+
+	return strategy_fg_class_ops_with_one_para(strategy_fg_get_pack_vendor_id, vendor_id);
+}
+EXPORT_SYMBOL(strategy_class_fg_get_pack_vendor_id);
+
 static struct platform_driver strategy_fg_class_driver = {
 	.driver	= {
 		.name = "strategy_fg_class",
