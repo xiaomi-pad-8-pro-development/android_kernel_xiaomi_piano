@@ -8,8 +8,8 @@ struct mca_votable;
 enum mca_votable_type {
 	MCA_VOTE_MIN,
 	MCA_VOTE_MAX,
-	MCA_VOTE_AND,
 	MCA_VOTE_OR,
+	MCA_VOTE_AND,
 	NUM_VOTABLE_TYPES,
 };
 
