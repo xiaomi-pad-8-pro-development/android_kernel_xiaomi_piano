@@ -27,47 +27,50 @@
 #include <linux/err.h>
 #include <linux/iio/consumer.h>
 #include <linux/platform_device.h>
-#include <linux/thermal.h>
+#include <linux/gpio.h>
+#include <linux/of_gpio.h>
 #include <mca/common/mca_event.h>
 #include <mca/common/mca_log.h>
 #include <mca/common/mca_parse_dts.h>
-#include <linux/gpio.h>
-#include <linux/of_gpio.h>
-#include "inc/mca_bmd.h"
 #include <mca/common/mca_sysfs.h>
-#include <mca/strategy/strategy_fg_class.h>
-#include <mca/platform/platform_fg_ic_ops.h>
-#include "../mca_hardware_ic/subpmic/xm_subpmic/subpmic_sc6601/inc/subpmic.h"
 #include <mca/common/mca_charge_mievent.h>
 #include <mca/strategy/strategy_class.h>
+#include <mca/strategy/strategy_fg_class.h>
 #include <mca/platform/platform_buckchg_class.h>
-#include <linux/pinctrl/consumer.h>
+#include <mca/platform/platform_wireless_class.h>
+#include "inc/mca_bmd.h"
 
 #ifndef MCA_LOG_TAG
 #define MCA_LOG_TAG "mca_bmd"
 #endif
 
-#define MAX_STRING_LEN 20
-
 #define BTB_OPEN_MAX_VOL 1900
 #define BTB_OPEN_MIN_VOL 1700
 
-#define FAST_HEARTBEAT_TIMER_MS 2000
-#define SLOW_HEARTBEAT_TIMER_MS 600000
+#define MONITOR_HEARTBEAT_TIMER_MS 500
+#define DELAY_REPORT_BMD_STS_MS 2500
+#define REQUEST_HW_RESOURCE_RETRY_MS 25
+#define REQUEST_HW_RESOURCE_RETRY_MAX 3
+
+#define MCA_BMD_DUAL_FG 1
 
 struct bmd_scheme_data {
 	int scheme;
 	struct iio_channel *channel;
 	int gpio;
+	bool cfg_failed;
 };
 
 struct mca_bmd_dev {
 	struct device *dev;
 	struct bmd_scheme_data bmd_scheme[MAX_BTB];
 	struct delayed_work monitor_bmd_work;
+	struct delayed_work request_hw_resource_work;
+	struct delayed_work delay_report_bmd_sts_work;
 	bool btb_online[MAX_BTB];
 	bool batt_missing;
-	bool fake_batt;
+	int fake_batt;
+	int fg_type;
 };
 
 enum bmd_scheme {
@@ -78,74 +81,110 @@ enum bmd_scheme {
 	MAX_SCHEME,
 };
 
-static bool mca_bmd_get_btb_status(struct mca_bmd_dev *info, int index);
+static int g_request_hw_resource_retry_count;
 
-static int mca_bmd_set_gpio_status(struct device *dev, char *status)
+static bool mca_bmd_get_btb_status(struct mca_bmd_dev *info, int index)
 {
-	struct pinctrl *pinctrl;
-	struct pinctrl_state *s;
 	int ret;
+	int data = 0;
+	bool bmd_online = false;
 
-	pinctrl = devm_pinctrl_get(dev);
-	if (IS_ERR(pinctrl)) {
-		mca_log_err("Failed to get pinctrl\n");
-		return -ENODEV;
+	if (!info) {
+		mca_log_err("null pointer\n");
+		return true;
 	}
 
-	s = pinctrl_lookup_state(pinctrl, status);
-	if (IS_ERR(s)) {
-		devm_pinctrl_put(pinctrl);
-		mca_log_err("Failed to lookup pinctrl state: %s\n", status);
-		return -ENOENT;
+	if (info->bmd_scheme[index].cfg_failed) {
+		mca_log_info("cfg failed\n");
+		return false;
 	}
 
-	ret = pinctrl_select_state(pinctrl, s);
-	if (ret < 0) {
-		devm_pinctrl_put(pinctrl);
-		mca_log_err("Failed to select pinctrl state: %s\n", status);
-		return ret;
+	switch (info->bmd_scheme[index].scheme) {
+	case ADC_SCHEME:
+		ret = iio_read_channel_processed(
+			info->bmd_scheme[index].channel, &data);
+		if (ret < 0) {
+			mca_log_err(
+				"Error in reading btb_adc_voltage channel\n");
+			bmd_online = false;
+		} else if (data > BTB_OPEN_MIN_VOL && data < BTB_OPEN_MAX_VOL) {
+			bmd_online = false;
+		} else {
+			bmd_online = true;
+		}
+		break;
+	case GPIO_SCHEME:
+		data = gpio_get_value(info->bmd_scheme[index].gpio);
+		bmd_online = !data;
+		break;
+	case IIC_SCHEME:
+		if (info->fg_type == MCA_BMD_DUAL_FG)
+			ret = strategy_class_fg_dual_is_chip_ok(index);
+		else
+			ret = strategy_class_fg_is_chip_ok();
+		bmd_online = ret > 0;
+		break;
+	default:
+		bmd_online = false;
+		break;
 	}
-	return ret;
+
+	return bmd_online;
 }
 
 static void mca_bmd_monitor_workfunc(struct work_struct *work)
 {
 	struct mca_bmd_dev *info =
 		container_of(work, struct mca_bmd_dev, monitor_bmd_work.work);
-	bool batt_missing = false;
-	bool fake_batt = false;
+	bool batt_missing = true;
+	int fake_batt;
+	int report;
 
-	for (int i = 0; i < MAX_BTB; i++)
-		info->btb_online[i] = mca_bmd_get_btb_status(info, i);
-
+	info->btb_online[MASTER_BTB] = mca_bmd_get_btb_status(info, MASTER_BTB);
+	info->btb_online[SLAVE_BTB] = mca_bmd_get_btb_status(info, SLAVE_BTB);
 	mca_log_info("btb_online[0]: %d, btb_online[1]: %d\n",
 		     info->btb_online[MASTER_BTB], info->btb_online[SLAVE_BTB]);
 
-	if (!info->btb_online[MASTER_BTB] || !info->btb_online[SLAVE_BTB])
-		batt_missing = true;
-	else
-		batt_missing = false;
+	if (info->btb_online[MASTER_BTB])
+		batt_missing = !info->btb_online[SLAVE_BTB];
 
 	if (info->batt_missing != batt_missing) {
 		info->batt_missing = batt_missing;
-		// NOTICE: enable in P01 stage to avoid cannot charge
-		// info->batt_missing = 0;
 		mca_event_block_notify(MCA_EVENT_TYPE_HW_INFO,
 				       MCA_EVENT_BATT_BTB_CHANGE,
 				       &info->batt_missing);
-		if (batt_missing)
+		if (!batt_missing) {
+			if (info->fg_type != MCA_BMD_DUAL_FG)
+				mca_charge_mievent_set_state(
+					MIEVENT_STATE_END,
+					CHARGE_DFX_BATTERY_MISSING);
+			else
+				mca_charge_mievent_set_state(
+					MIEVENT_STATE_END,
+					CHARGE_DFX_DUAL_BATTERY_MISSING);
+		} else if (info->fg_type != MCA_BMD_DUAL_FG) {
 			mca_charge_mievent_report(CHARGE_DFX_BATTERY_MISSING,
 						  NULL, 0);
-		else
-			mca_charge_mievent_set_state(
-				MIEVENT_STATE_END, CHARGE_DFX_BATTERY_MISSING);
+		} else {
+			report = info->btb_online[MASTER_BTB];
+			mca_charge_mievent_report(
+				CHARGE_DFX_DUAL_BATTERY_MISSING, &report, 1);
+		}
 	}
 
-	/*detect fake battery*/
-	if (!info->btb_online[MASTER_BTB] && !info->btb_online[SLAVE_BTB])
-		fake_batt = true;
-	else
-		fake_batt = false;
+	/* detect fake battery */
+	if (info->fg_type == MCA_BMD_DUAL_FG) {
+		if (info->btb_online[MASTER_BTB] && info->btb_online[SLAVE_BTB])
+			fake_batt = 0;
+		else
+			fake_batt = 1;
+	} else {
+		if (!info->btb_online[MASTER_BTB] &&
+		    !info->btb_online[SLAVE_BTB])
+			fake_batt = 1;
+		else
+			fake_batt = 0;
+	}
 
 	if (info->fake_batt != fake_batt) {
 		info->fake_batt = fake_batt;
@@ -155,80 +194,108 @@ static void mca_bmd_monitor_workfunc(struct work_struct *work)
 				       &info->fake_batt);
 	}
 
-	if (batt_missing) {
-		mca_log_err("BTB disconnect\n");
-		subpmic_dev_notify(SC6601_SUBPMIC_EVENT_BTB_CHANGE, false);
-	}
-
 	schedule_delayed_work(&info->monitor_bmd_work,
-			      msecs_to_jiffies(FAST_HEARTBEAT_TIMER_MS));
+			      msecs_to_jiffies(MONITOR_HEARTBEAT_TIMER_MS));
 }
 
-static bool mca_bmd_get_btb_status(struct mca_bmd_dev *info, int index)
+static void mca_bmd_delay_report_bmd_sts_work(struct work_struct *work)
 {
+	struct mca_bmd_dev *info = container_of(work, struct mca_bmd_dev,
+						delay_report_bmd_sts_work.work);
+	bool batt_missing = true;
+	int fake_batt;
+
+	info->btb_online[MASTER_BTB] = mca_bmd_get_btb_status(info, MASTER_BTB);
+	info->btb_online[SLAVE_BTB] = mca_bmd_get_btb_status(info, SLAVE_BTB);
+	mca_log_err("init notify:btb_online[0]: %d, btb_online[1]: %d\n",
+		    info->btb_online[MASTER_BTB], info->btb_online[SLAVE_BTB]);
+
+	if (info->btb_online[MASTER_BTB])
+		batt_missing = !info->btb_online[SLAVE_BTB];
+	mca_event_block_notify(MCA_EVENT_TYPE_HW_INFO,
+			       MCA_EVENT_BATT_BTB_CHANGE, &batt_missing);
+
+	if (info->fg_type == MCA_BMD_DUAL_FG) {
+		if (!info->btb_online[MASTER_BTB] ||
+		    !info->btb_online[SLAVE_BTB])
+			fake_batt = 1;
+		else
+			fake_batt = 0;
+		mca_event_block_notify(MCA_EVENT_TYPE_BATTERY_INFO,
+				       MCA_EVENT_BATTERY_FAKE_POWER,
+				       &fake_batt);
+	}
+}
+
+static void mca_bmd_request_hw_resource_work(struct work_struct *work)
+{
+	struct mca_bmd_dev *info = container_of(work, struct mca_bmd_dev,
+						request_hw_resource_work.work);
+	struct device_node *node = info->dev->of_node;
+	bool need_retry = false;
 	int ret;
-	int data;
-	bool bmd_online = false;
+	int i;
 
-	if (!info) {
-		mca_log_err(" %snull pointer\n", __func__);
-		return -1;
-	}
-	mca_log_info("bmd_scheme = %d, index = %d\n",
-		     info->bmd_scheme[index].scheme, index);
+	for (i = 0; i < MAX_BTB; i++) {
+		if (!info->bmd_scheme[i].cfg_failed ||
+		    info->bmd_scheme[i].scheme != GPIO_SCHEME)
+			continue;
 
-	switch (info->bmd_scheme[index].scheme) {
-	case ADC_SCHEME:
-		ret = iio_read_channel_processed(
-			(struct iio_channel *)info->bmd_scheme[index].channel,
-			&data);
-		if (ret < 0) {
-			mca_log_err(
-				"Error in reading btb_adc_voltage channel\n");
-			return 0;
+		info->bmd_scheme[i].gpio =
+			of_get_named_gpio(node, "btb_gpio", 0);
+		if (info->bmd_scheme[i].gpio < 0) {
+			mca_log_err("failed to gpio is invalid %d\n",
+				    info->bmd_scheme[i].gpio);
+			info->bmd_scheme[i].cfg_failed = true;
+			need_retry = true;
+			continue;
 		}
-		if (data > BTB_OPEN_MIN_VOL && data < BTB_OPEN_MAX_VOL)
-			bmd_online = false;
-		else
-			bmd_online = true;
-		break;
-	case GPIO_SCHEME:
-		data = gpio_get_value(info->bmd_scheme[index].gpio);
-		bmd_online = !data;
-		break;
-	case INT_SCHEME:
-		break;
-	case IIC_SCHEME:
-		data = strategy_class_fg_is_chip_ok();
-		if (data <= 0)
-			bmd_online = false;
-		else
-			bmd_online = true;
-		break;
-	default:
-		break;
+
+		ret = gpio_request(info->bmd_scheme[i].gpio, "btb_gpio");
+		if (ret) {
+			info->bmd_scheme[i].cfg_failed = true;
+			need_retry = true;
+			mca_log_err("unable to request btb_gpio gpio [%d]\n",
+				    info->bmd_scheme[i].gpio);
+			continue;
+		}
+
+		info->bmd_scheme[i].cfg_failed = false;
+		ret = gpio_direction_input(info->bmd_scheme[i].gpio);
+		if (ret)
+			mca_log_err("unable to set direction btb_gpio [%d]\n",
+				    info->bmd_scheme[i].gpio);
 	}
-	return bmd_online;
+
+	if (need_retry &&
+	    g_request_hw_resource_retry_count < REQUEST_HW_RESOURCE_RETRY_MAX) {
+		g_request_hw_resource_retry_count++;
+		schedule_delayed_work(
+			&info->request_hw_resource_work,
+			msecs_to_jiffies(REQUEST_HW_RESOURCE_RETRY_MS));
+	}
+	mca_log_err("retry bmd resource request %d\n",
+		    g_request_hw_resource_retry_count);
 }
 
 static int mca_bmd_process_event(int event, int value, void *data)
 {
 	struct mca_bmd_dev *info = data;
 
-	if (!info)
+	if (!info) {
+		mca_log_err("%s: info is null", __func__);
 		return -1;
+	}
 
 	switch (event) {
 	case MCA_EVENT_USB_CONNECT:
 	case MCA_EVENT_WIRELESS_CONNECT:
 		cancel_delayed_work_sync(&info->monitor_bmd_work);
-		schedule_delayed_work(&info->monitor_bmd_work, 0);
-		mca_bmd_set_gpio_status(info->dev, "bmd_work");
 		break;
 	case MCA_EVENT_USB_DISCONNECT:
 	case MCA_EVENT_WIRELESS_DISCONNECT:
-		mca_bmd_set_gpio_status(info->dev, "bmd_idle");
 		cancel_delayed_work_sync(&info->monitor_bmd_work);
+		schedule_delayed_work(&info->monitor_bmd_work, 0);
 		break;
 	default:
 		break;
@@ -240,53 +307,65 @@ static int mca_bmd_process_event(int event, int value, void *data)
 static int mca_bmd_parse_dt(struct mca_bmd_dev *info)
 {
 	struct device_node *node = info->dev->of_node;
-	int ret = 0;
+	int ret;
 	int val[MAX_BTB] = { 0 };
+	int i;
 
 	if (!node) {
 		mca_log_err("device tree info missing\n");
 		return -1;
 	}
 
-	ret |= mca_parse_dts_u32_array(node, "btb_bmd_scheme", val, MAX_BTB);
-	for (int i = 0; i < MAX_BTB; i++) {
+	ret = mca_parse_dts_u32_array(node, "btb_bmd_scheme", val, MAX_BTB);
+	if (ret < 0) {
+		mca_log_err("parse btb_bmd_scheme failed\n");
+		return ret;
+	}
+
+	for (i = 0; i < MAX_BTB; i++) {
 		info->bmd_scheme[i].scheme = val[i];
 		switch (info->bmd_scheme[i].scheme) {
 		case ADC_SCHEME:
 			info->bmd_scheme[i].channel =
 				devm_iio_channel_get(info->dev, "btb_adc");
+			info->bmd_scheme[i].cfg_failed = false;
 			break;
 		case GPIO_SCHEME:
 			info->bmd_scheme[i].gpio =
 				of_get_named_gpio(node, "btb_gpio", 0);
-			if (!gpio_is_valid(info->bmd_scheme[i].gpio)) {
-				mca_log_err("failed to parse irq_gpio\n");
-				return -1;
+			if (info->bmd_scheme[i].gpio < 0) {
+				mca_log_err("failed to gpio is invalid %d\n",
+					    info->bmd_scheme[i].gpio);
+				info->bmd_scheme[i].cfg_failed = true;
+				break;
 			}
 			ret = gpio_request(info->bmd_scheme[i].gpio,
 					   "btb_gpio");
-			if (ret)
+			if (ret) {
+				info->bmd_scheme[i].cfg_failed = true;
 				mca_log_err(
 					"unable to request btb_gpio gpio [%d]\n",
 					info->bmd_scheme[i].gpio);
-			else {
-				ret = gpio_direction_input(
-					info->bmd_scheme[i].gpio);
-				if (ret)
-					mca_log_err(
-						"unable to set direction btb_gpio [%d]\n",
-						info->bmd_scheme[i].gpio);
+				break;
 			}
+			info->bmd_scheme[i].cfg_failed = false;
+			ret = gpio_direction_input(info->bmd_scheme[i].gpio);
+			if (ret)
+				mca_log_err(
+					"unable to set direction btb_gpio [%d]\n",
+					info->bmd_scheme[i].gpio);
 			break;
 		case INT_SCHEME:
-			break;
 		case IIC_SCHEME:
+			info->bmd_scheme[i].cfg_failed = false;
 			break;
 		default:
 			break;
 		}
 	}
-	return ret;
+
+	mca_parse_dts_u32(node, "fg_type", &info->fg_type, 0);
+	return 0;
 }
 
 enum btb_attr_list {
@@ -358,13 +437,11 @@ static int mca_bmd_probe(struct platform_device *pdev)
 	struct mca_bmd_dev *info;
 	int ret;
 	int online = 0;
+	int present = 0;
+	bool need_retry = false;
+	int i;
 
 	mca_log_info("bmd probe begin\n");
-
-	if (strategy_class_fg_ops_is_init_ok() <= 0) {
-		mca_log_info("fg is not ready, wait for it\n");
-		return -EPROBE_DEFER;
-	}
 
 	info = devm_kzalloc(&pdev->dev, sizeof(*info), GFP_KERNEL);
 	if (!info)
@@ -372,26 +449,45 @@ static int mca_bmd_probe(struct platform_device *pdev)
 
 	info->dev = &pdev->dev;
 	platform_set_drvdata(pdev, info);
+
+	INIT_DELAYED_WORK(&info->request_hw_resource_work,
+			  mca_bmd_request_hw_resource_work);
+	INIT_DELAYED_WORK(&info->delay_report_bmd_sts_work,
+			  mca_bmd_delay_report_bmd_sts_work);
+
 	ret = mca_bmd_parse_dt(info);
 	if (ret) {
 		mca_log_err("parse dt faile\n");
 		return -1;
 	}
 
-	platform_class_buckchg_ops_get_online(MAIN_BUCK_CHARGER, &online);
+	for (i = 0; i < MAX_BTB; i++)
+		if (info->bmd_scheme[i].cfg_failed)
+			need_retry = true;
+	if (need_retry)
+		schedule_delayed_work(
+			&info->request_hw_resource_work,
+			msecs_to_jiffies(REQUEST_HW_RESOURCE_RETRY_MS));
+
 	(void)mca_strategy_ops_register(STRATEGY_FUNC_TYPE_BMD,
 					mca_bmd_process_event, NULL, NULL,
 					info);
 
 	info->batt_missing = 0;
 	INIT_DELAYED_WORK(&info->monitor_bmd_work, mca_bmd_monitor_workfunc);
-	if (online) {
-		cancel_delayed_work_sync(&info->monitor_bmd_work);
+
+	btb_sysfs_create_group(info->dev);
+
+	schedule_delayed_work(&info->delay_report_bmd_sts_work,
+			      msecs_to_jiffies(DELAY_REPORT_BMD_STS_MS));
+
+	platform_class_buckchg_ops_get_online(MAIN_BUCK_CHARGER, &online);
+	platform_class_wireless_is_present(WIRELESS_ROLE_MASTER, &present);
+	if (online || present)
 		schedule_delayed_work(
 			&info->monitor_bmd_work,
-			msecs_to_jiffies(FAST_HEARTBEAT_TIMER_MS));
-	}
-	btb_sysfs_create_group(info->dev);
+			msecs_to_jiffies(MONITOR_HEARTBEAT_TIMER_MS));
+
 	mca_log_err("%s success\n", __func__);
 	return 0;
 }
