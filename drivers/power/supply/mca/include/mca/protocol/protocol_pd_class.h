@@ -5,6 +5,13 @@
 #include <mca/protocol/protocol_class.h>
 
 #define PROTOCOL_PD_MAX_PDO_NUMS	7
+#define PROTOCOL_PD_MAX_STRING_LEN 128
+#define USBPD_UVDM_SS_LEN 8
+
+enum mca_pd_dr_request {
+	XM_REQUEST_PD_DR_UFP = 0,
+	XM_REQUEST_PD_DR_DFP,
+};
 
 enum uvdm_state {
 	USBPD_UVDM_DISCONNECT = 0,
@@ -36,8 +43,13 @@ struct usbpd_vdm_data {
 	int ta_version;
 	int ta_temp;
 	int ta_voltage;
+	int reauth;
 	unsigned long s_secert[8];
 	unsigned long digest[8];
+	int svid;
+	int ops;
+	int cnt;
+	u32 vdos[7];
 };
 
 struct protocol_class_pd_ops {
