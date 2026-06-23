@@ -2892,18 +2892,11 @@ static void nuvolta_1652_interrupt_work(struct work_struct *work)
 	struct nuvolta_1652_chg *chip = container_of(
 		work, struct nuvolta_1652_chg, interrupt_work.work);
 
-	struct int_flag_lis_node *node = NULL;
 	u8 int_l = 0, int_h = 0;
 	u16 int_val = 0;
 	int ret = 0;
 
 	mutex_lock(&chip->wireless_chg_int_lock);
-
-	node = kmalloc(sizeof(struct int_flag_lis_node), GFP_ATOMIC);
-	if (!node) {
-		mca_log_err("create node error, return\n");
-		return;
-	}
 
 	ret = rx1652_read(chip, &int_l, REG_RX_REV_CMD); //0x0020
 	if (ret < 0)
@@ -2918,33 +2911,9 @@ static void nuvolta_1652_interrupt_work(struct work_struct *work)
 
 	nuvolta_1652_get_rx_rtx_mode(&chip->proc_data.int_trx_mode, chip);
 
-	node->trx_mode = chip->proc_data.int_trx_mode;
-	node->int_flag = int_val;
-	spin_lock(&chip->list_lock);
-	list_add_tail(&node->lnode, &chip->header);
-	spin_unlock(&chip->list_lock);
-
 	nuvolta_1652_clear_int(chip, int_l, int_h);
 
-	chip->thread_active = HANDLE_INT_THREAD_ACTIVE;
-	wake_up_interruptible(&chip->wait_que);
-
-	mutex_unlock(&chip->wireless_chg_int_lock);
-}
-
-static irqreturn_t nuvolta_1652_interrupt_handler(int irq, void *dev_id)
-{
-	struct nuvolta_1652_chg *chip = dev_id;
-
-	schedule_delayed_work(&chip->interrupt_work, msecs_to_jiffies(0));
-
-	return IRQ_HANDLED;
-}
-
-static void nuvolta_1652_process_int_func(struct nuvolta_1652_chg *chip,
-					  int trx_mode, u16 int_val)
-{
-	if (trx_mode) {
+	if (chip->proc_data.int_trx_mode) {
 		chip->proc_data.int_flag =
 			nuvolta_1652_config_rtx_int_flag(int_val);
 		mca_strategy_func_process(STRATEGY_FUNC_TYPE_REV_WIRELESS,
@@ -2957,47 +2926,18 @@ static void nuvolta_1652_process_int_func(struct nuvolta_1652_chg *chip,
 					  MCA_EVENT_WIRELESS_INT_CHANGE,
 					  chip->proc_data.int_flag);
 	}
-	mca_log_info("int_flag: 0x%x deal_done\n", int_val);
-
 	chip->proc_data.int_flag = 0;
+
+	mutex_unlock(&chip->wireless_chg_int_lock);
 }
 
-static void nuvolta_1652_process_int(struct nuvolta_1652_chg *chip)
+static irqreturn_t nuvolta_1652_interrupt_handler(int irq, void *dev_id)
 {
-	struct int_flag_lis_node *cur_node = NULL;
-	struct int_flag_lis_node *temp_node = NULL;
+	struct nuvolta_1652_chg *chip = dev_id;
 
-	while (!list_empty(&chip->header)) {
-		spin_lock(&chip->list_lock);
-		list_for_each_entry_safe(cur_node, temp_node, &chip->header,
-					 lnode) {
-			list_del(&cur_node->lnode);
-			spin_unlock(&chip->list_lock);
+	schedule_delayed_work(&chip->interrupt_work, msecs_to_jiffies(0));
 
-			mca_log_info("cur_node: trx_mode: %d, int_flag: 0x%x\n",
-				     cur_node->trx_mode, cur_node->int_flag);
-			nuvolta_1652_process_int_func(chip, cur_node->trx_mode,
-						      cur_node->int_flag);
-
-			spin_lock(&chip->list_lock);
-			kfree(cur_node);
-		}
-		spin_unlock(&chip->list_lock);
-	}
-}
-
-static int nuvolta_1652_handle_int_thread(void *args)
-{
-	struct nuvolta_1652_chg *chip = args;
-
-	while (!kthread_should_stop()) {
-		wait_event_interruptible(chip->wait_que,
-					 (chip->thread_active ==
-					  HANDLE_INT_THREAD_ACTIVE));
-		chip->thread_active = 0;
-		nuvolta_1652_process_int(chip);
-	}
-	return 0;
+	return IRQ_HANDLED;
 }
 
 static void nuvolta_1652_hall_interrupt_work(struct work_struct *work)
@@ -3501,9 +3441,6 @@ static int nuvolta_1652_probe(struct i2c_client *client,
 	mutex_init(&chip->i2c_lock);
 	mutex_init(&chip->wireless_chg_int_lock);
 	mutex_init(&chip->data_transfer_lock);
-	INIT_LIST_HEAD(&chip->header);
-	spin_lock_init(&chip->list_lock);
-	init_waitqueue_head(&chip->wait_que);
 
 	nuvolta_1652_parse_dt(chip);
 	nuvolta_rx1652_gpio_init(chip);
@@ -3518,11 +3455,6 @@ static int nuvolta_1652_probe(struct i2c_client *client,
 	chip->shutdown_notifier.notifier_call = nuvolta_1652_shutdown_cb;
 	chip->shutdown_notifier.priority = 255;
 	register_reboot_notifier(&chip->shutdown_notifier);
-
-	chip->handle_int_thread = kthread_run(nuvolta_1652_handle_int_thread,
-					      chip, "handle_int_thread");
-	if (IS_ERR(chip->handle_int_thread))
-		mca_log_err("create handle_int_thread failed\n");
 
 	if (chip->irq) {
 		ret = devm_request_threaded_irq(
@@ -3608,8 +3540,6 @@ static void nuvolta_1652_remove(struct i2c_client *client)
 	mutex_destroy(&chip->i2c_lock);
 	mutex_destroy(&chip->wireless_chg_int_lock);
 	mutex_destroy(&chip->data_transfer_lock);
-
-	kthread_stop(chip->handle_int_thread);
 
 	if (chip->irq_gpio > 0)
 		gpio_free(chip->irq_gpio);
