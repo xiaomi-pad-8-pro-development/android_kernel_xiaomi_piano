@@ -693,6 +693,19 @@ int platform_class_buckchg_ops_get_otg_gate_enable_status(
 }
 EXPORT_SYMBOL(platform_class_buckchg_ops_get_otg_gate_enable_status);
 
+int platform_class_buckchg_ops_set_otg(unsigned int role, int en)
+{
+	struct platform_class_buckchg_data *temp_data =
+		platform_class_buckchg_get_ops_data(role);
+
+	if (platform_class_buckchg_invalid_ops(temp_data,
+					       set_otg))
+		return -1;
+
+	return temp_data->ops->set_otg(temp_data->data, en);
+}
+EXPORT_SYMBOL(platform_class_buckchg_ops_set_otg);
+
 int platform_class_buckchg_ops_set_boost_enable(unsigned int role,
 						int src_enable)
 {

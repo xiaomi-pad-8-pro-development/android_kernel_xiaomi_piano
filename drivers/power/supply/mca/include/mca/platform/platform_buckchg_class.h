@@ -65,6 +65,7 @@ struct platform_class_buckchg_ops {
 	int (*get_otg_boost_src)(void *data, int *);
 	int (*get_otg_boost_enable_status)(void *data, int *);
 	int (*get_otg_gate_enable_status)(void *data, int *);
+	int (*set_otg)(void *data, int);
 	int (*set_boost_enable)(void *data, int);
 	int (*set_boost_voltage)(void *data, int);
 	int (*set_aicl_enable)(void *data, bool);
@@ -160,6 +161,7 @@ int platform_class_buckchg_ops_get_otg_boost_enable_status(
 	unsigned int role, int *otg_boost_enable_sts);
 int platform_class_buckchg_ops_get_otg_gate_enable_status(
 	unsigned int role, int *otg_gate_enable_sts);
+int platform_class_buckchg_ops_set_otg(unsigned int role, int en);
 int platform_class_buckchg_ops_set_boost_enable(unsigned int role,
 						int src_enable);
 int platform_class_buckchg_ops_set_boost_voltage(unsigned int role,
