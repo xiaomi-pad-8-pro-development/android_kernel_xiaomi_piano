@@ -37,6 +37,10 @@ enum strategy_status_type {
 	STRATEGY_STATUS_TYPE_WLS_MAGNET_LIMIT,
 };
 
+enum mca_strategy_event {
+	MCA_EVENT_BQ_FG_ERROR = 0,
+};
+
 typedef int (*mca_strategy_func)(int event, int value, void *data);
 typedef int (*mca_strategy_get_status)(int status, void *value, void *data);
 typedef int (*mca_strategy_set_config)(int config, int value, void *data);
