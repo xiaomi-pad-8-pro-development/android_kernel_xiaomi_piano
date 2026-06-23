@@ -205,6 +205,8 @@ struct strategy_fg {
 	int batt_rsoc;
 	int batt_cyclecount;
 	int batt_temperature;
+	int original_temp;
+	int thermal_temp_select;
 	int batt_status;
 	int batt_soh;
 	int batt_rm;

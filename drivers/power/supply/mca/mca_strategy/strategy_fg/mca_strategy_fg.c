@@ -778,6 +778,53 @@ static int strategy_fg_get_series_temp(struct strategy_fg *fg)
 	return 0;
 }
 
+static int strategy_fg_get_parallel_original_temp(struct strategy_fg *fg)
+{
+	int ret;
+
+	ret = platform_fg_ops_get_original_temp(FG_IC_SLAVE, &(fg->slave_batt_info.temp));
+	ret |= platform_fg_ops_get_original_temp(FG_IC_MASTER, &(fg->master_batt_info.temp));
+	pr_err("%s master %d slave %d\n", __func__, fg->master_batt_info.temp, fg->slave_batt_info.temp);
+	if (ret)
+		return -1;
+
+	if (fg->master_batt_info.temp <= JEITA_COOL_THR_DEGREE ||
+	    fg->slave_batt_info.temp <= JEITA_COOL_THR_DEGREE)
+		fg->original_temp = min(fg->master_batt_info.temp, fg->slave_batt_info.temp);
+	else if (min(fg->master_batt_info.temp, fg->slave_batt_info.temp) > EXTREME_HIGH_DEGREE)
+		fg->original_temp = min(fg->master_batt_info.temp, fg->slave_batt_info.temp);
+	else
+		fg->original_temp = max(fg->master_batt_info.temp, fg->slave_batt_info.temp);
+
+	return 0;
+}
+
+static int strategy_fg_update_original_temp(struct strategy_fg *fg)
+{
+	int ret = 0;
+
+	if (fg->fg_error) {
+		fg->original_temp = STRATEGY_FG_ERROR_FAKE_TEMP;
+		return 0;
+	}
+
+	switch (fg->cfg.fg_type) {
+	case MCA_FG_TYPE_SINGLE:
+	case MCA_FG_TYPE_SINGLE_SERIES:
+		ret = platform_fg_ops_get_original_temp(FG_IC_MASTER, &fg->original_temp);
+		break;
+	case MCA_FG_TYPE_PARALLEL:
+		ret = strategy_fg_get_parallel_original_temp(fg);
+		break;
+	case MCA_FG_TYPE_SERIES:
+		break;
+	default:
+		return -1;
+	}
+
+	return ret ? -1 : 0;
+}
+
 static int strategy_fg_update_batt_temp(struct strategy_fg *fg)
 {
 	int ret = 0;
@@ -2088,6 +2135,7 @@ static int mca_strategy_update_fg_info(struct strategy_fg *fg)
 					  &fg->batt_ui_soc, 1);
 		fg->batt_ui_soc = STRATEGY_FG_ERROR_FAKE_SOC;
 		fg->batt_temperature = STRATEGY_FG_ERROR_FAKE_TEMP;
+		fg->original_temp = STRATEGY_FG_ERROR_FAKE_TEMP;
 		strategy_fg_report_battery_status_changed(fg);
 		return -1;
 	}
@@ -2109,6 +2157,7 @@ static int mca_strategy_update_fg_info(struct strategy_fg *fg)
 	fg->batt_vcell_max = fg->batt_info.vcell_max;
 	fg->batt_temperature = strategy_fg_check_extreme_cold_temp_compensation(
 		fg, fg->batt_info.temp);
+	strategy_fg_update_original_temp(fg);
 	fg->batt_rsoc = fg->batt_info.rsoc;
 	fg->batt_rm = fg->batt_info.rm;
 	fg->batt_fcc = fg->batt_info.fcc;
@@ -2589,6 +2638,20 @@ static int strategy_fg_ops_get_temp(void *data, int *temp)
 		*temp = STRATEGY_FG_ERROR_FAKE_TEMP;
 	else
 		*temp = fg->batt_temperature;
+
+	return 0;
+}
+
+static int strategy_fg_ops_get_thermal_temp(void *data, int *temp)
+{
+	struct strategy_fg *fg = (struct strategy_fg *)data;
+
+	if (!fg || !fg->fg_init_flag)
+		*temp = STRATEGY_FG_ERROR_FAKE_TEMP;
+	else if (fg->thermal_temp_select == 0)
+		*temp = fg->batt_temperature;
+	else
+		*temp = fg->original_temp;
 
 	return 0;
 }
@@ -3346,6 +3409,7 @@ static struct strategy_fg_class_ops g_strategy_fg_ops = {
 	.strategy_fg_get_health = strategy_fg_ops_get_health,
 	.strategy_fg_get_high_temp_vterm = strategy_fg_ops_get_high_temp_vterm,
 	.strategy_fg_get_pack_vendor_id = strategy_fg_ops_get_pack_vendor_id,
+	.strategy_fg_get_thermal_temperature = strategy_fg_ops_get_thermal_temp,
 };
 
 static void delay_reset_full_flag_work(struct work_struct *work)
