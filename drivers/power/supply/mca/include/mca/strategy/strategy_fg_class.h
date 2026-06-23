@@ -28,6 +28,7 @@ struct strategy_fg_class_ops {
 	int (*strategy_fg_get_health)(void *data, int *);
 	int (*strategy_fg_get_high_temp_vterm)(void *data);
 	int (*strategy_fg_get_pack_vendor_id)(void *data, int *);
+	int (*strategy_fg_dual_is_chip_ok)(void *data, int index);
 };
 
 struct strategy_fg_class_info {
@@ -61,5 +62,6 @@ int strategy_class_fg_is_chip_ok(void);
 int strategy_class_fg_get_health(int *health);
 int strategy_class_fg_get_high_temp_vterm(void);
 int strategy_class_fg_get_pack_vendor_id(int * vendor_id);
+int strategy_class_fg_dual_is_chip_ok(int index);
 
 #endif /* _MCA_STRATEGY_STRATEGY_FG_CLASS_H_ */
