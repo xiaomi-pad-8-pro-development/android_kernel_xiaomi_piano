@@ -38,7 +38,7 @@ enum strategy_status_type {
 };
 
 enum mca_strategy_event {
-	MCA_EVENT_BQ_FG_ERROR = 0,
+	MCA_EVENT_BQ_FG_ERROR = 0x3e,
 };
 
 enum adp_icon_type {
