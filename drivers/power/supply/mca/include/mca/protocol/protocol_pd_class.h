@@ -32,11 +32,9 @@ enum uvdm_state {
 };
 
 struct pd_pdo {
-	int pdo_type;
-	int max_volt;
 	int min_volt;
+	int max_volt;
 	int max_current;
-	int max_power;
 };
 
 struct usbpd_vdm_data {
