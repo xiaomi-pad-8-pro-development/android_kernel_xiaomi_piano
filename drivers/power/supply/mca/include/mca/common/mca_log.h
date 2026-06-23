@@ -7,6 +7,7 @@
 #include <linux/kernel.h>
 #include <linux/errno.h>
 #include <linux/limits.h>
+#include <linux/delay.h>
 #include <linux/string.h>
 #include <linux/slab.h>
 #include <linux/list.h>

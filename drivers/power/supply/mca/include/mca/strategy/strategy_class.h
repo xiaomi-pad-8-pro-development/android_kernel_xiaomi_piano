@@ -41,6 +41,22 @@ enum mca_strategy_event {
 	MCA_EVENT_BQ_FG_ERROR = 0,
 };
 
+typedef enum {
+	REV_EN_BOOST = 0,
+	OTG_EN_BOOST,
+	WIRELESS_EN_BOOST,
+} EN_SRC;
+
+enum mca_wls_boost_src {
+	PMIC_REV_BOOST = 0,
+	PMIC_HBOOST,
+	EXTERNAL_BOOST,
+	CHARGER_ADAPTER,
+	WLS_REV_BOOST,
+	BOOST_SRC_EXTERNAL,
+	BOOST_SRC_MAX,
+};
+
 enum mca_strategy_config_type {
 	STRATEGY_CONFIG_INPUT_CURRENT_LIMIT = 0,
 	STRATEGY_CONFIG_MAX,

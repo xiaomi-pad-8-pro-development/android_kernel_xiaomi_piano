@@ -11,19 +11,6 @@ enum mca_wls_firmware_state {
 	FIRMWARE_UPDATE_ERROR,
 };
 
-enum mca_wls_boost_src {
-	PMIC_REV_BOOST = 0,
-	PMIC_HBOOST,
-	EXTERNAL_BOOST,
-	CHARGER_ADAPTER,
-	BOOST_SRC_MAX,
-};
-
-typedef enum {
-	REV_EN_NONE = 0,
-	REV_EN_BOOST,
-} EN_SRC;
-
 enum mca_ovpgate_check_type {
 	WIRED_CHG_TYPE = 0,
 	REVCHG_TYPE,

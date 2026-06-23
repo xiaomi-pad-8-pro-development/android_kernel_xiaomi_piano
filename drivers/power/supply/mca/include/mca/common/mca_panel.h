@@ -1,9 +1,6 @@
 #ifndef _MCA_COMMON_MCA_PANEL_H_
 #define _MCA_COMMON_MCA_PANEL_H_
 
-enum mca_panel_event_code {
-	MCA_EVENT_PANEL_SCREEN_STATE_CHANGE = 0,
-	MCA_EVENT_PANEL_HBM_STATE_CHANGE,
-};
+#include <mca/common/mca_event.h>
 
 #endif /* _MCA_COMMON_MCA_PANEL_H_ */
