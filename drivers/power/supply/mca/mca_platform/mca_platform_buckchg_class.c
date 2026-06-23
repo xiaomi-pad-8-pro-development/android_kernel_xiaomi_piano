@@ -693,21 +693,6 @@ int platform_class_buckchg_ops_get_otg_gate_enable_status(
 }
 EXPORT_SYMBOL(platform_class_buckchg_ops_get_otg_gate_enable_status);
 
-int platform_class_buckchg_ops_get_bcl_match_max_powercap(unsigned int role,
-							  int *powercap)
-{
-	struct platform_class_buckchg_data *temp_data =
-		platform_class_buckchg_get_ops_data(role);
-
-	if (platform_class_buckchg_invalid_ops(temp_data,
-					       get_bcl_match_max_powercap))
-		return -1;
-
-	return temp_data->ops->get_bcl_match_max_powercap(temp_data->data,
-							  powercap);
-}
-EXPORT_SYMBOL(platform_class_buckchg_ops_get_bcl_match_max_powercap);
-
 int platform_class_buckchg_ops_set_boost_enable(unsigned int role,
 						int src_enable)
 {

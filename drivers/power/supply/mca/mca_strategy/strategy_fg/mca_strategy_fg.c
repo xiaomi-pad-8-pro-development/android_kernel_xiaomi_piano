@@ -95,11 +95,6 @@
 #define BATT_LOW_VOLT_SW_HY 50
 #define DEFAULT_DESIGN_CAPACITY 5000
 #define FG_FORCE_REPORT_FULL_TIMES 2
-#define STRATEGY_BCL_TRIGGER_TEMP -100
-#define STRATEGY_BCL_RELEASE_TEMP -50
-#define STRATEGY_BCL_CURRENT_UA 300000
-#define STRATEGY_BCL_VOL_MV 3500
-#define STRATEGY_BCL_DEFAULT_POWER 1000
 
 static void strategy_fg_init_voter(struct strategy_fg *fg);
 static int strategy_fg_ops_get_curr(void *data, int *curr);
@@ -160,8 +155,6 @@ static struct mca_sysfs_attr_info strategy_fg_auth_sysfs_field_tbl[] = {
 			  audio_state),
 	mca_sysfs_attr_ro(strategy_fg_auth_sysfs, 0440, FG_PROP_SOH_NEW,
 			  soh_new),
-	mca_sysfs_attr_ro(strategy_fg_auth_sysfs, 0444,
-			  FG_PROP_BCL_MAX_POWERCAP, bcl_maxpower),
 	mca_sysfs_attr_ro(strategy_fg_auth_sysfs, 0440, FG_PROP_CALC_RVALUE,
 			  calc_rvalue),
 };
@@ -327,7 +320,6 @@ static ssize_t strategy_fg_auth_sysfs_show(struct device *dev,
 	int val = 0;
 	int temp = 0;
 	unsigned long rvalue;
-	static bool bcl_flag = false;
 
 	if (!info)
 		return -1;
@@ -404,31 +396,6 @@ static ssize_t strategy_fg_auth_sysfs_show(struct device *dev,
 		break;
 	case FG_PROP_SOH_NEW:
 		strategy_fg_get_soh_new(info, &val);
-		count = scnprintf(buf, PAGE_SIZE, "%d\n", val);
-		break;
-	case FG_PROP_BCL_MAX_POWERCAP:
-		if ((info->batt_temperature <= STRATEGY_BCL_TRIGGER_TEMP) &&
-		    (info->batt_current < STRATEGY_BCL_CURRENT_UA) &&
-		    (info->batt_voltage < STRATEGY_BCL_VOL_MV)) {
-			val = STRATEGY_BCL_DEFAULT_POWER;
-			bcl_flag = true;
-		} else if (bcl_flag && ((info->batt_temperature >=
-					 STRATEGY_BCL_RELEASE_TEMP) ||
-					(info->chg_status ==
-					 POWER_SUPPLY_STATUS_CHARGING))) {
-			bcl_flag = false;
-			platform_class_buckchg_ops_get_bcl_match_max_powercap(
-				MAIN_BUCK_CHARGER, &val);
-		} else if (!bcl_flag)
-			platform_class_buckchg_ops_get_bcl_match_max_powercap(
-				MAIN_BUCK_CHARGER, &val);
-		else
-			val = STRATEGY_BCL_DEFAULT_POWER;
-
-		mca_log_info(
-			"BCL:get max power =%d, tbatt = %d, ibatt = %d, vbatt = %d, rsoc = %d, bcl flag = %d\n",
-			val, info->batt_temperature, info->batt_current,
-			info->batt_voltage, info->batt_rsoc, bcl_flag);
 		count = scnprintf(buf, PAGE_SIZE, "%d\n", val);
 		break;
 	case FG_PROP_CALC_RVALUE:
