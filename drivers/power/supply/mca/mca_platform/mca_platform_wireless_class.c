@@ -128,6 +128,20 @@ int platform_class_wireless_is_present(unsigned int role, int *present)
 }
 EXPORT_SYMBOL(platform_class_wireless_is_present);
 
+int platform_class_wireless_get_fw_upgrade_fail_info(unsigned int role,
+						     int *info)
+{
+	struct platform_wireless_class_ops_data *temp_data =
+		platform_wireless_class_get_ic_ops(role);
+
+	if (platform_wireless_ops_invalid(temp_data,
+					  wls_get_fw_upgrade_fail_info))
+		return -EOPNOTSUPP;
+
+	return temp_data->ops->wls_get_fw_upgrade_fail_info(info,
+							    temp_data->data);
+}
+EXPORT_SYMBOL(platform_class_wireless_get_fw_upgrade_fail_info);
 int platform_class_wireless_set_vout(unsigned int role, int vout)
 {
 	struct platform_wireless_class_ops_data *temp_data =
