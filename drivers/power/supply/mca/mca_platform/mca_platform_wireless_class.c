@@ -828,18 +828,6 @@ int platform_class_wireless_get_trx_vrect(unsigned int role, int *vrect)
 }
 EXPORT_SYMBOL(platform_class_wireless_get_trx_vrect);
 
-int platform_class_wireless_notify_cp_status(unsigned int role, int status)
-{
-	struct platform_wireless_class_ops_data *temp_data =
-		platform_wireless_class_get_ic_ops(role);
-
-	if (platform_wireless_ops_invalid(temp_data, wls_notify_cp_status))
-		return -EOPNOTSUPP;
-
-	return temp_data->ops->wls_notify_cp_status(status, temp_data->data);
-}
-EXPORT_SYMBOL(platform_class_wireless_notify_cp_status);
-
 static int
 platform_wireless_dev_parse_dt(struct platform_wireless_dev *wireless)
 {

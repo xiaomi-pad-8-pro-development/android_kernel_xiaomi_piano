@@ -1033,9 +1033,6 @@ strategy_wireless_set_fastchg_adapter(struct strategy_wireless_dev *info)
 	case ADAPTER_XIAOMI_PD_50W:
 	case ADAPTER_XIAOMI_PD_60W:
 	case ADAPTER_XIAOMI_PD_100W:
-		if (info->use_sc_buck)
-			platform_class_wireless_notify_cp_status(
-				WIRELESS_ROLE_MASTER, 1);
 		mca_log_info("EPP+ set adapter voltage to 15V\n");
 		ret = platform_class_wireless_set_adapter_voltage(
 			WIRELESS_ROLE_MASTER, EPP_PLUS_VOUT);

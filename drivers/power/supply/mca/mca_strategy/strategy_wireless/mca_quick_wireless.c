@@ -420,8 +420,6 @@ static void mca_wireless_quick_charge_stop_charging(
 	strategy_class_wireless_ops_set_parallel_charge(false);
 	platform_class_wireless_is_present(WIRELESS_ROLE_MASTER, &wls_plugin);
 	if (wls_plugin) {
-		platform_class_wireless_notify_cp_status(WIRELESS_ROLE_MASTER,
-							 2);
 		mca_wireless_quick_charge_vout_setting(
 			info, MCA_WLS_QUICK_CHG_EXIT_VOUT);
 		msleep(200);

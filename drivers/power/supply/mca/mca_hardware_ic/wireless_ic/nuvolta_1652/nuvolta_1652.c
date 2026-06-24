@@ -2694,37 +2694,6 @@ static int nuvolta_1652_get_trx_vrect(int *vrect, void *data)
 	return ret;
 }
 
-static int nuvolta_1652_set_cp_status(int status, void *data)
-{
-	int ret = 0;
-	bool rdy = true;
-	u8 cp_status = 0;
-	struct nuvolta_1652_chg *chip = (struct nuvolta_1652_chg *)data;
-
-	if (!chip->proc_data.power_good_flag) {
-		mca_log_info("power good disonline, don't set cp_status\n");
-		return 0;
-	}
-	cp_status = (u8)(status & 0xFF);
-	rdy = nuvolta_1652_check_rx_ready(chip);
-	if (!rdy)
-		return 0;
-	ret = rx1652_write(chip, 0xB8, 0x0000);
-	if (ret < 0)
-		return ret;
-	ret = rx1652_write(chip, 0x01, 0x0001);
-	if (ret < 0)
-		return ret;
-	ret = rx1652_write(chip, cp_status, 0x0002);
-	if (ret < 0)
-		return ret;
-	ret = rx1652_write(chip, 0x03, 0x0060);
-	if (ret < 0)
-		return ret;
-	mca_log_info("set cp status: %d\n", status);
-	return ret;
-}
-
 static struct platform_class_wireless_ops nuvolta_1652_wls_ops = {
 	.wls_enable_reverse_chg = nuvolta_1652_enable_reverse_chg,
 	.wls_is_present = nuvolta_1652_is_present,
@@ -2781,7 +2750,6 @@ static struct platform_class_wireless_ops nuvolta_1652_wls_ops = {
 	.wls_get_trx_vrect = nuvolta_1652_get_trx_vrect,
 	.wls_get_magnetic_case_flag = nuvolta_1652_get_magnetic_case_flag,
 	.wls_set_external_boost_enable = nuvolta_1652_set_external_boost_enable,
-	.wls_notify_cp_status = nuvolta_1652_set_cp_status,
 };
 
 //-------------------------irq & work---------------------------
