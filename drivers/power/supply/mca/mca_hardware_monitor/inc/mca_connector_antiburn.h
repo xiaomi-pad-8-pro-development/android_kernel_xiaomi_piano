@@ -26,14 +26,15 @@ enum connector_antiburn_attr_list {
 	CONNECTOR_PROP_TEMP_MAX,
 	CONNECTOR_PROP_RESET_VSAFE0V,
 	CONNECTOR_PROP_NTC_ALARM,
+	CONNECTOR_PROP_MOS_CTRL,
 };
 
 struct connector_antiburn {
 	struct device *dev;
 	struct thermal_zone_device *tzd_conn;
 	struct thermal_zone_device *tzd_conn2;
-	//struct thermal_zone_device *tzd_sensor_board;
 	struct notifier_block thermal_board_nb;
+	struct notifier_block debug_nb;
 	int triggered;
 	int is_reset_vsafe0V;
 	int ntc_alarm;
@@ -55,21 +56,15 @@ struct connector_antiburn {
 	int max_temp_increase_rate;
 	const char *thermal_zone_name;
 	const char *thermal_zone_name2;
-	//const char *thermal_board_temp_name;
 	bool otg_plugin_status;
-	bool reset_rate;
 	int usb_online;
 	bool cid_status;
 	int otg_boost_src;
 	int en_src;
-	bool isvalid_thermal_zone;
 	int support_base_flip;
-	//struct pinctrl *most_ctrl_gpio_pinctrl;
-	/*debugfs entries*/
-	struct dentry *root;
+	int disable_antiburn;
 
 	struct delayed_work monitor_work;
-	struct wakeup_source *anti_wake_lock;
 };
 
 #endif /* __CONNECTOR_ANTIBURN_H__ */

@@ -24,48 +24,32 @@
 #include <linux/of.h>
 #include <linux/of_device.h>
 #include <linux/of_gpio.h>
+#include <linux/gpio.h>
 #include <linux/workqueue.h>
 #include <linux/jiffies.h>
 #include <linux/err.h>
 #include <linux/platform_device.h>
 #include <linux/thermal.h>
+#include <linux/ktime.h>
 #include <mca/common/mca_event.h>
 #include <mca/common/mca_log.h>
 #include <mca/common/mca_parse_dts.h>
-#include <linux/iio/consumer.h>
-#include <linux/debugfs.h>
 #include <mca/common/mca_sysfs.h>
-#include <linux/ktime.h>
-#include <mca/platform/platform_buckchg_class.h>
 #include <mca/common/mca_hwid.h>
-#include <mca/protocol/protocol_class.h>
-#include <mca/protocol/protocol_pd_class.h>
-#include <mca/platform/platform_cp_class.h>
-#include <mca/protocol/protocol_qc_class.h>
 #include <mca/common/mca_charge_mievent.h>
 #include <mca/common/mca_workqueue.h>
-#include "inc/mca_connector_antiburn.h"
-#include <soc/xring/xr_pmic.h>
-#include <mca/platform/platform_sc6601a_cid_class.h>
+#include <mca/platform/platform_buckchg_class.h>
+#include <mca/protocol/protocol_class.h>
+#include <mca/protocol/protocol_pd_class.h>
 #include <mca/strategy/strategy_class.h>
+#include "inc/mca_connector_antiburn.h"
 
 #ifndef MCA_LOG_TAG
 #define MCA_LOG_TAG "mca_connector_antiburn"
 #endif
 
-#define PROJECT_HW_UDP 0X00
-#define PROJECT_HW_PREP0 0X01
-#define PROJECT_HW_P00 0X02
-#define PROJECT_HW_P01 0X03
-#define PROJECT_HW_P10 0X04
-#define PROJECT_HW_P11 0X05
-#define PROJECT_HW_P12 0X06
-#define PROJECT_HW_P20 0X07
-#define PROJECT_HW_MP 0X08
-
 #define CONNECTOR_ANTIBURN_WORK_INTERVAL_FAST 1000
 #define CONNECTOR_ANTIBURN_WORK_INTERVAL_NORMAL 5000
-#define CONNECTOR_ANTIBURN_WORK_DELAY_CHECK 300000 // 5min
 
 #define CONNECTOR_ANTIBURN_TRIGGER_TEMP 65
 #define CONNECTOR_ANTIBURN_RECHARGE_TEMP 55
@@ -75,8 +59,14 @@
 #define COMBINED_RATE_CONNECTOR_ANTIBURN_TRIGGER_TEMP 35
 #define THERMAL_SENSOR_BOARD_TRIGGER_TEMP 50
 
+#define VBUS_SENSE_DEFAULT_UV 6000000
+#define VBUS_DISABLE_VOLT_UV 3600000
+#define VBUS_UV_THRESHOLD 4100000
+#define VBUS_DELAY_TIME 50
+#define VBUS_SENSE_MAX_COUNT 5
+
 static struct connector_antiburn *g_conn;
-#define XRING_PMIC_GPIO_NUM 3
+static int flag_restore;
 
 int connector_antiburn_is_triggered(void)
 {
@@ -133,248 +123,252 @@ static void connector_ntc_alarm_uevent(int ntc_alarm)
 	mca_event_report_uevent(&event_data);
 }
 
+static int connector_antiburn_get_temperature(struct connector_antiburn *conn,
+					      int index)
+{
+	static bool adc_err_flag;
+	struct thermal_zone_device *tzd;
+	int connector_temp = 25;
+	int ret;
+
+	if (index < CONNECTOR_PROP_TEMP_1 || index >= CONNECTOR_PROP_TEMP_MAX) {
+		mca_log_err("invaid ntc\n");
+		return connector_temp;
+	}
+
+	if (conn->fake_connector_temp[index])
+		return conn->fake_connector_temp[index];
+
+	tzd = (index == CONNECTOR_PROP_TEMP_1) ? conn->tzd_conn :
+						 conn->tzd_conn2;
+	ret = thermal_zone_get_temp(tzd, &connector_temp);
+	if (ret) {
+		mca_log_err(
+			"iio get temp error, index is %d, connector_temp is %d, ret is %d\n",
+			index, connector_temp, ret);
+		adc_err_flag = true;
+		return conn->temperature[index];
+	}
+
+	if (adc_err_flag) {
+		adc_err_flag = false;
+		flag_restore = 1;
+	}
+
+	return connector_temp / NTC_SCALE_TEMP;
+}
+
 static int
 connector_antiburn_get_temp_increase_rate(struct connector_antiburn *conn)
 {
 	static ktime_t last_time;
 	static int last_connector_temp[CONNECTOR_PROP_TEMP_MAX];
+	static bool first_boot_flag;
 	ktime_t current_time, time_gap;
-	int temp_gap[CONNECTOR_PROP_TEMP_MAX] = { 0, 0 };
-	int ret = 0;
-	int i = 0;
+	int temp_gap, i;
 
-	if (conn->reset_rate) {
+	if (!first_boot_flag) {
 		last_time = ktime_get();
 		for (i = 0; i < CONNECTOR_PROP_TEMP_MAX; i++) {
 			last_connector_temp[i] = conn->temperature[i];
+			conn->temp_increase_rate[i] = 0;
 		}
-		conn->reset_rate = false;
+		first_boot_flag = true;
 	}
 
 	current_time = ktime_get();
 	time_gap = ktime_to_ms(ktime_sub(current_time, last_time));
-	if (time_gap <= 0) {
+	if (time_gap < 1) {
 		mca_log_err(
-			"timestamp is error, time_gap is %ld, current time is %ld, last time is %ld\n",
+			"timestamp is error, time_gap is %lld, current time is %lld, last time is %lld\n",
 			time_gap, current_time, last_time);
-		for (i = 0; i < CONNECTOR_PROP_TEMP_MAX; i++) {
-			conn->temp_increase_rate[i] = 0;
-		}
-		ret = -1;
-		return ret;
+		return -1;
 	}
 
 	for (i = 0; i < CONNECTOR_PROP_TEMP_MAX; i++) {
-		temp_gap[i] = conn->temperature[i] - last_connector_temp[i];
-		conn->temp_increase_rate[i] = temp_gap[i] * 1000 / time_gap;
+		temp_gap = conn->temperature[i] - last_connector_temp[i];
+		conn->temp_increase_rate[i] = temp_gap * 1000 / time_gap;
 		last_connector_temp[i] = conn->temperature[i];
+		if (conn->temp_increase_rate[i] >
+			    conn->max_temp_increase_rate &&
+		    flag_restore) {
+			conn->temp_increase_rate[i] = 0;
+			flag_restore = 0;
+			mca_log_info(
+				"temp_gap is %d, current temp is %d, last temp is %d, temp increase rate is %d, index is %d\n",
+				temp_gap, conn->temperature[i],
+				conn->temperature[i],
+				conn->temp_increase_rate[i], i);
+		}
 	}
 
 	last_time = current_time;
-	return ret;
-}
-
-static int connector_antiburn_get_temperature(struct connector_antiburn *conn,
-					      int index)
-{
-	int connector_temp = 25;
-
-	if (conn->fake_connector_temp[index]) {
-		connector_temp = conn->fake_connector_temp[index];
-		return connector_temp;
-	}
-
-	switch (index) {
-	case CONNECTOR_PROP_TEMP_1:
-		platform_class_buckchg_ops_get_bus_tsns(MAIN_BUCK_CHARGER,
-							&connector_temp);
-		break;
-	case CONNECTOR_PROP_TEMP_2:
-		if (conn->isvalid_thermal_zone) {
-			thermal_zone_get_temp(conn->tzd_conn2, &connector_temp);
-			mca_log_info("get thermal zone temp\n");
-		} else {
-			platform_class_buckchg_ops_get_bus_tsns(
-				MAIN_BUCK_CHARGER, &connector_temp);
-			mca_log_info("get subpmic tbus temp\n");
-		}
-		break;
-	default:
-		mca_log_err("invaid ntc\n");
-		break;
-	}
-	mca_log_info("CONNECTOR_PROP_TEMP read %d, index is %d\n",
-		     connector_temp, index);
-	if (index == CONNECTOR_PROP_TEMP_2 && conn->isvalid_thermal_zone)
-		connector_temp /= NTC_SCALE_TEMP;
-
-	return connector_temp;
+	return 0;
 }
 
 static void
 connector_antiburn_ensure_vbus_sense5V(struct connector_antiburn *conn)
 {
-	int i = 0;
-	int MAX_COUNT = 5;
-	int target_volt = 5000;
-	int cmd = USBPD_UVDM_RESET_VSAFE0V;
+	int i;
 	int bus_volt = 0;
-	int target_curr = 1500;
 	int real_type = XM_CHARGER_TYPE_UNKNOW;
-	int sense_vbus_default = 6000;
-	int vbus_disable_volt = 3600;
 	unsigned int data;
 
-	platform_class_cp_enable_adc(CP_ROLE_MASTER, true);
-	for (i = 0; i < MAX_COUNT; i++) {
+	for (i = 0; i < VBUS_SENSE_MAX_COUNT; i++) {
 		protocol_class_get_adapter_type(ADAPTER_PROTOCOL_PD,
 						&real_type);
-		mca_log_err("real_type is %d, bus_volt is %d", real_type,
+		mca_log_err("real_type is %d, bus_volt is %d\n", real_type,
 			    bus_volt);
 		switch (real_type) {
 		case XM_CHARGER_TYPE_HVDCP2:
 		case XM_CHARGER_TYPE_HVDCP3:
 		case XM_CHARGER_TYPE_HVDCP3_B:
 		case XM_CHARGER_TYPE_HVDCP3P5:
-			platform_class_cp_get_bus_voltage(CP_ROLE_MASTER,
-							  &bus_volt);
-			if (bus_volt < sense_vbus_default) {
-				platform_class_cp_enable_adc(CP_ROLE_MASTER,
-							     false);
+			platform_class_buckchg_ops_get_bus_volt(
+				MAIN_BUCK_CHARGER, &bus_volt);
+			if (bus_volt < VBUS_SENSE_DEFAULT_UV)
 				return;
-			}
-			protocol_class_qc_set_volt(TYPEC_PORT_0, target_volt);
 			msleep(200);
 			break;
 		case XM_CHARGER_TYPE_PD:
-		case XM_CHARGER_TYPE_PPS:
 		case XM_CHARGER_TYPE_PD_VERIFY:
-			protocol_class_pd_request_vdm_cmd(TYPEC_PORT_0, cmd,
-							  &data, 0);
+		case XM_CHARGER_TYPE_PPS:
+			protocol_class_pd_request_vdm_cmd(
+				TYPEC_PORT_0, USBPD_UVDM_RESET_VSAFE0V, &data,
+				0);
 			msleep(200);
-			platform_class_cp_get_bus_voltage(CP_ROLE_MASTER,
-							  &bus_volt);
-			if (bus_volt < sense_vbus_default) {
-				if (bus_volt < vbus_disable_volt) {
+			platform_class_buckchg_ops_get_bus_volt(
+				MAIN_BUCK_CHARGER, &bus_volt);
+			if (bus_volt < VBUS_SENSE_DEFAULT_UV) {
+				if (bus_volt < VBUS_DISABLE_VOLT_UV) {
 					conn->is_reset_vsafe0V = 1;
 					adapter_reset_vsafe0V_uevent(
 						conn->is_reset_vsafe0V);
 				}
-				platform_class_cp_enable_adc(CP_ROLE_MASTER,
-							     false);
 				return;
 			}
-			protocol_class_set_adapter_volt_and_curr(
-				ADAPTER_PROTOCOL_PD, target_volt, target_curr);
 			break;
 		default:
 			return;
 		}
 	}
-	platform_class_cp_enable_adc(CP_ROLE_MASTER, false);
 }
 
-#define VBUS_UV_THRESHOLD 4100000
-#define VBUS_DEALY_TIME 50
 static void connector_antiburn_check_status(struct connector_antiburn *conn)
 {
-	int connector_temp = 25;
-	int temp_increase_rate = 0;
-	int otg_enable;
-	int i;
-	int vbus_uv;
-	static int last_temp0 = 0;
-	bool adc_en = false;
-	int fake_temp_set = 0;
+	int connector_temp;
+	int temp_increase_rate;
+	int bus_volt = 0;
+	int real_type = XM_CHARGER_TYPE_UNKNOW;
+	unsigned int data;
 
-	for (i = 0; i < CONNECTOR_PROP_TEMP_MAX; i++) {
-		connector_temp = max(connector_temp, conn->temperature[i]);
-		temp_increase_rate =
-			max(temp_increase_rate, conn->temp_increase_rate[i]);
-	}
-
-	if (conn->support_base_flip)
-		connector_temp =
-			min(conn->temperature[0], conn->temperature[1]);
+	connector_temp = max(conn->temperature[0], conn->temperature[1]);
+	if (connector_temp < 26)
+		connector_temp = 25;
+	/* rate of whichever sensor is currently the hotter one */
+	temp_increase_rate = (conn->temperature[0] < conn->temperature[1]) ?
+				     conn->temp_increase_rate[1] :
+				     conn->temp_increase_rate[0];
 
 	protocol_class_pd_get_otg_plugin_status(TYPEC_PORT_0,
 						&conn->otg_plugin_status);
 	platform_class_buckchg_ops_get_online(MAIN_BUCK_CHARGER,
 					      &conn->usb_online);
-	platform_class_buckchg_ops_get_cid_status(MAIN_BUCK_CHARGER,
-						  &conn->cid_status);
-	platform_class_buckchg_ops_get_adc_enable(MAIN_BUCK_CHARGER, &adc_en);
-
-	for (i = 0; i < CONNECTOR_PROP_TEMP_MAX; i++) {
-		if (conn->fake_connector_temp[i])
-			fake_temp_set += 1;
-	}
+	protocol_class_pd_get_cid_status(TYPEC_PORT_0, &conn->cid_status);
 
 	mca_log_info(
-		"connector_temp:%d triggered:%d, cid_status:%d, otg_plugin_status: %d, usb_online:%d, adc:%d, fake:%d\n",
+		"connector_temp:%d triggered:%d, cid_status:%d, otg_plugin_status: %d, usb_online:%d\n",
 		connector_temp, conn->triggered, conn->cid_status,
-		conn->otg_plugin_status, conn->usb_online, adc_en,
-		fake_temp_set);
-
-	if (!adc_en && !fake_temp_set)
-		return;
+		conn->otg_plugin_status, conn->usb_online);
 
 	if ((connector_temp >= conn->trigger_temp ||
 	     (connector_temp >= conn->comb_sensorboard_con_trigger_temp &&
 	      conn->thermal_board_temp <= conn->max_thermal_board_temp) ||
 	     (connector_temp >= conn->comb_rate_conn_trigger_temp &&
-	      temp_increase_rate >= conn->max_temp_increase_rate &&
-	      last_temp0 != 0)) &&
-	    !conn->triggered) {
+	      temp_increase_rate >= conn->max_temp_increase_rate)) &&
+	    !conn->triggered && !conn->disable_antiburn &&
+	    (conn->cid_status || conn->usb_online)) {
 		mca_log_err(
-			"conn->usb_online is %d, conn->otg_plugin_status is %d",
+			"triggering antiburn conn->usb_online is %d, conn->otg_plugin_status is %d\n",
 			conn->usb_online, conn->otg_plugin_status);
 		mca_log_err(
-			"conn_therm is %d, conn_therm2 %d, temp_increase_rate is %d, thermal_board_temp is %d\n",
+			"usb_online: %d, otg_plugin_status: %d, conn_therm: %d/%d, temp_increase_rate: %d, thermal_board_temp: %d\n",
+			conn->usb_online, conn->otg_plugin_status,
 			conn->temperature[0], conn->temperature[1],
 			temp_increase_rate, conn->thermal_board_temp);
 		conn->triggered = 1;
 		conn->ntc_alarm = 1;
 		connector_temp_uevent(connector_temp * 10);
 		connector_ntc_alarm_uevent(conn->ntc_alarm);
-		mca_event_block_notify(MCA_EVENT_TYPE_HW_INFO,
-				       MCA_EVENT_CONN_ANTIBURN_CHANGE, NULL);
-		mca_charge_mievent_report(CHARGE_DFX_ANTI_BURN_TRIGGERED,
-					  &connector_temp, 1);
-		msleep(200);
-		connector_antiburn_ensure_vbus_sense5V(conn);
-		if (conn->otg_plugin_status == 1) {
-			otg_enable = 0;
-			otg_enable = (conn->en_src << 16) |
-				     (conn->otg_boost_src << 8) | otg_enable;
-			platform_class_buckchg_ops_set_boost_enable(
-				MAIN_BUCK_CHARGER, otg_enable);
+
+		protocol_class_get_adapter_type(ADAPTER_PROTOCOL_PD,
+						&real_type);
+		if (real_type == XM_CHARGER_TYPE_PD ||
+		    real_type == XM_CHARGER_TYPE_PD_VERIFY ||
+		    real_type == XM_CHARGER_TYPE_PPS) {
+			protocol_class_pd_request_vdm_cmd(
+				TYPEC_PORT_0, USBPD_UVDM_RESET_VSAFE0V, &data,
+				0);
+			msleep(VBUS_DELAY_TIME);
+			mca_event_block_notify(MCA_EVENT_TYPE_HW_INFO,
+					       MCA_EVENT_CONN_ANTIBURN_CHANGE,
+					       NULL);
+			mca_charge_mievent_report(
+				CHARGE_DFX_ANTI_BURN_TRIGGERED, &connector_temp,
+				1);
+			msleep(200);
+			connector_antiburn_ensure_vbus_sense5V(conn);
+			platform_class_buckchg_ops_get_bus_volt(
+				MAIN_BUCK_CHARGER, &bus_volt);
+			if (bus_volt < VBUS_DISABLE_VOLT_UV) {
+				conn->is_reset_vsafe0V = 1;
+				adapter_reset_vsafe0V_uevent(
+					conn->is_reset_vsafe0V);
+			}
+		} else {
+			mca_event_block_notify(MCA_EVENT_TYPE_HW_INFO,
+					       MCA_EVENT_CONN_ANTIBURN_CHANGE,
+					       NULL);
+			mca_charge_mievent_report(
+				CHARGE_DFX_ANTI_BURN_TRIGGERED, &connector_temp,
+				1);
+			msleep(200);
+			connector_antiburn_ensure_vbus_sense5V(conn);
 		}
+
+		if (conn->otg_plugin_status)
+			platform_class_buckchg_ops_set_boost_enable(
+				MAIN_BUCK_CHARGER,
+				(conn->en_src << 16) |
+					(conn->otg_boost_src << 8));
+
 		if (conn->support_hw_antiburn) {
-			xr_pmic_gpio_set_value(XRING_PMIC_GPIO_NUM, 1);
-			__pm_relax(conn->anti_wake_lock);
-			mca_log_err("triggering hw anti burn");
-			msleep(VBUS_DEALY_TIME);
-			(void)platform_class_buckchg_ops_get_bus_volt(
-				MAIN_BUCK_CHARGER, &vbus_uv);
-			if (vbus_uv >= VBUS_UV_THRESHOLD)
+			gpiod_direction_output_raw(
+				gpio_to_desc(conn->mos_ctrl_gpio), 1);
+			mca_log_err("triggering hw anti burn\n");
+			msleep(VBUS_DELAY_TIME);
+			platform_class_buckchg_ops_get_bus_volt(
+				MAIN_BUCK_CHARGER, &bus_volt);
+			if (bus_volt >= VBUS_UV_THRESHOLD)
 				mca_charge_mievent_report(
 					CHARGE_DFX_ANTIBURN_ERR, NULL, 0);
 		}
-	} else if (connector_temp <= conn->recharge_temp &&
+	} else if (connector_temp < conn->recharge_temp &&
 		   temp_increase_rate < conn->max_temp_increase_rate &&
-		   conn->triggered && !conn->cid_status) {
+		   conn->triggered && !conn->otg_plugin_status &&
+		   !conn->cid_status) {
 		conn->triggered = 0;
 		conn->is_reset_vsafe0V = 0;
 		mca_log_err(
 			"recovery antiburn conn->usb_online is %d, conn->otg_plugin_status is %d, conn->cid_status is %d\n",
 			conn->usb_online, conn->otg_plugin_status,
 			conn->cid_status);
+		connector_temp_uevent(connector_temp * 10);
 		adapter_reset_vsafe0V_uevent(conn->is_reset_vsafe0V);
 		if (conn->support_hw_antiburn) {
-			xr_pmic_gpio_set_value(XRING_PMIC_GPIO_NUM, 0);
-			__pm_relax(conn->anti_wake_lock);
-			mca_log_err("close hw anti burn");
+			gpiod_direction_output_raw(
+				gpio_to_desc(conn->mos_ctrl_gpio), 0);
+			mca_log_err("close hw anti burn\n");
 		}
 		mca_event_block_notify(MCA_EVENT_TYPE_HW_INFO,
 				       MCA_EVENT_CONN_ANTIBURN_CHANGE, NULL);
@@ -382,62 +376,17 @@ static void connector_antiburn_check_status(struct connector_antiburn *conn)
 					     CHARGE_DFX_ANTI_BURN_TRIGGERED);
 	}
 
-	last_temp0 = conn->temperature[0];
-
 	if (conn->ntc_alarm == 1 && conn->cid_status == 0) {
 		conn->ntc_alarm = 0;
+		connector_temp_uevent(connector_temp * 10);
 		connector_ntc_alarm_uevent(conn->ntc_alarm);
 	}
-	if (conn->otg_plugin_status == 1 || conn->usb_online == 1)
-		conn->monitor_interval =
-			CONNECTOR_ANTIBURN_WORK_INTERVAL_FAST; //interval 1s
+
+	if (conn->otg_plugin_status || conn->usb_online == 1)
+		conn->monitor_interval = CONNECTOR_ANTIBURN_WORK_INTERVAL_FAST;
 	else
 		conn->monitor_interval =
-			CONNECTOR_ANTIBURN_WORK_INTERVAL_NORMAL; //interval 5s
-}
-
-static int mca_connector_antiburn_process_event(int event, int value,
-						void *data)
-{
-	struct connector_antiburn *conn = data;
-	int ret = 0;
-
-	if (conn == NULL)
-		return -EINVAL;
-
-	mca_log_info("receive event %d, value %d\n", event, value);
-	switch (event) {
-	case MCA_EVENT_USB_CONNECT:
-	case MCA_EVENT_WIRELESS_CONNECT:
-	case MCA_EVENT_OTG_CONNECT:
-		if (conn->triggered)
-			break;
-		if (conn->reset_rate != 1)
-			conn->reset_rate = 1;
-		ret = platform_class_buckchg_ops_adc_enable(MAIN_BUCK_CHARGER,
-							    true);
-		cancel_delayed_work_sync(&conn->monitor_work);
-		mca_queue_delayed_work(&conn->monitor_work,
-				       msecs_to_jiffies(2000));
-		break;
-	case MCA_EVENT_USB_DISCONNECT:
-	case MCA_EVENT_WIRELESS_DISCONNECT:
-	case MCA_EVENT_OTG_DISCONNECT:
-	case MCA_EVENT_CID_DISCONNECT:
-		if (conn->triggered) {
-			ret = platform_class_buckchg_ops_adc_enable(
-				MAIN_BUCK_CHARGER, true);
-			mca_log_info("anti trigger\n");
-		} else {
-			ret = platform_class_buckchg_ops_adc_enable(
-				MAIN_BUCK_CHARGER, false);
-			cancel_delayed_work_sync(&conn->monitor_work);
-		}
-		break;
-	default:
-		break;
-	}
-	return 0;
+			CONNECTOR_ANTIBURN_WORK_INTERVAL_NORMAL;
 }
 
 static void connector_antiburn_monitor_workfunc(struct work_struct *work)
@@ -454,6 +403,45 @@ static void connector_antiburn_monitor_workfunc(struct work_struct *work)
 	connector_antiburn_check_status(conn);
 
 	mca_queue_delayed_work(&conn->monitor_work, msecs_to_jiffies(interval));
+}
+
+static int
+connector_antiburn_mos_ctrl_gpio_init(struct connector_antiburn *conn)
+{
+	int ret;
+
+	conn->mos_ctrl_gpio =
+		of_get_named_gpio(conn->dev->of_node, "mos-ctrl-gpio", 0);
+	if (conn->mos_ctrl_gpio < 0)
+		mca_log_err("failed to parse mos ctrl gpio\n");
+
+	ret = gpio_request(conn->mos_ctrl_gpio, "mos-ctrl-gpio");
+	if (ret) {
+		mca_log_err(
+			"unable to request antiburn mos ctrl gpio ret is %d\n",
+			ret);
+		return ret;
+	}
+
+	ret = gpiod_direction_output_raw(gpio_to_desc(conn->mos_ctrl_gpio), 0);
+	if (ret) {
+		mca_log_err("unable to set direction for pmic gpio\n");
+		return ret;
+	}
+
+	return 0;
+}
+
+static int connector_antiburn_gpio_init(struct connector_antiburn *conn)
+{
+	mca_log_info("Hw antiburn init gpio\n");
+
+	if (!conn->support_hw_antiburn) {
+		mca_log_info("No gpio config\n");
+		return -1;
+	}
+
+	return connector_antiburn_mos_ctrl_gpio_init(conn);
 }
 
 static void connector_antiburn_parse_dt(struct connector_antiburn *conn)
@@ -478,7 +466,6 @@ static void connector_antiburn_parse_dt(struct connector_antiburn *conn)
 	mca_parse_dts_string(np, "thermal-zone-name", &conn->thermal_zone_name);
 	mca_parse_dts_string(np, "thermal-zone-name2",
 			     &conn->thermal_zone_name2);
-	//mca_parse_dts_string(np, "thermal-board-temp-name", &conn->thermal_board_temp_name);
 	mca_parse_dts_u32(
 		np, "comb_sensorboard_con_trigger_temp",
 		&conn->comb_sensorboard_con_trigger_temp,
@@ -490,7 +477,7 @@ static void connector_antiburn_parse_dt(struct connector_antiburn *conn)
 			  &conn->max_thermal_board_temp,
 			  THERMAL_SENSOR_BOARD_TRIGGER_TEMP);
 	mca_parse_dts_u32(np, "otg_boost_src", &conn->otg_boost_src,
-			  BOOST_SRC_EXTERNAL);
+			  EXTERNAL_BOOST);
 	mca_parse_dts_u32(np, "en_src", &conn->en_src, OTG_EN_BOOST);
 	conn->support_base_flip =
 		of_property_read_bool(np, "support-base-flip");
@@ -511,7 +498,8 @@ struct mca_sysfs_attr_info antiburn_sysfs_field_tbl[] = {
 			  reset_vsafe0V),
 	mca_sysfs_attr_rw(antiburn_sysfs, 0664, CONNECTOR_PROP_NTC_ALARM,
 			  ntc_alarm),
-
+	mca_sysfs_attr_rw(antiburn_sysfs, 0664, CONNECTOR_PROP_MOS_CTRL,
+			  mos_ctrl),
 };
 
 #define ANTIBURN_SYSFS_ATTRS_SIZE ARRAY_SIZE(antiburn_sysfs_field_tbl)
@@ -556,6 +544,15 @@ static ssize_t antiburn_sysfs_show(struct device *dev,
 		temp = conn->ntc_alarm;
 		count = scnprintf(buf, PAGE_SIZE, "%d\n", temp);
 		break;
+	case CONNECTOR_PROP_MOS_CTRL:
+		if (!conn->support_hw_antiburn) {
+			mca_log_err("not support_hw_antiburn\n");
+			return 0;
+		}
+		temp = gpiod_get_raw_value(gpio_to_desc(conn->mos_ctrl_gpio));
+		mca_log_err("show mos_ctrl:%d\n", temp);
+		count = scnprintf(buf, PAGE_SIZE, "%d\n", temp);
+		break;
 	default:
 		break;
 	}
@@ -591,6 +588,18 @@ static ssize_t antiburn_sysfs_store(struct device *dev,
 			val / 10;
 		mca_log_err("set the %d ntc = %d\n", attr_info->sysfs_attr_name,
 			    val);
+		cancel_delayed_work_sync(&conn->monitor_work);
+		mca_queue_delayed_work(&conn->monitor_work, 0);
+		break;
+	case CONNECTOR_PROP_MOS_CTRL:
+		if (!conn->support_hw_antiburn) {
+			mca_log_err("not support_hw_antiburn\n");
+			break;
+		}
+		if (val < 2)
+			gpiod_direction_output_raw(
+				gpio_to_desc(conn->mos_ctrl_gpio), val);
+		mca_log_err("set mos_ctrl:%d\n", val);
 		break;
 	default:
 		break;
@@ -629,6 +638,27 @@ static int connector_antiburn_thermal_notifier_event(struct notifier_block *nb,
 	return NOTIFY_DONE;
 }
 
+static int connector_antiburn_debug_notifier_cb(struct notifier_block *nb,
+						unsigned long chg_event,
+						void *val)
+{
+	struct connector_antiburn *conn =
+		container_of(nb, struct connector_antiburn, debug_nb);
+
+	switch (chg_event) {
+	case MCA_EVENT_DEBUG_CTRL_DOUBLE85:
+	case MCA_EVENT_DEBUG_CTRL_REMOVE_TEMP_LIMIT:
+	case MCA_EVENT_DEBUG_CTRL_MEMORY_TEST:
+		conn->disable_antiburn = *(int *)val;
+		mca_log_info("debug[%lu] disable_antiburn: %d\n", chg_event,
+			     conn->disable_antiburn);
+		break;
+	default:
+		break;
+	}
+	return NOTIFY_DONE;
+}
+
 static int connector_antiburn_dump_log_head(void *data, char *buf, int size)
 {
 	return snprintf(buf, size, "port_temp port_temp1 shell_temp ");
@@ -662,98 +692,84 @@ static int connector_antiburn_probe(struct platform_device *pdev)
 	struct connector_antiburn *conn;
 	static int probe_cnt;
 	const struct mca_hwid *hwid = mca_get_hwid_info();
-	int online = 0;
 	int ret = 0;
-	int hwid_info = PROJECT_HW_P20;
 
 	mca_log_info("probe_cnt = %d\n", ++probe_cnt);
+
+	if (hwid == NULL)
+		return -ENOMEM;
+
+	if (hwid->platform_version == 1 && hwid->major_version == 0 &&
+	    hwid->minor_version == 1) {
+		mca_log_err("Do not support antiburn in %s P%d.%d\n",
+			    hwid->product_name, hwid->major_version,
+			    hwid->minor_version);
+		return 0;
+	}
 
 	conn = devm_kzalloc(&pdev->dev, sizeof(*conn), GFP_KERNEL);
 	if (!conn) {
 		mca_log_err("out of memory\n");
-		goto err;
+		return -ENOMEM;
 	}
 	conn->dev = &pdev->dev;
 	platform_set_drvdata(pdev, conn);
 
 	connector_antiburn_parse_dt(conn);
 
-	conn->tzd_conn2 =
-		thermal_zone_get_zone_by_name(conn->thermal_zone_name2);
-	if (IS_ERR(conn->tzd_conn2)) {
-		mca_log_err("thermal zone get conn_therm2 failed\n");
+	if (hwid->platform_version == 1 &&
+	    (hwid->major_version == 0 ||
+	     (hwid->major_version == 1 && hwid->minor_version == 0))) {
+		conn->otg_boost_src = EXTERNAL_BOOST;
+		mca_log_err("start to use external boost in O2\n");
+	}
+
+	ret = connector_antiburn_gpio_init(conn);
+	if (ret) {
+		mca_log_err("connector_antiburn_gpio_init failed, err is %d\n",
+			    ret);
 		goto err;
 	}
 
-	if (hwid == NULL)
+	conn->tzd_conn = thermal_zone_get_zone_by_name(conn->thermal_zone_name);
+	if (IS_ERR(conn->tzd_conn)) {
+		mca_log_err("thermal zone get conn_therm failed\n");
 		goto err;
-
-	if (hwid->major_version == 0 && hwid->minor_version == 0)
-		hwid_info = PROJECT_HW_P00;
-	else if (hwid->major_version == 0 && hwid->minor_version == 1)
-		hwid_info = PROJECT_HW_P01;
-	else if (hwid->major_version == 1 && hwid->minor_version == 0)
-		hwid_info = PROJECT_HW_P10;
-	else if (hwid->major_version == 1 && hwid->minor_version == 1)
-		hwid_info = PROJECT_HW_P11;
-	else if (hwid->major_version == 1 && hwid->minor_version == 2)
-		hwid_info = PROJECT_HW_P12;
-	else if (hwid->major_version == 2 && hwid->minor_version == 0)
-		hwid_info = PROJECT_HW_P20;
-	else if (hwid->major_version == 9 && hwid->minor_version == 0)
-		hwid_info = PROJECT_HW_MP;
-	else if (hwid->major_version == 0 && hwid->minor_version == 9)
-		hwid_info = PROJECT_HW_UDP;
-	else
-		hwid_info = PROJECT_HW_P20;
-
-	if ((hwid->platform_version == 2) ||
-	    ((hwid->platform_version == 1) && (hwid_info >= PROJECT_HW_P11)))
-		conn->isvalid_thermal_zone = true;
-	else
-		conn->isvalid_thermal_zone = false;
-	mca_log_info(
-		"NTC2 use thermal zone = %d, hwid = P%d%d, hwid_value = 0x%x\n",
-		conn->isvalid_thermal_zone, hwid->major_version,
-		hwid->minor_version, hwid_info);
-
-	platform_class_buckchg_ops_get_online(MAIN_BUCK_CHARGER, &online);
-	conn->anti_wake_lock =
-		wakeup_source_register(conn->dev, "anti_wakelock");
-	if (!conn->anti_wake_lock)
-		mca_log_err("anti reg wakelock failed\n");
-
-	(void)mca_strategy_ops_register(STRATEGY_FUNC_TYPE_CONNECTOR_ANTIBURN,
-					mca_connector_antiburn_process_event,
-					NULL, NULL, conn);
+	}
+	if (conn->use_double_ntc) {
+		conn->tzd_conn2 =
+			thermal_zone_get_zone_by_name(conn->thermal_zone_name2);
+		if (IS_ERR(conn->tzd_conn2)) {
+			mca_log_err("thermal zone get conn_therm2 failed\n");
+			goto err;
+		}
+	}
 
 	conn->thermal_board_nb.notifier_call =
 		connector_antiburn_thermal_notifier_event;
 	mca_event_block_notify_register(MCA_EVENT_TYPE_THERMAL_TEMP,
 					&conn->thermal_board_nb);
-	conn->triggered = 0;
+	conn->debug_nb.notifier_call = connector_antiburn_debug_notifier_cb;
+	mca_event_block_notify_register(MCA_EVENT_TYPE_SUBPMIC_INFO,
+					&conn->debug_nb);
 
 	INIT_DELAYED_WORK(&conn->monitor_work,
 			  connector_antiburn_monitor_workfunc);
-
-	if (online) {
-		ret = platform_class_buckchg_ops_adc_enable(MAIN_BUCK_CHARGER,
-							    true);
-		conn->reset_rate = 1;
-		cancel_delayed_work_sync(&conn->monitor_work);
-		mca_queue_delayed_work(&conn->monitor_work,
-				       msecs_to_jiffies(10000));
-		mca_log_info("start schedule anti work\n");
-	}
-
-	g_conn = conn;
+	mca_queue_delayed_work(&conn->monitor_work,
+			       msecs_to_jiffies(conn->monitor_interval));
 
 	mca_log_charge_log_register(MCA_CHARGE_LOG_ID_USCP,
 				    &g_connector_antiburn_log_ops, conn);
 	antiburn_sysfs_create_group(conn->dev);
-	mca_log_err("probe OK");
+
+	conn->triggered = 0;
+	g_conn = conn;
+	conn->disable_antiburn = 0;
+	mca_log_err("probe OK\n");
 	return 0;
 err:
+	if (gpio_is_valid(conn->mos_ctrl_gpio))
+		gpio_free(conn->mos_ctrl_gpio);
 	devm_kfree(&pdev->dev, conn);
 	return -EPROBE_DEFER;
 }
@@ -768,6 +784,11 @@ static int connector_antiburn_remove(struct platform_device *pdev)
 	struct connector_antiburn *conn = platform_get_drvdata(pdev);
 
 	cancel_delayed_work(&conn->monitor_work);
+
+	if (conn->mos_ctrl_gpio >= 0) {
+		gpio_free(conn->mos_ctrl_gpio);
+		mca_log_info("remove mos ctrl gpio success\n");
+	}
 
 	mca_event_block_notify_unregister(MCA_EVENT_TYPE_THERMAL_TEMP,
 					  &conn->thermal_board_nb);
