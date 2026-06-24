@@ -29,6 +29,7 @@ struct usb_psy_info {
 	struct power_supply *batt_psy;
 	int present;
 	int online;
+	int charge_enable;
 };
 
 struct usb_psy_info *business_charger_usb_psy_init(struct device *dev);

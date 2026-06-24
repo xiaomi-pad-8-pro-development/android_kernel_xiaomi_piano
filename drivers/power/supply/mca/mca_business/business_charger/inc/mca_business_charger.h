@@ -35,11 +35,6 @@ enum business_charger_attr_list {
 	BUSINESS_CHARGER_DEBUG_PROP_DAM_TEST = 0,
 };
 
-enum business_charger_usb_sns_type {
-	BUSINESS_CHARGER_SNS_TYPE_CP_VUSB = 0,
-	BUSINESS_CHARGER_SNS_TYPE_PMIC_SNS = 1,
-};
-
 struct chg_dt_props {
 	int test;
 };
@@ -71,6 +66,7 @@ struct business_charger {
 	struct notifier_block hw_info_nb;
 	struct notifier_block chg_sts_nb;
 	struct notifier_block cp_info_nb;
+	struct notifier_block debug_nb;
 	struct list_head header;
 	spinlock_t list_lock;
 	wait_queue_head_t wait_que;
@@ -79,7 +75,8 @@ struct business_charger {
 	struct delayed_work delay_enable_rx_work;
 	struct delayed_work reset_rx_work;
 	struct delayed_work report_quick_charge_type_work;
-	struct delayed_work delay_rerun_cp_vusb_work;
+	struct delayed_work wireless_rerun_usb_sns_work;
+	struct delayed_work pmic_init_done_notify_work;
 	union charger_abnormal_info abnormal_info;
 	int wired_qucik_charge_type;
 	int wired_power_max;
@@ -95,8 +92,11 @@ struct business_charger {
 	int dam_test_flag;
 	int is_eu_model;
 	int plate_shock;
-	int usb_sns_type;
-	int lost_type_flag;
+	int start_quick_revchg;
+	int revchg_bcl;
+	int handle_state;
+	int stop_handle_charge;
+	int wls_support;
 };
 
 #endif /* __CHARGER_CORE_H__ */
