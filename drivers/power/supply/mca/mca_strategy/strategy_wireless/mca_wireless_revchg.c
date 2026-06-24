@@ -357,16 +357,6 @@ int mca_wireless_rev_update_fw_version(int cmd)
 		event_data.event = event;
 		event_data.event_len = len;
 		mca_event_report_uevent(&event_data);
-
-		if (info->support_tx_only) {
-			len = snprintf(event, MCA_EVENT_NOTIFY_SIZE,
-				       "POWER_SUPPLY_REVERSE_PEN_CHG_STATE=%d",
-				       REVERSE_STATE_ENDTRANS);
-			event_data.event = event;
-			event_data.event_len = len;
-			mca_event_report_uevent(&event_data);
-		}
-
 		mca_log_info(
 			"Firmware Update is beginning, stop reverse chg\n");
 	}
@@ -586,13 +576,6 @@ static int mca_wireless_rev_external_boost_config(int enable)
 		return -1;
 
 	if (enable) {
-		if (!info->support_tx_only) {
-			ret |= platform_class_cp_enable_ovpgate(CP_ROLE_MASTER,
-								false);
-			mca_log_err("close ovp gate!!!,ret = %d", ret);
-			msleep(100);
-		}
-
 		ret |= platform_class_wireless_set_external_boost_enable(
 			WIRELESS_ROLE_MASTER, true);
 		msleep(20);
@@ -845,8 +828,6 @@ int mca_wireless_rev_enable_reverse_charge(bool enable)
 {
 	struct mca_wireless_revchg *info = g_wls_rev_info;
 	int power_good = 0;
-	int pen_hall3;
-	int pen_hall4;
 	int ret = 0;
 	char event[MCA_EVENT_NOTIFY_SIZE] = { 0 };
 	struct mca_event_notify_data event_data = { 0 };
@@ -863,33 +844,11 @@ int mca_wireless_rev_enable_reverse_charge(bool enable)
 		event_data.event = event;
 		event_data.event_len = len;
 		mca_event_report_uevent(&event_data);
-
-		if (info->support_tx_only) {
-			len = snprintf(event, MCA_EVENT_NOTIFY_SIZE,
-				       "POWER_SUPPLY_REVERSE_PEN_CHG_STATE=%d",
-				       REVERSE_STATE_ENDTRANS);
-			event_data.event = event;
-			event_data.event_len = len;
-			mca_event_report_uevent(&event_data);
-		}
-
 		mca_log_info("fw updating, don't enable reverse charge\n");
 		return -1;
 	}
 
 	if (enable) {
-		if (info->support_tx_only) {
-			platform_class_wireless_get_pen_hall3(
-				WIRELESS_ROLE_MASTER, &pen_hall3);
-			platform_class_wireless_get_pen_hall4(
-				WIRELESS_ROLE_MASTER, &pen_hall4);
-			if (pen_hall3 && pen_hall4) {
-				mca_log_info(
-					"pen is not attached, don't enable reverse charge\n");
-				return -1;
-			}
-		}
-
 		(void)platform_class_wireless_is_present(WIRELESS_ROLE_MASTER,
 							 &power_good);
 		if (power_good) {
@@ -921,31 +880,14 @@ int mca_wireless_rev_enable_reverse_charge(bool enable)
 		event_data.event_len = len;
 		mca_event_report_uevent(&event_data);
 
-		if (info->support_tx_only) {
-			len = snprintf(event, MCA_EVENT_NOTIFY_SIZE,
-				       "POWER_SUPPLY_REVERSE_PEN_CHG_STATE=%d",
-				       REVERSE_STATE_OPEN);
-			event_data.event = event;
-			event_data.event_len = len;
-			mca_event_report_uevent(&event_data);
-		}
-
 		mca_log_err("start reverse_charge_config_work\n");
-		if (info->support_tx_only)
-			schedule_delayed_work(&info->reverse_charge_config_work,
-					      msecs_to_jiffies(0));
-		else
-			schedule_delayed_work(&info->reverse_charge_config_work,
-					      msecs_to_jiffies(200));
+		schedule_delayed_work(&info->reverse_charge_config_work,
+				      msecs_to_jiffies(200));
 		schedule_delayed_work(
 			&info->tx_ping_timeout_work,
 			msecs_to_jiffies(REVERSE_PING_TIMEOUT_TIMER));
 		schedule_delayed_work(&info->monitor_work,
 				      msecs_to_jiffies(300));
-		if (info->support_tx_only)
-			schedule_delayed_work(
-				&info->pen_place_err_check_work,
-				msecs_to_jiffies(REVERSE_PPE_TIMEOUT_TIMER));
 	} else {
 		mca_log_err("close");
 		if (!info->proc_data.wireless_reverse_closing) {
@@ -1000,28 +942,24 @@ static void mca_wireless_rev_charge_config_work(struct work_struct *work)
 		return;
 	}
 
-	if (!info->support_tx_only) {
-		protocol_class_get_adapter_type(ADAPTER_PROTOCOL_BC12,
-						&usb_real_type);
-		if (usb_real_type == XM_CHARGER_TYPE_CDP ||
-		    usb_real_type == XM_CHARGER_TYPE_SDP)
-			info->proc_data.bc12_reverse_chg = true;
-		else
-			info->proc_data.bc12_reverse_chg = false;
+	protocol_class_get_adapter_type(ADAPTER_PROTOCOL_BC12, &usb_real_type);
+	if (usb_real_type == XM_CHARGER_TYPE_CDP ||
+	    usb_real_type == XM_CHARGER_TYPE_SDP)
+		info->proc_data.bc12_reverse_chg = true;
+	else
+		info->proc_data.bc12_reverse_chg = false;
 
-		if (info->proc_data.bc12_reverse_chg) {
-			mca_log_err("bc12 cannot reverse charge!!!\n");
-			mca_wireless_rev_enable_reverse_charge(false);
-			info->proc_data.reverse_chg_sts =
-				REVERSE_STATE_ENDTRANS;
-			len = snprintf(event, MCA_EVENT_NOTIFY_SIZE,
-				       "POWER_SUPPLY_REVERSE_CHG_STATE=%d",
-				       REVERSE_STATE_ENDTRANS);
-			event_data.event = event;
-			event_data.event_len = len;
-			mca_event_report_uevent(&event_data);
-			return;
-		}
+	if (info->proc_data.bc12_reverse_chg) {
+		mca_log_err("bc12 cannot reverse charge!!!\n");
+		mca_wireless_rev_enable_reverse_charge(false);
+		info->proc_data.reverse_chg_sts = REVERSE_STATE_ENDTRANS;
+		len = snprintf(event, MCA_EVENT_NOTIFY_SIZE,
+			       "POWER_SUPPLY_REVERSE_CHG_STATE=%d",
+			       REVERSE_STATE_ENDTRANS);
+		event_data.event = event;
+		event_data.event_len = len;
+		mca_event_report_uevent(&event_data);
+		return;
 	}
 
 	mca_log_err("start reverse_chg_config!!!\n");
@@ -1045,15 +983,6 @@ static void mca_wireless_rev_charge_config_work(struct work_struct *work)
 		event_data.event = event;
 		event_data.event_len = len;
 		mca_event_report_uevent(&event_data);
-
-		if (info->support_tx_only) {
-			len = snprintf(event, MCA_EVENT_NOTIFY_SIZE,
-				       "POWER_SUPPLY_REVERSE_PEN_CHG_STATE=%d",
-				       REVERSE_STATE_ENDTRANS);
-			event_data.event = event;
-			event_data.event_len = len;
-			mca_event_report_uevent(&event_data);
-		}
 
 		return;
 	}
@@ -1081,15 +1010,6 @@ static void mca_wireless_rev_tx_ping_timeout_work(struct work_struct *work)
 	event_data.event_len = len;
 	mca_event_report_uevent(&event_data);
 
-	if (info->support_tx_only) {
-		len = snprintf(event, MCA_EVENT_NOTIFY_SIZE,
-			       "POWER_SUPPLY_REVERSE_PEN_CHG_STATE=%d",
-			       REVERSE_STATE_ENDTRANS);
-		event_data.event = event;
-		event_data.event_len = len;
-		mca_event_report_uevent(&event_data);
-	}
-
 	mca_log_info("reverse chg ping timeout");
 	info->tx_timeout_flag = false;
 }
@@ -1113,15 +1033,6 @@ static void mca_wireless_rev_tx_transfer_timeout_work(struct work_struct *work)
 	event_data.event_len = len;
 	mca_event_report_uevent(&event_data);
 
-	if (info->support_tx_only) {
-		len = snprintf(event, MCA_EVENT_NOTIFY_SIZE,
-			       "POWER_SUPPLY_REVERSE_PEN_CHG_STATE=%d",
-			       REVERSE_STATE_TIMEOUT);
-		event_data.event = event;
-		event_data.event_len = len;
-		mca_event_report_uevent(&event_data);
-	}
-
 	mca_log_info("reverse chg transfer timeout");
 	info->tx_timeout_flag = false;
 }
@@ -1142,16 +1053,6 @@ static void mca_wireless_disable_tx_work(struct work_struct *work)
 	event_data.event = event;
 	event_data.event_len = len;
 	mca_event_report_uevent(&event_data);
-
-	if (info->support_tx_only) {
-		len = snprintf(event, MCA_EVENT_NOTIFY_SIZE,
-			       "POWER_SUPPLY_REVERSE_PEN_CHG_STATE=%d",
-			       REVERSE_STATE_ENDTRANS);
-		event_data.event = event;
-		event_data.event_len = len;
-		mca_event_report_uevent(&event_data);
-	}
-
 	mca_log_err("reverse chg disable tx");
 }
 
@@ -1246,125 +1147,6 @@ static void mca_wireless_rev_test_stop_work(struct work_struct *work)
 	info->tx_timeout_flag = false;
 }
 
-static void mca_wireless_rev_pen_place_err_check_work(struct work_struct *work)
-{
-	struct mca_wireless_revchg *info =
-		container_of(work, struct mca_wireless_revchg,
-			     pen_place_err_check_work.work);
-	int ss = 0;
-	int len;
-	char event[MCA_EVENT_NOTIFY_SIZE] = { 0 };
-	struct mca_event_notify_data event_data = { 0 };
-
-	(void)platform_class_wireless_get_tx_ss(WIRELESS_ROLE_MASTER, &ss);
-	if (!ss) {
-		mca_log_err(
-			"pen place err check timeout, pen place err: hall\n");
-		platform_class_wireless_set_pen_place_err(WIRELESS_ROLE_MASTER,
-							  2);
-
-		len = snprintf(event, MCA_EVENT_NOTIFY_SIZE,
-			       "POWER_SUPPLY_PEN_PLACE_ERR=%d", 2);
-		event_data.event = event;
-		event_data.event_len = len;
-		mca_event_report_uevent(&event_data);
-	}
-
-	mca_log_info("reverse charge status: %d\n",
-		     info->proc_data.reverse_chg_sts);
-
-	return;
-}
-
-static void mca_wireless_rev_pen_data_handle_work(struct work_struct *work)
-{
-	struct mca_wireless_revchg *info = container_of(
-		work, struct mca_wireless_revchg, pen_data_handle_work.work);
-	int pen_soc = 255, tx_vout = 0, tx_iout = 0, tx_tdie = 0;
-	int pen_full_flag = 0;
-	static int full_soc_count = 0;
-	u64 pen_mac = 0;
-	int len;
-	char event[MCA_EVENT_NOTIFY_SIZE] = { 0 };
-	struct mca_event_notify_data event_data = { 0 };
-
-	// get pen data
-	(void)platform_class_wireless_get_pen_soc(WIRELESS_ROLE_MASTER,
-						  &pen_soc);
-	(void)platform_class_wireless_get_tx_vout(WIRELESS_ROLE_MASTER,
-						  &tx_vout);
-	(void)platform_class_wireless_get_tx_iout(WIRELESS_ROLE_MASTER,
-						  &tx_iout);
-	(void)platform_class_wireless_get_tx_tdie(WIRELESS_ROLE_MASTER,
-						  &tx_tdie);
-	(void)platform_class_wireless_get_pen_full_flag(WIRELESS_ROLE_MASTER,
-							&pen_full_flag);
-	(void)platform_class_wireless_get_pen_mac(WIRELESS_ROLE_MASTER,
-						  &pen_mac);
-
-	len = snprintf(event, MCA_EVENT_NOTIFY_SIZE,
-		       "POWER_SUPPLY_PEN_PLACE_ERR=%d", 0);
-	event_data.event = event;
-	event_data.event_len = len;
-	mca_event_report_uevent(&event_data);
-
-	len = snprintf(event, MCA_EVENT_NOTIFY_SIZE,
-		       "POWER_SUPPLY_REVERSE_PEN_SOC=%d", pen_soc);
-	event_data.event = event;
-	event_data.event_len = len;
-	mca_event_report_uevent(&event_data);
-
-	len = snprintf(event, MCA_EVENT_NOTIFY_SIZE,
-		       "POWER_SUPPLY_PEN_MAC=%llx", pen_mac);
-	event_data.event = event;
-	event_data.event_len = len;
-	mca_event_report_uevent(&event_data);
-
-	if (pen_full_flag) {
-		mca_log_info("pens battery is full, disable reverse chg\n");
-		mca_wireless_rev_enable_reverse_charge(false);
-	} else if ((pen_soc == 100) && (full_soc_count < PEN_SOC_FULL_COUNT)) {
-		full_soc_count++;
-		mca_log_info("pens soc is 100 count: %d\n", full_soc_count);
-	} else {
-		full_soc_count = 0;
-	}
-
-	if (full_soc_count == PEN_SOC_FULL_COUNT) {
-		mca_log_info(
-			"pens soc is 100 exceed 18 ,disable reverse chg\n");
-		full_soc_count = 0;
-		pen_full_flag = 1;
-		mca_wireless_rev_enable_reverse_charge(false);
-	}
-
-	if (pen_full_flag) {
-		info->proc_data.reverse_chg_sts = REVERSE_STATE_ENDTRANS;
-		len = snprintf(event, MCA_EVENT_NOTIFY_SIZE,
-			       "POWER_SUPPLY_REVERSE_CHG_STATE=%d",
-			       REVERSE_STATE_ENDTRANS);
-		event_data.event = event;
-		event_data.event_len = len;
-		mca_event_report_uevent(&event_data);
-
-		len = snprintf(event, MCA_EVENT_NOTIFY_SIZE,
-			       "POWER_SUPPLY_REVERSE_PEN_CHG_STATE=%d",
-			       REVERSE_STATE_ENDTRANS);
-		event_data.event = event;
-		event_data.event_len = len;
-		mca_event_report_uevent(&event_data);
-	}
-
-	if (info->proc_data.reverse_chg_sts == REVERSE_STATE_TRANSFER) {
-		schedule_delayed_work(
-			&info->pen_data_handle_work,
-			msecs_to_jiffies(REVERSE_PEN_DELAY_TIMER));
-	}
-
-	mca_log_info("loop pen data handle work\n");
-	return;
-}
-
 static void mca_wireless_rev_monitor_work(struct work_struct *work)
 {
 	struct mca_wireless_revchg *info = container_of(
@@ -1406,10 +1188,6 @@ static void mca_wireless_rev_init_work(struct mca_wireless_revchg *info)
 			  mca_wireless_rev_test_start_work);
 	INIT_DELAYED_WORK(&info->reverse_test_stop_work,
 			  mca_wireless_rev_test_stop_work);
-	INIT_DELAYED_WORK(&info->pen_place_err_check_work,
-			  mca_wireless_rev_pen_place_err_check_work);
-	INIT_DELAYED_WORK(&info->pen_data_handle_work,
-			  mca_wireless_rev_pen_data_handle_work);
 }
 
 static int mca_wireless_rev_get_status(int status, void *value, void *data)
@@ -1435,9 +1213,6 @@ static void mca_wireless_reverse_chg_handler(struct mca_wireless_revchg *info)
 	char event[MCA_EVENT_NOTIFY_SIZE] = { 0 };
 	struct mca_event_notify_data event_data = { 0 };
 	u8 err_code;
-	int ss = 0;
-	int pen_soc = 255;
-	u64 pen_mac = 0;
 
 	mca_log_info("reverse chg handler, int_index = %d\n",
 		     info->proc_data.int_flag);
@@ -1465,14 +1240,6 @@ static void mca_wireless_reverse_chg_handler(struct mca_wireless_revchg *info)
 		event_data.event_len = len;
 		mca_event_report_uevent(&event_data);
 
-		if (info->support_tx_only) {
-			len = snprintf(event, MCA_EVENT_NOTIFY_SIZE,
-				       "POWER_SUPPLY_REVERSE_PEN_CHG_STATE=%d",
-				       REVERSE_STATE_TRANSFER);
-			event_data.event = event;
-			event_data.event_len = len;
-			mca_event_report_uevent(&event_data);
-		}
 		if (!info->tx_timeout_flag)
 			cancel_delayed_work_sync(
 				&info->tx_transfer_timeout_work);
@@ -1486,15 +1253,6 @@ static void mca_wireless_reverse_chg_handler(struct mca_wireless_revchg *info)
 		event_data.event = event;
 		event_data.event_len = len;
 		mca_event_report_uevent(&event_data);
-
-		if (info->support_tx_only) {
-			len = snprintf(event, MCA_EVENT_NOTIFY_SIZE,
-				       "POWER_SUPPLY_REVERSE_PEN_CHG_STATE=%d",
-				       REVERSE_STATE_WAITPING);
-			event_data.event = event;
-			event_data.event_len = len;
-			mca_event_report_uevent(&event_data);
-		}
 
 		schedule_delayed_work(
 			&info->tx_ping_timeout_work,
@@ -1528,17 +1286,6 @@ static void mca_wireless_reverse_chg_handler(struct mca_wireless_revchg *info)
 				event_data.event = event;
 				event_data.event_len = len;
 				mca_event_report_uevent(&event_data);
-
-				if (info->support_tx_only) {
-					len = snprintf(
-						event, MCA_EVENT_NOTIFY_SIZE,
-						"POWER_SUPPLY_REVERSE_PEN_CHG_STATE=%d",
-						REVERSE_STATE_ENDTRANS);
-					event_data.event = event;
-					event_data.event_len = len;
-					mca_event_report_uevent(&event_data);
-				}
-
 				if (err_code == 2)
 					mca_charge_mievent_report(
 						CHARGE_DFX_WLS_TRX_OCP, NULL,
@@ -1560,17 +1307,6 @@ static void mca_wireless_reverse_chg_handler(struct mca_wireless_revchg *info)
 			event_data.event = event;
 			event_data.event_len = len;
 			mca_event_report_uevent(&event_data);
-
-			if (info->support_tx_only) {
-				len = snprintf(
-					event, MCA_EVENT_NOTIFY_SIZE,
-					"POWER_SUPPLY_REVERSE_PEN_CHG_STATE=%d",
-					REVERSE_STATE_ENDTRANS);
-				event_data.event = event;
-				event_data.event_len = len;
-				mca_event_report_uevent(&event_data);
-			}
-
 			mca_log_info("RTX_INT_GET_TX: get tx!!");
 		}
 		break;
@@ -1593,16 +1329,6 @@ static void mca_wireless_reverse_chg_handler(struct mca_wireless_revchg *info)
 		event_data.event = event;
 		event_data.event_len = len;
 		mca_event_report_uevent(&event_data);
-
-		if (info->support_tx_only) {
-			len = snprintf(event, MCA_EVENT_NOTIFY_SIZE,
-				       "POWER_SUPPLY_REVERSE_PEN_CHG_STATE=%d",
-				       REVERSE_STATE_ENDTRANS);
-			event_data.event = event;
-			event_data.event_len = len;
-			mca_event_report_uevent(&event_data);
-		}
-
 		mca_charge_mievent_report(CHARGE_DFX_WLS_TRX_FOD, NULL, 0);
 		mca_log_info("RTX_INT_FOD: fod!!");
 		break;
@@ -1617,87 +1343,6 @@ static void mca_wireless_reverse_chg_handler(struct mca_wireless_revchg *info)
 			WIRELESS_ROLE_MASTER, &err_code);
 		mca_log_err("RTX_INT_ERR_CODE, err_code:0x%02x\n", err_code);
 		break;
-	case RTX_INT_TX_DET_RX:
-		mca_log_info("RTX_INT_TX_DET_RX trigger!");
-		cancel_delayed_work_sync(&info->pen_place_err_check_work);
-		(void)platform_class_wireless_get_tx_ss(WIRELESS_ROLE_MASTER,
-							&ss);
-		if (ss < 100) {
-			mca_log_info(
-				"tx get ss_reg value: %d, pen place err: ss\n",
-				ss);
-			mca_wireless_rev_enable_reverse_charge(false);
-			cancel_delayed_work_sync(&info->pen_data_handle_work);
-			platform_class_wireless_set_pen_place_err(
-				WIRELESS_ROLE_MASTER, 1);
-			len = snprintf(event, MCA_EVENT_NOTIFY_SIZE,
-				       "POWER_SUPPLY_PEN_PLACE_ERR=%d", 1);
-			event_data.event = event;
-			event_data.event_len = len;
-			mca_event_report_uevent(&event_data);
-
-			info->proc_data.reverse_chg_sts =
-				REVERSE_STATE_ENDTRANS;
-			len = snprintf(event, MCA_EVENT_NOTIFY_SIZE,
-				       "POWER_SUPPLY_REVERSE_CHG_STATE=%d",
-				       REVERSE_STATE_ENDTRANS);
-			event_data.event = event;
-			event_data.event_len = len;
-			mca_event_report_uevent(&event_data);
-
-			if (info->support_tx_only) {
-				len = snprintf(
-					event, MCA_EVENT_NOTIFY_SIZE,
-					"POWER_SUPPLY_REVERSE_PEN_CHG_STATE=%d",
-					REVERSE_STATE_ENDTRANS);
-				event_data.event = event;
-				event_data.event_len = len;
-				mca_event_report_uevent(&event_data);
-			}
-		}
-		break;
-	case RTX_INT_TX_CONFIG:
-		mca_log_info("RTX_INT_TX_CONFIG trigger!");
-		schedule_delayed_work(
-			&info->pen_data_handle_work,
-			msecs_to_jiffies(REVERSE_PEN_DELAY_TIMER));
-		break;
-	case RTX_INT_TX_CHS_UPDATE:
-		mca_log_info("RTX_INT_TX_CHS_UPDATE trigger!");
-		(void)platform_class_wireless_get_pen_soc(WIRELESS_ROLE_MASTER,
-							  &pen_soc);
-		(void)platform_class_wireless_get_pen_mac(WIRELESS_ROLE_MASTER,
-							  &pen_mac);
-		len = snprintf(event, MCA_EVENT_NOTIFY_SIZE,
-			       "POWER_SUPPLY_REVERSE_PEN_SOC=%d", pen_soc);
-		event_data.event = event;
-		event_data.event_len = len;
-		mca_event_report_uevent(&event_data);
-
-		len = snprintf(event, MCA_EVENT_NOTIFY_SIZE,
-			       "POWER_SUPPLY_PEN_MAC=%llx", pen_mac);
-		event_data.event = event;
-		event_data.event_len = len;
-		mca_event_report_uevent(&event_data);
-		break;
-	case RTX_INT_TX_BLE_CONNECT:
-		mca_log_info("RTX_INT_TX_BLE_CONNECT trigger!");
-		(void)platform_class_wireless_get_pen_soc(WIRELESS_ROLE_MASTER,
-							  &pen_soc);
-		(void)platform_class_wireless_get_pen_mac(WIRELESS_ROLE_MASTER,
-							  &pen_mac);
-		len = snprintf(event, MCA_EVENT_NOTIFY_SIZE,
-			       "POWER_SUPPLY_REVERSE_PEN_SOC=%d", pen_soc);
-		event_data.event = event;
-		event_data.event_len = len;
-		mca_event_report_uevent(&event_data);
-
-		len = snprintf(event, MCA_EVENT_NOTIFY_SIZE,
-			       "POWER_SUPPLY_PEN_MAC=%llx", pen_mac);
-		event_data.event = event;
-		event_data.event_len = len;
-		mca_event_report_uevent(&event_data);
-		break;
 	default:
 		break;
 	}
@@ -1709,57 +1354,6 @@ mca_wireless_rev_process_int_change(int value, struct mca_wireless_revchg *info)
 {
 	info->proc_data.int_flag = value;
 	mca_wireless_reverse_chg_handler(info);
-}
-
-static void
-mca_wireless_rev_process_ppe_hall_change(int value,
-					 struct mca_wireless_revchg *info)
-{
-	char event[MCA_EVENT_NOTIFY_SIZE] = { 0 };
-	struct mca_event_notify_data event_data = { 0 };
-	int len;
-
-	mca_log_info("pen ppe hall change, place err: %d\n", value);
-
-	if (value) {
-		len = snprintf(event, MCA_EVENT_NOTIFY_SIZE,
-			       "POWER_SUPPLY_PEN_PLACE_ERR=%d", value);
-		event_data.event = event;
-		event_data.event_len = len;
-		mca_event_report_uevent(&event_data);
-
-		if (info->proc_data.reverse_chg_en &&
-		    info->proc_data.reverse_chg_sts == REVERSE_STATE_TRANSFER) {
-			mca_wireless_rev_enable_reverse_charge(false);
-			cancel_delayed_work_sync(&info->pen_data_handle_work);
-			cancel_delayed_work_sync(
-				&info->pen_place_err_check_work);
-			info->proc_data.reverse_chg_sts =
-				REVERSE_STATE_ENDTRANS;
-			len = snprintf(event, MCA_EVENT_NOTIFY_SIZE,
-				       "POWER_SUPPLY_REVERSE_CHG_STATE=%d",
-				       REVERSE_STATE_ENDTRANS);
-			event_data.event = event;
-			event_data.event_len = len;
-			mca_event_report_uevent(&event_data);
-
-			if (info->support_tx_only) {
-				len = snprintf(
-					event, MCA_EVENT_NOTIFY_SIZE,
-					"POWER_SUPPLY_REVERSE_PEN_CHG_STATE=%d",
-					REVERSE_STATE_ENDTRANS);
-				event_data.event = event;
-				event_data.event_len = len;
-				mca_event_report_uevent(&event_data);
-			}
-		}
-	} else {
-		len = snprintf(event, MCA_EVENT_NOTIFY_SIZE,
-			       "POWER_SUPPLY_PEN_PLACE_ERR=%d", 0);
-		event_data.event = event;
-		event_data.event_len = len;
-		mca_event_report_uevent(&event_data);
-	}
 }
 
 static void
@@ -1870,8 +1464,7 @@ static int mca_wireless_rev_process_event(int event, int value, void *data)
 		break;
 	case MCA_EVENT_CP_VUSB_INSERT:
 	case MCA_EVENT_CP_VUSB_OUT:
-		if (!info->support_tx_only)
-			mca_wireless_rev_process_usb_plug_change(value, info);
+		mca_wireless_rev_process_usb_plug_change(value, info);
 		break;
 	case MCA_EVENT_LPD_STATUS_CHANGE:
 		mca_log_info("lpd status event %d\n", value);
@@ -2028,11 +1621,9 @@ static ssize_t strategy_wireless_rev_sysfs_store(struct device *dev,
 			mca_log_info("store reverse_chg_mode no operation\n");
 		}
 
-		if (!info->support_tx_only) {
-			rc = mca_wireless_rev_set_user_reverse_chg(val);
-			if (rc < 0)
-				return rc;
-		}
+		rc = mca_wireless_rev_set_user_reverse_chg(val);
+		if (rc < 0)
+			return rc;
 
 		break;
 	default:
@@ -2085,9 +1676,6 @@ static int mca_wireless_rev_parse_dt(struct mca_wireless_revchg *info)
 	(void)mca_parse_dts_u32(node, "rev_boost_voltage",
 				&info->rev_boost_voltage,
 				MCA_WLS_REV_CHG_VOLTAGE_DEFAULT);
-	(void)mca_parse_dts_u32(node, "support-tx-only", &info->support_tx_only,
-				0);
-
 	return ret;
 }
 
