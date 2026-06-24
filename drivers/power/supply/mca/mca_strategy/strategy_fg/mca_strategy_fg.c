@@ -3310,6 +3310,17 @@ static int strategy_fg_ops_get_health(void *data, int *health)
 	return 0;
 }
 
+static int strategy_fg_ops_get_soh(void *data, int *soh)
+{
+	struct strategy_fg *fg = (struct strategy_fg *)data;
+
+	if (!fg || !fg->fg_init_flag)
+		return -1;
+
+	*soh = fg->batt_soh;
+	return 0;
+}
+
 int strategy_fg_ops_is_init_ok(void *data)
 {
 	struct strategy_fg *fg = (struct strategy_fg *)data;
@@ -3387,6 +3398,7 @@ static struct strategy_fg_class_ops g_strategy_fg_ops = {
 	.strategy_fg_get_high_temp_vterm = strategy_fg_ops_get_high_temp_vterm,
 	.strategy_fg_get_pack_vendor_id = strategy_fg_ops_get_pack_vendor_id,
 	.strategy_fg_get_thermal_temperature = strategy_fg_ops_get_thermal_temp,
+	.strategy_fg_get_soh = strategy_fg_ops_get_soh,
 };
 
 static void delay_reset_full_flag_work(struct work_struct *work)

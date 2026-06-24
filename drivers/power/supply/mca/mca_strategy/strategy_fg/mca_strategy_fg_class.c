@@ -288,6 +288,15 @@ int strategy_class_fg_ops_get_thermal_temperature(int *temp)
 }
 EXPORT_SYMBOL(strategy_class_fg_ops_get_thermal_temperature);
 
+int strategy_class_fg_get_soh(int *soh)
+{
+	if (is_invalid_ops(strategy_fg_get_soh))
+		return -1;
+
+	return strategy_fg_class_ops_with_one_para(strategy_fg_get_soh, soh);
+}
+EXPORT_SYMBOL(strategy_class_fg_get_soh);
+
 static struct platform_driver strategy_fg_class_driver = {
 	.driver	= {
 		.name = "strategy_fg_class",

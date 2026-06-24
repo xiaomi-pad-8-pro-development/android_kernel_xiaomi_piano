@@ -30,6 +30,7 @@ struct strategy_fg_class_ops {
 	int (*strategy_fg_get_pack_vendor_id)(void *data, int *);
 	int (*strategy_fg_dual_is_chip_ok)(void *data, int index);
 	int (*strategy_fg_get_thermal_temperature)(void *data, int *);
+	int (*strategy_fg_get_soh)(void *data, int *);
 };
 
 struct strategy_fg_class_info {
@@ -65,5 +66,6 @@ int strategy_class_fg_get_high_temp_vterm(void);
 int strategy_class_fg_get_pack_vendor_id(int * vendor_id);
 int strategy_class_fg_dual_is_chip_ok(int index);
 int strategy_class_fg_ops_get_thermal_temperature(int * temp);
+int strategy_class_fg_get_soh(int * soh);
 
 #endif /* _MCA_STRATEGY_STRATEGY_FG_CLASS_H_ */
