@@ -3975,6 +3975,9 @@ static int strategy_wireless_get_status(int status, void *value, void *data)
 		platform_class_wireless_is_present(WIRELESS_ROLE_MASTER,
 						   cur_val);
 		break;
+	case STRATEGY_STATUS_TYPE_CHARGING:
+		*cur_val = info->strategy_init_done;
+		break;
 	case STRATEGY_STATUS_TYPE_QC_TYPE:
 		*cur_val = info->proc_data.qc_type;
 		break;
@@ -4572,6 +4575,7 @@ static int basic_wireless_class_probe(struct platform_device *pdev)
 				       MCA_EVENT_WIRELESS_CONNECT, NULL);
 	}
 
+	info->strategy_init_done = 1;
 	mca_log_err("probe End\n");
 
 	return ret;

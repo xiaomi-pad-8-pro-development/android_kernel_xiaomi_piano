@@ -375,6 +375,7 @@ struct strategy_basic_wireless_smartchg_data {
 
 struct strategy_wireless_dev {
 	struct device *dev;
+	int strategy_init_done;
 	struct power_supply *batt_psy;
 
 	struct list_head header;
