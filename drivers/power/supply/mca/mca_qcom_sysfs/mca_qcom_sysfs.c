@@ -532,43 +532,43 @@ static ssize_t wls_thermal_remove_store(const struct class *class,
 }
 static CLASS_ATTR_RW(wls_thermal_remove);
 
-// static ssize_t hall_phone_case_show(const struct class *class,
-// 				    const struct class_attribute *attr,
-// 				    char *buf)
-// {
-// 	int val = 0;
+static ssize_t hall_phone_case_show(const struct class *class,
+				    const struct class_attribute *attr,
+				    char *buf)
+{
+	int val = 0;
 
-// 	platform_class_wireless_get_phone_case_category(WIRELESS_ROLE_MASTER,
-// 							&val);
-// 	return snprintf(buf, PAGE_SIZE, "%d\n", val);
-// }
-// static ssize_t hall_phone_case_store(const struct class *class,
-// 				     const struct class_attribute *attr,
-// 				     const char *buf, size_t count)
-// {
-// 	int val = 0;
-// 	int ret;
+	platform_class_wireless_get_phone_case_category(WIRELESS_ROLE_MASTER,
+							&val);
+	return snprintf(buf, PAGE_SIZE, "%d\n", val);
+}
+static ssize_t hall_phone_case_store(const struct class *class,
+				     const struct class_attribute *attr,
+				     const char *buf, size_t count)
+{
+	int val = 0;
+	int ret;
 
-// 	if (kstrtoint(buf, 10, &val))
-// 		return -EINVAL;
-// 	ret = platform_class_wireless_set_phone_case_category(
-// 		WIRELESS_ROLE_MASTER, val);
-// 	if (ret < 0)
-// 		return ret;
-// 	mca_log_err("store hall_phone_case = %d\n", val);
-// 	return count;
-// }
-// static CLASS_ATTR_RW(hall_phone_case);
+	if (kstrtoint(buf, 10, &val))
+		return -EINVAL;
+	ret = platform_class_wireless_set_phone_case_category(
+		WIRELESS_ROLE_MASTER, val);
+	if (ret < 0)
+		return ret;
+	mca_log_err("store hall_phone_case = %d\n", val);
+	return count;
+}
+static CLASS_ATTR_RW(hall_phone_case);
 
-// static ssize_t soh_show(const struct class *class,
-// 			const struct class_attribute *attr, char *buf)
-// {
-// 	int soh = 0;
+static ssize_t soh_show(const struct class *class,
+			const struct class_attribute *attr, char *buf)
+{
+	int soh = 0;
 
-// 	// strategy_class_fg_get_soh(&soh);
-// 	return snprintf(buf, PAGE_SIZE, "%d\n", soh);
-// }
-// static CLASS_ATTR_RO(soh);
+	strategy_class_fg_get_soh(&soh);
+	return snprintf(buf, PAGE_SIZE, "%d\n", soh);
+}
+static CLASS_ATTR_RO(soh);
 
 static struct attribute *mca_qcom_sysfs_attrs[] = {
 	&class_attr_real_type.attr,
