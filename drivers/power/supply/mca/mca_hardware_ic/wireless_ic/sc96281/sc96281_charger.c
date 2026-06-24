@@ -1390,6 +1390,25 @@ static int sc96281_get_fw_upgrade_fail_info(char **info, void *data)
 	*info = chip->fw_upgrade_fail_info;
 	return 0;
 }
+
+#define SC96281_REG_RSV_EPPMODE_FAIL 0x1DA
+static int sc96281_rx_get_rsv_eppmode_fail(int *fail, void *data)
+{
+	struct sc96281 *chip = (struct sc96281 *)data;
+	u16 val = 0;
+	int ret;
+
+	ret = sc96281_read_block(chip, SC96281_REG_RSV_EPPMODE_FAIL,
+				 (uint8_t *)&val, 2);
+	if (ret)
+		mca_log_err("read rsv eppmode fail reg err: %d\n", ret);
+	else
+		mca_log_info("rsv_eppmode_fail: %d\n", val);
+
+	*fail = val;
+	return ret;
+}
+
 static int sc96281_get_tx_adapter(int *adapter, void *data)
 {
 	struct sc96281 *chip = (struct sc96281 *)data;
@@ -2710,6 +2729,7 @@ static struct platform_class_wireless_ops sc96281_wls_ops = {
 	.wls_get_temp = sc96281_get_temp,
 	.wls_get_tx_adapter = sc96281_get_tx_adapter,
 	.wls_get_fw_upgrade_fail_info = sc96281_get_fw_upgrade_fail_info,
+	.wls_get_rsv_eppmode_fail = sc96281_rx_get_rsv_eppmode_fail,
 	.wls_set_enable_mode = sc96281_set_enable_mode,
 	.wls_is_car_adapter = sc96281_is_car_adapter,
 	.wls_get_rx_rtx_mode = sc96281_get_rx_rtx_mode,
