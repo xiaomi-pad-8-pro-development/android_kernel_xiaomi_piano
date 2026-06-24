@@ -37,10 +37,6 @@ enum strategy_status_type {
 	STRATEGY_STATUS_TYPE_WLS_MAGNET_LIMIT,
 };
 
-enum mca_strategy_event {
-	MCA_EVENT_BQ_FG_ERROR = 0x3e,
-};
-
 enum adp_icon_type {
 	ADP_ICON_TYPE_NORMAL = 0,
 	ADP_ICON_TYPE_FAST,
