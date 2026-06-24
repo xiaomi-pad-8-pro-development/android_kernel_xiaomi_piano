@@ -16,6 +16,12 @@
 #include <linux/debugfs.h>
 #include <linux/uaccess.h>
 
+#define SYSFS_DEV_1	"charger"
+#define SYSFS_DEV_2	"fuelgauge"
+#define SYSFS_DEV_3	"typec"
+#define SYSFS_DEV_4	"battery"
+#define SYSFS_DEV_5	"hw_monitor"
+
 struct mca_sysfs_class_node {
 	const char *class_name;
 	struct class *mca_class;
