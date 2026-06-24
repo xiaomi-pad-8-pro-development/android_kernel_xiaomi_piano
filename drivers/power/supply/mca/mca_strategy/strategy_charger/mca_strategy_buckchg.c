@@ -1160,6 +1160,9 @@ static int strategy_buckchg_get_status(int status, void *value, void *data)
 		platform_class_buckchg_ops_get_online(MAIN_BUCK_CHARGER,
 						      cur_val);
 		break;
+	case STRATEGY_STATUS_TYPE_CHARGING:
+		*cur_val = info->strategy_init_done;
+		break;
 	case STRATEGY_STATUS_TYPE_QC_TYPE:
 		*cur_val = info->proc_data.qc_type;
 		break;
@@ -2668,6 +2671,7 @@ static int strategy_buckchg_class_probe(struct platform_device *pdev)
 	g_buckchg_info = info;
 	mca_log_err("androidboot.mode=%d\n", mca_log_get_charge_boot_mode());
 
+	info->strategy_init_done = 1;
 	mca_log_err("probe success\n");
 	return 0;
 }

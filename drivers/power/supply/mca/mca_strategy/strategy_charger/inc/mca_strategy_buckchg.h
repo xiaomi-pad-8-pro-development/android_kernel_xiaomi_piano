@@ -130,6 +130,7 @@ struct mca_smartchg_data {
 
 struct strategy_buckchg_dev {
 	struct device *dev;
+	int strategy_init_done;
 	/* dt config */
 	int support_multi_buck;
 	int ship_mode_chip;
