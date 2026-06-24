@@ -46,6 +46,10 @@ typedef struct {
 	u32 power_off_mode;
 	u32 zero_speed_mode;
 	u32 test;
+	u32 double85;
+	u32 remove_temp_limit;
+	u32 soc_limit;
+	u32 memory_test;
 	u32 reserved;
 } charger_partition_info_1;
 
@@ -65,5 +69,13 @@ int charger_partition_write(u8 charger_partition_host_type,
 			    u8 charger_partition_info_type, void *buf,
 			    uint32_t size);
 int charger_partition_get_eu_model(bool *is_eu_model);
+
+int charger_partition_read_double85(int *val);
+int charger_partition_write_double85(int val);
+int charger_partition_write_remove_temp_limit(int val);
+int charger_partition_read_memory_test(int *val);
+int charger_partition_write_memory_test(int val);
+int charger_partition_read_soc_limit(int *val);
+int charger_partition_write_soc_limit(int val);
 
 #endif /* _MCA_SHARED_MEMORY_CHARGER_PARTITION_CLASS_H_ */

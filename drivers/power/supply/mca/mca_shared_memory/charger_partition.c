@@ -379,6 +379,127 @@ int charger_partition_get_eu_model(bool *is_eu_model)
 }
 EXPORT_SYMBOL(charger_partition_get_eu_model);
 
+static int charger_partition_read_info_1(charger_partition_info_1 *out)
+{
+	charger_partition_info_1 *info_1;
+	int ret;
+
+	ret = charger_partition_alloc(CHARGER_PARTITION_HOST_KERNEL,
+				      CHARGER_PARTITION_INFO_1,
+				      sizeof(charger_partition_info_1));
+	if (ret < 0) {
+		mca_log_err("failed to alloc\n");
+		return -1;
+	}
+
+	info_1 = (charger_partition_info_1 *)charger_partition_read(
+		CHARGER_PARTITION_HOST_KERNEL, CHARGER_PARTITION_INFO_1,
+		sizeof(charger_partition_info_1));
+	if (info_1)
+		*out = *info_1;
+	else
+		ret = -1;
+
+	(void)charger_partition_dealloc(CHARGER_PARTITION_HOST_KERNEL,
+					CHARGER_PARTITION_INFO_1,
+					sizeof(charger_partition_info_1));
+	return ret;
+}
+
+static int charger_partition_write_info_1(const charger_partition_info_1 *in)
+{
+	int ret;
+
+	ret = charger_partition_alloc(CHARGER_PARTITION_HOST_KERNEL,
+				      CHARGER_PARTITION_INFO_1,
+				      sizeof(charger_partition_info_1));
+	if (ret < 0) {
+		mca_log_err("failed to alloc\n");
+		return -1;
+	}
+
+	ret = charger_partition_write(CHARGER_PARTITION_HOST_KERNEL,
+				      CHARGER_PARTITION_INFO_1, (void *)in,
+				      sizeof(charger_partition_info_1));
+	if (ret < 0)
+		mca_log_err("failed to write\n");
+
+	(void)charger_partition_dealloc(CHARGER_PARTITION_HOST_KERNEL,
+					CHARGER_PARTITION_INFO_1,
+					sizeof(charger_partition_info_1));
+	return ret;
+}
+
+int charger_partition_read_double85(int *val)
+{
+	charger_partition_info_1 info_1 = { 0 };
+
+	(void)charger_partition_read_info_1(&info_1);
+	*val = info_1.double85;
+	return 0;
+}
+EXPORT_SYMBOL(charger_partition_read_double85);
+
+int charger_partition_write_double85(int val)
+{
+	charger_partition_info_1 info_1 = { 0 };
+
+	(void)charger_partition_read_info_1(&info_1);
+	info_1.double85 = val;
+	return charger_partition_write_info_1(&info_1);
+}
+EXPORT_SYMBOL(charger_partition_write_double85);
+
+int charger_partition_write_remove_temp_limit(int val)
+{
+	charger_partition_info_1 info_1 = { 0 };
+
+	(void)charger_partition_read_info_1(&info_1);
+	info_1.remove_temp_limit = val;
+	return charger_partition_write_info_1(&info_1);
+}
+EXPORT_SYMBOL(charger_partition_write_remove_temp_limit);
+
+int charger_partition_read_memory_test(int *val)
+{
+	charger_partition_info_1 info_1 = { 0 };
+
+	(void)charger_partition_read_info_1(&info_1);
+	*val = info_1.memory_test;
+	return 0;
+}
+EXPORT_SYMBOL(charger_partition_read_memory_test);
+
+int charger_partition_write_memory_test(int val)
+{
+	charger_partition_info_1 info_1 = { 0 };
+
+	(void)charger_partition_read_info_1(&info_1);
+	info_1.memory_test = val;
+	return charger_partition_write_info_1(&info_1);
+}
+EXPORT_SYMBOL(charger_partition_write_memory_test);
+
+int charger_partition_read_soc_limit(int *val)
+{
+	charger_partition_info_1 info_1 = { 0 };
+
+	(void)charger_partition_read_info_1(&info_1);
+	*val = info_1.soc_limit;
+	return 0;
+}
+EXPORT_SYMBOL(charger_partition_read_soc_limit);
+
+int charger_partition_write_soc_limit(int val)
+{
+	charger_partition_info_1 info_1 = { 0 };
+
+	(void)charger_partition_read_info_1(&info_1);
+	info_1.soc_limit = val;
+	return charger_partition_write_info_1(&info_1);
+}
+EXPORT_SYMBOL(charger_partition_write_soc_limit);
+
 static ssize_t charger_partition_sysfs_show(struct device *dev,
 					    struct device_attribute *attr,
 					    char *buf);
