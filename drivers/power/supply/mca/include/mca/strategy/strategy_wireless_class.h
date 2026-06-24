@@ -50,5 +50,7 @@ int mca_wireless_rev_get_reverse_chg(bool *reverse_chg_en);
 int mca_wireless_rev_get_reverse_chg_state(int *state);
 int mca_wireless_rev_set_user_reverse_chg(bool user_reverse_chg);
 int mca_wireless_rev_update_fw_version(int cmd);
+int mca_wireless_rev_set_usb_plugin(bool wls_sleep_usb_insert);
+int mca_wireless_rev_get_fw_update(bool *fw_update);
 
 #endif /* _MCA_STRATEGY_STRATEGY_WIRELESS_CLASS_H_ */

@@ -20,5 +20,6 @@ enum lpd_attr_list {
 	LPD_PROP_UART_CONTROL,
 };
 extern int mca_lpd_get_reg(enum lpd_attr_list LPD, int *int_status_reg);
+extern int lpd_is_charging_limit(void);
 
 #endif /*__HW_LPD_DETECH_H__*/
