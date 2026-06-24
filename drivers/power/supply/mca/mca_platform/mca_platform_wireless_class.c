@@ -142,6 +142,19 @@ int platform_class_wireless_get_fw_upgrade_fail_info(unsigned int role,
 							    temp_data->data);
 }
 EXPORT_SYMBOL(platform_class_wireless_get_fw_upgrade_fail_info);
+
+int platform_class_wireless_get_rsv_eppmode_fail(unsigned int role, int *fail)
+{
+	struct platform_wireless_class_ops_data *temp_data =
+		platform_wireless_class_get_ic_ops(role);
+
+	if (platform_wireless_ops_invalid(temp_data, wls_get_rsv_eppmode_fail))
+		return -EOPNOTSUPP;
+
+	return temp_data->ops->wls_get_rsv_eppmode_fail(fail, temp_data->data);
+}
+EXPORT_SYMBOL(platform_class_wireless_get_rsv_eppmode_fail);
+
 int platform_class_wireless_set_vout(unsigned int role, int vout)
 {
 	struct platform_wireless_class_ops_data *temp_data =

@@ -45,6 +45,7 @@ struct platform_class_wireless_ops {
 	int (*wls_get_tx_adapter)(int *, void *data);
 	int (*wls_get_tx_adapter_by_i2c)(int *, void *data);
 	int (*wls_get_fw_upgrade_fail_info)(int *, void *data);
+	int (*wls_get_rsv_eppmode_fail)(int *, void *data);
 	int (*wls_get_temp)(int *, void *data);
 	int (*wls_set_enable_mode)(bool, void *data);
 	int (*wls_is_car_adapter)(bool *, void *data);
@@ -111,6 +112,7 @@ int platform_class_wireless_get_tx_adapter_by_i2c(unsigned int role,
 						  int *adapter);
 int platform_class_wireless_get_fw_upgrade_fail_info(unsigned int role,
 						     int *info);
+int platform_class_wireless_get_rsv_eppmode_fail(unsigned int role, int *fail);
 int platform_class_wireless_get_temp(unsigned int role, int *temp);
 int platform_class_wireless_set_enable_mode(unsigned int role, bool enable);
 int platform_class_wireless_is_car_adapter(unsigned int role, bool *enable);
