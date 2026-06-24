@@ -79,19 +79,6 @@ enum wireless_attr_list {
 	RX_SYSFS_RX_OFFSET,
 	RX_SYSFS_RX_SLEEP_MODE,
 	RX_SYSFS_TX_UUID,
-	TX_SYSFS_TX_VOUT,
-	TX_SYSFS_TX_IOUT,
-	TX_SYSFS_TX_TDIE,
-	TX_SYSFS_TX_SS,
-	TX_SYSFS_PEN_MAC,
-	TX_SYSFS_PEN_SOC,
-	TX_SYSFS_PEN_HALL3,
-	TX_SYSFS_PEN_HALL4,
-	TX_SYSFS_PEN_HALL3_S,
-	TX_SYSFS_PEN_HALL4_S,
-	TX_SYSFS_PEN_HALL_PPE_N,
-	TX_SYSFS_PEN_HALl_PPE_S,
-	TX_SYSFS_PEN_PLACE_ERR,
 };
 
 static inline struct platform_wireless_class_ops_data *
@@ -853,186 +840,6 @@ int platform_class_wireless_notify_cp_status(unsigned int role, int status)
 }
 EXPORT_SYMBOL(platform_class_wireless_notify_cp_status);
 
-int platform_class_wireless_get_tx_vout(unsigned int role, int *vout)
-{
-	struct platform_wireless_class_ops_data *temp_data =
-		platform_wireless_class_get_ic_ops(role);
-
-	if (platform_wireless_ops_invalid(temp_data, wls_get_tx_vout))
-		return -EOPNOTSUPP;
-
-	return temp_data->ops->wls_get_tx_vout(vout, temp_data->data);
-}
-EXPORT_SYMBOL(platform_class_wireless_get_tx_vout);
-
-int platform_class_wireless_get_tx_iout(unsigned int role, int *iout)
-{
-	struct platform_wireless_class_ops_data *temp_data =
-		platform_wireless_class_get_ic_ops(role);
-
-	if (platform_wireless_ops_invalid(temp_data, wls_get_tx_iout))
-		return -EOPNOTSUPP;
-
-	return temp_data->ops->wls_get_tx_iout(iout, temp_data->data);
-}
-EXPORT_SYMBOL(platform_class_wireless_get_tx_iout);
-
-int platform_class_wireless_get_tx_tdie(unsigned int role, int *temp)
-{
-	struct platform_wireless_class_ops_data *temp_data =
-		platform_wireless_class_get_ic_ops(role);
-
-	if (platform_wireless_ops_invalid(temp_data, wls_get_tx_tdie))
-		return -EOPNOTSUPP;
-
-	return temp_data->ops->wls_get_tx_tdie(temp, temp_data->data);
-}
-EXPORT_SYMBOL(platform_class_wireless_get_tx_tdie);
-
-int platform_class_wireless_get_tx_ss(unsigned int role, int *ss)
-{
-	struct platform_wireless_class_ops_data *temp_data =
-		platform_wireless_class_get_ic_ops(role);
-
-	if (platform_wireless_ops_invalid(temp_data, wls_get_tx_ss))
-		return -EOPNOTSUPP;
-
-	return temp_data->ops->wls_get_tx_ss(ss, temp_data->data);
-}
-EXPORT_SYMBOL(platform_class_wireless_get_tx_ss);
-
-int platform_class_wireless_get_pen_mac(unsigned int role, u64 *mac)
-{
-	struct platform_wireless_class_ops_data *temp_data =
-		platform_wireless_class_get_ic_ops(role);
-
-	if (platform_wireless_ops_invalid(temp_data, wls_get_pen_mac))
-		return -EOPNOTSUPP;
-
-	return temp_data->ops->wls_get_pen_mac(mac, temp_data->data);
-}
-EXPORT_SYMBOL(platform_class_wireless_get_pen_mac);
-
-int platform_class_wireless_get_pen_soc(unsigned int role, int *soc)
-{
-	struct platform_wireless_class_ops_data *temp_data =
-		platform_wireless_class_get_ic_ops(role);
-
-	if (platform_wireless_ops_invalid(temp_data, wls_get_pen_soc))
-		return -EOPNOTSUPP;
-
-	return temp_data->ops->wls_get_pen_soc(soc, temp_data->data);
-}
-EXPORT_SYMBOL(platform_class_wireless_get_pen_soc);
-
-int platform_class_wireless_get_pen_full_flag(unsigned int role, int *pen_full)
-{
-	struct platform_wireless_class_ops_data *temp_data =
-		platform_wireless_class_get_ic_ops(role);
-
-	if (platform_wireless_ops_invalid(temp_data, wls_get_pen_full_flag))
-		return -EOPNOTSUPP;
-
-	return temp_data->ops->wls_get_pen_full_flag(pen_full, temp_data->data);
-}
-EXPORT_SYMBOL(platform_class_wireless_get_pen_full_flag);
-
-int platform_class_wireless_get_pen_hall3(unsigned int role, int *value)
-{
-	struct platform_wireless_class_ops_data *temp_data =
-		platform_wireless_class_get_ic_ops(role);
-
-	if (platform_wireless_ops_invalid(temp_data, wls_get_pen_hall3))
-		return -EOPNOTSUPP;
-
-	return temp_data->ops->wls_get_pen_hall3(value, temp_data->data);
-}
-EXPORT_SYMBOL(platform_class_wireless_get_pen_hall3);
-
-int platform_class_wireless_get_pen_hall4(unsigned int role, int *value)
-{
-	struct platform_wireless_class_ops_data *temp_data =
-		platform_wireless_class_get_ic_ops(role);
-
-	if (platform_wireless_ops_invalid(temp_data, wls_get_pen_hall4))
-		return -EOPNOTSUPP;
-
-	return temp_data->ops->wls_get_pen_hall4(value, temp_data->data);
-}
-EXPORT_SYMBOL(platform_class_wireless_get_pen_hall4);
-
-int platform_class_wireless_get_pen_hall3_s(unsigned int role, int *value)
-{
-	struct platform_wireless_class_ops_data *temp_data =
-		platform_wireless_class_get_ic_ops(role);
-
-	if (platform_wireless_ops_invalid(temp_data, wls_get_pen_hall3_s))
-		return -EOPNOTSUPP;
-
-	return temp_data->ops->wls_get_pen_hall3_s(value, temp_data->data);
-}
-EXPORT_SYMBOL(platform_class_wireless_get_pen_hall3_s);
-
-int platform_class_wireless_get_pen_hall4_s(unsigned int role, int *value)
-{
-	struct platform_wireless_class_ops_data *temp_data =
-		platform_wireless_class_get_ic_ops(role);
-
-	if (platform_wireless_ops_invalid(temp_data, wls_get_pen_hall4_s))
-		return -EOPNOTSUPP;
-
-	return temp_data->ops->wls_get_pen_hall4_s(value, temp_data->data);
-}
-EXPORT_SYMBOL(platform_class_wireless_get_pen_hall4_s);
-
-int platform_class_wireless_get_pen_hall_ppe_n(unsigned int role, int *value)
-{
-	struct platform_wireless_class_ops_data *temp_data =
-		platform_wireless_class_get_ic_ops(role);
-
-	if (platform_wireless_ops_invalid(temp_data, wls_get_pen_hall_ppe_n))
-		return -EOPNOTSUPP;
-
-	return temp_data->ops->wls_get_pen_hall_ppe_n(value, temp_data->data);
-}
-EXPORT_SYMBOL(platform_class_wireless_get_pen_hall_ppe_n);
-
-int platform_class_wireless_get_pen_hall_ppe_s(unsigned int role, int *value)
-{
-	struct platform_wireless_class_ops_data *temp_data =
-		platform_wireless_class_get_ic_ops(role);
-
-	if (platform_wireless_ops_invalid(temp_data, wls_get_pen_hall_ppe_s))
-		return -EOPNOTSUPP;
-
-	return temp_data->ops->wls_get_pen_hall_ppe_s(value, temp_data->data);
-}
-EXPORT_SYMBOL(platform_class_wireless_get_pen_hall_ppe_s);
-
-int platform_class_wireless_get_pen_place_err(unsigned int role, int *err)
-{
-	struct platform_wireless_class_ops_data *temp_data =
-		platform_wireless_class_get_ic_ops(role);
-
-	if (platform_wireless_ops_invalid(temp_data, wls_get_pen_place_err))
-		return -EOPNOTSUPP;
-
-	return temp_data->ops->wls_get_pen_place_err(err, temp_data->data);
-}
-EXPORT_SYMBOL(platform_class_wireless_get_pen_place_err);
-
-int platform_class_wireless_set_pen_place_err(unsigned int role, int err)
-{
-	struct platform_wireless_class_ops_data *temp_data =
-		platform_wireless_class_get_ic_ops(role);
-
-	if (platform_wireless_ops_invalid(temp_data, wls_set_pen_place_err))
-		return -EOPNOTSUPP;
-
-	return temp_data->ops->wls_set_pen_place_err(err, temp_data->data);
-}
-EXPORT_SYMBOL(platform_class_wireless_set_pen_place_err);
-
 static int
 platform_wireless_dev_parse_dt(struct platform_wireless_dev *wireless)
 {
@@ -1107,24 +914,6 @@ static struct mca_sysfs_attr_info wireless_sysfs_field_tbl[] = {
 	mca_sysfs_attr_rw(wireless_sysfs, 0660, RX_SYSFS_RX_SLEEP_MODE,
 			  rx_sleep_mode),
 	mca_sysfs_attr_ro(wireless_sysfs, 0440, RX_SYSFS_TX_UUID, tx_uuid),
-	mca_sysfs_attr_ro(wireless_sysfs, 0440, TX_SYSFS_TX_VOUT, tx_vout),
-	mca_sysfs_attr_ro(wireless_sysfs, 0440, TX_SYSFS_TX_IOUT, tx_iout),
-	mca_sysfs_attr_ro(wireless_sysfs, 0440, TX_SYSFS_TX_TDIE, tx_tdie),
-	mca_sysfs_attr_ro(wireless_sysfs, 0440, TX_SYSFS_TX_SS, tx_ss),
-	mca_sysfs_attr_ro(wireless_sysfs, 0440, TX_SYSFS_PEN_MAC, pen_mac),
-	mca_sysfs_attr_ro(wireless_sysfs, 0440, TX_SYSFS_PEN_SOC, pen_soc),
-	mca_sysfs_attr_ro(wireless_sysfs, 0440, TX_SYSFS_PEN_HALL3, pen_hall3),
-	mca_sysfs_attr_ro(wireless_sysfs, 0440, TX_SYSFS_PEN_HALL4, pen_hall4),
-	mca_sysfs_attr_ro(wireless_sysfs, 0440, TX_SYSFS_PEN_HALL3_S,
-			  pen_hall3_s),
-	mca_sysfs_attr_ro(wireless_sysfs, 0440, TX_SYSFS_PEN_HALL4_S,
-			  pen_hall4_s),
-	mca_sysfs_attr_ro(wireless_sysfs, 0440, TX_SYSFS_PEN_HALl_PPE_S,
-			  pen_hall_ppe_s),
-	mca_sysfs_attr_ro(wireless_sysfs, 0440, TX_SYSFS_PEN_HALL_PPE_N,
-			  pen_hall_ppe_n),
-	mca_sysfs_attr_rw(wireless_sysfs, 0660, TX_SYSFS_PEN_PLACE_ERR,
-			  pen_place_err),
 };
 
 #define WIRELESS_SYSFS_ATTRS_SIZE ARRAY_SIZE(wireless_sysfs_field_tbl)
@@ -1216,71 +1005,6 @@ static ssize_t wireless_sysfs_show(struct device *dev,
 		count = scnprintf(buf, PAGE_SIZE, "%02x.%02x.%02x.%02x\n",
 				  uuid[0], uuid[1], uuid[2], uuid[3]);
 		break;
-	case TX_SYSFS_TX_VOUT:
-		platform_class_wireless_get_tx_vout(*wireless_index,
-						    &(val.intval));
-		count = scnprintf(buf, PAGE_SIZE, "%d\n", val.intval);
-		break;
-	case TX_SYSFS_TX_IOUT:
-		platform_class_wireless_get_tx_iout(*wireless_index,
-						    &(val.intval));
-		count = scnprintf(buf, PAGE_SIZE, "%d\n", val.intval);
-		break;
-	case TX_SYSFS_TX_TDIE:
-		platform_class_wireless_get_tx_tdie(*wireless_index,
-						    &(val.intval));
-		count = scnprintf(buf, PAGE_SIZE, "%d\n", val.intval);
-		break;
-	case TX_SYSFS_TX_SS:
-		platform_class_wireless_get_tx_ss(*wireless_index,
-						  &(val.intval));
-		count = scnprintf(buf, PAGE_SIZE, "%d\n", val.intval);
-		break;
-	case TX_SYSFS_PEN_MAC:
-		platform_class_wireless_get_pen_mac(*wireless_index,
-						    &(val.val64bit));
-		count = scnprintf(buf, PAGE_SIZE, "%llx\n", val.val64bit);
-		break;
-	case TX_SYSFS_PEN_SOC:
-		platform_class_wireless_get_pen_soc(*wireless_index,
-						    &(val.intval));
-		count = scnprintf(buf, PAGE_SIZE, "%d\n", val.intval);
-		break;
-	case TX_SYSFS_PEN_HALL3:
-		platform_class_wireless_get_pen_hall3(*wireless_index,
-						      &(val.intval));
-		count = scnprintf(buf, PAGE_SIZE, "%d\n", val.intval);
-		break;
-	case TX_SYSFS_PEN_HALL4:
-		platform_class_wireless_get_pen_hall4(*wireless_index,
-						      &(val.intval));
-		count = scnprintf(buf, PAGE_SIZE, "%d\n", val.intval);
-		break;
-	case TX_SYSFS_PEN_HALL3_S:
-		platform_class_wireless_get_pen_hall3_s(*wireless_index,
-							&(val.intval));
-		count = scnprintf(buf, PAGE_SIZE, "%d\n", val.intval);
-		break;
-	case TX_SYSFS_PEN_HALL4_S:
-		platform_class_wireless_get_pen_hall4_s(*wireless_index,
-							&(val.intval));
-		count = scnprintf(buf, PAGE_SIZE, "%d\n", val.intval);
-		break;
-	case TX_SYSFS_PEN_HALL_PPE_N:
-		platform_class_wireless_get_pen_hall_ppe_n(*wireless_index,
-							   &(val.intval));
-		count = scnprintf(buf, PAGE_SIZE, "%d\n", val.intval);
-		break;
-	case TX_SYSFS_PEN_HALl_PPE_S:
-		platform_class_wireless_get_pen_hall_ppe_s(*wireless_index,
-							   &(val.intval));
-		count = scnprintf(buf, PAGE_SIZE, "%d\n", val.intval);
-		break;
-	case TX_SYSFS_PEN_PLACE_ERR:
-		platform_class_wireless_get_pen_place_err(*wireless_index,
-							  &(val.intval));
-		count = scnprintf(buf, PAGE_SIZE, "%d\n", val.intval);
-		break;
 	default:
 		break;
 	}
@@ -1338,12 +1062,6 @@ static ssize_t wireless_sysfs_store(struct device *dev,
 		if (kstrtoint(buf, 10, &val.intval))
 			return -EINVAL;
 		platform_class_wireless_set_rx_sleep_mode(*wireless_index,
-							  val.intval);
-		break;
-	case TX_SYSFS_PEN_PLACE_ERR:
-		if (kstrtoint(buf, 10, &val.intval))
-			return -EINVAL;
-		platform_class_wireless_set_pen_place_err(*wireless_index,
 							  val.intval);
 		break;
 	default:
