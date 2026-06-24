@@ -1090,7 +1090,6 @@ static int mca_charger_thermal_probe(struct platform_device *pdev)
 {
 	struct mca_thermal_info *info;
 	int ret;
-	int online = 0;
 
 	mca_log_info("probe begin\n");
 	info = devm_kzalloc(&pdev->dev, sizeof(*info), GFP_KERNEL);
@@ -1129,13 +1128,6 @@ static int mca_charger_thermal_probe(struct platform_device *pdev)
 	g_wlscharger_thermal_info = info;
 	mca_log_charge_log_register(MCA_CHARGE_LOG_ID_THERMAL,
 				    &g_mca_thermal_log_ops, info);
-
-	platform_class_buckchg_ops_get_online(MAIN_BUCK_CHARGER, &online);
-	if (online) {
-		mca_log_info("avoid missing first usb connect event\n");
-		mca_event_block_notify(MCA_EVENT_TYPE_CHARGER_CONNECT,
-				       MCA_EVENT_USB_CONNECT, NULL);
-	}
 	mca_log_err("probe end\n");
 
 	return 0;
