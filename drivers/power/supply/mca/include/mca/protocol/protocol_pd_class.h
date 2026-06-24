@@ -40,20 +40,6 @@ struct usbpd_vdm_data {
 	unsigned long digest[8];
 };
 
-struct adapter_power_cap {
-	int selected_cap_idx;
-	int nr;
-	int pdp;
-	int max_mv[ADAPTER_CAP_MAX_NR];
-	int min_mv[ADAPTER_CAP_MAX_NR];
-	int ma[ADAPTER_CAP_MAX_NR];
-	int maxwatt[ADAPTER_CAP_MAX_NR];
-	int minwatt[ADAPTER_CAP_MAX_NR];
-	unsigned char type[ADAPTER_CAP_MAX_NR];
-	int pwr_limit[ADAPTER_CAP_MAX_NR];
-	int pdp_limit[ADAPTER_CAP_MAX_NR];
-};
-
 struct protocol_class_pd_ops {
 	int (*protocol_pd_pps_get_max_power)(unsigned int *max_power, void *data);
 	int (*protocol_pd_pps_pdo_select)(int volt, int curr, void *data);

@@ -60,7 +60,7 @@ enum typec_attach_mode {
 
 #define ADAPTER_CAP_MAX_NR	10
 
-struct adapter_power_cap_entry {
+struct adapter_power_cap {
 	int max_voltage;
 	int min_voltage;
 	int max_current;
@@ -69,7 +69,7 @@ struct adapter_power_cap_entry {
 
 struct adapter_power_cap_info {
 	int nums;
-	struct adapter_power_cap_entry cap[ADAPTER_CAP_MAX_NR];
+	struct adapter_power_cap cap[ADAPTER_CAP_MAX_NR];
 };
 
 

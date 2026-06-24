@@ -31,12 +31,17 @@ enum mca_charge_if_chg_type {
 struct mca_charge_if_ops {
 	const char *type_name;
 	void *data;
-	int (*set_input_suspend)(char *user, char *value, void *data);
-	int (*set_charge_enable)(char *user, unsigned int value, void *data);
-	int (*set_input_current_limit)(char *user, char *value, void *data);
-	int (*set_charge_current_limit)(char *user, char *value, void *data);
-	int (*set_charge_power_limit)(char *user, unsigned int value, void *data);
-	int (*set_ship_mode_en)(char *user, unsigned int value, void *data);
+	int (*set_input_suspend)(const char *user, char *value, void *data);
+	int (*set_charge_enable)(const char *user, unsigned int value,
+				 void *data);
+	int (*set_input_current_limit)(const char *user, char *value,
+				       void *data);
+	int (*set_charge_current_limit)(const char *user, char *value,
+					void *data);
+	int (*set_charge_power_limit)(const char *user, unsigned int value,
+				      void *data);
+	int (*set_ship_mode_en)(const char *user, unsigned int value,
+				void *data);
 	int (*get_input_suspend)(char *value, void *data);
 	int (*get_charge_enable)(char *value, void *data);
 	int (*get_input_current_limit)(char *value, void *data);

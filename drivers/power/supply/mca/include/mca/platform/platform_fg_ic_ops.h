@@ -104,6 +104,8 @@ enum mca_fg_ic_role {
 	FG_IC_BASE,
 	FG_IC_MAX,
 };
+#define FG_SITE_MAX FG_IC_MAX
+
 struct fuelguage_ic_ops {
 	int (*fg_ic_probe_ok)(void *data, bool *);
 	int (*fg_ic_get_batt_info)(void *data, void *);

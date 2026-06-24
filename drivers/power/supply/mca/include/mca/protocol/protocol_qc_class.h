@@ -4,6 +4,13 @@
 #include <linux/types.h>
 #include <mca/protocol/protocol_class.h>
 
+#define QC3_STEP_SIZE 200
+enum mca_qc_hvdcp_cmd {
+	QC2_FORCE_5V = 0,
+	QC3_SINGLE_INCREMENT,
+	QC3_SINGLE_DECREMENT,
+};
+
 struct protocol_class_qc_ops {
 	int (*protocol_qc3_check_class_type)(int *type, void *data);
 	int (*protocol_qc_get_qc_type)(int *type, void *data);

@@ -41,9 +41,31 @@ enum mca_strategy_event {
 	MCA_EVENT_BQ_FG_ERROR = 0,
 };
 
+enum mca_strategy_config_type {
+	STRATEGY_CONFIG_INPUT_CURRENT_LIMIT = 0,
+	STRATEGY_CONFIG_MAX,
+};
+
+enum mca_buck_chg_status {
+	MCA_BUCK_CHG_STS_NA = 0,
+	MCA_BUCK_CHG_NO_CHARGING,
+	MCA_BUCK_CHG_STS_CHARGING,
+	MCA_BUCK_CHG_STS_CHARGE_DONE,
+};
+
+enum mca_quick_chg_status {
+	MCA_QUICK_CHG_STS_NO_CHARGING = 0,
+	MCA_QUICK_CHG_STS_CHARGING,
+	MCA_QUICK_CHG_STS_CHARGE_DONE,
+	MCA_QUICK_CHG_STS_CHARGE_FAILED,
+};
+
 typedef int (*mca_strategy_func)(int event, int value, void *data);
 typedef int (*mca_strategy_get_status)(int status, void *value, void *data);
 typedef int (*mca_strategy_set_config)(int config, int value, void *data);
+
+int mca_get_wls_charger_thermal_remove(bool *wls_thermal_remove);
+int mca_set_wls_charger_thermal_remove(bool wls_thermal_remove);
 
 int mca_strategy_func_get_status(int type, int status, void *value);
 int mca_strategy_func_process(unsigned int type, int event, int value);

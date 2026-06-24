@@ -14,18 +14,31 @@
  * true layout is obtained.
  */
 struct smart_batt_spec_curve {
-	int temp;
-	int curr;
+	int mv;
+	int ma_h;
+	int ma_l;
 };
 
 struct smart_batt_jeita_term_para {
-	int temp;
-	int term_curr;
+	struct {
+		int idx;
+		int min;
+		int max;
+	} t_range;
+	int vterm;
+	int iterm;
 };
 
 struct smart_batt_spec {
+	u32 type;
+	u32 ffc;
+	struct {
+		int idx;
+		int min;
+		int max;
+	} t_range;
 	u32 step_size;
-	struct smart_batt_spec_curve steps[];
+	struct smart_batt_spec_curve *steps;
 };
 
 struct smart_basp_header {
@@ -55,11 +68,12 @@ struct mca_smartchg_if_ops {
 	void *data;
 	int (*set_delta_fv)(void *data, int val);
 	int (*set_delta_ichg)(void *data, int val);
-	int (*set_pwr_boost_sts)(void *data, bool en);
-	int (*set_soc_limit_sts)(void *data, bool en);
-	int (*set_wls_quiet_sts)(void *data, bool en);
-	int (*set_wls_super_sts)(void *data, bool en);
-	int (*update_baa_para)(void *data, void *buf, int size1, int size2);
+	int (*set_pwr_boost_sts)(void *data, int en);
+	int (*set_soc_limit_sts)(void *data, int en);
+	int (*set_wls_quiet_sts)(void *data, int en);
+	int (*set_wls_super_sts)(void *data, int en);
+	int (*update_baa_para)(void *data, char *baa_para, int ffc_size,
+			       int normal_size);
 };
 
 int mca_smartchg_if_ops_register(struct mca_smartchg_if_ops *ops);

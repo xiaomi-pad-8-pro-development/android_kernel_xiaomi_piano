@@ -8,6 +8,15 @@ enum mca_cp_role {
 	CP_ROLE_MAX,
 };
 
+enum mca_cp_charge_mode {
+	CP_MODE_DEFAULT = 0,
+	CP_MODE_FORWARD_1_1,
+	CP_MODE_FORWARD_2_1,
+	CP_MODE_FORWARD_4_1,
+	CP_MODE_REVERSE_1_1,
+	CP_MODE_REVERSE_1_2,
+	CP_MODE_MAX,
+};
 enum mca_cp_status_type {
 	VBUS_ERRORHI_STAT = 0,
 	VBUS_ERRORLO_STAT,
