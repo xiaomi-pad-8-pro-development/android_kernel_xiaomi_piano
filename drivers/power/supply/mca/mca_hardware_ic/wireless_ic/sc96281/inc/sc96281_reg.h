@@ -762,6 +762,7 @@ struct sc96281 {
 	struct pinctrl_state *pinctrl_stat_hall;
 	//fw_bin
 	bool fw_program;
+	char *fw_upgrade_fail_info;
 
 	int work_mode;
 	int project_vendor;

@@ -129,7 +129,7 @@ int platform_class_wireless_is_present(unsigned int role, int *present)
 EXPORT_SYMBOL(platform_class_wireless_is_present);
 
 int platform_class_wireless_get_fw_upgrade_fail_info(unsigned int role,
-						     int *info)
+						     char **info)
 {
 	struct platform_wireless_class_ops_data *temp_data =
 		platform_wireless_class_get_ic_ops(role);

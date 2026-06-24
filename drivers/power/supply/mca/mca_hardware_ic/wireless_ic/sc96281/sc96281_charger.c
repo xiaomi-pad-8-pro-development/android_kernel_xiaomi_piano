@@ -1383,6 +1383,13 @@ static int sc96281_get_temp(int *temp, void *data)
 	return ret;
 }
 
+static int sc96281_get_fw_upgrade_fail_info(char **info, void *data)
+{
+	struct sc96281 *chip = (struct sc96281 *)data;
+
+	*info = chip->fw_upgrade_fail_info;
+	return 0;
+}
 static int sc96281_get_tx_adapter(int *adapter, void *data)
 {
 	struct sc96281 *chip = (struct sc96281 *)data;
@@ -2702,6 +2709,7 @@ static struct platform_class_wireless_ops sc96281_wls_ops = {
 	.wls_get_vrect = sc96281_get_vrect,
 	.wls_get_temp = sc96281_get_temp,
 	.wls_get_tx_adapter = sc96281_get_tx_adapter,
+	.wls_get_fw_upgrade_fail_info = sc96281_get_fw_upgrade_fail_info,
 	.wls_set_enable_mode = sc96281_set_enable_mode,
 	.wls_is_car_adapter = sc96281_is_car_adapter,
 	.wls_get_rx_rtx_mode = sc96281_get_rx_rtx_mode,
