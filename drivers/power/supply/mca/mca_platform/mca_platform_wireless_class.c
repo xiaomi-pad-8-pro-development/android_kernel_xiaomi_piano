@@ -828,6 +828,28 @@ int platform_class_wireless_get_trx_vrect(unsigned int role, int *vrect)
 }
 EXPORT_SYMBOL(platform_class_wireless_get_trx_vrect);
 
+int platform_class_wireless_get_phone_case_category(unsigned int role, int *category)
+{
+	struct platform_wireless_class_ops_data *temp_data = platform_wireless_class_get_ic_ops(role);
+
+	if (platform_wireless_ops_invalid(temp_data, wls_get_phone_case_category))
+		return -EOPNOTSUPP;
+
+	return temp_data->ops->wls_get_phone_case_category(category, temp_data->data);
+}
+EXPORT_SYMBOL(platform_class_wireless_get_phone_case_category);
+
+int platform_class_wireless_set_phone_case_category(unsigned int role, int category)
+{
+	struct platform_wireless_class_ops_data *temp_data = platform_wireless_class_get_ic_ops(role);
+
+	if (platform_wireless_ops_invalid(temp_data, wls_set_phone_case_category))
+		return -EOPNOTSUPP;
+
+	return temp_data->ops->wls_set_phone_case_category(category, temp_data->data);
+}
+EXPORT_SYMBOL(platform_class_wireless_set_phone_case_category);
+
 static int
 platform_wireless_dev_parse_dt(struct platform_wireless_dev *wireless)
 {

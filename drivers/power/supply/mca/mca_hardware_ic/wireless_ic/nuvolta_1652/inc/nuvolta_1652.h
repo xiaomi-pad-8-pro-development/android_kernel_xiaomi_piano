@@ -512,6 +512,7 @@ struct nuvolta_1652_chg {
 	struct nuvolta_1652_chg_proc_data proc_data;
 
 	bool magnetic_case_flag;
+	int phone_case_category;
 	bool hall_gpio_status;
 	int fake_rx_offset;
 	int thread_active;

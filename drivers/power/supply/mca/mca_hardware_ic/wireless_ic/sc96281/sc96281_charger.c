@@ -2642,6 +2642,24 @@ static int sc96281_get_hall_gpio_status(bool *status, void *data)
 	return 0;
 }
 
+static int sc96281_get_phone_case_category(int *category, void *data)
+{
+    struct sc96281 *chip = (struct sc96281 *)data;
+
+    *category = chip->phone_case_category;
+    mca_log_info("get phone_case_category: %d\n", *category);
+    return 0;
+}
+
+static int sc96281_set_phone_case_category(int category, void *data)
+{
+    struct sc96281 *chip = (struct sc96281 *)data;
+
+    chip->phone_case_category = category;
+    mca_log_info("set phone_case_category: %d\n", category);
+    return 0;
+}
+
 static int sc96281_enable_vsys_ctrl(bool enable, void *data)
 {
 	struct sc96281 *chip = (struct sc96281 *)data;
@@ -2730,6 +2748,8 @@ static struct platform_class_wireless_ops sc96281_wls_ops = {
 	.wls_enable_vsys_ctrl = sc96281_enable_vsys_ctrl,
 	.wls_get_trx_isense = sc96281_get_trx_isense,
 	.wls_get_trx_vrect = sc96281_get_trx_vrect,
+    .wls_get_phone_case_category = sc96281_get_phone_case_category,
+    .wls_set_phone_case_category = sc96281_set_phone_case_category,
 };
 
 //-------------------------irq & work---------------------------

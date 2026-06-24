@@ -803,6 +803,7 @@ struct sc96281 {
 
 	//hall related
 	bool magnetic_case_flag;
+    int phone_case_category;
 	bool hall_gpio_status;
 
 	int fake_rx_offset;

@@ -94,6 +94,8 @@ struct platform_class_wireless_ops {
 	int (*wls_get_trx_isense)(int *, void *data);
 	int (*wls_get_trx_vrect)(int *, void *data);
 	int (*wls_set_external_boost_enable)(bool, void *data);
+	int (*wls_get_phone_case_category)(int *, void *data);
+	int (*wls_set_phone_case_category)(int, void *data);
 };
 int platform_class_wireless_register_ops(
 	unsigned int role, void *data, struct platform_class_wireless_ops *ops);
@@ -176,4 +178,6 @@ int platform_class_wireless_set_debug_fod_params(unsigned int role);
 int platform_class_wireless_enable_vsys_ctrl(unsigned int role, bool enable);
 int platform_class_wireless_get_trx_isense(unsigned int role, int *isense);
 int platform_class_wireless_get_trx_vrect(unsigned int role, int *vrect);
+int platform_class_wireless_get_phone_case_category(unsigned int role, int * category);
+int platform_class_wireless_set_phone_case_category(unsigned int role, int category);
 #endif /* _MCA_PLATFORM_PLATFORM_WIRELESS_CLASS_H_ */

@@ -1487,6 +1487,24 @@ static int nuvolta_1652_get_magnetic_case_flag(bool *status, void *data)
 	return 0;
 }
 
+static int nuvolta_1652_get_phone_case_category(int *category, void *data)
+{
+	struct nuvolta_1652_chg *chip = (struct nuvolta_1652_chg *)data;
+
+	*category = chip->phone_case_category;
+	mca_log_info("get phone_case_category: %d\n", *category);
+	return 0;
+}
+
+static int nuvolta_1652_set_phone_case_category(int category, void *data)
+{
+	struct nuvolta_1652_chg *chip = (struct nuvolta_1652_chg *)data;
+
+	chip->phone_case_category = category;
+	mca_log_info("set phone_case_category: %d\n", category);
+	return 0;
+}
+
 static int nuvolta_1652_set_input_current_limit(int value, void *data)
 {
 	mca_log_info("set input current limit:%d\n", value);
@@ -2750,6 +2768,8 @@ static struct platform_class_wireless_ops nuvolta_1652_wls_ops = {
 	.wls_get_trx_vrect = nuvolta_1652_get_trx_vrect,
 	.wls_get_magnetic_case_flag = nuvolta_1652_get_magnetic_case_flag,
 	.wls_set_external_boost_enable = nuvolta_1652_set_external_boost_enable,
+	.wls_get_phone_case_category = nuvolta_1652_get_phone_case_category,
+	.wls_set_phone_case_category = nuvolta_1652_set_phone_case_category,
 };
 
 //-------------------------irq & work---------------------------
