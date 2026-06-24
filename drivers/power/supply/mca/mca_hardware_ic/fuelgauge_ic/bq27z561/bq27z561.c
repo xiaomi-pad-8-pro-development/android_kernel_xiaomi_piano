@@ -1125,97 +1125,6 @@ static int fg_read_max_cell_volt(struct bq_fg_chip *bq, int *max_volt)
 	return 0;
 }
 
-static int fg_read_cell_volt(struct bq_fg_chip *bq, int *volt, int type)
-{
-	int ret;
-	int cell_volt_1 = 0, cell_volt_2 = 0;
-	u8 t_buf[BLOCK_LENGTH_MAX] = { 0 };
-
-	/* MPC7021 support */
-	if(bq->fg_vendor != MPC7021){
-		return 0;
-	}
-
-	ret = fg_mac_read_block(bq, FG_MAC_CMD_QMAX_CYCLECOUNT, t_buf, 36);
-	if (ret < 0)
-		return ret;
-
-	cell_volt_1 = (t_buf[1] << 8) | t_buf[0];
-	cell_volt_2 = (t_buf[3] << 8) | t_buf[2];
-
-	mca_log_debug("cell volt = [%d %d] \n", cell_volt_1, cell_volt_2);
-
-	if (type == CELL_VOLTAGE1)
-		*volt = cell_volt_1;
-	else if (type == CELL_VOLTAGE2)
-		*volt = cell_volt_2;
-
-	return 0;
-}
-
-static int fg_read_cell_sremc_sfcc(struct bq_fg_chip *bq, int *sremc_sfcc, int type)
-{
-	int ret;
-	int cell_sremc_1 = 0, cell_sremc_2 = 0;
-	int cell_sfcc_1 = 0, cell_sfcc_2 = 0;
-	u8 t_buf[BLOCK_LENGTH_MAX] = { 0 };
-
-	/* MPC7021 support */
-	if(bq->fg_vendor != MPC7021){
-		return 0;
-	}
-
-	ret = fg_mac_read_block(bq, FG_MAC_CMD_SREMC_SFCC, t_buf, 36);
-	if (ret < 0)
-		return ret;
-
-	cell_sremc_1 = (t_buf[5] << 8) | t_buf[4];
-	cell_sremc_2 = (t_buf[7] << 8) | t_buf[6];
-	cell_sfcc_1 = (t_buf[9] << 8) | t_buf[8];
-	cell_sfcc_2 = (t_buf[11] << 8) | t_buf[10];
-
-	mca_log_debug("sremc_1 sremc_2 sfcc_1 sfcc_2 = [%d %d %d %d] \n", cell_sremc_1, cell_sremc_2, cell_sfcc_1, cell_sfcc_2);
-
-	if (type == CELL_SREMC1)
-		*sremc_sfcc = cell_sremc_1;
-	else if (type == CELL_SREMC2)
-		*sremc_sfcc = cell_sremc_2;
-	else if (type == CELL_SFCC1)
-		*sremc_sfcc = cell_sfcc_1;
-	else if (type == CELL_SFCC2)
-		*sremc_sfcc = cell_sfcc_2;
-
-	return 0;
-}
-
-static int fg_read_cell_qmax(struct bq_fg_chip *bq, int *cell_qmax, int type)
-{
-	int ret;
-	int cell_qmax_1 = 0, cell_qmax_2 = 0;
-	u8 t_buf[BLOCK_LENGTH_MAX] = { 0 };
-
-	/* MPC7021 support */
-	if(bq->fg_vendor != MPC7021){
-		return 0;
-	}
-
-	ret = fg_mac_read_block(bq, FG_MAC_CMD_CELL_QMAX, t_buf, 36);
-	if (ret < 0)
-		return ret;
-
-	cell_qmax_1 = (t_buf[17] << 8) | t_buf[16];
-	cell_qmax_2 = (t_buf[19] << 8) | t_buf[18];
-
-	mca_log_debug("cell_qmax_1 cell_qmax_2 = [%d %d] \n", cell_qmax_1, cell_qmax_2);
-
-	if (type == CELL_QMAX1)
-		*cell_qmax = cell_qmax_1;
-	else if (type == CELL_QMAX2)
-		*cell_qmax = cell_qmax_2;
-
-	return 0;
-}
-
 static int fg_read_fcc(struct bq_fg_chip *bq, int *fcc)
 {
 	int ret;
@@ -3157,67 +3066,6 @@ static int fg_read_df_check(struct bq_fg_chip *bq, int *value)
 	return ret;
 }
 
-static int fg_set_co_mos(struct bq_fg_chip *bq, bool en)
-{
-	int ret = -1;
-	u8 data;
-	int retry_cnt = 0;
-
-	if(bq->fg_vendor != MPC7021)
-		return 0;
-
-	data = en ? 0x00 : 0x02;
-
-	mca_log_debug("set co %d\n", en);
-
-	while(++retry_cnt <= 5 && ret < 0){
-		ret = fg_mac_write_block(bq, FG_MAC_CMD_CO_CTRL, &data, 1);
-		if (ret < 0) {
-			mca_log_err("could not set co %s, write cnt:%d\n", en ? "on": "off",retry_cnt);
-		}
-	}
-
-	return ret;
-}
-
-/* get co auto control state */
-#define FC_AUTO_CTRL_MASK 0x02
-static int fg_get_co_status(struct bq_fg_chip *bq)
-{
-	int ret;
-	u8 t_buf[REG_BLOCK_LENGTH] = {0};
-
-	if(bq->fg_vendor != MPC7021)
-		return 0;
-
-	ret = fg_mac_read_block(bq, FG_MCA_CMD_SEAL_STATE, t_buf, REG_BLOCK_LENGTH);
-	if(ret < 0)
-		mca_log_err("Failed to get co status");
-
-	mca_log_debug("get co status: 0x%02X\n", !!(t_buf[2] & FC_AUTO_CTRL_MASK));
-
-	return !!(t_buf[2] & FC_AUTO_CTRL_MASK);
-}
-
-/* get charge FET mos real state, 1 means charging enable */
-#define CHG_FET_STATE_MASK 0x02
-static int fg_get_chg_fet_status(struct bq_fg_chip *bq)
-{
-	int ret;
-	u8 t_buf[REG_BLOCK_LENGTH] = {0};
-
-	if(bq->fg_vendor != MPC7021)
-		return 0;
-
-	ret = fg_mac_read_block(bq, FG_MCA_CMD_SEAL_STATE, t_buf, REG_BLOCK_LENGTH);
-	if(ret < 0)
-		mca_log_err("Failed to get chg FET status");
-
-	mca_log_debug("get chg FET real status: 0x%02X\n", !!(t_buf[0] & CHG_FET_STATE_MASK));
-
-	return !!(t_buf[0] & CHG_FET_STATE_MASK);
-}
-
 static void fg_get_ui_soh(void *data, int *ui_soh)
 {
 	struct bq_fg_chip *info = (struct bq_fg_chip *)data;
@@ -4511,9 +4359,6 @@ static ssize_t fg_sysfs_store(struct device *dev,
 struct mca_sysfs_attr_info fg_sysfs_field_tbl[] = {
 	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_CHIP_OK, chip_ok),
 	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_VOL, vbatt),
-	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_MAX_CELL_VOLTAGE, max_cell_voltage),
-	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_CELL_VOLTAGE1, cell_voltage1),
-	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_CELL_VOLTAGE2, cell_voltage2),
 	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_CURRENT, ibatt),
 	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_RSOC, rsoc),
 	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_TEMP, temp),
@@ -4594,14 +4439,6 @@ struct mca_sysfs_attr_info fg_sysfs_field_tbl[] = {
 	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_MIN_LIFE_TEMP, min_life_temp),
 	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_OVER_VOL_DURATION, over_vol_duration),
 	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_FC, fc),
-	mca_sysfs_attr_rw(fg_sysfs, 0664, FG_IC_PROP_CO_MOS, co_mos),
-	mca_sysfs_attr_rw(fg_sysfs, 0440, FG_IC_PROP_CHG_FET, chg_fet_status),
-	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_CELL_SREMC1, cell_sremc1),
-	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_CELL_SREMC2, cell_sremc2),
-	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_CELL_SFCC1, cell_sfcc1),
-	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_CELL_SFCC2, cell_sfcc2),
-	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_CELL_QMAX1, cell_qmax1),
-	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_CELL_QMAX2, cell_qmax2),
 };
 
 #define FG_SYSFS_ATTRS_SIZE   ARRAY_SIZE(fg_sysfs_field_tbl)
@@ -4636,18 +4473,6 @@ static ssize_t fg_sysfs_show(struct device *dev,
 		break;
 	case FG_IC_PROP_VOL:
 		fg_read_volt(info, &val);
-		count = scnprintf(buf, PAGE_SIZE, "%d\n", val);
-		break;
-	case FG_IC_PROP_MAX_CELL_VOLTAGE:
-		fg_read_max_cell_volt(info, &val);
-		count = scnprintf(buf, PAGE_SIZE, "%d\n", val);
-		break;
-	case FG_IC_PROP_CELL_VOLTAGE1:
-		fg_read_cell_volt(info, &val, CELL_VOLTAGE1);
-		count = scnprintf(buf, PAGE_SIZE, "%d\n", val);
-		break;
-	case FG_IC_PROP_CELL_VOLTAGE2:
-		fg_read_cell_volt(info, &val, CELL_VOLTAGE2);
 		count = scnprintf(buf, PAGE_SIZE, "%d\n", val);
 		break;
 	case FG_IC_PROP_CURRENT:
@@ -4981,38 +4806,6 @@ static ssize_t fg_sysfs_show(struct device *dev,
 		fg_read_one_fc(info, &fc_val);
 		count = scnprintf(buf, PAGE_SIZE, "%d\n", fc_val);
 		break;
-	case FG_IC_PROP_CO_MOS:
-		val = fg_get_co_status(info);
-		count = scnprintf(buf, PAGE_SIZE, "%d\n", val);
-		break;
-	case FG_IC_PROP_CHG_FET:
-		val = fg_get_chg_fet_status(info);
-		count = scnprintf(buf, PAGE_SIZE, "%d\n", val);
-		break;
-	case FG_IC_PROP_CELL_SREMC1:
-		fg_read_cell_sremc_sfcc(info, &val, CELL_SREMC1);
-		count = scnprintf(buf, PAGE_SIZE, "%d\n", val);
-		break;
-	case FG_IC_PROP_CELL_SREMC2:
-		fg_read_cell_sremc_sfcc(info, &val, CELL_SREMC2);
-		count = scnprintf(buf, PAGE_SIZE, "%d\n", val);
-		break;
-	case FG_IC_PROP_CELL_SFCC1:
-		fg_read_cell_sremc_sfcc(info, &val, CELL_SFCC1);
-		count = scnprintf(buf, PAGE_SIZE, "%d\n", val);
-	break;
-	case FG_IC_PROP_CELL_SFCC2:
-		fg_read_cell_sremc_sfcc(info, &val, CELL_SFCC2);
-		count = scnprintf(buf, PAGE_SIZE, "%d\n", val);
-	break;
-	case FG_IC_PROP_CELL_QMAX1:
-		fg_read_cell_qmax(info, &val, CELL_QMAX1);
-		count = scnprintf(buf, PAGE_SIZE, "%d\n", val);
-	break;
-	case FG_IC_PROP_CELL_QMAX2:
-		fg_read_cell_qmax(info, &val, CELL_QMAX2);
-		count = scnprintf(buf, PAGE_SIZE, "%d\n", val);
-	break;
 	default:
 		break;
 	}
@@ -5093,9 +4886,6 @@ static ssize_t fg_sysfs_store(struct device *dev,
 		break;
 	case FG_IC_PROP_LEARNING_POWER_B:
 		fg_set_learning_power_b(info, val);
-		break;
-	case FG_IC_PROP_CO_MOS:
-		fg_set_co_mos(info, val);
 		break;
 	default:
 		break;

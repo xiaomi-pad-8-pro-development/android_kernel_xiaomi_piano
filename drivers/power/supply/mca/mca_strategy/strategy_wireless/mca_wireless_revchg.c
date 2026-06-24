@@ -1712,64 +1712,6 @@ mca_wireless_rev_process_int_change(int value, struct mca_wireless_revchg *info)
 }
 
 static void
-mca_wireless_rev_process_hall_change(int value,
-				     struct mca_wireless_revchg *info)
-{
-	bool is_pen_attached = !!value;
-	bool pen_hall3_gpio_value = !(value & (1 << 3));
-	bool pen_hall4_gpio_value = !(value & (1 << 4));
-	char event[MCA_EVENT_NOTIFY_SIZE] = { 0 };
-	struct mca_event_notify_data event_data = { 0 };
-	int len;
-
-	mca_log_info("pen hall change, set reverse charge: %d\n",
-		     is_pen_attached);
-	if (!info->proc_data.fw_updating)
-		mca_wireless_rev_enable_reverse_charge(is_pen_attached);
-
-	if (!is_pen_attached) {
-		cancel_delayed_work_sync(&info->pen_data_handle_work);
-		cancel_delayed_work_sync(&info->pen_place_err_check_work);
-		info->proc_data.reverse_chg_sts = REVERSE_STATE_ENDTRANS;
-		len = snprintf(event, MCA_EVENT_NOTIFY_SIZE,
-			       "POWER_SUPPLY_REVERSE_CHG_STATE=%d",
-			       REVERSE_STATE_ENDTRANS);
-		event_data.event = event;
-		event_data.event_len = len;
-		mca_event_report_uevent(&event_data);
-
-		if (info->support_tx_only) {
-			len = snprintf(event, MCA_EVENT_NOTIFY_SIZE,
-				       "POWER_SUPPLY_REVERSE_PEN_CHG_STATE=%d",
-				       REVERSE_STATE_ENDTRANS);
-			event_data.event = event;
-			event_data.event_len = len;
-			mca_event_report_uevent(&event_data);
-
-			len = snprintf(event, MCA_EVENT_NOTIFY_SIZE,
-				       "POWER_SUPPLY_PEN_PLACE_ERR=%d", 0);
-			event_data.event = event;
-			event_data.event_len = len;
-			mca_event_report_uevent(&event_data);
-
-			platform_class_wireless_set_pen_place_err(
-				WIRELESS_ROLE_MASTER, 0);
-		}
-	}
-
-	len = snprintf(event, MCA_EVENT_NOTIFY_SIZE,
-		       "POWER_SUPPLY_PEN_HALL3=%d", pen_hall3_gpio_value);
-	event_data.event = event;
-	event_data.event_len = len;
-	mca_event_report_uevent(&event_data);
-	len = snprintf(event, MCA_EVENT_NOTIFY_SIZE,
-		       "POWER_SUPPLY_PEN_HALL4=%d", pen_hall4_gpio_value);
-	event_data.event = event;
-	event_data.event_len = len;
-	mca_event_report_uevent(&event_data);
-}
-
-static void
 mca_wireless_rev_process_ppe_hall_change(int value,
 					 struct mca_wireless_revchg *info)
 {
@@ -1920,12 +1862,6 @@ static int mca_wireless_rev_process_event(int event, int value, void *data)
 		break;
 	case MCA_EVENT_WIRELESS_INT_CHANGE:
 		mca_wireless_rev_process_int_change(value, info);
-		break;
-	case MCA_EVENT_WIRELESS_PEN_HALL_CHANGE:
-		mca_wireless_rev_process_hall_change(value, info);
-		break;
-	case MCA_EVENT_WIRELESS_PEN_PPE_HALL_CHANGE:
-		mca_wireless_rev_process_ppe_hall_change(value, info);
 		break;
 	case MCA_EVENT_BATT_BTB_CHANGE:
 		mca_log_info("batt-btb change event %d\n", value);

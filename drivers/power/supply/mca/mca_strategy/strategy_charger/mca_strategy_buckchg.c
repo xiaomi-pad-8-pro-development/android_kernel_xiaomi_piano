@@ -911,14 +911,6 @@ strategy_buckchg_process_cap_change(struct strategy_buckchg_dev *info)
 }
 
 static void
-strategy_buckchg_process_cancel_monitor_work(struct strategy_buckchg_dev *info)
-{
-	int ret;
-	ret = cancel_delayed_work_sync(&info->monitor_work);
-	return;
-}
-
-static void
 strategy_buckchg_process_csd_pulse(int value, struct strategy_buckchg_dev *info)
 {
 	int ffc_sts;
@@ -1062,9 +1054,6 @@ static int strategy_buckchg_process_event(int event, int value, void *data)
 	case MCA_EVENT_CHARGE_CAP_CHANGE:
 		strategy_buckchg_process_cap_change(info);
 		break;
-	case MCA_EVENT_CHARGE_CANCEL_MONITOR_WORK:
-		strategy_buckchg_process_cancel_monitor_work(info);
-		break;
 	case MCA_EVENT_CONN_ANTIBURN_CHANGE:
 		strategy_buckchg_process_antiburn_change(value, info);
 		break;
@@ -1170,13 +1159,6 @@ static int strategy_buckchg_process_event(int event, int value, void *data)
 	case MCA_EVENT_CP_REVERT_CHANGE:
 		if (info->support_reverse_quick_charge)
 			strategy_buckchg_cp_revert_handler(value, info);
-		break;
-	case MCA_EVENT_OTG_CONNECT:
-		mca_vote(info->input_suppend_voter, "otg_plug_status", true, 1);
-		break;
-	case MCA_EVENT_OTG_DISCONNECT:
-		mca_vote(info->input_suppend_voter, "otg_plug_status", false,
-			 0);
 		break;
 	default:
 		break;

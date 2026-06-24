@@ -893,7 +893,6 @@ static int sc8581_set_operation_mode(struct sc8581_device *bq,
 {
 	int ret = 0;
 	u8 val;
-	int mode = MCA_EVENT_CP_MODE_DEFAULT;
 
 	switch (operation_mode) {
 	case SC8581_FORWARD_4_1_CHARGER_MODE:
@@ -932,22 +931,6 @@ static int sc8581_set_operation_mode(struct sc8581_device *bq,
 		     bq->log_tag, operation_mode, val, bq->work_mode);
 	val <<= SC8581_MODE_SHIFT;
 	ret = cp_update_bits(bq->client, SC8581_REG_0E, SC8581_MODE_MASK, val);
-	switch (operation_mode) {
-	case SC8581_FORWARD_4_1_CHARGER_MODE:
-		mode = MCA_EVENT_CP_MODE_FORWARD_4;
-		break;
-	case SC8581_FORWARD_2_1_CHARGER_MODE:
-		mode = MCA_EVENT_CP_MODE_FORWARD_2;
-		break;
-	case SC8581_FORWARD_1_1_CHARGER_MODE:
-		mode = MCA_EVENT_CP_MODE_FORWARD_1;
-		break;
-	default:
-		break;
-	}
-	mca_event_block_notify(MCA_EVENT_TYPE_CP_INFO, MCA_EVENT_CP_MODE_CHANGE,
-			       &mode);
-
 	return ret;
 }
 
