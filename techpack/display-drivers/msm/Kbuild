@@ -68,7 +68,8 @@ ifeq (y, $(findstring y, $(CONFIG_ARCH_SA8155) $(CONFIG_ARCH_SA6155) $(CONFIG_AR
 endif
 
 LINUX_INC +=	-I$(KERNEL_SRC)/include/linux \
-		-I$(KERNEL_SRC)/include/linux/drm
+		-I$(KERNEL_SRC)/include/linux/drm \
+		-I$(KERNEL_SRC)/drivers/misc/hwid
 
 LINUX_INC +=	-I$(DISPLAY_ROOT) \
 	-I$(DISPLAY_ROOT)/include \
