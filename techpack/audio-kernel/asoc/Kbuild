@@ -239,6 +239,7 @@ INCS +=		$(COMMON_INC) \
 		$(UAPI_INC)
 
 EXTRA_CFLAGS += $(INCS)
+EXTRA_CFLAGS += -I$(srctree)/drivers/misc/hwid
 
 CDEFINES +=	-DANI_LITTLE_BYTE_ENDIAN \
 		-DANI_LITTLE_BIT_ENDIAN \
