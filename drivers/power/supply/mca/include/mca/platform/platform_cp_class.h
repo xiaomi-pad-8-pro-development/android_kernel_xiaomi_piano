@@ -87,6 +87,7 @@ struct platform_class_cp_ops {
 	int (*cp_get_bypass_support)(bool *, void *data);
 	int (*cp_dump_register)(void *data);
 	int (*cp_get_chip_vendor)(int *, void *data);
+	int (*cp_get_probe_ok)(void *data);
 	int (*cp_get_int_stat)(int, bool *, void *data);
 	int (*cp_enable_acdrv_manual)(bool, void *data);
 	int (*cp_enable_wpcgate)(bool, void *data);
@@ -137,6 +138,7 @@ int platform_class_cp_enable_adc(unsigned int role, bool en);
 int platform_class_cp_get_bypass_support(unsigned int role, bool *status);
 int platform_class_cp_dump_register(unsigned int role);
 int platform_class_cp_get_chip_vendor(unsigned int role, int *chip_vendor);
+int platform_class_cp_get_probe_ok(unsigned int role);
 int platform_class_cp_get_int_stat(unsigned int role, int channel,
 				   bool *result);
 int platform_class_cp_enable_acdrv_manual(unsigned int role, bool en);

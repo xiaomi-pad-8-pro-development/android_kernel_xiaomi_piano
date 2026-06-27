@@ -418,6 +418,18 @@ int platform_class_cp_get_chip_vendor(unsigned int role, int *chip_vendor)
 }
 EXPORT_SYMBOL(platform_class_cp_get_chip_vendor);
 
+int platform_class_cp_get_probe_ok(unsigned int role)
+{
+	struct platform_cp_class_ops_data *temp_data =
+		platform_cp_class_get_ic_ops(role);
+
+	if (platform_cp_ops_invalid(temp_data, cp_get_probe_ok))
+		return -1;
+
+	return temp_data->ops->cp_get_probe_ok(temp_data->data);
+}
+EXPORT_SYMBOL(platform_class_cp_get_probe_ok);
+
 int platform_class_cp_get_int_stat(unsigned int role, int channel, bool *result)
 {
 	struct platform_cp_class_ops_data *temp_data =
