@@ -239,7 +239,7 @@ static void mca_adsp_glink_sync_work(struct work_struct *work)
 	}
 }
 
-void mca_adsp_glink_state_cb(void *priv, enum pmic_glink_state state)
+static void mca_adsp_glink_state_cb(void *priv, enum pmic_glink_state state)
 {
 	struct mca_adsp_glink_dev *mca = priv;
 	struct mca_adsp_ops_node *n;
@@ -254,7 +254,6 @@ void mca_adsp_glink_state_cb(void *priv, enum pmic_glink_state state)
 		}
 	}
 }
-EXPORT_SYMBOL(mca_adsp_glink_state_cb);
 
 static int mca_adsp_glink_probe(struct platform_device *pdev)
 {
