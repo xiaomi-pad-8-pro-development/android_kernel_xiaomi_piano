@@ -2188,6 +2188,17 @@ static int ops_cp_get_tdie(int *tdie, void *chg_dev)
 	return sc8581_get_tdie((struct sc8581_device *)chg_dev, tdie);
 }
 
+static int ops_cp_set_adjustadble_timeout(int value, void *data)
+{
+	struct sc8581_device *bq = (struct sc8581_device *)data;
+	u8 val;
+
+	cp_read_byte(bq->client, SC8581_REG_0D, &val);
+	cp_write_byte(bq->client, SC8581_REG_0D, value);
+
+	return 0;
+}
+
 static int ops_cp_check_iic_ok(void *chg_dev)
 {
 	struct sc8581_device *sc = (struct sc8581_device *)chg_dev;
@@ -2210,6 +2221,7 @@ static struct platform_class_cp_ops sc8581_chg_ops = {
 	.cp_get_battery_temperature = ops_cp_get_battery_temmperature,
 	.cp_get_battery_present = ops_cp_get_battery_present,
 	.cp_set_mode = ops_cp_set_mode,
+	.cp_set_adjustadble_timeout = ops_cp_set_adjustadble_timeout,
 	.cp_set_default_mode = ops_cp_set_default_mode,
 	.cp_get_mode = ops_cp_get_mode,
 	.cp_device_init = ops_cp_device_init,
