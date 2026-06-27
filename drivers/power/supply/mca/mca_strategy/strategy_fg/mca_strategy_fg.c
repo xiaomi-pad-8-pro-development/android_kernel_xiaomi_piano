@@ -3161,14 +3161,6 @@ static int strategy_fg_ops_set_charging_done(void *data, bool charging_done)
 		}
 		if (fg->cfg.fg_type > MCA_FG_TYPE_SINGLE_NUM_MAX)
 			strategy_fg_reset_co_to_default(fg);
-
-		if (fg->cfg.support_full_curr_monitor &&
-		    fg->batt_temperature < BATT_WARM_THRESHOLD) {
-			cancel_delayed_work_sync(
-				&fg->full_current_monitor_work);
-			schedule_delayed_work(&fg->full_current_monitor_work,
-					      0);
-		}
 	} else {
 		fg->charging_done = false;
 		fg->en_smooth_full = false;
