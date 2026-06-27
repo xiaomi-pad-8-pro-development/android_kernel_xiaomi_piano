@@ -152,6 +152,11 @@ struct fuelguage_ic_ops {
 	int (*fg_ic_set_co)(void *data, bool);
 	void (*fg_ic_get_ui_soh)(void *data, int *);
 	unsigned long (*fg_ic_get_calc_rvalue)(void *data);
+	int (*fg_ic_get_pack_vendor)(void *data, int *);
+	int (*fg_ic_get_original_temp)(void *data, int *);
+	int (*fg_ic_get_average_current)(void *data, int *);
+	int (*fg_ic_get_ota_update_flag)(void *data, int *);
+	int (*fg_ic_ota_update_check)(void *data);
 };
 int platform_fg_ic_ops_register(unsigned int ic_role, void *data,
 				struct fuelguage_ic_ops *platform_fg_ops);
@@ -213,4 +218,9 @@ int platform_fg_ops_get_fc(unsigned int ic_role, bool *fc);
 int platform_fg_ops_set_co(unsigned int ic_role, bool value);
 void platform_fg_ops_get_ui_soh(unsigned int ic_role, int *ui_soh);
 unsigned long platform_fg_ops_get_calc_rvalue(unsigned int ic_role);
+int platform_fg_ops_get_pack_vendor(unsigned int ic_role, int *vendor);
+int platform_fg_ops_get_original_temp(unsigned int ic_role, int *temp);
+int platform_fg_ops_get_average_current(unsigned int ic_role, int *curr);
+int platform_fg_ops_get_ota_update_flag(unsigned int ic_role, int *flag);
+int platform_fg_ops_ota_update_check(unsigned int ic_role);
 #endif /* _MCA_PLATFORM_PLATFORM_FG_IC_OPS_H_ */

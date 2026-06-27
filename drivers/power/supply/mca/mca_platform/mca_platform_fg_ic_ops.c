@@ -681,6 +681,61 @@ unsigned long platform_fg_ops_get_calc_rvalue(unsigned int ic_role)
 }
 EXPORT_SYMBOL(platform_fg_ops_get_calc_rvalue);
 
+int platform_fg_ops_get_pack_vendor(unsigned int ic_role, int *vendor)
+{
+	struct fuelguage_info *temp_info = platform_get_fg_ic_ops(ic_role);
+
+	if (platform_fg_ops_invalid(temp_info, fg_ic_get_pack_vendor))
+		return -EOPNOTSUPP;
+
+	return temp_info->ops->fg_ic_get_pack_vendor(temp_info->data, vendor);
+}
+EXPORT_SYMBOL(platform_fg_ops_get_pack_vendor);
+
+int platform_fg_ops_get_original_temp(unsigned int ic_role, int *temp)
+{
+	struct fuelguage_info *temp_info = platform_get_fg_ic_ops(ic_role);
+
+	if (platform_fg_ops_invalid(temp_info, fg_ic_get_original_temp))
+		return -EOPNOTSUPP;
+
+	return temp_info->ops->fg_ic_get_original_temp(temp_info->data, temp);
+}
+EXPORT_SYMBOL(platform_fg_ops_get_original_temp);
+
+int platform_fg_ops_get_average_current(unsigned int ic_role, int *curr)
+{
+	struct fuelguage_info *temp_info = platform_get_fg_ic_ops(ic_role);
+
+	if (platform_fg_ops_invalid(temp_info, fg_ic_get_average_current))
+		return -EOPNOTSUPP;
+
+	return temp_info->ops->fg_ic_get_average_current(temp_info->data, curr);
+}
+EXPORT_SYMBOL(platform_fg_ops_get_average_current);
+
+int platform_fg_ops_get_ota_update_flag(unsigned int ic_role, int *flag)
+{
+	struct fuelguage_info *temp_info = platform_get_fg_ic_ops(ic_role);
+
+	if (platform_fg_ops_invalid(temp_info, fg_ic_get_ota_update_flag))
+		return -EOPNOTSUPP;
+
+	return temp_info->ops->fg_ic_get_ota_update_flag(temp_info->data, flag);
+}
+EXPORT_SYMBOL(platform_fg_ops_get_ota_update_flag);
+
+int platform_fg_ops_ota_update_check(unsigned int ic_role)
+{
+	struct fuelguage_info *temp_info = platform_get_fg_ic_ops(ic_role);
+
+	if (platform_fg_ops_invalid(temp_info, fg_ic_ota_update_check))
+		return -EOPNOTSUPP;
+
+	return temp_info->ops->fg_ic_ota_update_check(temp_info->data);
+}
+EXPORT_SYMBOL(platform_fg_ops_ota_update_check);
+
 static struct platform_driver platform_fg_ops_driver = {
 	.driver	= {
 		.name = "platform_fg_ops",
