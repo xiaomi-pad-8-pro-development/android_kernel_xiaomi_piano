@@ -2199,6 +2199,64 @@ static int ops_cp_set_adjustadble_timeout(int value, void *data)
 	return 0;
 }
 
+static int sc8581_get_ovpgate_enable(struct sc8581_device *bq, int *enable)
+{
+	int ret = 0;
+	u8 val;
+
+	ret = cp_read_byte(bq->client, SC8581_REG_0B, &val);
+	if (ret) {
+		mca_log_info("%s get ovpgate enable fail\n", bq->log_tag);
+		return ret;
+	}
+
+	mca_log_info("%s ovpgate_status SC8581_REG_0B=0x%x\n", bq->log_tag, val);
+	*enable = (val & SC8581_OVPGATE_EN_MASK) >> SC8581_OVPGATE_EN_SHIFT;
+
+	return ret;
+}
+
+static int ops_cp_set_revchg(bool enable, void *data)
+{
+	struct sc8581_device *bq = (struct sc8581_device *)data;
+	int retry = 0;
+	int mode = 0;
+	int ovpgate_en = 0;
+	bool charging_en = false;
+
+	for (retry = 0; retry < 10; retry++) {
+		if (enable) {
+			sc8581_set_operation_mode(
+				bq, SC8581_REVERSE_1_2_CONVERTER_MODE);
+			sc8581_enable_ovpgate(bq, true);
+			sc8581_get_ovpgate_enable(bq, &ovpgate_en);
+			sc8581_get_operation_mode(bq, &mode);
+			mca_log_info("cp mode: %d, ovpgate_enable status: %d\n",
+				     mode, ovpgate_en);
+			if (ovpgate_en &&
+			    mode == SC8581_REVERSE_1_2_CONVERTER_MODE)
+				return 0;
+		} else {
+			sc8581_enable_charge(bq, false);
+			sc8581_enable_qb(bq, false);
+			sc8581_set_operation_mode(
+				bq, SC8581_FORWARD_2_1_CHARGER_MODE);
+			sc8581_get_operation_mode(bq, &mode);
+			sc8581_check_charge_enabled(bq, &charging_en);
+			mca_log_info("cp mode: %d, charging_enable: %d\n", mode,
+				     charging_en);
+			if (mode == SC8581_FORWARD_2_1_CHARGER_MODE &&
+			    !charging_en)
+				return 0;
+		}
+		mca_log_info("%s failed set revchg, retry: %d\n", bq->log_tag,
+			     retry);
+		mdelay(20);
+	}
+
+	return -1;
+}
+
 static int ops_cp_check_iic_ok(void *chg_dev)
 {
 	struct sc8581_device *sc = (struct sc8581_device *)chg_dev;
@@ -2221,6 +2279,7 @@ static struct platform_class_cp_ops sc8581_chg_ops = {
 	.cp_get_battery_temperature = ops_cp_get_battery_temmperature,
 	.cp_get_battery_present = ops_cp_get_battery_present,
 	.cp_set_mode = ops_cp_set_mode,
+	.cp_set_revchg = ops_cp_set_revchg,
 	.cp_set_adjustadble_timeout = ops_cp_set_adjustadble_timeout,
 	.cp_set_default_mode = ops_cp_set_default_mode,
 	.cp_get_mode = ops_cp_get_mode,
