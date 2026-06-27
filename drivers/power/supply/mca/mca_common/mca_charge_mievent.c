@@ -381,6 +381,26 @@ static struct charge_mievent_info g_charge_mievent_info[] = {
 		.data_count = 0,
 		.para_name = { "" },
 	},
+	{
+		.event_code = MIEVENT_CODE_LOAD_SWITCH_I2C_ERR,
+		.event_type = "chgErrInfo",
+		.event_describe = "LoadSwitchI2cErr",
+		.upload_type = MIEVENT_UPLOAD_TYPE_PLUG,
+		.type_index = PLUG_TYPE_LOAD_SWITCH_I2C_ERR,
+		.data_type = MIEVENT_DATA_TYPE_NULL,
+		.data_count = 0,
+		.para_name = { "" },
+	},
+	{
+		.event_code = MIEVENT_CODE_WLS_FW_UPGRADE_FAIL,
+		.event_type = "chgErrInfo",
+		.event_describe = "WlsFwUpgradeErr",
+		.upload_type = MIEVENT_UPLOAD_TYPE_PLUG,
+		.type_index = PLUG_TYPE_WLS_FW_UPGRADE_FAIL,
+		.data_type = MIEVENT_DATA_TYPE_STRING,
+		.data_count = 1,
+		.para_name = { "errReason" },
+	},
 	/* charger mievent upload type for time*/
 	{
 		.event_code = MIEVENT_CODE_BATTERY_CYCLECOUNT,
@@ -451,6 +471,16 @@ static struct charge_mievent_info g_charge_mievent_info[] = {
 		.data_type = MIEVENT_DATA_TYPE_INT,
 		.data_count = 2,
 		.para_name = { "chgBaseBattVol", "chgFlipBattVol" },
+	},
+	{
+		.event_code = MIEVENT_CODE_WLS_MAGNETIC_CASE_ATTACH,
+		.event_type = "chgStatInfo",
+		.event_describe = "WlsMagCaseAttach",
+		.upload_type = MIEVENT_UPLOAD_TYPE_TIME,
+		.type_index = TIME_TYPE_WLS_MAGNETIC_CASE_ATTACH,
+		.data_type = MIEVENT_DATA_TYPE_NULL,
+		.data_count = 0,
+		.para_name = { "" },
 	},
 };
 
