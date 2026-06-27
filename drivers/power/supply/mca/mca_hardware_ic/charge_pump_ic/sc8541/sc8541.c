@@ -54,6 +54,7 @@ struct sc8541_device {
 	bool resume_pending;
 	int charging_active;
 	int acdrv_init_done;
+	int probe_done;
 	int ovpgate_enable;
 	int adc_scaled;
 
@@ -627,6 +628,13 @@ static int ops_cp_get_chip_vendor(int *vendor, void *data)
 	return 0;
 }
 
+static int ops_cp_get_probe_status(void *data)
+{
+	struct sc8541_device *sc = data;
+
+	return sc->probe_done == 0;
+}
+
 static int ops_enable_acdrv_manual(bool en, void *data)
 {
 	struct sc8541_device *sc = data;
@@ -718,6 +726,7 @@ static struct platform_class_cp_ops sc8541_chg_ops = {
 	.cp_get_bypass_support = ops_cp_get_bypass_support,
 	.cp_dump_register = ops_cp_dump_register,
 	.cp_get_chip_vendor = ops_cp_get_chip_vendor,
+	.cp_get_probe_ok = ops_cp_get_probe_status,
 	.cp_enable_acdrv_manual = ops_enable_acdrv_manual,
 	.cp_enable_ovpgate = ops_cp_enable_ovpgate,
 	.cp_enable_ovpgate_with_check = ops_cp_enable_ovpgate_with_check,
@@ -1011,6 +1020,7 @@ static int sc8541_probe(struct i2c_client *client)
 					    MCA_CHARGE_LOG_ID_CP_MASTER_IC,
 				    &g_sc8541_log_ops, sc);
 
+	sc->probe_done = 1;
 	mca_log_err("%s probe success %d\n", sc->log_tag, 0);
 	return 0;
 }
@@ -1060,9 +1070,24 @@ static int sc8541_resume(struct device *dev)
 	return 0;
 }
 
+static int sc8541_suspend_noirq(struct device *dev)
+{
+	struct sc8541_device *sc = dev_get_drvdata(dev);
+
+	if (sc->resume_pending) {
+		pr_err_ratelimited(
+			"[sc8541] %s: Aborting suspend, an interrupt was detected while suspending\n",
+			__func__);
+		return -EBUSY;
+	}
+
+	return 0;
+}
+
 static const struct dev_pm_ops sc8541_pm_ops = {
 	.suspend = sc8541_suspend,
 	.resume = sc8541_resume,
+	.suspend_noirq = sc8541_suspend_noirq,
 };
 
 static const struct of_device_id sc8541_of_match[] = {
