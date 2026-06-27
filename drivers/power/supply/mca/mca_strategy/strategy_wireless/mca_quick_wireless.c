@@ -410,13 +410,17 @@ static void mca_wireless_quick_charge_stop_charging(
 	int effective_fcc_val = 0;
 	int vbat_bq_mv = 0;
 	int pmic_icl_target = 0, pmic_icl_temp = 0, temp = 0;
+	int cp_mode = 0;
 
 	info->proc_data.enable_quickchg = 0;
 
 	platform_class_cp_get_battery_voltage(info->proc_data.cur_work_cp,
 					      &vbat_bq_mv);
-	platform_class_cp_set_charging_enable(CP_ROLE_MASTER, false);
-	platform_class_cp_set_charging_enable(CP_ROLE_SLAVE, false);
+	platform_class_cp_get_mode(CP_ROLE_MASTER, &cp_mode);
+	if (!(cp_mode & 0x4)) {
+		platform_class_cp_set_charging_enable(CP_ROLE_MASTER, false);
+		platform_class_cp_set_charging_enable(CP_ROLE_SLAVE, false);
+	}
 	strategy_class_wireless_ops_set_parallel_charge(false);
 	platform_class_wireless_is_present(WIRELESS_ROLE_MASTER, &wls_plugin);
 	if (wls_plugin) {
@@ -457,12 +461,13 @@ static void mca_wireless_quick_charge_stop_charging(
 	temp /= 10;
 	(void)platform_class_buckchg_ops_get_chg_status(MAIN_BUCK_CHARGER,
 							&chgr_stat);
-	if (wls_plugin && (!info->soc_limit_enable) && temp > -10 &&
+	if (wls_plugin &&
 	    (chgr_stat == MCA_BATT_CHGR_STATUS_TERMINATION ||
 	     chgr_stat == MCA_BATT_CHGR_STATUS_CHARGING_DISABLED)) {
 		mca_log_info("chgr_stat: %d, disable/enable pmic\n", chgr_stat);
-		platform_class_buckchg_ops_set_chg(MAIN_BUCK_CHARGER, false);
-		platform_class_buckchg_ops_set_chg(MAIN_BUCK_CHARGER, true);
+		(void)mca_vote(info->input_limit_voter, "quickchg", true, 0);
+		msleep(200);
+		(void)mca_vote(info->input_limit_voter, "quickchg", true, 1);
 	}
 	if (info->proc_data.charge_flag_pre == MCA_QUICK_CHG_STS_CHARGE_DONE) {
 		info->proc_data.charge_flag = info->proc_data.charge_flag_pre;
@@ -2714,6 +2719,14 @@ static int mca_wireless_quick_charge_create_voter(
 	struct mca_wireless_quick_charge_info *info)
 {
 	struct mca_votable *smartchg_ichg_voter = NULL;
+
+	platform_class_cp_get_chip_vendor(CP_ROLE_MASTER, &info->cp_chip_vendor);
+	if (info->cp_chip_vendor == 0 &&
+	    (platform_class_cp_get_probe_ok(CP_ROLE_MASTER) |
+	     platform_class_cp_get_probe_ok(CP_ROLE_SLAVE))) {
+		mca_log_err("cp is not ready, wait for it\n");
+		return -EPROBE_DEFER;
+	}
 
 	info->input_limit_voter = mca_find_votable("wireless_buck_input");
 	if (!info->input_limit_voter)

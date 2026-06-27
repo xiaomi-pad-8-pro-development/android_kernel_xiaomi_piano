@@ -330,6 +330,7 @@ struct mca_wireless_quick_charge_info {
 	//dt_config
 	int batt_type;
 	int cp_type;
+	int cp_chip_vendor;
 	int min_vbat;
 	int max_vbat;
 	int recharge_vbat;
