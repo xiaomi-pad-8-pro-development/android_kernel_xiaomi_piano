@@ -30,8 +30,8 @@ endif
 
 KBUILD_EXTRA := \
     CONFIG_IPA_OUT_OF_TREE=y \
-    WLAN_PROFILE=sun_gki_peach-v2 \
-    MODNAME=qca_cld3_peach_v2
+    WLAN_PROFILE=sun_gki_wcn7750 \
+    MODNAME=qca_cld3_wcn7750
 
 KBUILD_OPTIONS += \
     KBUILD_EXTRA_SYMBOLS=$(M)/../../dataipa/drivers/platform/msm/Module.symvers \
