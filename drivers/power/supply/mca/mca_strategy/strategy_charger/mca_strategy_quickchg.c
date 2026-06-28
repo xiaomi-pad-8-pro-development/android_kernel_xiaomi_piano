@@ -502,11 +502,7 @@ static void mca_quick_charge_stop_charging(struct mca_quick_charge_info *info)
 
 	mca_log_err("stop charge\n");
 
-	ret = platform_class_cp_check_iic_check(info->proc_data.cur_work_cp);
-	if (ret < 0) {
-		info->proc_data.cp_iic_ok = false;
-	} else
-		info->proc_data.cp_iic_ok = true;
+	info->proc_data.cp_iic_ok = true;
 
 	if (info->proc_data.cp_iic_ok) {
 		protocol_class_pd_reset_pps_stage(TYPEC_PORT_0, true);
@@ -556,9 +552,10 @@ static void mca_quick_charge_stop_charging(struct mca_quick_charge_info *info)
 	}
 
 	if (info->proc_data.cp_iic_ok) {
-		platform_class_cp_set_default_mode(CP_ROLE_MASTER);
+		platform_class_cp_set_mode(CP_ROLE_MASTER, CP_MODE_FORWARD_1_1);
 		if (info->cp_type == MCA_CP_TYPE_PARALLEL)
-			platform_class_cp_set_default_mode(CP_ROLE_SLAVE);
+			platform_class_cp_set_mode(CP_ROLE_SLAVE,
+						   CP_MODE_FORWARD_1_1);
 	}
 	if (info->en_buck_parallel_chg && info->proc_data.cp_iic_ok) {
 		strategy_quickchg_enable_buck_charging(info, 0, 0, false);
@@ -1786,14 +1783,6 @@ static void mca_quick_charge_start_charging(struct mca_quick_charge_info *info)
 		return;
 	}
 
-	ret = platform_class_cp_check_iic_check(info->proc_data.cur_work_cp);
-	if (ret < 0) {
-		info->proc_data.cp_iic_ok = false;
-		mca_log_err("check cp I2C error\n");
-		goto OUT;
-	} else
-		info->proc_data.cp_iic_ok = true;
-
 	ret = mca_quick_charge_select_cp(info);
 	if (ret) {
 		mca_log_err("select cp mode fail\n");
@@ -1846,13 +1835,6 @@ static void mca_quick_charge_start_charging(struct mca_quick_charge_info *info)
 		schedule_delayed_work(
 			&info->vfc_work,
 			msecs_to_jiffies(MCA_QUICK_CHG_VFC_INTERVAL));
-	return;
-OUT:
-	info->pd_switch_to_pmic = true;
-	(void)protocol_class_pd_set_fixed_volt(TYPEC_PORT_0,
-					       MCA_QUICK_CHG_ADP_DEFAULT_VOLT);
-	mca_quick_charge_stop_charging(info);
-	mca_log_err("cp iic error exit quick chg\n");
 	return;
 }
 
