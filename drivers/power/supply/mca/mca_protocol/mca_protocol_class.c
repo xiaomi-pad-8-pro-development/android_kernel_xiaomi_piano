@@ -123,19 +123,6 @@ int protocol_class_get_adapter_type(unsigned int protocol, unsigned int *value)
 }
 EXPORT_SYMBOL(protocol_class_get_adapter_type);
 
-int protocol_class_get_bc12_adapter_detect_done(unsigned int protocol,
-						bool *value)
-{
-	struct adapter_protocol_class_data *temp_data =
-		protocol_class_get_protocol_data(protocol);
-
-	if (adapter_protocol_invalid_ops(temp_data, adapter_bc12_det_done))
-		return -1;
-
-	return temp_data->ops->adapter_bc12_det_done(temp_data->data, value);
-}
-EXPORT_SYMBOL(protocol_class_get_bc12_adapter_detect_done);
-
 int protocol_class_get_adapter_power_cap(unsigned int protocol,
 					 struct adapter_power_cap_info *cap)
 {
