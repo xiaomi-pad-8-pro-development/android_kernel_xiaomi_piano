@@ -543,6 +543,11 @@ void mca_charge_mievent_report(int event_index, void *data, int size)
 		}
 	}
 
+	if (!strcmp(mievent->event_type, "chgErrInfo") &&
+	    mievent->event_code != MIEVENT_CODE_NON_STANDARD_ADAPTER)
+		mca_log_jirabot("%s %s\n", mievent->event_type,
+				mievent->event_describe);
+
 	g_index = mievent->type_index;
 	if (mievent->upload_type == MIEVENT_UPLOAD_TYPE_PLUG) {
 		if (g_upload_type_plug_info[g_index].count <
