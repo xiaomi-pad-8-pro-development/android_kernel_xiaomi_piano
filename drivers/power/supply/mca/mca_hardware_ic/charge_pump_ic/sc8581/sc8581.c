@@ -1965,20 +1965,6 @@ static int ops_cp_set_mode(int value, void *chg_dev)
 	return ret;
 }
 
-static int ops_cp_set_default_mode(void *chg_dev)
-{
-	struct sc8581_device *sc = (struct sc8581_device *)chg_dev;
-	int ret = 0;
-
-	ret = sc8581_set_operation_mode(sc, SC8581_FORWARD_2_1_CHARGER_MODE);
-
-	if (ret)
-		mca_log_err("%s failed set cp default charge mode\n",
-			    sc->log_tag);
-
-	return ret;
-}
-
 static int ops_cp_get_mode(int *mode, void *chg_dev)
 {
 	struct sc8581_device *bq = (struct sc8581_device *)chg_dev;
@@ -2261,18 +2247,6 @@ static int ops_cp_set_revchg(bool enable, void *data)
 	return -1;
 }
 
-static int ops_cp_check_iic_ok(void *chg_dev)
-{
-	struct sc8581_device *sc = (struct sc8581_device *)chg_dev;
-	int ret = 0;
-
-	ret = cp_charge_detect_device(sc);
-	if (ret < 0)
-		mca_log_err("cp iic error\n");
-
-	return ret;
-}
-
 static struct platform_class_cp_ops sc8581_chg_ops = {
 	.cp_set_enable = ops_cp_enable_charge,
 	.cp_get_enabled = ops_cp_get_charge_enable,
@@ -2285,7 +2259,6 @@ static struct platform_class_cp_ops sc8581_chg_ops = {
 	.cp_set_mode = ops_cp_set_mode,
 	.cp_set_revchg = ops_cp_set_revchg,
 	.cp_set_adjustadble_timeout = ops_cp_set_adjustadble_timeout,
-	.cp_set_default_mode = ops_cp_set_default_mode,
 	.cp_get_mode = ops_cp_get_mode,
 	.cp_device_init = ops_cp_device_init,
 	.cp_enable_adc = ops_cp_enable_adc,
@@ -2310,7 +2283,6 @@ static struct platform_class_cp_ops sc8581_chg_ops = {
 	.cp_set_qb = ops_cp_enable_qb,
 	.cp_set_pmid2outuvp_th = ops_cp_set_pmid2outuvp_th,
 	.cp_set_rcp = ops_cp_set_rcp,
-	.cp_check_iic_ok = ops_cp_check_iic_ok,
 };
 
 static void sc8581_irq_handler(struct work_struct *work)
