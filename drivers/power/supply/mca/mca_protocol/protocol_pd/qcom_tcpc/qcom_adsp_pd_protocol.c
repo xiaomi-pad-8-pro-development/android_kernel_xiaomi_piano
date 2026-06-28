@@ -281,7 +281,6 @@ static int adsp_pd_protocol_get_data_role(unsigned char *pr, void *data)
 static int adsp_pd_protocol_get_current_state(char *current_state, int len,
 					      void *data)
 {
-	const char *str;
 	int state = 0;
 	int ret;
 
@@ -295,19 +294,18 @@ static int adsp_pd_protocol_get_current_state(char *current_state, int len,
 
 	switch (state) {
 	case 0:
-		str = "SRC_Ready";
+		strscpy(current_state, "SRC_Ready", sizeof("SRC_Ready"));
 		break;
 	case 1:
-		str = "SNK_STARTUP";
+		strscpy(current_state, "SNK_STARTUP", sizeof("SNK_STARTUP"));
 		break;
 	case 2:
-		str = "SNK_Ready";
+		strscpy(current_state, "SNK_Ready", sizeof("SNK_Ready"));
 		break;
 	default:
-		str = "UNKNOWN";
+		strscpy(current_state, "UNKNOWN", sizeof("UNKNOWN"));
 		break;
 	}
-	strscpy(current_state, str, len);
 	mca_log_info("get current_state: %u => %s\n", state, current_state);
 	return 0;
 }
@@ -373,8 +371,10 @@ static int adsp_pd_protocol_request_vdm_cmd(enum uvdm_state cmd,
 			prop = PD_PROP_DATA_ROLE;
 		else if (cmd == ADSP_VDM_REQ_NAK)
 			prop = PD_PROP_VDM_NAK;
-		else
+		else {
+			pr_info("cmd:%d is not support\n", cmd);
 			return -EINVAL;
+		}
 		break;
 	}
 
