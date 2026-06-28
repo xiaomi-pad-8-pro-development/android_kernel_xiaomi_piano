@@ -1378,8 +1378,6 @@ strategy_buckchg_select_charg_para(struct strategy_buckchg_dev *info)
 	int ibus_limit = CHARGE_SDP_INPUT_DEFAULT;
 	int ibat_limit = CHARGE_SDP_CHARGE_DEFAULT;
 	int real_type = info->proc_data.real_type;
-	int count = 0;
-	int pd_active;
 #ifdef CONFIG_FACTORY_BUILD
 	bool cc_attach = false;
 #endif
@@ -1478,22 +1476,7 @@ strategy_buckchg_select_charg_para(struct strategy_buckchg_dev *info)
 		break;
 	};
 
-	protocol_class_pd_get_pd_active(TYPEC_PORT_0, &pd_active);
-	if (info->hw_bc12 && !pd_active) {
-		do {
-			protocol_class_get_bc12_adapter_detect_done(
-				ADAPTER_PROTOCOL_BC12, &info->dpdm_detect_done);
-			msleep(20);
-			count++;
-			mca_log_info("get dpdm_detect_done = %d, count  = %d\n",
-				     info->dpdm_detect_done, count);
-		} while ((!info->dpdm_detect_done) &&
-			 (count < 50)); //wait 1s until bc1.2 det done
-	} else
-		info->dpdm_detect_done = true;
-
-	if ((ibus_limit != info->proc_data.ibus_limit) &&
-	    info->dpdm_detect_done) {
+	if (ibus_limit != info->proc_data.ibus_limit) {
 		mca_vote(info->buck_5v_in_voter, "wire_chg_type", true,
 			 ibus_limit);
 		mca_vote(info->buck_9v_in_voter, "wire_chg_type", true,
@@ -1504,8 +1487,7 @@ strategy_buckchg_select_charg_para(struct strategy_buckchg_dev *info)
 		mca_log_info("set ibus_limit = %d\n", ibus_limit);
 	}
 
-	if ((ibat_limit != info->proc_data.ibat_limit) &&
-	    info->dpdm_detect_done) {
+	if (ibat_limit != info->proc_data.ibat_limit) {
 		mca_vote(info->buck_5v_ich_voter, "wire_chg_type", true,
 			 ibat_limit);
 		mca_vote(info->buck_9v_ich_voter, "wire_chg_type", true,
@@ -1516,9 +1498,8 @@ strategy_buckchg_select_charg_para(struct strategy_buckchg_dev *info)
 		mca_log_info("set ibat_limit = %d\n", ibat_limit);
 	}
 
-	mca_log_info(
-		"ibus_limit = %d, ibat_limit = %d, bc1.2 det process = %d, pd_active = %d\n",
-		ibus_limit, ibat_limit, info->dpdm_detect_done, pd_active);
+	mca_log_info("ibus_limit = %d, ibat_limit = %d\n", ibus_limit,
+		     ibat_limit);
 }
 
 static void strategy_buckchg_set_charge_volt(struct strategy_buckchg_dev *info,
