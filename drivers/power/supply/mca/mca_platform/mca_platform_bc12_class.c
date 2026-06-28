@@ -90,16 +90,6 @@ static int platform_class_bc12_ops_get_chg_type(unsigned int role, int *value)
 	return temp_data->ops->get_charge_type(value, temp_data->data);
 }
 
-static int platform_class_bc12_ops_det_done(unsigned int role, bool *value)
-{
-	struct platform_class_bc12_ops_data *temp_data =
-		platform_class_bc12_get_ops_data(role);
-
-	if (!temp_data || !temp_data->ops || !temp_data->ops->bc12_det_done)
-		return -1;
-	return temp_data->ops->bc12_det_done(temp_data->data, value);
-}
-
 static unsigned int
 platform_class_bc12_get_role(struct platform_class_bc12_info *info)
 {
@@ -143,19 +133,6 @@ static int platform_class_bc12_get_real_type(void *data, int *value)
 	return platform_class_bc12_ops_get_chg_type(role, value);
 }
 
-static int platform_class_bc12_det_done(void *data, bool *value)
-{
-	struct platform_class_bc12_info *info =
-		(struct platform_class_bc12_info *)data;
-	unsigned int role;
-
-	if (!data)
-		return -1;
-
-	role = platform_class_bc12_get_role(info);
-	return platform_class_bc12_ops_det_done(role, value);
-}
-
 static int platform_class_bc12_parse_dt(struct platform_class_bc12_info *info)
 {
 	struct device_node *node = info->dev->of_node;
@@ -169,7 +146,6 @@ static int platform_class_bc12_parse_dt(struct platform_class_bc12_info *info)
 static struct adapter_protocol_class_ops g_bc12_ops = {
 	.adapter_det_en = platform_class_bc12_det_en,
 	.get_adapter_type = platform_class_bc12_get_real_type,
-	.adapter_bc12_det_done = platform_class_bc12_det_done,
 };
 
 static int platform_class_bc12_probe(struct platform_device *pdev)

@@ -13,7 +13,6 @@ enum bc12_role {
 struct platform_bc12_class_ops {
 	int (*bc12_det_en)(int en, void *data);
 	int (*get_charge_type)(int *value, void *data);
-	int (*bc12_det_done)(void *data, bool *value);
 };
 
 int platform_bc12_class_ops_register(unsigned int role,
