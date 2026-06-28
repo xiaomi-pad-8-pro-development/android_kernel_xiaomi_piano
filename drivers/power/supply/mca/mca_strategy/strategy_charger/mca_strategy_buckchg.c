@@ -1525,7 +1525,6 @@ static void strategy_buckchg_set_charge_volt(struct strategy_buckchg_dev *info,
 					     int target_volt)
 {
 	int volt = target_volt;
-	int ret = 0;
 
 	if (!target_volt) {
 		mca_log_info("target_volt = 0v is invalid\n");
@@ -1537,20 +1536,12 @@ static void strategy_buckchg_set_charge_volt(struct strategy_buckchg_dev *info,
 	case XM_CHARGER_TYPE_HVDCP3:
 	case XM_CHARGER_TYPE_HVDCP3_B:
 	case XM_CHARGER_TYPE_HVDCP3P5:
-		ret = platform_class_cp_check_iic_check(CP_ROLE_MASTER);
-		if (ret) {
-			volt = STATEGY_CHARGE_VBUS_5V;
-		}
 		platform_class_buckchg_ops_set_qc_volt(MAIN_BUCK_CHARGER, volt);
 		break;
 	case XM_CHARGER_TYPE_PD:
 		if (info->pwr_cap.nums == 0) {
 			mca_log_info("pwr_cap nums is null\n");
 			return;
-		}
-		ret = platform_class_cp_check_iic_check(CP_ROLE_MASTER);
-		if (ret) {
-			volt = STATEGY_CHARGE_VBUS_5V;
 		}
 		(void)protocol_class_pd_set_fixed_volt(TYPEC_PORT_0, volt);
 		break;
@@ -1559,10 +1550,6 @@ static void strategy_buckchg_set_charge_volt(struct strategy_buckchg_dev *info,
 		if (info->pwr_cap.nums == 0) {
 			mca_log_info("pwr_cap nums is null\n");
 			return;
-		}
-		ret = platform_class_cp_check_iic_check(CP_ROLE_MASTER);
-		if (ret) {
-			volt = STATEGY_CHARGE_VBUS_5V;
 		}
 		if (volt == STATEGY_CHARGE_VBUS_5V ||
 		    volt == STATEGY_CHARGE_VBUS_9V ||
