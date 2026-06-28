@@ -80,7 +80,6 @@ struct platform_class_cp_ops {
 	int (*cp_get_bus_error_status)(int *, void *data);
 	int (*cp_get_reg_status)(int *, void *data);
 	int (*cp_set_mode)(int, void *data);
-	int (*cp_set_default_mode)(void *data);
 	int (*cp_get_mode)(int *, void *data);
 	int (*cp_device_init)(int, void *data);
 	int (*cp_enable_adc)(bool, void *data);
@@ -104,7 +103,6 @@ struct platform_class_cp_ops {
 	int (*cp_get_tdie)(int *, void *data);
 	int (*cp_set_qb)(bool, void *data);
 	int (*cp_set_rcp)(bool, void *data);
-	int (*cp_check_iic_ok)(void *data);
 	int (*cp_set_pmid2outuvp_th)(int, void *data);
 	int (*cp_set_revchg)(bool, void *data);
 	int (*cp_set_adjustadble_timeout)(int, void *data);
@@ -133,7 +131,6 @@ int platform_class_cp_get_bus_error_status(unsigned int role,
 					   int *error_status);
 int platform_class_cp_get_reg_status(unsigned int role, int *reg_status);
 int platform_class_cp_set_mode(unsigned int role, int mode);
-int platform_class_cp_set_default_mode(unsigned int role);
 int platform_class_cp_get_mode(unsigned int role, int *mode);
 int platform_class_cp_device_init(unsigned int role, int value);
 int platform_class_cp_enable_adc(unsigned int role, bool en);
@@ -161,6 +158,5 @@ int platform_class_cp_get_fsw_step(unsigned int role, int *fsw_step);
 int platform_class_cp_get_tdie(unsigned int role, int *tdie);
 int platform_class_cp_set_qb(unsigned int role, bool en);
 int platform_class_cp_set_rcp(unsigned int role, bool en);
-int platform_class_cp_check_iic_check(unsigned int role);
 int platform_class_cp_set_pmid2outuvp_th(unsigned int role, int value);
 #endif /* _MCA_PLATFORM_PLATFORM_CP_CLASS_H_ */

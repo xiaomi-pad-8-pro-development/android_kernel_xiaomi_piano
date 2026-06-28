@@ -345,18 +345,6 @@ int platform_class_cp_set_mode(unsigned int role, int mode)
 }
 EXPORT_SYMBOL(platform_class_cp_set_mode);
 
-int platform_class_cp_set_default_mode(unsigned int role)
-{
-	struct platform_cp_class_ops_data *temp_data =
-		platform_cp_class_get_ic_ops(role);
-
-	if (platform_cp_ops_invalid(temp_data, cp_set_default_mode))
-		return -1;
-
-	return temp_data->ops->cp_set_default_mode(temp_data->data);
-}
-EXPORT_SYMBOL(platform_class_cp_set_default_mode);
-
 int platform_class_cp_get_mode(unsigned int role, int *mode)
 {
 	struct platform_cp_class_ops_data *temp_data =
@@ -683,18 +671,6 @@ int platform_class_cp_set_rcp(unsigned int role, bool en)
 	return temp_data->ops->cp_set_rcp(en, temp_data->data);
 }
 EXPORT_SYMBOL(platform_class_cp_set_rcp);
-
-int platform_class_cp_check_iic_check(unsigned int role)
-{
-	struct platform_cp_class_ops_data *temp_data =
-		platform_cp_class_get_ic_ops(role);
-
-	if (platform_cp_ops_invalid(temp_data, cp_check_iic_ok))
-		return -1;
-
-	return temp_data->ops->cp_check_iic_ok(temp_data->data);
-}
-EXPORT_SYMBOL(platform_class_cp_check_iic_check);
 
 int platform_class_cp_set_pmid2outuvp_th(unsigned int role, int value)
 {
