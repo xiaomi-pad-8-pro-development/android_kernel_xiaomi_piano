@@ -3363,6 +3363,17 @@ int strategy_fg_ops_get_pack_vendor_id(void *data, int *vendor_id)
 	return platform_fg_ops_get_pack_vendor(FG_IC_MASTER, vendor_id);
 }
 
+static int strategy_fg_ops_get_first_termiation(void *data, int *value)
+{
+	struct strategy_fg *fg = (struct strategy_fg *)data;
+
+	if (!fg || !fg->fg_init_flag)
+		return -1;
+
+	*value = fg->first_termination;
+	return 0;
+}
+
 static struct strategy_fg_class_ops g_strategy_fg_ops = {
 	.strategy_fg_is_init_ok = strategy_fg_ops_is_init_ok,
 	.strategy_fg_is_chip_ok = strategy_fg_ops_is_chip_ok,
@@ -3388,6 +3399,7 @@ static struct strategy_fg_class_ops g_strategy_fg_ops = {
 	.strategy_fg_get_fcc = strategy_fg_ops_get_fcc,
 	.strategy_fg_get_health = strategy_fg_ops_get_health,
 	.strategy_fg_get_high_temp_vterm = strategy_fg_ops_get_high_temp_vterm,
+	.strategy_fg_get_first_termination = strategy_fg_ops_get_first_termiation,
 	.strategy_fg_get_pack_vendor_id = strategy_fg_ops_get_pack_vendor_id,
 	.strategy_fg_get_thermal_temperature = strategy_fg_ops_get_thermal_temp,
 	.strategy_fg_get_soh = strategy_fg_ops_get_soh,
