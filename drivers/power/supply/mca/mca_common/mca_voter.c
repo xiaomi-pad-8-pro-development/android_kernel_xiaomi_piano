@@ -643,9 +643,8 @@ int mca_vote_override(struct mca_votable *votable, const char *override_client,
 		rc = votable->callback(votable, votable->data, val,
 				       override_client);
 		if (!rc) {
-			memcpy(votable->override_client, override_client,
-			       max(strlen(override_client) + 1,
-				   CLIENT_MAX_LEN));
+			strncpy(votable->override_client, override_client,
+				CLIENT_MAX_LEN);
 			votable->override_result = val;
 			mca_log_err("%s ovrried vote %d", override_client,
 				    votable->override_result);
