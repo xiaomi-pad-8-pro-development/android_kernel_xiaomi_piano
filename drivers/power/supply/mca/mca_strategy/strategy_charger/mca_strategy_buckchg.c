@@ -335,7 +335,7 @@ static int strategy_buckchg_input_limit(struct mca_votable *votable, void *data,
 
 	ktime_get_boottime_ts64(&ts);
 	if ((u64)ts.tv_sec < 60) {
-		// get_smem_battery_info(&is_zero_speed);
+		get_smem_battery_info(&is_zero_speed);
 		if (is_zero_speed && effective_result) {
 			result = effective_result < 1500 ? 1500 :
 							   effective_result;
