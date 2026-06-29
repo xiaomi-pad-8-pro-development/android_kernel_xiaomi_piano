@@ -213,6 +213,7 @@ struct strategy_buckchg_dev {
 	int full_replug_ichg_limit;
 	bool dpdm_detect_done;
 	bool need_cp_to_pmic;
+	bool support_base_flip;
 };
 
 #endif /*__MCA_STRATEGY_BUCKCHG_H__ */

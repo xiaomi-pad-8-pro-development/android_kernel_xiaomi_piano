@@ -37,6 +37,8 @@
 #include <mca/strategy/strategy_class.h>
 #include <mca/platform/platform_buckchg_class.h>
 #include <mca/platform/platform_cp_class.h>
+#include <mca/platform/platform_loadsw_class.h>
+#include <mca/platform/platform_fg_ic_ops.h>
 #include <mca/protocol/protocol_class.h>
 #include <mca/protocol/protocol_pd_class.h>
 #include "inc/mca_strategy_buckchg.h"
@@ -210,6 +212,8 @@ static void strategy_buckchg_parse_dt(struct strategy_buckchg_dev *info)
 		info->dev->of_node, "support_reverse_quick_charge");
 	info->need_cp_to_pmic = of_property_read_bool(info->dev->of_node,
 						      "need-cp-to-pmic");
+	info->support_base_flip = of_property_read_bool(info->dev->of_node,
+							"support-base-flip");
 	mca_parse_dts_u32(info->dev->of_node, "sw_cv_vterm_th",
 			  &info->sw_cv_vterm_th, STATEGY_CHARGE_VTERM_LOW_TH);
 	mca_parse_dts_u32(info->dev->of_node, "full_replug_ichg_limit",
@@ -725,6 +729,17 @@ strategy_buckchg_process_online_change(int value,
 			       MCA_EVENT_BATTERY_STS_CHANGE, NULL);
 	info->proc_data.online = value;
 	if (value) {
+		if (info->support_base_flip) {
+			bool master_err = false;
+			bool slave_err = false;
+
+			platform_fg_ops_get_error_state(FG_IC_MASTER,
+							&master_err);
+			platform_fg_ops_get_error_state(FG_IC_SLAVE, &slave_err);
+			if (!master_err || slave_err)
+				platform_class_loadsw_set_lowpower_mode(
+					LOADSW_ROLE_MASTER, false);
+		}
 		strategy_buckchg_start_charging(info);
 	} else {
 		info->pps_ptf = USBPD_BUCK_DPM_PORT_PPS_PTF_NOT_SUPPORTED;
