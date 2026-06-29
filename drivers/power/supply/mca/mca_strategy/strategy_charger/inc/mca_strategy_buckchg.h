@@ -214,6 +214,8 @@ struct strategy_buckchg_dev {
 	bool dpdm_detect_done;
 	bool need_cp_to_pmic;
 	bool support_base_flip;
+	int soc_limit_low;
+	int soc_limit_high;
 };
 
 #endif /*__MCA_STRATEGY_BUCKCHG_H__ */

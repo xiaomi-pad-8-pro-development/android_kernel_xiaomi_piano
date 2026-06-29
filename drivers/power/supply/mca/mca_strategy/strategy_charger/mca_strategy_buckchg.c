@@ -1157,6 +1157,22 @@ static int strategy_buckchg_process_event(int event, int value, void *data)
 		if (info->support_reverse_quick_charge)
 			strategy_buckchg_cp_revert_handler(value, info);
 		break;
+	case MCA_EVENT_DEBUG_CTRL_MEMORY_TEST:
+		mca_log_info("memory_test enable soc_limit: %d\n", value);
+		if (value) {
+			info->soc_limit_low = 1;
+			info->soc_limit_high = 3;
+		} else {
+			info->soc_limit_low = 0;
+			info->soc_limit_high = 0;
+		}
+		break;
+	case MCA_EVENT_DEBUG_CTRL_SOC_LIMIT:
+		info->soc_limit_low = value >> 8;
+		info->soc_limit_high = value & 0xff;
+		mca_log_info("debug_ctrl set soc_limit: %d %d\n",
+			     info->soc_limit_low, info->soc_limit_high);
+		break;
 	default:
 		break;
 	}
@@ -1940,6 +1956,32 @@ strategy_buckchg_cp_to_pmic_decrease_vterm(struct strategy_buckchg_dev *info)
 		first_termination, taper_cp_to_pmic, target_vterm);
 }
 
+static void strategy_buckchg_debug_soc_limit(struct strategy_buckchg_dev *info,
+					     int soc)
+{
+	int en = 0;
+
+	if (info->soc_limit_low >= 1 && info->soc_limit_high >= 1 &&
+	    info->soc_limit_low < info->soc_limit_high) {
+		if (soc >= info->soc_limit_high)
+			en = 1;
+		else if (soc > info->soc_limit_low)
+			return;
+		else
+			en = 0;
+	} else {
+		if (!mca_is_client_vote_enabled(info->chg_enable_voter,
+						"debug_soc_limit"))
+			return;
+		en = 0;
+	}
+
+	mca_vote(info->chg_enable_voter, "debug_soc_limit", en, 0);
+	mca_vote(info->input_limit_voter, "debug_soc_limit", en, 0);
+	mca_strategy_func_process(STRATEGY_FUNC_TYPE_QUICK_CHARGE,
+				  MCA_EVENT_DEBUG_CTRL_SOC_LIMIT, en);
+}
+
 static void strategy_buckchg_monitor_workfunc(struct work_struct *work)
 {
 	struct strategy_buckchg_dev *info = container_of(
@@ -1957,6 +1999,7 @@ static void strategy_buckchg_monitor_workfunc(struct work_struct *work)
 	int active_port = protocol_class_pd_get_port_num();
 
 	system_soc = strategy_class_fg_ops_get_soc();
+	strategy_buckchg_debug_soc_limit(info, system_soc);
 	if (system_soc <= ALLOW_QUICK_CHG_SOC_THR) {
 		jeita_hot_result = mca_get_client_vote(info->chg_enable_voter,
 						       "jeita-hot");
