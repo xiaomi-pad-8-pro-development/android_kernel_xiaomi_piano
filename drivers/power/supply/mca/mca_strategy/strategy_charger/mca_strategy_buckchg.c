@@ -208,6 +208,8 @@ static void strategy_buckchg_parse_dt(struct strategy_buckchg_dev *info)
 			  VOTE_BUCK_ITERM_BUF_DEFAULT);
 	info->support_reverse_quick_charge = of_property_read_bool(
 		info->dev->of_node, "support_reverse_quick_charge");
+	info->need_cp_to_pmic = of_property_read_bool(info->dev->of_node,
+						      "need-cp-to-pmic");
 	mca_parse_dts_u32(info->dev->of_node, "sw_cv_vterm_th",
 			  &info->sw_cv_vterm_th, STATEGY_CHARGE_VTERM_LOW_TH);
 	mca_parse_dts_u32(info->dev->of_node, "full_replug_ichg_limit",
@@ -1883,6 +1885,46 @@ static int strategy_buckchg_charge_abnormal_cold_or_hot_zone(
 
 #define STRATEGY_BUCKCHG_ENTER_QUICKCHG_TIME_MS 7000
 #define VBAT_DROP_COUNT_TH 3
+
+#define CP_TO_PMIC_DEFAULT_VTERM 4400
+#define CP_TO_PMIC_VTERM_STEP 5
+static void
+strategy_buckchg_cp_to_pmic_decrease_vterm(struct strategy_buckchg_dev *info)
+{
+	static int last_jeita_vterm;
+	int first_termination = 0;
+	int taper_cp_to_pmic = 0;
+	int target_vterm = 0;
+	int jeita_vterm;
+
+	if (!info->need_cp_to_pmic)
+		return;
+	if (info->proc_data.real_type != XM_CHARGER_TYPE_HVDCP3_B)
+		return;
+
+	strategy_class_fg_get_first_termination(&first_termination);
+	mca_strategy_func_get_status(STRATEGY_FUNC_TYPE_QUICK_CHARGE,
+				     STRATEGY_STATUS_TYPE_CP_TO_PMIC_TAPER,
+				     &taper_cp_to_pmic);
+
+	if (first_termination) {
+		mca_vote(info->vterm_voter, "cp_to_pmic", false,
+			 CP_TO_PMIC_DEFAULT_VTERM);
+	} else {
+		jeita_vterm = mca_get_client_vote(info->vterm_voter, "jeita");
+		if (taper_cp_to_pmic && jeita_vterm != last_jeita_vterm) {
+			target_vterm = jeita_vterm - CP_TO_PMIC_VTERM_STEP;
+			mca_vote(info->vterm_voter, "cp_to_pmic", true,
+				 target_vterm);
+			last_jeita_vterm = jeita_vterm;
+		}
+	}
+
+	mca_log_err(
+		"first_termination_flag: %d, taper_cp_to_pmic: %d, target_vterm: %d\n",
+		first_termination, taper_cp_to_pmic, target_vterm);
+}
+
 static void strategy_buckchg_monitor_workfunc(struct work_struct *work)
 {
 	struct strategy_buckchg_dev *info = container_of(
@@ -1966,6 +2008,7 @@ static void strategy_buckchg_monitor_workfunc(struct work_struct *work)
 	strategy_buckchg_update_charge_status(info);
 	strategy_buckchg_check_non_compliant_qc_charger(info);
 	strategy_buckchg_update_aicl_cfg(info);
+	strategy_buckchg_cp_to_pmic_decrease_vterm(info);
 	strategy_buckchg_limit_full_replug_ichg(info, false);
 	strategy_buckchg_resume_buck_ichg_limit(info);
 	if (info->proc_data.chg_status == MCA_BUCK_CHG_STS_CHARGING) {
