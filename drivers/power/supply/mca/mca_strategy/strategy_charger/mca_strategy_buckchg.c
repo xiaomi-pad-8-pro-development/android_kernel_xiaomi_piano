@@ -216,6 +216,8 @@ static void strategy_buckchg_parse_dt(struct strategy_buckchg_dev *info)
 							"support-base-flip");
 	info->support_revchg_screenon = of_property_read_bool(
 		info->dev->of_node, "support_revchg_screenon");
+	mca_parse_dts_u32(info->dev->of_node, "vusb_ovp_location",
+			  &info->vusb_ovp_location, 0);
 	mca_parse_dts_u32(info->dev->of_node, "sw_cv_vterm_th",
 			  &info->sw_cv_vterm_th, STATEGY_CHARGE_VTERM_LOW_TH);
 	mca_parse_dts_u32(info->dev->of_node, "full_replug_ichg_limit",
@@ -2010,6 +2012,40 @@ strategy_buckchg_cp_to_pmic_decrease_vterm(struct strategy_buckchg_dev *info)
 		first_termination, taper_cp_to_pmic, target_vterm);
 }
 
+#define VUSB_OVP_LOCATION_BEFORE_CP 1
+#define CP_PRESENT_RETRY_MAX 6
+static void strategy_buckchg_check_cp_i2c_err(struct strategy_buckchg_dev *info)
+{
+	bool present = false;
+	int ret;
+
+	if (!info->vusb_ovp_location)
+		return;
+
+	ret = platform_class_cp_get_present(CP_ROLE_MASTER, &present);
+	if (!ret && present) {
+		info->cp_present_retry = 0;
+		info->cp_i2c_err_voted = false;
+		return;
+	}
+
+	if (info->cp_present_retry >= CP_PRESENT_RETRY_MAX) {
+		if (info->cp_i2c_err_voted)
+			return;
+		if (info->vusb_ovp_location != VUSB_OVP_LOCATION_BEFORE_CP)
+			return;
+		mca_log_err("cp i2c error detected\n");
+		mca_log_info(
+			"vusb_ovp_location is BEFORE_CP, force input voltage\n");
+		mca_vote(info->input_voltage_voter, "cp_i2c_error", true, 0);
+		info->cp_i2c_err_voted = true;
+	} else {
+		info->cp_present_retry++;
+		mca_log_info("CP not present, retrying... retry_count %d\n",
+			     info->cp_present_retry);
+	}
+}
+
 static void strategy_buckchg_debug_soc_limit(struct strategy_buckchg_dev *info,
 					     int soc)
 {
@@ -2054,6 +2090,7 @@ static void strategy_buckchg_monitor_workfunc(struct work_struct *work)
 
 	system_soc = strategy_class_fg_ops_get_soc();
 	strategy_buckchg_debug_soc_limit(info, system_soc);
+	strategy_buckchg_check_cp_i2c_err(info);
 	if (system_soc <= ALLOW_QUICK_CHG_SOC_THR) {
 		jeita_hot_result = mca_get_client_vote(info->chg_enable_voter,
 						       "jeita-hot");

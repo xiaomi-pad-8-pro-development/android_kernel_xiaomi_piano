@@ -226,6 +226,9 @@ struct strategy_buckchg_dev {
 	int src_monitor_cnt;
 	bool src_monitor_byte;
 	int src_gear_last;
+	int vusb_ovp_location;
+	int cp_present_retry;
+	bool cp_i2c_err_voted;
 };
 
 #endif /*__MCA_STRATEGY_BUCKCHG_H__ */
