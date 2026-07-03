@@ -1541,7 +1541,7 @@ static void business_charger_process_debug_ctrl_input(const char *buf)
 		return;
 	}
 
-	if (!strncmp(name, "double85", strlen("double85"))) {
+	if (!strncmp(name, "double85", strnlen("double85", sizeof(name)))) {
 		if (sscanf(buf, "%19s %d", name, &v1) != 2) {
 			mca_log_err("invalid input\n");
 			return;
@@ -1553,7 +1553,7 @@ static void business_charger_process_debug_ctrl_input(const char *buf)
 			charger_partition_write_double85(v1);
 		}
 	} else if (!strncmp(name, "remove_temp_limit",
-			    strlen("remove_temp_limit"))) {
+			    strnlen("remove_temp_limit", sizeof(name)))) {
 		if (sscanf(buf, "%19s %d", name, &v1) != 2) {
 			mca_log_err("invalid input\n");
 			return;
@@ -1564,7 +1564,7 @@ static void business_charger_process_debug_ctrl_input(const char *buf)
 				MCA_EVENT_DEBUG_CTRL_REMOVE_TEMP_LIMIT, &v1);
 			charger_partition_write_remove_temp_limit(v1);
 		}
-	} else if (!strncmp(name, "soc_limit", strlen("soc_limit"))) {
+	} else if (!strncmp(name, "soc_limit", strnlen("soc_limit", sizeof(name)))) {
 		if (sscanf(buf, "%19s %d %d", name, &v1, &v2) != 3) {
 			mca_log_err("invalid input\n");
 			return;
@@ -1582,7 +1582,7 @@ static void business_charger_process_debug_ctrl_input(const char *buf)
 		} else {
 			mca_log_err("invalid soc value: %d %d\n", v1, v2);
 		}
-	} else if (!strncmp(name, "memory_test", strlen("memory_test"))) {
+	} else if (!strncmp(name, "memory_test", strnlen("memory_test", sizeof(name)))) {
 		if (sscanf(buf, "%19s %d", name, &v1) != 2) {
 			mca_log_err("invalid input\n");
 			return;
@@ -1717,16 +1717,14 @@ static ssize_t bussiness_charger_sysfs_show(struct device *dev,
 					 charger->stop_handle_charge);
 		break;
 	case BUSSINESS_CHARGER_PROP_DEBUG_CTRL:
-		count += scnprintf(buf + count, PAGE_SIZE - count, "%s %d\n",
-				   g_debug_ctrl[0].name, g_last_double85);
-		count += scnprintf(buf + count, PAGE_SIZE - count, "%s %d\n",
-				   g_debug_ctrl[1].name,
-				   g_last_remove_temp_limit);
-		count += scnprintf(buf + count, PAGE_SIZE - count, "%s %d %d\n",
-				   g_debug_ctrl[2].name, g_last_soc_limit_hi,
-				   g_last_soc_limit_lo);
-		count += scnprintf(buf + count, PAGE_SIZE - count, "%s %d\n",
-				   g_debug_ctrl[3].name, g_last_memory_test);
+		count += sprintf(buf + count, "%s %d\n", g_debug_ctrl[0].name,
+				 g_last_double85);
+		count += sprintf(buf + count, "%s %d\n", g_debug_ctrl[1].name,
+				 g_last_remove_temp_limit);
+		count += sprintf(buf + count, "%s %d %d\n", g_debug_ctrl[2].name,
+				 g_last_soc_limit_hi, g_last_soc_limit_lo);
+		count += sprintf(buf + count, "%s %d\n", g_debug_ctrl[3].name,
+				 g_last_memory_test);
 		break;
 	default:
 		break;
