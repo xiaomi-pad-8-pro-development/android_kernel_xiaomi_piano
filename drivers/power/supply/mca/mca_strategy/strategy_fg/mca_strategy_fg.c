@@ -504,8 +504,9 @@ void strategy_fg_record_volt_mean(struct strategy_fg *fg)
 					  NORMAL_CHARGING_MAX_EMPTY_COUNT);
 
 	ktime_get_boottime_ts64(&ts);
-	// if (!is_zero_speed && fg->chg_status == POWER_SUPPLY_STATUS_CHARGING && (u64)ts.tv_sec < 120)
-	// 	get_smem_battery_info(&is_zero_speed);
+	if (!is_zero_speed && fg->chg_status == POWER_SUPPLY_STATUS_CHARGING &&
+	    (u64)ts.tv_sec < 120)
+		get_smem_battery_info(&is_zero_speed);
 	if (fg->chg_status == POWER_SUPPLY_STATUS_CHARGING && is_zero_speed &&
 	    (u64)ts.tv_sec < 120) {
 		mca_log_err(
