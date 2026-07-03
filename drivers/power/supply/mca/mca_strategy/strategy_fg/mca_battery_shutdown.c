@@ -538,9 +538,9 @@ static bool mca_shutdown_due_to_vpack_low_of_vpack_inside_fg_absent(void *data)
 		return false;
 
 	if (fg->cfg.fg_type == MCA_FG_TYPE_SINGLE_SERIES)
-		vpack_vol_now_mv = fg->pvbat * 2;
+		vpack_vol_now_mv = fg->pack_vbat * 2;
 	else
-		vpack_vol_now_mv = fg->pvbat;
+		vpack_vol_now_mv = fg->pack_vbat;
 
 	chip_ok = strategy_class_fg_is_chip_ok();
 	mca_log_info("chip_ok:%d vpack_vol_now_mv:%d fg->vcutoff_sw:%d",
