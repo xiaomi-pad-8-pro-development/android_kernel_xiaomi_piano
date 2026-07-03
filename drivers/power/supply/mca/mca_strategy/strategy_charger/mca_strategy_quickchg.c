@@ -1133,48 +1133,23 @@ static int mca_quick_charge_judge_vbat(struct mca_quick_charge_info *info)
 	return 0;
 }
 
-#define QUICKCHG_HIGH_RAWSOC 10000
 static int
 mca_quick_charge_judge_thermal_vote(struct mca_quick_charge_info *info,
 				    bool is_prechk)
 {
-	int thermal_curr = 0, is_rechg = 0, rawsoc = 0;
-	struct mca_quick_charge_process_data *proc_data = &(info->proc_data);
-	int volt_para_size =
-		proc_data->cur_volt_para[FG_IC_MASTER]->volt_para_size;
-	int cur_min = proc_data->cur_volt_para[FG_IC_MASTER]
-			      ->volt_para[volt_para_size - 1]
-			      .current_min;
+	int thermal_curr = 0;
 
 	if (info->cp_type <= MCA_BATTERY_TYPE_SINGLE_NUM_MAX)
 		thermal_curr =
 			info->proc_data.thermal_cur[MCA_QUICK_CHG_CH_SINGLE];
 
-	strategy_class_fg_ops_get_recharge(&is_rechg);
-	strategy_class_fg_ops_get_rawsoc(&rawsoc);
-
-	mca_log_info("info->thermal_cur: %d %d rechg:%d, rawsoc:%d\n",
+	mca_log_info("thermal_cur: %d %d\n",
 		     info->proc_data.thermal_cur[MCA_QUICK_CHG_CH_SINGLE],
-		     info->proc_data.thermal_cur[MCA_QUICK_CHG_CH_MULTI],
-		     is_rechg, rawsoc);
+		     info->proc_data.thermal_cur[MCA_QUICK_CHG_CH_MULTI]);
 
-	if (is_prechk) {
-		if (thermal_curr < info->cp_switch_pmic_th &&
-		    thermal_curr > 0) {
-			mca_log_info("prechk, skip cp for thermal");
-			return -1;
-		}
-	} else {
-		/* thermal curr lower than cur_min may cause overcharge, so exit quickchg when rawsoc is high and this occurs. */
-		if (rawsoc >= QUICKCHG_HIGH_RAWSOC && thermal_curr < cur_min &&
-		    thermal_curr > 0) {
-			mca_log_info("skip cp for thermal curr soc high");
-			return -1;
-		} else if (thermal_curr < info->cp_switch_pmic_th &&
-			   thermal_curr > 0) {
-			mca_log_info("skip cp for thermal");
-			return -1;
-		}
+	if (thermal_curr < info->cp_switch_pmic_th && thermal_curr > 0) {
+		mca_log_info("skip cp for thermal");
+		return -1;
 	}
 
 	return 0;
