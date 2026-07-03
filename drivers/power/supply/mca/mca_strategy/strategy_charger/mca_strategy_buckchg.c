@@ -2016,6 +2016,32 @@ strategy_buckchg_cp_to_pmic_decrease_vterm(struct strategy_buckchg_dev *info)
 		first_termination, taper_cp_to_pmic, target_vterm);
 }
 
+#define AICL_CONT_THD_DEFAULT 4100
+static void
+strategy_buckchg_update_aicl_restart(struct strategy_buckchg_dev *info)
+{
+	const struct mca_hwid *hwid = mca_get_hwid_info();
+	int vbus;
+	int thd = AICL_CONT_THD_DEFAULT;
+
+	vbus = mca_get_effective_result(info->input_voltage_voter);
+	if (vbus != info->aicl_vbus_cache) {
+		mca_rerun_election(info->buck_5v_in_voter);
+		mca_rerun_election(info->buck_9v_in_voter);
+		info->aicl_vbus_cache = vbus;
+		mca_log_info("input voltage %d, country %d, restart aicl\n",
+			     vbus, hwid ? (int)hwid->country_version : -1);
+		platform_class_buckchg_ops_set_restart_aicl(MAIN_BUCK_CHARGER,
+							    true);
+	}
+
+	if (info->aicl_cont_thd_cache != thd) {
+		platform_class_buckchg_ops_set_usb_aicl_cont_thd(
+			MAIN_BUCK_CHARGER, thd);
+		info->aicl_cont_thd_cache = thd;
+	}
+}
+
 #define FCC_LIMIT_FASTCHARGE_SOC_TH 95
 static void
 strategy_buckchg_check_fcc_limit_fastcharge(struct strategy_buckchg_dev *info,
@@ -2180,6 +2206,7 @@ static void strategy_buckchg_monitor_workfunc(struct work_struct *work)
 	strategy_buckchg_update_charge_status(info);
 	strategy_buckchg_check_non_compliant_qc_charger(info);
 	strategy_buckchg_update_aicl_cfg(info);
+	strategy_buckchg_update_aicl_restart(info);
 	strategy_buckchg_cp_to_pmic_decrease_vterm(info);
 	strategy_buckchg_limit_full_replug_ichg(info, false);
 	strategy_buckchg_resume_buck_ichg_limit(info);

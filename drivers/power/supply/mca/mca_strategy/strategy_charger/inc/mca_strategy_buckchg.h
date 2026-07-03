@@ -229,6 +229,8 @@ struct strategy_buckchg_dev {
 	int vusb_ovp_location;
 	int cp_present_retry;
 	bool cp_i2c_err_voted;
+	int aicl_vbus_cache;
+	int aicl_cont_thd_cache;
 };
 
 #endif /*__MCA_STRATEGY_BUCKCHG_H__ */
