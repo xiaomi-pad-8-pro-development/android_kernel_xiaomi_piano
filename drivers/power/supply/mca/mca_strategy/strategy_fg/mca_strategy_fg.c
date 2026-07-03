@@ -2646,11 +2646,52 @@ static int strategy_fg_ops_get_thermal_temp(void *data, int *temp)
 static int strategy_fg_ops_get_model_name(void *data, const char **model_name)
 {
 	struct strategy_fg *fg = (struct strategy_fg *)data;
+	const struct mca_hwid *hwid = mca_get_hwid_info();
+	const char *device_name = NULL;
 
 	if (!fg || !fg->fg_init_flag)
 		return -1;
 
+	if (!strcmp(fg->cfg.model_name, fg->cfg.model_name_gl)) {
+		*model_name = fg->cfg.model_name;
+		goto country_select;
+	}
+
+	platform_fg_ops_get_device_name(FG_IC_MASTER, &device_name);
+	if (device_name) {
+		if (!strncmp(device_name, "BP4U", 4)) {
+			*model_name = fg->cfg.model_name;
+			mca_log_info("project O3 matched BP4U, set cn model name\n");
+			goto country_select;
+		}
+		if (!strncmp(device_name, "BP4V", 4) ||
+		    !strcmp("5XM31", device_name) ||
+		    !strncmp("5@BP", device_name, 4)) {
+			*model_name = fg->cfg.model_name_gl;
+			mca_log_info("Not cn project, set global model name\n");
+			goto country_select;
+		}
+	}
+
 	*model_name = fg->cfg.model_name;
+
+country_select:
+	if (!fg->cfg.support_global)
+		return 0;
+
+	switch (hwid->country_version) {
+	case CountryGlobal:
+		*model_name = fg->cfg.model_name_gl;
+		break;
+	case CountryIndia:
+		*model_name = fg->cfg.model_name_in;
+		break;
+	case CountryCN:
+	default:
+		*model_name = fg->cfg.model_name;
+		break;
+	}
+
 	return 0;
 }
 
@@ -3010,6 +3051,8 @@ static int strategy_fg_parse_dt(struct strategy_fg *fg)
 	ret |= mca_parse_dts_string(node, "model-name", &(fg->cfg.model_name));
 	ret |= mca_parse_dts_string(node, "model-name-global",
 				    &(fg->cfg.model_name_gl));
+	ret |= mca_parse_dts_string(node, "model-name-in",
+				    &(fg->cfg.model_name_in));
 	ret |= mca_parse_dts_u32(node, "support_global",
 				 &(fg->cfg.support_global),
 				 STRATEGY_FG_SUPPORT_GLOBAL);

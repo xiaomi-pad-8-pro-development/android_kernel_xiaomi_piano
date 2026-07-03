@@ -114,6 +114,7 @@ struct strategy_fg_cfg {
 
 	const char *model_name;
 	const char *model_name_gl;
+	const char *model_name_in;
 	struct strategy_fg_soc_decimal soc_decimal[SOC_DECIMAL_MAX_LEVEL];
 	struct lossless_rechg_cfg rechg_cfg;
 	int support_lossless_rechg;
