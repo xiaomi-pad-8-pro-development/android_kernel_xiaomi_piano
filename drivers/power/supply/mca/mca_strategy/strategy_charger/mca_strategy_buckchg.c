@@ -1050,6 +1050,8 @@ strategy_buckchg_cp_revert_handler(int auth_pos,
 			// enable revert cp boost
 			platform_class_cp_enable_acdrv_manual(CP_ROLE_MASTER,
 							      true);
+			platform_class_cp_set_adjustadble_timeout(CP_ROLE_MASTER,
+								  0);
 			platform_class_cp_set_mode(CP_ROLE_MASTER,
 						   CP_MODE_REVERSE_1_2);
 			platform_class_cp_enable_wpcgate(CP_ROLE_MASTER, false);
@@ -1081,6 +1083,7 @@ strategy_buckchg_cp_revert_handler(int auth_pos,
 		platform_class_buckchg_ops_set_boost_enable(MAIN_BUCK_CHARGER,
 							    otg_enable);
 
+		platform_class_cp_set_adjustadble_timeout(CP_ROLE_MASTER, 40);
 		last_otg_present = false;
 		last_pos = 1;
 		info->source_boost_status = 0;
