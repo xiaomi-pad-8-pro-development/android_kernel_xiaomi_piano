@@ -1828,68 +1828,20 @@ static void mca_quick_charge_start_charging(struct mca_quick_charge_info *info)
 
 static bool mca_quick_charge_check_chg_done(struct mca_quick_charge_info *info)
 {
-	struct mca_quick_charge_batt_para_info *batt_para =
-		&info->batt_para[FG_IC_MASTER];
-	struct mca_quick_charge_temp_para *temp_para;
-	bool found_temp_para = false;
-	int temp = 0, i = 0, ret = 0, eff_idx = 0, idx_now = 0;
-	int recharge_vbat = 0;
-	int vterm = 0;
-
 	if (info->proc_data.charge_flag != MCA_QUICK_CHG_STS_CHARGE_DONE)
 		return false;
 
 	if (info->hardware_cv)
 		return false;
 
-	ret = strategy_class_fg_ops_get_temperature(&temp);
-	if (ret) {
-		mca_log_err("get batt temp fail\n");
-		return ret;
-	}
-	temp /= 10;
-	for (i = 0; i < batt_para->temp_para_size; i++) {
-		temp_para = &batt_para->temp_info[i].temp_para;
-		if (temp >= temp_para->temp_low &&
-		    temp < temp_para->temp_high) {
-			found_temp_para = true;
-			break;
-		}
-	}
-
-	if (!found_temp_para) {
-		mca_log_err("%d can not find temp_para\n", FG_IC_MASTER);
-		return false;
-	}
-
-	idx_now = info->proc_data.temp_para_index[FG_IC_MASTER];
-	if ((i > idx_now &&
-	     temp <= (temp_para->temp_low + temp_para->low_temp_hysteresis)) ||
-	    (i < idx_now &&
-	     temp > (temp_para->temp_high - temp_para->high_temp_hysteresis))) {
-		eff_idx = info->proc_data.temp_para_index[FG_IC_MASTER];
-	} else {
-		eff_idx = i;
-	}
-
-	if (info->proc_data.adp_type == XM_CHARGER_TYPE_PD_VERIFY) {
-		vterm = batt_para->temp_info[eff_idx].temp_para.ffc_max_fv;
-	} else {
-		vterm = batt_para->temp_info[eff_idx].temp_para.normal_max_fv;
-	}
-
-	recharge_vbat = vterm - info->recharge_vbat_delta;
-
-	mca_log_info("v[%d %d %d %d], temp idx[%d %d %d]\n", vterm,
-		     info->recharge_vbat_delta, recharge_vbat,
-		     info->proc_data.vbat[FG_IC_MASTER], idx_now, i, eff_idx);
-
 	mca_quick_charge_update_vbat(info);
-	if (info->batt_type <= MCA_BATTERY_TYPE_SINGLE_NUM_MAX)
-		return (info->proc_data.vbat[FG_IC_MASTER] < recharge_vbat);
 
-	return ((info->proc_data.vbat[FG_IC_MASTER] > recharge_vbat) &&
-		(info->proc_data.vbat[FG_IC_SLAVE] > recharge_vbat));
+	if (info->batt_type <= MCA_BATTERY_TYPE_SINGLE_NUM_MAX)
+		return (info->proc_data.vbat[FG_IC_MASTER] <
+			info->recharge_vbat_delta);
+
+	return ((info->proc_data.vbat[FG_IC_MASTER] < info->recharge_vbat_delta) &&
+		(info->proc_data.vbat[FG_IC_SLAVE] < info->recharge_vbat_delta));
 }
 
 static void
