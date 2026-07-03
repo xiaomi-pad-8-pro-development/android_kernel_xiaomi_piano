@@ -249,8 +249,6 @@ struct strategy_fg {
 	struct fg_batt_info slave_batt_info;
 	int update_period;
 	int update_interval;
-	int pvbat;
-	int pibat;
 	int pack_vbat;
 	int pack_ibat;
 	int pack_tbat;

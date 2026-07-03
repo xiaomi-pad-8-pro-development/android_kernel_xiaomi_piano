@@ -1314,7 +1314,7 @@ static int mca_strategy_check_sigle_termination(struct strategy_fg *fg)
 	mca_log_debug(
 		"vterm: %d, iterm: %d, vbat: %d, vcell_max: %d, ibat: %d, pvbat: %d, pibat:%d, chgr_status: %d, charging_done: %d\n",
 		vterm, iterm, fg->batt_voltage, fg->batt_vcell_max,
-		fg->batt_current, fg->pvbat, fg->pibat, chgr_status,
+		fg->batt_current, fg->pack_vbat, fg->pack_ibat, chgr_status,
 		fg->charging_done);
 
 	platform_class_buckchg_ops_get_chg_status(MAIN_BUCK_CHARGER,
@@ -1324,7 +1324,7 @@ static int mca_strategy_check_sigle_termination(struct strategy_fg *fg)
 		mca_log_err(
 			"vterm: %d, iterm: %d, vbat: %d, vcell_max: %d, ibat: %d, pvbat: %d, chgr_status: %d, charging_done: %d\n",
 			vterm, iterm, fg->batt_voltage, fg->batt_vcell_max,
-			fg->batt_current, fg->pvbat, chgr_status,
+			fg->batt_current, fg->pack_vbat, chgr_status,
 			fg->charging_done);
 	} else if (-fg->batt_current / 1000 < soft_iterm &&
 		   vbat_for_term >= soft_vterm) {
@@ -1336,7 +1336,7 @@ static int mca_strategy_check_sigle_termination(struct strategy_fg *fg)
 		mca_log_err(
 			"soft_vterm: %d, soft_iterm: %d, vbat: %d, vcell_max: %d, ibat: %d, pvbat: %d, count: %d, charging_done: %d\n",
 			soft_vterm, soft_iterm, fg->batt_voltage,
-			fg->batt_vcell_max, fg->batt_current, fg->pvbat, count,
+			fg->batt_vcell_max, fg->batt_current, fg->pack_vbat, count,
 			fg->charging_done);
 	} else {
 		fg->near_vterm = false;
@@ -2339,10 +2339,6 @@ static int fg_update_status(struct strategy_fg *fg, bool prohibit_jump)
 	strategy_fg_record_curr_mean(fg);
 	strategy_fg_update_vcuttoff_voltage(fg);
 	strategy_fg_update_fw(fg);
-	(void)platform_class_buckchg_ops_get_batt_volt(MAIN_BUCK_CHARGER,
-						       &fg->pvbat);
-	(void)platform_class_buckchg_ops_get_batt_curr(MAIN_BUCK_CHARGER,
-						       &fg->pibat);
 
 	fg->batt_ui_soc = fg_ui_soc_smooth(fg, prohibit_jump);
 	strategy_fg_report_battery_status_changed(fg);
@@ -2350,10 +2346,10 @@ static int fg_update_status(struct strategy_fg *fg, bool prohibit_jump)
 	fg_abnormal_temp_notify_mievent(fg);
 
 	mca_log_err(
-		"UISOC:%d CURRENT:%d RSOC:%d VOLTAGE:%d VCELL:%d TEMP:%d PVBAT:%d PIBAT:%d HEALTH:%d\n",
+		"UISOC:%d CURRENT:%d RSOC:%d VOLTAGE:%d TEMP:%d PVBAT:%d PIBAT:%d PTBAT:%d HEALTH:%d\n",
 		fg->batt_ui_soc, fg->batt_current, fg->batt_rsoc,
-		fg->batt_voltage, fg->batt_vcell_max, fg->batt_temperature,
-		fg->pvbat, fg->pibat, fg->batt_health);
+		fg->batt_voltage, fg->batt_temperature, fg->pack_vbat,
+		fg->pack_ibat, fg->pack_tbat, fg->batt_health);
 	mca_log_info("CC:%d S:%d RM:%d F:%d RAWSOC:%d, DODCOUNT:%d\n",
 		     fg->batt_cyclecount, fg->batt_soh, fg->batt_rm,
 		     fg->batt_fcc, fg->batt_raw_soc, fg->dod_count);
