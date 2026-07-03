@@ -40,6 +40,7 @@
 #include <mca/common/mca_voter.h>
 #include <mca/common/mca_smem.h>
 #include <mca/platform/platform_buckchg_class.h>
+#include <mca/platform/platform_loadsw_class.h>
 #include <mca/common/mca_charge_mievent.h>
 #include <mca/smartchg/smart_chg_class.h>
 #include <mca/common/mca_workqueue.h>
@@ -2103,10 +2104,16 @@ static int mca_strategy_check_lossless_recharge(struct strategy_fg *fg)
 
 static int mca_strategy_update_fg_info(struct strategy_fg *fg)
 {
+	static int exit_lowpower_pending;
 	int ret;
 
 	strategy_fg_get_error_state(fg);
 	if (fg->fg_error) {
+		if (fg->cfg.support_base_flip &&
+		    fg->dual_error[FG_IC_MASTER] &&
+		    !fg->dual_error[FG_IC_SLAVE])
+			exit_lowpower_pending = 1;
+
 		mca_charge_mievent_report(CHARGE_DFX_FG_IIC_ERR,
 					  &fg->batt_ui_soc, 1);
 		fg->batt_ui_soc = STRATEGY_FG_ERROR_FAKE_SOC;
@@ -2114,6 +2121,14 @@ static int mca_strategy_update_fg_info(struct strategy_fg *fg)
 		fg->original_temp = STRATEGY_FG_ERROR_FAKE_TEMP;
 		strategy_fg_report_battery_status_changed(fg);
 		return -1;
+	}
+
+	if (exit_lowpower_pending == 1 && fg->power_present) {
+		mca_log_err(
+			"last master i2c error and slave i2c is ok, now dual i2c is ok, so set exit lowpower \n");
+		platform_class_loadsw_set_lowpower_mode(LOADSW_ROLE_MASTER,
+							false);
+		exit_lowpower_pending = 0;
 	}
 
 	ret = strategy_fg_get_batt_info(fg);
