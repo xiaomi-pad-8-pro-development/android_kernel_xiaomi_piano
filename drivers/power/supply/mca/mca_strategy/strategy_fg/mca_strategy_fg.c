@@ -41,6 +41,7 @@
 #include <mca/common/mca_smem.h>
 #include <mca/platform/platform_buckchg_class.h>
 #include <mca/platform/platform_loadsw_class.h>
+#include <mca/protocol/protocol_pd_class.h>
 #include <mca/common/mca_charge_mievent.h>
 #include <mca/smartchg/smart_chg_class.h>
 #include <mca/common/mca_workqueue.h>
@@ -2591,6 +2592,78 @@ static void strategy_force_report_full_work(struct work_struct *work)
 		count = 0;
 }
 
+#define NVT1000_OTA_UPDATE_FLAG 0xAA55AA55
+#define NVT1000_OTA_MONITOR_INTERVAL 5000
+#define NVT1000_OTA_SOC_THR 59
+#define NVT1000_OTA_TEMP_THR 100
+#define NVT1000_OTA_CURR_MIN 100
+#define NVT1000_OTA_CURR_MAX 1000
+#define NVT1000_OTA_TRIGGER_COUNT 9
+
+static void strategy_nvt1000_ota_monitor_work(struct work_struct *work)
+{
+	struct strategy_fg *fg =
+		container_of(work, struct strategy_fg, ota_update_work.work);
+	static int update_count;
+	union power_supply_propval pval = { 0 };
+	int ota_flag = 0;
+	int average_current = 0;
+	bool cid_status = 0;
+	int event_val;
+
+	if (fg->batt_psy) {
+		power_supply_get_property(fg->batt_psy, POWER_SUPPLY_PROP_STATUS,
+					  &pval);
+		fg->chg_status = pval.intval;
+	}
+
+	if (fg->chg_status == POWER_SUPPLY_STATUS_FULL ||
+	    fg->chg_status == POWER_SUPPLY_STATUS_CHARGING) {
+		mca_log_err("do not ota when charging\n");
+		update_count = 0;
+		return;
+	}
+
+	platform_fg_ops_get_ota_update_flag(FG_IC_MASTER, &ota_flag);
+	if (ota_flag != NVT1000_OTA_UPDATE_FLAG) {
+		mca_log_err("already ota update done\n");
+		update_count = 0;
+		return;
+	}
+
+	platform_fg_ops_get_average_current(FG_IC_MASTER, &average_current);
+	protocol_class_pd_get_cid_status(FG_IC_MASTER, &cid_status);
+
+	if (fg->batt_rsoc > NVT1000_OTA_SOC_THR &&
+	    fg->batt_temperature >= NVT1000_OTA_TEMP_THR &&
+	    average_current >= NVT1000_OTA_CURR_MIN &&
+	    average_current <= NVT1000_OTA_CURR_MAX && !cid_status)
+		update_count++;
+	else
+		update_count = 0;
+
+	mca_log_err(
+		"cid_status = %d, batt_rsoc = %d, batt_temperature = %d, average_current = %d, update_count = %d",
+		cid_status, fg->batt_rsoc, fg->batt_temperature,
+		average_current, update_count);
+
+	if (update_count >= NVT1000_OTA_TRIGGER_COUNT) {
+		mca_log_err("start nvt1000 ota\n");
+		event_val = 1;
+		mca_event_block_notify(MCA_EVENT_CHARGE_STATUS,
+				       MCA_EVENT_FG_OTA_PROCESS, &event_val);
+		platform_fg_ops_ota_update_check(FG_IC_MASTER);
+		event_val = 0;
+		mca_event_block_notify(MCA_EVENT_CHARGE_STATUS,
+				       MCA_EVENT_FG_OTA_PROCESS, &event_val);
+		mca_log_err("end nvt1000 ota\n");
+		return;
+	}
+
+	queue_delayed_work(system_wq, &fg->ota_update_work,
+			   msecs_to_jiffies(NVT1000_OTA_MONITOR_INTERVAL));
+}
+
 static int strategy_fg_get_parallel_rsoc(struct strategy_fg *fg, int *rsoc)
 {
 	int master_fcc;
@@ -3105,6 +3178,8 @@ static int strategy_fg_parse_dt(struct strategy_fg *fg)
 	ret |= mca_parse_dts_u32(node, "support_global",
 				 &(fg->cfg.support_global),
 				 STRATEGY_FG_SUPPORT_GLOBAL);
+	mca_parse_dts_u32(node, "support_nvt1000_ota",
+			  &(fg->cfg.support_nvt1000_ota), 0);
 	if (ret) {
 		mca_log_err("strategy fg parse dt failed, ret=%d\n", ret);
 	}
@@ -3542,6 +3617,8 @@ static int strategy_fg_process_event(int event, int value, void *data)
 				&info->dtpt_monitor_work,
 				msecs_to_jiffies(
 					STRATEGY_FG_WORK_INTERVAL_DTPT));
+		if (info->cfg.support_nvt1000_ota)
+			cancel_delayed_work_sync(&info->ota_update_work);
 		break;
 	case MCA_EVENT_USB_DISCONNECT:
 	case MCA_EVENT_WIRELESS_DISCONNECT:
@@ -3578,6 +3655,17 @@ static int strategy_fg_process_event(int event, int value, void *data)
 			info->monitor_soc_flag = false;
 			info->first_termination = false;
 			info->fg_lock_flag = false;
+		}
+		if (info->cfg.support_nvt1000_ota) {
+			int ota_flag = 0;
+
+			platform_fg_ops_get_ota_update_flag(FG_IC_MASTER,
+							    &ota_flag);
+			if (ota_flag == NVT1000_OTA_UPDATE_FLAG)
+				queue_delayed_work(
+					system_wq, &info->ota_update_work,
+					msecs_to_jiffies(
+						NVT1000_OTA_MONITOR_INTERVAL));
 		}
 		break;
 	case MCA_EVENT_IS_EU_MODEL:
@@ -3707,6 +3795,8 @@ static int strategy_fg_probe(struct platform_device *pdev)
 			  strategy_fl4p0_calibration_work);
 	INIT_DELAYED_WORK(&fg->force_report_full_work,
 			  strategy_force_report_full_work);
+	INIT_DELAYED_WORK(&fg->ota_update_work,
+			  strategy_nvt1000_ota_monitor_work);
 	fg->fake_bap_match = STRATEGY_FG_FAKE_BAP_MATCH_NONE;
 	fg->fake_soc = STRATEGY_FG_FAKE_SOC_NONE;
 	fg->fake_temp = STRATEGY_FG_FAKE_TEMP_NONE;
@@ -3717,6 +3807,11 @@ static int strategy_fg_probe(struct platform_device *pdev)
 	fg->thermal_board_nb.notifier_call = strategy_fg_thermal_notifier_cb;
 	mca_event_block_notify_register(MCA_EVENT_TYPE_THERMAL_TEMP,
 					&fg->thermal_board_nb);
+
+	if (fg->cfg.support_nvt1000_ota)
+		queue_delayed_work(
+			system_wq, &fg->ota_update_work,
+			msecs_to_jiffies(NVT1000_OTA_MONITOR_INTERVAL));
 
 	platform_class_buckchg_ops_get_online(MAIN_BUCK_CHARGER, &usb_online);
 	if (usb_online) {

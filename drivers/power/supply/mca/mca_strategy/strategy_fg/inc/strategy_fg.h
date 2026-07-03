@@ -126,6 +126,7 @@ struct strategy_fg_cfg {
 	int support_fl4p0;
 	int ffc_safe_item[SAFE_ITERM_CYCLE_LEVEL][SAFE_ITERM_TEMP_LEVEL];
 	int support_global;
+	int support_nvt1000_ota;
 };
 
 struct term_volt_cfg {
@@ -171,6 +172,7 @@ struct strategy_fg {
 	struct delayed_work dtpt_monitor_work;
 	struct delayed_work fl4p0_calibration_work;
 	struct delayed_work force_report_full_work;
+	struct delayed_work ota_update_work;
 
 	struct notifier_block panel_nb;
 	struct notifier_block thermal_board_nb;
