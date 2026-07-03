@@ -1213,6 +1213,13 @@ static void strategy_fg_report_battery_status_changed(struct strategy_fg *fg)
 		mca_event_block_notify(MCA_EVENT_TYPE_BATTERY_INFO,
 				       MCA_EVENT_BATTERY_STS_CHANGE, NULL);
 	}
+
+	platform_class_buckchg_ops_get_pack_vbat(MAIN_BUCK_CHARGER,
+						 &fg->pack_vbat);
+	platform_class_buckchg_ops_get_pack_ibat(MAIN_BUCK_CHARGER,
+						 &fg->pack_ibat);
+	platform_class_buckchg_ops_get_pack_tbat(MAIN_BUCK_CHARGER,
+						 &fg->pack_tbat);
 }
 
 enum mievent_socnotfull_ele {

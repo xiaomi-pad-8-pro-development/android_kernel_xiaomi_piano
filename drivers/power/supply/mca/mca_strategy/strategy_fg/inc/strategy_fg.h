@@ -249,6 +249,9 @@ struct strategy_fg {
 	int update_interval;
 	int pvbat;
 	int pibat;
+	int pack_vbat;
+	int pack_ibat;
+	int pack_tbat;
 	int cyclecount_hundred;
 	int calibration_temp;
 	bool start_force_full;
