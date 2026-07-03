@@ -3751,7 +3751,6 @@ static int strategy_fg_probe(struct platform_device *pdev)
 	struct strategy_fg *fg;
 	int ret = 0;
 	static int probe_cnt;
-	int usb_online = 0;
 
 	mca_log_info("%s probe_begin, probe_cnt = %d\n", __func__, ++probe_cnt);
 	fg = devm_kzalloc(&pdev->dev, sizeof(*fg), GFP_KERNEL);
@@ -3812,13 +3811,6 @@ static int strategy_fg_probe(struct platform_device *pdev)
 		queue_delayed_work(
 			system_wq, &fg->ota_update_work,
 			msecs_to_jiffies(NVT1000_OTA_MONITOR_INTERVAL));
-
-	platform_class_buckchg_ops_get_online(MAIN_BUCK_CHARGER, &usb_online);
-	if (usb_online) {
-		mca_log_err("avoid missing usb_online event in probe\n");
-		mca_event_block_notify(MCA_EVENT_TYPE_CHARGER_CONNECT,
-				       MCA_EVENT_USB_CONNECT, NULL);
-	}
 
 	mca_log_info("%s probe end\n", __func__);
 	return ret;
