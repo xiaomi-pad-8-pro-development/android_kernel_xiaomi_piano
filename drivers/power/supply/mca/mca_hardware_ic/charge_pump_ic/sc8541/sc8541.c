@@ -471,34 +471,34 @@ static int ops_cp_get_present(bool *present, void *data)
 	return 0;
 }
 
-static int ops_cp_get_vbatt(int *val, void *data)
+static int ops_cp_get_vbatt(u32 *val, void *data)
 {
-	return sc8541_get_adc_data(data, SC8541_ADC_VBAT, (u32 *)val);
+	return sc8541_get_adc_data(data, SC8541_ADC_VBAT, val);
 }
 
-static int ops_cp_get_ibatt(int *val, void *data)
+static int ops_cp_get_ibatt(u32 *val, void *data)
 {
-	return sc8541_get_adc_data(data, SC8541_ADC_IBAT, (u32 *)val);
+	return sc8541_get_adc_data(data, SC8541_ADC_IBAT, val);
 }
 
-static int ops_cp_get_battery_temmperature(int *val, void *data)
+static int ops_cp_get_battery_temmperature(u32 *val, void *data)
 {
-	return sc8541_get_adc_data(data, SC8541_ADC_TBAT, (u32 *)val);
+	return sc8541_get_adc_data(data, SC8541_ADC_TBAT, val);
 }
 
-static int ops_cp_get_vbus(int *val, void *data)
+static int ops_cp_get_vbus(u32 *val, void *data)
 {
-	return sc8541_get_adc_data(data, SC8541_ADC_VBUS, (u32 *)val);
+	return sc8541_get_adc_data(data, SC8541_ADC_VBUS, val);
 }
 
-static int ops_cp_get_ibus(int *val, void *data)
+static int ops_cp_get_ibus(u32 *val, void *data)
 {
-	return sc8541_get_adc_data(data, SC8541_ADC_IBUS, (u32 *)val);
+	return sc8541_get_adc_data(data, SC8541_ADC_IBUS, val);
 }
 
-static int ops_cp_get_vusb(int *val, void *data)
+static int ops_cp_get_vusb(u32 *val, void *data)
 {
-	return sc8541_get_adc_data(data, SC8541_ADC_VUSB, (u32 *)val);
+	return sc8541_get_adc_data(data, SC8541_ADC_VUSB, val);
 }
 
 static int ops_cp_get_tdie(int *val, void *data)

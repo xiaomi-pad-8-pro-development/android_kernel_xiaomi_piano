@@ -68,11 +68,11 @@ struct platform_class_cp_ops {
 	int (*cp_get_vbus_present)(bool *, void *data);
 	int (*cp_get_present)(bool *, void *data);
 	int (*cp_get_battery_present)(bool *, void *data);
-	int (*cp_get_battery_voltage)(int *, void *data);
-	int (*cp_get_battery_current)(int *, void *data);
-	int (*cp_get_battery_temperature)(int *, void *data);
-	int (*cp_get_bus_voltage)(int *, void *data);
-	int (*cp_get_bus_current)(int *, void *data);
+	int (*cp_get_battery_voltage)(u32 *, void *data);
+	int (*cp_get_battery_current)(u32 *, void *data);
+	int (*cp_get_battery_temperature)(u32 *, void *data);
+	int (*cp_get_bus_voltage)(u32 *, void *data);
+	int (*cp_get_bus_current)(u32 *, void *data);
 	int (*cp_get_bus_temperature)(int *, void *data);
 	int (*cp_get_die_temperature)(int *, void *data);
 	int (*cp_get_alarm_status)(int *, void *data);
@@ -93,7 +93,7 @@ struct platform_class_cp_ops {
 	int (*cp_enable_ovpgate)(bool, void *data);
 	int (*cp_enable_ovpgate_with_check)(int, bool, void *data);
 	int (*cp_get_ovpgate_status)(bool *, void *data);
-	int (*cp_get_usb_voltage)(int *, void *data);
+	int (*cp_get_usb_voltage)(u32 *, void *data);
 	int (*cp_get_errorhl_stat)(int *, void *data);
 	int (*cp_enable_busucp)(bool, void *data);
 	int (*cp_set_fsw)(int, void *data);
