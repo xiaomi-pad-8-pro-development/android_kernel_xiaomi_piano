@@ -2130,11 +2130,8 @@ static void strategy_buckchg_monitor_workfunc(struct work_struct *work)
 	int chg_en = 0, system_soc;
 	int vterm = 0;
 	int jeita_hot_result = 1;
-	ktime_t time_now;
-	int verifed = 0;
 	bool vbat_drop_exit_flag = false;
 	static int vbat_drop_cnt = 0;
-	int active_port = protocol_class_pd_get_port_num();
 
 	system_soc = strategy_class_fg_ops_get_soc();
 	strategy_buckchg_debug_soc_limit(info, system_soc);
@@ -2148,44 +2145,11 @@ static void strategy_buckchg_monitor_workfunc(struct work_struct *work)
 		case XM_CHARGER_TYPE_HVDCP3_B:
 		case XM_CHARGER_TYPE_HVDCP3P5:
 		case XM_CHARGER_TYPE_PD_VERIFY:
+		case XM_CHARGER_TYPE_PPS:
 			if (jeita_hot_result)
 				mca_strategy_func_process(
 					STRATEGY_FUNC_TYPE_QUICK_CHARGE,
 					MCA_EVENT_CHARGE_ACTION, 0);
-			break;
-		case XM_CHARGER_TYPE_PPS:
-			time_now = ktime_get_boottime();
-			protocol_class_pd_get_pd_verifed(active_port, &verifed);
-			if (info->is_eu_model) {
-				mca_log_info(
-					"eu_start_time %lld, time_now %lld  delta = %lld\n",
-					info->proc_data.eu_start_time, time_now,
-					ktime_ms_delta(
-						time_now,
-						info->proc_data.eu_start_time));
-				if (ktime_ms_delta(
-					    time_now,
-					    info->proc_data.eu_start_time) >
-				    STRATEGY_BUCKCHG_ENTER_QUICKCHG_TIME_MS) {
-					mca_strategy_func_process(
-						STRATEGY_FUNC_TYPE_QUICK_CHARGE,
-						MCA_EVENT_CHARGE_ACTION, 0);
-					info->proc_data.eu_start_time =
-						time_now;
-					mca_log_info(
-						"trigger MCA_EVENT_CHARGE_ACTION\n");
-				}
-			} else {
-				if (jeita_hot_result &&
-				    info->verify_process_end && !verifed) {
-					mca_strategy_func_process(
-						STRATEGY_FUNC_TYPE_QUICK_CHARGE,
-						MCA_EVENT_CHARGE_ACTION, 0);
-				}
-				mca_log_info(
-					"verify_process_end: %d, verifed: %d\n",
-					info->verify_process_end, verifed);
-			}
 			break;
 		default:
 			break;
