@@ -1153,6 +1153,42 @@ static int strategy_fg_get_parallel_batt_info(struct strategy_fg *fg)
 	return ret;
 }
 
+#define DFX_VBAT_DIFF_CHECK_DELAY_NS (180 * NSEC_PER_SEC)
+#define DFX_VBAT_DIFF_THR 201
+
+static void dfx_fg_check_vbat_diff(struct strategy_fg *fg)
+{
+	static bool checked;
+	int diff;
+	int param[2];
+
+	if (fg->cfg.fg_type != MCA_FG_TYPE_PARALLEL)
+		return;
+
+	if (!checked) {
+		s64 time_now = ktime_get_coarse_boottime_ns();
+
+		if (time_now >= DFX_VBAT_DIFF_CHECK_DELAY_NS)
+			checked = true;
+		else
+			mca_log_err("time_now: %lld\n",
+				    time_now / NSEC_PER_SEC);
+		return;
+	}
+
+	diff = abs(fg->master_batt_info.volt - fg->slave_batt_info.volt);
+	mca_log_err("batt volt diff = %d\n", diff);
+	if (diff >= DFX_VBAT_DIFF_THR) {
+		param[0] = fg->master_batt_info.volt;
+		param[1] = fg->slave_batt_info.volt;
+		mca_charge_mievent_report(CHARGE_DFX_BATTERY_VOLTAGE_DIFFER,
+					  param, 2);
+	} else {
+		mca_charge_mievent_set_state(MIEVENT_STATE_END,
+					     CHARGE_DFX_BATTERY_VOLTAGE_DIFFER);
+	}
+}
+
 static int strategy_fg_get_batt_info(struct strategy_fg *fg)
 {
 	int ret = 0;
@@ -1174,6 +1210,8 @@ static int strategy_fg_get_batt_info(struct strategy_fg *fg)
 	default:
 		return -1;
 	}
+
+	dfx_fg_check_vbat_diff(fg);
 
 	return ret;
 }
