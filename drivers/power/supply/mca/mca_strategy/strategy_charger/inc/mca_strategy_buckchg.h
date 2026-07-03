@@ -186,7 +186,10 @@ struct strategy_buckchg_dev {
 	struct delayed_work csd_pulse_process_work;
 	struct delayed_work source_status_monitor_work;
 	struct delayed_work check_pd_secret_work;
+	struct delayed_work rerun_handle_pd_auth_work;
 	struct notifier_block thermal_board_nb;
+	struct notifier_block panel_nb;
+	bool screen_on;
 
 	int thermal_board_temp;
 	int source_boost_status;

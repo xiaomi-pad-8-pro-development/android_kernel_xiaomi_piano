@@ -2543,6 +2543,31 @@ static int strategy_buckchg_thermal_notifier_cb(struct notifier_block *nb,
 	return NOTIFY_DONE;
 }
 
+static int strategy_buckchg_panel_notifier_cb(struct notifier_block *nb,
+					      unsigned long event, void *data)
+{
+	struct strategy_buckchg_dev *info =
+		container_of(nb, struct strategy_buckchg_dev, panel_nb);
+	int screen_state;
+
+	if (event != MCA_EVENT_PANEL_SCREEN_STATE_CHANGE)
+		return NOTIFY_DONE;
+
+	screen_state = *(int *)data;
+	mca_log_info("panel screen state: %d, last: %d\n", screen_state,
+		     info->screen_on);
+	info->screen_on = (screen_state != 0);
+	return NOTIFY_DONE;
+}
+
+static void
+strategy_rerun_handle_pd_auth_workfunc(struct work_struct *work)
+{
+	mca_event_block_notify(MCA_EVENT_CHARGE_STATUS,
+			       MCA_EVENT_USB_STS_CHANGE, NULL);
+	mca_log_info("rerun handle pd auth\n");
+}
+
 static int strategy_buckchg_if_set_chg_cur(const char *user, char *value,
 					   void *data)
 {
@@ -2840,6 +2865,8 @@ static int strategy_buckchg_class_probe(struct platform_device *pdev)
 			  strategy_source_status_monitor_workfunc);
 	INIT_DELAYED_WORK(&info->check_pd_secret_work,
 			  strategy_buckchg_check_pdsecret_workfunc);
+	INIT_DELAYED_WORK(&info->rerun_handle_pd_auth_work,
+			  strategy_rerun_handle_pd_auth_workfunc);
 	(void)mca_strategy_ops_register(STRATEGY_FUNC_TYPE_BUCK_CHARGE,
 					strategy_buckchg_process_event,
 					strategy_buckchg_get_status,
@@ -2852,6 +2879,8 @@ static int strategy_buckchg_class_probe(struct platform_device *pdev)
 		strategy_buckchg_thermal_notifier_cb;
 	mca_event_block_notify_register(MCA_EVENT_TYPE_THERMAL_TEMP,
 					&info->thermal_board_nb);
+	info->panel_nb.notifier_call = strategy_buckchg_panel_notifier_cb;
+	mca_event_block_notify_register(MCA_EVENT_TYPE_PANEL, &info->panel_nb);
 
 	platform_class_buckchg_ops_get_online(MAIN_BUCK_CHARGER, &online);
 	if (online) {
