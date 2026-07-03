@@ -313,73 +313,6 @@ static bool mca_check_if_goto_hw_taper(struct mca_quick_charge_info *info)
 	return false;
 }
 
-static int mca_eu_pps_limit_power(struct mca_quick_charge_info *info,
-				  int target_cur)
-{
-	struct mca_quick_charge_process_data *proc_data = &(info->proc_data);
-	int cur_stage = 0;
-	int battmax_cur = 0;
-	int adptermax_cur = 0;
-	int eu_pps_max_curr_c = 0;
-	int eu_pps_max_curr_a = 0;
-	static bool two_min_valid = false;
-	static bool time_flag;
-	ktime_t time_now_ms = ktime_get();
-	static ktime_t time_last_ms;
-	static ktime_t time_gap;
-
-	if (info->proc_data.charge_flag != MCA_QUICK_CHG_STS_CHARGING) {
-		time_last_ms = time_now_ms;
-		time_flag = false;
-		two_min_valid = false;
-		time_gap = 0;
-		mca_log_info("quit eu PPS PTF,charge_flag= %d\n",
-			     info->proc_data.charge_flag);
-		return 0;
-	}
-
-	cur_stage = proc_data->cur_stage[FG_IC_MASTER];
-	battmax_cur = proc_data->cur_volt_para[FG_IC_MASTER]
-			      ->volt_para[cur_stage / 2]
-			      .current_max;
-	adptermax_cur = proc_data->max_adp_curr * proc_data->ratio;
-	eu_pps_max_curr_c = min(battmax_cur, adptermax_cur);
-	eu_pps_max_curr_a = max(eu_pps_max_curr_c * 2 / 3, MCA_PPS_FCC_LIMIT);
-
-	if (two_min_valid == true && target_cur > eu_pps_max_curr_a) {
-		return eu_pps_max_curr_a;
-	} else if (two_min_valid == true && target_cur <= eu_pps_max_curr_a) {
-		return target_cur;
-	}
-
-	mca_log_info(
-		"eu PPS PTF,time_now_ms= %ld,time_last_ms= %ld,time_gap= %ld,eu_pps_max_curr_c= %d,target_cur= %d,pps_ptf= %d\n",
-		time_now_ms, time_last_ms, time_gap, eu_pps_max_curr_c,
-		target_cur, info->pps_ptf);
-
-	if (target_cur >= eu_pps_max_curr_c && time_flag == false) {
-		time_flag = true;
-		time_last_ms = time_now_ms;
-	} else if (time_flag == true && target_cur < eu_pps_max_curr_c) {
-		time_last_ms = time_now_ms;
-		time_flag = false;
-		time_gap = 0;
-	}
-	time_gap = ktime_to_ms(ktime_sub(time_now_ms, time_last_ms));
-	time_gap /= 1000;
-
-	if (time_flag == true && target_cur > eu_pps_max_curr_a &&
-	    time_gap > MCA_PPS_MAXFCC_PEAK_TIME_S) {
-		target_cur = eu_pps_max_curr_a;
-		two_min_valid = true;
-		mca_log_info(
-			"2/3 max power when eu PPS hold maxpower 2min,curr= %d\n",
-			target_cur);
-	}
-
-	return target_cur;
-}
-
 #define PDO_9V_VOLATGE 9000
 static bool stategy_quickchg_is_pdo_9v(struct mca_quick_charge_info *info)
 {
@@ -1762,8 +1695,6 @@ static void mca_quick_charge_start_charging(struct mca_quick_charge_info *info)
 		}
 	}
 
-	ret = mca_eu_pps_limit_power(info, ret);
-
 	platform_class_cp_enable_busucp(info->proc_data.cur_work_cp, false);
 	if (!info->is_platform_qc)
 		ret = mca_quick_charge_open_path(info);
@@ -2084,12 +2015,8 @@ static int mca_quick_charge_select_max_ibat(struct mca_quick_charge_info *info)
 	if (!info->rawsoc_swith_pmic_th && !info->hardware_cv)
 		cur_max = max(cur_max, cur_min);
 
-	if ((info->proc_data.adp_type == XM_CHARGER_TYPE_PPS &&
-	     info->is_eu_model) ||
-	    info->fake_pps_ptf) {
-		cur_max = mca_eu_pps_limit_power(info, cur_max);
-	} else if (info->proc_data.adp_type == XM_CHARGER_TYPE_PPS &&
-		   !info->is_eu_model) {
+	if (info->proc_data.adp_type == XM_CHARGER_TYPE_PPS &&
+	    !info->is_eu_model) {
 		/* for third party pps, beside set ibus compensation to 0, also reduce 100mA max target current */
 		cur_max -= 200;
 		if (info->smartchg_data.pwr_boost_state &&
