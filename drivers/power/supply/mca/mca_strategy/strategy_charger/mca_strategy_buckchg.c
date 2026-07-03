@@ -2016,6 +2016,24 @@ strategy_buckchg_cp_to_pmic_decrease_vterm(struct strategy_buckchg_dev *info)
 		first_termination, taper_cp_to_pmic, target_vterm);
 }
 
+#define FCC_LIMIT_FASTCHARGE_SOC_TH 95
+static void
+strategy_buckchg_check_fcc_limit_fastcharge(struct strategy_buckchg_dev *info,
+					    int soc)
+{
+	const char *client;
+
+	if (soc < FCC_LIMIT_FASTCHARGE_SOC_TH)
+		return;
+
+	if (info->support_base_flip) {
+		client = mca_get_effective_client(info->charge_limit_voter);
+		if (client && !strcmp(client, "fcc_limit"))
+			return;
+	}
+	strategy_class_fg_set_fastcharge(false);
+}
+
 #define VUSB_OVP_LOCATION_BEFORE_CP 1
 #define CP_PRESENT_RETRY_MAX 6
 static void strategy_buckchg_check_cp_i2c_err(struct strategy_buckchg_dev *info)
@@ -2095,6 +2113,7 @@ static void strategy_buckchg_monitor_workfunc(struct work_struct *work)
 	system_soc = strategy_class_fg_ops_get_soc();
 	strategy_buckchg_debug_soc_limit(info, system_soc);
 	strategy_buckchg_check_cp_i2c_err(info);
+	strategy_buckchg_check_fcc_limit_fastcharge(info, system_soc);
 	if (system_soc <= ALLOW_QUICK_CHG_SOC_THR) {
 		jeita_hot_result = mca_get_client_vote(info->chg_enable_voter,
 						       "jeita-hot");
