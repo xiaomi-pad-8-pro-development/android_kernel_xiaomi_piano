@@ -220,6 +220,12 @@ struct strategy_buckchg_dev {
 	int otg_boost_src;
 	bool reverse_qc_gate0;
 	bool reverse_qc_gate1;
+	bool support_revchg_screenon;
+	int src_monitor_cur;
+	bool src_monitor_flag;
+	int src_monitor_cnt;
+	bool src_monitor_byte;
+	int src_gear_last;
 };
 
 #endif /*__MCA_STRATEGY_BUCKCHG_H__ */

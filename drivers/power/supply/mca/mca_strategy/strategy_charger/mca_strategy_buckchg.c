@@ -214,6 +214,8 @@ static void strategy_buckchg_parse_dt(struct strategy_buckchg_dev *info)
 						      "need-cp-to-pmic");
 	info->support_base_flip = of_property_read_bool(info->dev->of_node,
 							"support-base-flip");
+	info->support_revchg_screenon = of_property_read_bool(
+		info->dev->of_node, "support_revchg_screenon");
 	mca_parse_dts_u32(info->dev->of_node, "sw_cv_vterm_th",
 			  &info->sw_cv_vterm_th, STATEGY_CHARGE_VTERM_LOW_TH);
 	mca_parse_dts_u32(info->dev->of_node, "full_replug_ichg_limit",
@@ -2416,29 +2418,81 @@ static void strategy_source_status_monitor_workfunc(struct work_struct *work)
 	struct strategy_buckchg_dev *info =
 		container_of(work, struct strategy_buckchg_dev,
 			     source_status_monitor_work.work);
-	int batt_temp = 0;
-	int system_soc = 0;
-	int status = 0;
+	int eligible = 0;
+	int retry;
+	int ibus = 0;
+	int ret;
+	int i;
+	char buf[128];
+	struct mca_event_notify_data n;
 
-	(void)strategy_class_fg_ops_get_temperature(&batt_temp);
-	system_soc = strategy_class_fg_ops_get_soc();
-	batt_temp /= 10;
-	mca_log_info("batt_temp = %d, thermal_board_temp =%d\n", batt_temp,
-		     info->thermal_board_temp);
+	strategy_buckchg_check_reverse_quick_charge(info, &eligible);
 
-	if (batt_temp < 0 || info->thermal_board_temp > 400 ||
-	    (info->cp_revert_auth && system_soc < 30) ||
-	    (!info->cp_revert_auth && system_soc < 70))
-		status = 1;
-
-	if (status != info->source_boost_status) {
-		info->source_boost_status = status;
-		protocol_class_pd_set_gear_shift(TYPEC_PORT_0,
-						 info->source_boost_status);
+	if (info->support_revchg_screenon) {
+		if (info->src_monitor_flag) {
+			if (eligible == 1)
+				eligible = 2;
+			info->src_monitor_cnt = 0;
+			goto commit;
+		}
+		if (eligible == 1) {
+			if (info->src_monitor_cnt >= 2)
+				goto reschedule;
+			eligible = 2;
+		}
+		strategy_class_fg_ops_get_current(&info->src_monitor_cur);
+		mca_log_info("source monitor current: %d\n",
+			     info->src_monitor_cur);
+		if (info->src_monitor_cur > 3000031)
+			info->src_monitor_cnt = 0;
+		else
+			info->src_monitor_cnt += 1;
 	}
 
-	schedule_delayed_work(&info->source_status_monitor_work,
-			      msecs_to_jiffies(SOURCE_STATUS_MONITOR_INTERVAL));
+commit:
+	if (eligible == info->source_boost_status)
+		goto reschedule;
+
+	if (!info->support_revchg_screenon) {
+		mca_log_err("source boost status: %d\n", eligible);
+		info->source_boost_status = eligible;
+		protocol_class_pd_set_gear_shift(TYPEC_PORT_0,
+						 info->source_boost_status);
+		goto reschedule;
+	}
+
+	if (info->src_gear_last != eligible) {
+		mca_log_err("set gear shift: %d\n", eligible);
+		protocol_class_pd_set_gear_shift(TYPEC_PORT_0, eligible);
+		info->src_gear_last = eligible;
+	}
+
+	if (eligible == 2 && info->source_boost_status == 1) {
+		info->src_monitor_byte = 0;
+		retry = 5;
+		do {
+			platform_class_cp_enable_adc(CP_ROLE_MASTER, true);
+			for (i = 0; i < 20; i++)
+				udelay(1000);
+			ret = platform_class_cp_get_bus_current(CP_ROLE_MASTER,
+								&ibus);
+			mca_log_err("cp bus current: %d, ret: %d\n", ibus, ret);
+			if (ret || ibus > 1500)
+				goto reschedule;
+		} while (--retry);
+
+		n.event_len = snprintf(buf, sizeof(buf),
+				       "POWER_SUPPLY_REVERSE_QUICK_CHARGE=%d", 2);
+		n.event = buf;
+		mca_event_report_uevent(&n);
+	}
+	info->source_boost_status = eligible;
+
+reschedule:
+	schedule_delayed_work(
+		&info->source_status_monitor_work,
+		msecs_to_jiffies((info->support_revchg_screenon && eligible) ?
+					 250 : 1250));
 }
 
 static void strategy_buckchg_check_pdsecret_workfunc(struct work_struct *work)
