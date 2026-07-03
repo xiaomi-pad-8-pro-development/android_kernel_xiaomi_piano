@@ -252,15 +252,6 @@ int strategy_class_fg_get_health(int *health)
 }
 EXPORT_SYMBOL(strategy_class_fg_get_health);
 
-int strategy_class_fg_get_high_temp_vterm(void)
-{
-	if (is_invalid_ops(strategy_fg_get_high_temp_vterm))
-		return -1;
-
-	return strategy_fg_class_ops_no_para(strategy_fg_get_high_temp_vterm);
-}
-EXPORT_SYMBOL(strategy_class_fg_get_high_temp_vterm);
-
 int strategy_class_fg_get_first_termination(int *value)
 {
 	if (is_invalid_ops(strategy_fg_get_first_termination))

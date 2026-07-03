@@ -3476,13 +3476,6 @@ int strategy_fg_dual_ops_is_chip_ok(void *data, int index)
 }
 EXPORT_SYMBOL(strategy_fg_dual_ops_is_chip_ok);
 
-int strategy_fg_ops_get_high_temp_vterm(void *data)
-{
-	struct strategy_fg *fg = (struct strategy_fg *)data;
-
-	return fg->cfg.fg_hightemp_vterm;
-}
-
 int strategy_fg_ops_get_pack_vendor_id(void *data, int *vendor_id)
 {
 	struct strategy_fg *fg = (struct strategy_fg *)data;
@@ -3526,7 +3519,6 @@ static struct strategy_fg_class_ops g_strategy_fg_ops = {
 	.strategy_fg_get_rm = strategy_fg_ops_get_rm,
 	.strategy_fg_get_fcc = strategy_fg_ops_get_fcc,
 	.strategy_fg_get_health = strategy_fg_ops_get_health,
-	.strategy_fg_get_high_temp_vterm = strategy_fg_ops_get_high_temp_vterm,
 	.strategy_fg_get_first_termination = strategy_fg_ops_get_first_termiation,
 	.strategy_fg_get_pack_vendor_id = strategy_fg_ops_get_pack_vendor_id,
 	.strategy_fg_get_thermal_temperature = strategy_fg_ops_get_thermal_temp,

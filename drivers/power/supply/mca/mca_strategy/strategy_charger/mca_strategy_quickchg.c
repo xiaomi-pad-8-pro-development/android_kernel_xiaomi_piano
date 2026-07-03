@@ -970,7 +970,6 @@ static int mca_quick_charge_can_tbat_do_charge(
 	struct mca_quick_charge_temp_para *temp_para;
 	int temp = 0;
 	int ret, i, flag = 0;
-	int vterm = 0, high_temp_vterm = 0, vbat_now_mv = 0;
 	//const struct mca_hwid *hwid = mca_get_hwid_info();
 
 	ret = strategy_class_fg_ops_get_temperature(&temp);
@@ -994,23 +993,12 @@ static int mca_quick_charge_can_tbat_do_charge(
 		return -1;
 	}
 
-	if (info->proc_data.adp_type == XM_CHARGER_TYPE_PD_VERIFY) {
-		vterm = temp_para->ffc_max_fv;
-	} else {
-		vterm = temp_para->normal_max_fv;
-	}
-
-	high_temp_vterm = strategy_class_fg_get_high_temp_vterm();
-	vbat_now_mv = info->proc_data.vbat[FG_IC_MASTER];
-
 	mca_log_info("temp_para_index new %d, old %d\n", i,
 		     info->proc_data.temp_para_index[role]);
-	if (!temp_para->max_current ||
-	    (vterm < high_temp_vterm && vbat_now_mv > vterm)) {
+	if (!temp_para->max_current) {
+		mca_log_info("%d temp is out of range\n", temp);
 		mca_log_info(
-			"high temp stop charging, v[%d %d %d] max_cur: %d\n",
-			vterm, high_temp_vterm, vbat_now_mv,
-			temp_para->max_current);
+			"max_current is 0, should set fast charge to false\n");
 		info->proc_data.ffc_flag = 0;
 		strategy_class_fg_set_fastcharge(false);
 
@@ -1846,7 +1834,6 @@ static bool mca_quick_charge_check_chg_done(struct mca_quick_charge_info *info)
 	bool found_temp_para = false;
 	int temp = 0, i = 0, ret = 0, eff_idx = 0, idx_now = 0;
 	int recharge_vbat = 0;
-	int high_temp_vterm;
 	int vterm = 0;
 
 	if (info->proc_data.charge_flag != MCA_QUICK_CHG_STS_CHARGE_DONE)
@@ -1890,10 +1877,6 @@ static bool mca_quick_charge_check_chg_done(struct mca_quick_charge_info *info)
 	} else {
 		vterm = batt_para->temp_info[eff_idx].temp_para.normal_max_fv;
 	}
-
-	high_temp_vterm = strategy_class_fg_get_high_temp_vterm();
-	if (vterm > high_temp_vterm)
-		return false;
 
 	recharge_vbat = vterm - info->recharge_vbat_delta;
 
