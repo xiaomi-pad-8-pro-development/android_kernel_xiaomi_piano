@@ -708,6 +708,7 @@ static void strategy_buckchg_stop_charging(struct strategy_buckchg_dev *info)
 	cancel_delayed_work_sync(&info->monitor_work);
 	cancel_delayed_work_sync(&info->wls_revchg_monitor_work);
 	cancel_delayed_work_sync(&info->check_pd_secret_work);
+	cancel_delayed_work(&info->sw_cv_work);
 	strategy_buckchg_sw_cv_stop(info);
 	strategy_buckchg_reset_charge_para(info);
 	strategy_class_buckchg_ops_set_input_volt(
