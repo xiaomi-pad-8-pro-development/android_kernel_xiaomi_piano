@@ -559,16 +559,6 @@ static int strategy_fg_get_fast_charge(struct strategy_fg *fg)
 	return ffc;
 }
 
-static int strategy_fg_get_raw_soc(void *data, int *raw_soc)
-{
-	struct strategy_fg *fg = (struct strategy_fg *)data;
-
-	if (fg->cfg.fg_type <= MCA_FG_TYPE_SINGLE_NUM_MAX)
-		platform_fg_ops_get_raw_soc(FG_IC_MASTER, raw_soc);
-
-	return 0;
-}
-
 static int strategy_fg_get_cutoff_voltage(void *data)
 {
 	struct strategy_fg *fg = (struct strategy_fg *)data;
@@ -2212,7 +2202,6 @@ static int mca_strategy_update_fg_info(struct strategy_fg *fg)
 		ret |= strategy_fg_update_soh(fg);
 		ret |= strategy_fg_update_rm(fg);
 		ret |= strategy_fg_update_fcc(fg);
-		ret |= strategy_fg_get_raw_soc(fg, &fg->batt_raw_soc);
 	}
 	ret |= strategy_fg_get_dod_count(fg, &fg->dod_count);
 	fg->fast_charge = strategy_fg_get_fast_charge(fg);
@@ -2891,28 +2880,6 @@ static int strategy_fg_ops_get_cycle(void *data, int *cycle)
 	return 0;
 }
 
-static int strategy_fg_ops_get_recharge(void *data, int *if_rechg)
-{
-	struct strategy_fg *fg = (struct strategy_fg *)data;
-
-	if (!fg || !fg->fg_init_flag)
-		return -1;
-
-	*if_rechg = fg->recharging;
-
-	return 0;
-}
-
-static int strategy_fg_ops_get_rawsoc(void *data, int *rawsoc)
-{
-	struct strategy_fg *fg = (struct strategy_fg *)data;
-
-	if (!fg || !fg->fg_init_flag)
-		return -1;
-
-	return platform_fg_ops_get_raw_soc(FG_IC_MASTER, rawsoc);
-}
-
 int strategy_lossless_rechg_parse_dt(struct strategy_fg *fg)
 {
 	struct device_node *node = fg->dev->of_node;
@@ -3541,14 +3508,12 @@ static struct strategy_fg_class_ops g_strategy_fg_ops = {
 	.strategy_fg_is_init_ok = strategy_fg_ops_is_init_ok,
 	.strategy_fg_is_chip_ok = strategy_fg_ops_is_chip_ok,
 	.strategy_fg_dual_is_chip_ok = strategy_fg_dual_ops_is_chip_ok,
-	.strategy_fg_get_rawsoc = strategy_fg_ops_get_rawsoc,
 	.strategy_fg_get_rsoc = strategy_fg_ops_get_rsoc,
 	.strategy_fg_get_soc = strategy_fg_ops_get_soc,
 	.strategy_fg_get_temp = strategy_fg_ops_get_temp,
 	.strategy_fg_get_current = strategy_fg_ops_get_curr,
 	.strategy_fg_get_voltage = strategy_fg_ops_get_volt,
 	.strategy_fg_get_cycle = strategy_fg_ops_get_cycle,
-	.strategy_fg_get_recharge = strategy_fg_ops_get_recharge,
 	.strategy_fg_get_voltage_mean = strategy_fg_get_volt_mean,
 	.strategy_fg_get_soc_decimal_info = strategy_fg_ops_get_soc_decimal,
 	.strategy_fg_get_charging_done = strategy_fg_ops_get_charging_done,
