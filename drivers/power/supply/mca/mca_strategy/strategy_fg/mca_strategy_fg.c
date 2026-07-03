@@ -99,10 +99,10 @@ static void strategy_fg_init_voter(struct strategy_fg *fg);
 static int strategy_fg_ops_get_curr(void *data, int *curr);
 static int strategy_fg_ops_get_rsoc(void *data, int *rsoc);
 
-static ssize_t strategy_fg_auth_sysfs_show(struct device *dev,
+static ssize_t strategy_fg_sysfs_show(struct device *dev,
 					   struct device_attribute *attr,
 					   char *buf);
-static ssize_t strategy_fg_auth_sysfs_store(struct device *dev,
+static ssize_t strategy_fg_sysfs_store(struct device *dev,
 					    struct device_attribute *attr,
 					    const char *buf, size_t count);
 static int strategy_fg_check_battery_adapt_power(void *data, int *match);
@@ -119,79 +119,79 @@ static int strategy_fg_get_parallel_rsoc(struct strategy_fg *fg, int *rsoc);
 static int strategy_fg_get_soh_new(struct strategy_fg *fg, int *soh_new);
 static unsigned long strategy_fg_get_calc_rvalue(struct strategy_fg *fg);
 
-static struct mca_sysfs_attr_info strategy_fg_auth_sysfs_field_tbl[] = {
-	mca_sysfs_attr_rw(strategy_fg_auth_sysfs, 0664, FG_PROP_MAIN_AUTH,
+static struct mca_sysfs_attr_info strategy_fg_sysfs_field_tbl[] = {
+	mca_sysfs_attr_rw(strategy_fg_sysfs, 0664, FG_PROP_MAIN_AUTH,
 			  authentic),
-	mca_sysfs_attr_rw(strategy_fg_auth_sysfs, 0664, FG_PROP_SLAVE_AUTH,
+	mca_sysfs_attr_rw(strategy_fg_sysfs, 0664, FG_PROP_SLAVE_AUTH,
 			  slave_authentic),
-	mca_sysfs_attr_rw(strategy_fg_auth_sysfs, 0664, FG_PROP_BATT_INDEX,
+	mca_sysfs_attr_rw(strategy_fg_sysfs, 0664, FG_PROP_BATT_INDEX,
 			  verify_slave_flag),
-	mca_sysfs_attr_rw(strategy_fg_auth_sysfs, 0664, FG_PROP_VERIFY_DIGEST,
+	mca_sysfs_attr_rw(strategy_fg_sysfs, 0664, FG_PROP_VERIFY_DIGEST,
 			  verify_digest),
-	mca_sysfs_attr_rw(strategy_fg_auth_sysfs, 0664,
+	mca_sysfs_attr_rw(strategy_fg_sysfs, 0664,
 			  FG_PROP_BATT_POWER_MATCH, batt_power_match),
-	mca_sysfs_attr_ro(strategy_fg_auth_sysfs, 0440, FG_PROP_FAST_CHARGE,
+	mca_sysfs_attr_ro(strategy_fg_sysfs, 0440, FG_PROP_FAST_CHARGE,
 			  fast_charge),
-	mca_sysfs_attr_ro(strategy_fg_auth_sysfs, 0440, FG_PROP_SOC_DECIMAL,
+	mca_sysfs_attr_ro(strategy_fg_sysfs, 0440, FG_PROP_SOC_DECIMAL,
 			  soc_decimal),
-	mca_sysfs_attr_ro(strategy_fg_auth_sysfs, 0440,
+	mca_sysfs_attr_ro(strategy_fg_sysfs, 0440,
 			  FG_PROP_SOC_DECIMAL_RATE, soc_decimal_rate),
-	mca_sysfs_attr_rw(strategy_fg_auth_sysfs, 0664, FG_PROP_FAKE_SOC,
+	mca_sysfs_attr_rw(strategy_fg_sysfs, 0664, FG_PROP_FAKE_SOC,
 			  fake_soc),
-	mca_sysfs_attr_rw(strategy_fg_auth_sysfs, 0664, FG_PROP_FAKE_TEMP,
+	mca_sysfs_attr_rw(strategy_fg_sysfs, 0664, FG_PROP_FAKE_TEMP,
 			  fake_temp),
-	mca_sysfs_attr_ro(strategy_fg_auth_sysfs, 0440, FG_PROP_BATTERY_NUM,
+	mca_sysfs_attr_ro(strategy_fg_sysfs, 0440, FG_PROP_BATTERY_NUM,
 			  battery_num),
-	mca_sysfs_attr_rw(strategy_fg_auth_sysfs, 0664, FG_PROP_UPDATE_PERIOD,
+	mca_sysfs_attr_rw(strategy_fg_sysfs, 0664, FG_PROP_UPDATE_PERIOD,
 			  update_period),
-	mca_sysfs_attr_ro(strategy_fg_auth_sysfs, 0440, FG_PROP_PACK_VOLTAGE,
+	mca_sysfs_attr_ro(strategy_fg_sysfs, 0440, FG_PROP_PACK_VOLTAGE,
 			  pack_vbat),
-	mca_sysfs_attr_rw(strategy_fg_auth_sysfs, 0664, FG_PROP_DOD_COUNT,
+	mca_sysfs_attr_rw(strategy_fg_sysfs, 0664, FG_PROP_DOD_COUNT,
 			  dod_count),
-	mca_sysfs_attr_rw(strategy_fg_auth_sysfs, 0664, FG_PROP_ENABLE_ROLLBACK,
+	mca_sysfs_attr_rw(strategy_fg_sysfs, 0664, FG_PROP_ENABLE_ROLLBACK,
 			  enable_rollback),
-	mca_sysfs_attr_ro(strategy_fg_auth_sysfs, 0440, FG_PROP_SOH_NEW,
+	mca_sysfs_attr_ro(strategy_fg_sysfs, 0440, FG_PROP_SOH_NEW,
 			  soh_new),
-	mca_sysfs_attr_ro(strategy_fg_auth_sysfs, 0440,
+	mca_sysfs_attr_ro(strategy_fg_sysfs, 0440,
 			  FG_PROP_MASTER_SELF_EQUAL_COUNT,
 			  master_self_equal_count),
-	mca_sysfs_attr_ro(strategy_fg_auth_sysfs, 0440,
+	mca_sysfs_attr_ro(strategy_fg_sysfs, 0440,
 			  FG_PROP_SLAVE_SELF_EQUAL_COUNT,
 			  slave_self_equal_count),
-	mca_sysfs_attr_rw(strategy_fg_auth_sysfs, 0664,
+	mca_sysfs_attr_rw(strategy_fg_sysfs, 0664,
 			  FG_PROP_SELF_EQUAL_MAX_COUNT, self_equal_max_count),
-	mca_sysfs_attr_ro(strategy_fg_auth_sysfs, 0440, FG_PROP_PACK_TEMP,
+	mca_sysfs_attr_ro(strategy_fg_sysfs, 0440, FG_PROP_PACK_TEMP,
 			  pack_tbat),
-	mca_sysfs_attr_ro(strategy_fg_auth_sysfs, 0440, FG_PROP_RAW_SOC,
+	mca_sysfs_attr_ro(strategy_fg_sysfs, 0440, FG_PROP_RAW_SOC,
 			  raw_soc),
-	mca_sysfs_attr_ro(strategy_fg_auth_sysfs, 0440, FG_PROP_CALC_RVALUE,
+	mca_sysfs_attr_ro(strategy_fg_sysfs, 0440, FG_PROP_CALC_RVALUE,
 			  calc_rvalue),
 };
 
-#define FG_AUTH_ATTRS_SIZE ARRAY_SIZE(strategy_fg_auth_sysfs_field_tbl)
+#define FG_AUTH_ATTRS_SIZE ARRAY_SIZE(strategy_fg_sysfs_field_tbl)
 
-static struct attribute *strategy_fg_auth_sysfs_attrs[FG_AUTH_ATTRS_SIZE + 1];
+static struct attribute *strategy_fg_sysfs_attrs[FG_AUTH_ATTRS_SIZE + 1];
 
-static const struct attribute_group strategy_fg_auth_sysfs_attr_group = {
-	.attrs = strategy_fg_auth_sysfs_attrs,
+static const struct attribute_group strategy_fg_sysfs_attr_group = {
+	.attrs = strategy_fg_sysfs_attrs,
 };
 
 static int strategy_fg_auth_create_group(struct device *dev)
 {
-	mca_sysfs_init_attrs(strategy_fg_auth_sysfs_attrs,
-			     strategy_fg_auth_sysfs_field_tbl,
+	mca_sysfs_init_attrs(strategy_fg_sysfs_attrs,
+			     strategy_fg_sysfs_field_tbl,
 			     FG_AUTH_ATTRS_SIZE);
 	return mca_sysfs_create_link_group("fuelgauge", "strategy_fg", dev,
-					   &strategy_fg_auth_sysfs_attr_group);
+					   &strategy_fg_sysfs_attr_group);
 }
 
 static void strategy_fg_auth_remove_group(struct device *dev)
 {
 	mca_sysfs_remove_link_group("fuelgauge", "strategy_fg", dev,
-				    &strategy_fg_auth_sysfs_attr_group);
+				    &strategy_fg_sysfs_attr_group);
 }
 
-static ssize_t strategy_fg_auth_sysfs_store(struct device *dev,
+static ssize_t strategy_fg_sysfs_store(struct device *dev,
 					    struct device_attribute *attr,
 					    const char *buf, size_t count)
 {
@@ -204,7 +204,7 @@ static ssize_t strategy_fg_auth_sysfs_store(struct device *dev,
 		return -1;
 
 	attr_info = mca_sysfs_lookup_attr(attr->attr.name,
-					  strategy_fg_auth_sysfs_field_tbl,
+					  strategy_fg_sysfs_field_tbl,
 					  FG_AUTH_ATTRS_SIZE);
 	if (!attr_info)
 		return -1;
@@ -320,7 +320,7 @@ static ssize_t strategy_fg_auth_sysfs_store(struct device *dev,
 	return count;
 }
 
-static ssize_t strategy_fg_auth_sysfs_show(struct device *dev,
+static ssize_t strategy_fg_sysfs_show(struct device *dev,
 					   struct device_attribute *attr,
 					   char *buf)
 {
@@ -335,7 +335,7 @@ static ssize_t strategy_fg_auth_sysfs_show(struct device *dev,
 		return -1;
 
 	attr_info = mca_sysfs_lookup_attr(attr->attr.name,
-					  strategy_fg_auth_sysfs_field_tbl,
+					  strategy_fg_sysfs_field_tbl,
 					  FG_AUTH_ATTRS_SIZE);
 	if (!attr_info)
 		return -1;
