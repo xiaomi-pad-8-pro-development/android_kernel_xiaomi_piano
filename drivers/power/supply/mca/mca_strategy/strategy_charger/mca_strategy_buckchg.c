@@ -617,41 +617,9 @@ static int strategy_buckchg_init_voter(struct strategy_buckchg_dev *info)
 	return 0;
 }
 
-static void
-strategy_buckchg_limit_full_replug_ichg(struct strategy_buckchg_dev *info,
-					bool plugin)
-{
-	int rawsoc = 0;
-
-	if (!info->full_replug_ichg_limit) {
-		return;
-	}
-
-	strategy_class_fg_ops_get_rawsoc(&rawsoc);
-	if (plugin && rawsoc >= FULL_REPLUG_LIMIT_RAWSOC_TH) {
-		mca_vote(info->charge_limit_voter, "full_replug", true,
-			 info->full_replug_ichg_limit);
-	} else if (rawsoc < FULL_REPLUG_LIMIT_RAWSOC_TH ||
-		   info->proc_data.chg_status == MCA_BUCK_CHG_STS_CHARGE_DONE) {
-		mca_vote(info->charge_limit_voter, "full_replug", false, 0);
-	}
-}
-
-static void
-strategy_buckchg_resume_buck_ichg_limit(struct strategy_buckchg_dev *info)
-{
-	int rawsoc = 0;
-
-	strategy_class_fg_ops_get_rawsoc(&rawsoc);
-	if (rawsoc < BUCKCHG_OK_TO_HIGH_IBAT_RAWSOC_TH) {
-		mca_vote(info->charge_limit_voter, "qc_done", false, 0);
-	}
-}
-
 static void strategy_buckchg_start_charging(struct strategy_buckchg_dev *info)
 {
 	mca_log_info("start charging\n");
-	strategy_buckchg_limit_full_replug_ichg(info, true);
 	strategy_buck_update_req_volt(info);
 	cancel_delayed_work_sync(&info->monitor_work);
 	strategy_class_buckchg_ops_adc_enable(info, true);
@@ -2172,8 +2140,6 @@ static void strategy_buckchg_monitor_workfunc(struct work_struct *work)
 	strategy_buckchg_update_aicl_cfg(info);
 	strategy_buckchg_update_aicl_restart(info);
 	strategy_buckchg_cp_to_pmic_decrease_vterm(info);
-	strategy_buckchg_limit_full_replug_ichg(info, false);
-	strategy_buckchg_resume_buck_ichg_limit(info);
 	if (info->proc_data.chg_status == MCA_BUCK_CHG_STS_CHARGING) {
 		if (info->proc_data.charge_done_force_5v) {
 			info->proc_data.charge_done_force_5v = false;
