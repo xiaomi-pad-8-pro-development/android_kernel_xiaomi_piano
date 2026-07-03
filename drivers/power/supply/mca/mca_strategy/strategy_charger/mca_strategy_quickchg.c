@@ -504,7 +504,6 @@ static void mca_quick_charge_stop_charging(struct mca_quick_charge_info *info)
 	info->proc_data.cp_iic_ok = true;
 
 	if (info->proc_data.cp_iic_ok) {
-		protocol_class_pd_reset_pps_stage(TYPEC_PORT_0, true);
 		platform_class_cp_set_charging_enable(CP_ROLE_MASTER, false);
 		platform_class_cp_set_charging_enable(CP_ROLE_SLAVE, false);
 	}
@@ -2914,8 +2913,6 @@ static int mca_quick_charge_process_event(int event, int value, void *data)
 			 value);
 		break;
 	case MCA_EVENT_CHARGE_ACTION:
-		protocol_class_pd_reset_pps_stage(TYPEC_PORT_0, true);
-		mca_log_info("sc6601a_reset_pps_stage\n");
 		mca_quick_charge_pre_charge_check(info);
 		break;
 	case MCA_EVENT_CC_SHORT_VBUS:
