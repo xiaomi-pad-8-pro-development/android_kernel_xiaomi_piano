@@ -375,6 +375,7 @@ struct mca_quick_charge_process_data {
 	int max_adp_volt;
 	int max_adp_curr;
 	int max_ibat_final;
+	int max_adap_ibat;
 	int ratio;
 	int delta_volt;
 	int delta_ibat;

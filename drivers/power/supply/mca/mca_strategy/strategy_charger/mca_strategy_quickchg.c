@@ -1964,6 +1964,67 @@ static int mca_quick_charger_get_secure_cur(struct mca_quick_charge_info *info)
 	return secure_cur;
 }
 
+static void
+mca_eu_pps_anti_disconnection_strategy(struct mca_quick_charge_info *info)
+{
+	static int timer_start;
+	static bool start_flag;
+	static bool trigger;
+	static int count;
+	s64 now;
+
+	if (!info->is_eu_model)
+		return;
+
+	if (!info->online) {
+		start_flag = false;
+		trigger = false;
+		count = 0;
+		info->proc_data.max_adap_ibat = 0;
+		mca_log_info("reset param\n");
+		return;
+	}
+
+	if (info->proc_data.adp_type != XM_CHARGER_TYPE_PPS)
+		return;
+
+	if (info->proc_data.ibus >= info->proc_data.max_adp_curr - 200) {
+		count = 0;
+		if (trigger) {
+			mca_log_info("eu_pps has trigged\n");
+			return;
+		}
+		now = ktime_get_boottime_seconds();
+		if (start_flag) {
+			if (now - timer_start < 120)
+				return;
+			info->proc_data.max_adap_ibat =
+				info->proc_data.max_ibat_final * 2 / 3;
+			trigger = true;
+			mca_log_info(
+				"trigger:%d max_adap_ibat:[%d] max_ibat_final[%d]\n",
+				trigger, info->proc_data.max_adap_ibat,
+				info->proc_data.max_ibat_final);
+		} else {
+			timer_start = now;
+			mca_log_info("timer_start: %lld\n", now);
+			start_flag = true;
+		}
+		return;
+	}
+
+	if (start_flag && count >= 3) {
+		start_flag = false;
+		count = 0;
+		mca_log_info(" count %d reset timer for eu_pps max ibus\n", count);
+		return;
+	}
+	if (!start_flag)
+		return;
+	count++;
+	mca_log_info(" count %d \n", count);
+}
+
 /* todo:add multi battery process */
 static int mca_quick_charge_select_max_ibat(struct mca_quick_charge_info *info)
 {
@@ -2008,6 +2069,8 @@ static int mca_quick_charge_select_max_ibat(struct mca_quick_charge_info *info)
 
 	cur_max = min(cur_max, channel_cur);
 	cur_max = min(cur_max, proc_data->temp_max_cur[FG_IC_MASTER]);
+	if (proc_data->max_adap_ibat)
+		cur_max = min(cur_max, proc_data->max_adap_ibat);
 	cur_max = min(cur_max, proc_data->max_adp_curr * proc_data->ratio);
 	if (info->support_base_flip && proc_data->sw_ocp_curr)
 		cur_max = min(cur_max, proc_data->sw_ocp_curr);
@@ -2297,6 +2360,8 @@ static int mca_quick_charge_regulation(struct mca_quick_charge_info *info)
 		return -1;
 	}
 	ibus = info->proc_data.ibus;
+
+	mca_eu_pps_anti_disconnection_strategy(info);
 
 	cur_max = mca_quick_charge_select_max_ibat(info);
 	if (cur_max <= info->cp_switch_pmic_th) {
@@ -2739,6 +2804,7 @@ mca_quick_charge_force_stop_charging(struct mca_quick_charge_info *info)
 
 static void mca_quick_charge_exit_charging(struct mca_quick_charge_info *info)
 {
+	mca_eu_pps_anti_disconnection_strategy(info);
 	mca_log_err("exit quick charge\n");
 	mca_quick_charge_force_stop_charging(info);
 	memset(&info->proc_data, 0, sizeof(info->proc_data));
