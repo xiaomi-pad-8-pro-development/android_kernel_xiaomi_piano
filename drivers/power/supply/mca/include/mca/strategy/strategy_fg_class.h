@@ -5,14 +5,12 @@
 
 struct strategy_fg_class_ops {
 	int (*strategy_fg_is_init_ok)(void *data);
-	int (*strategy_fg_get_rawsoc)(void *data, int *);
 	int (*strategy_fg_get_rsoc)(void *data, int *);
 	int (*strategy_fg_get_soc)(void *data);
 	int (*strategy_fg_get_temp)(void *data, int *);
 	int (*strategy_fg_get_current)(void *data, int *);
 	int (*strategy_fg_get_voltage)(void *data, int *);
 	int (*strategy_fg_get_cycle)(void *data, int *);
-	int (*strategy_fg_get_recharge)(void *data, int *);
 	int (*strategy_fg_get_voltage_mean)(void *data, int *);
 	int (*strategy_fg_get_soc_decimal_info)(void *data, int *, int *);
 	bool (*strategy_fg_get_charging_done)(void *data);
@@ -41,14 +39,12 @@ struct strategy_fg_class_info {
 int strategy_class_fg_ops_register(void *data,
 				   struct strategy_fg_class_ops *ops);
 int strategy_class_fg_ops_is_init_ok(void);
-int strategy_class_fg_ops_get_rawsoc(int *rawsoc);
 int strategy_class_fg_ops_get_rsoc(int *rsoc);
 int strategy_class_fg_ops_get_soc(void);
 int strategy_class_fg_ops_get_temperature(int *temp);
 int strategy_class_fg_ops_get_current(int *curr);
 int strategy_class_fg_ops_get_voltage(int *volt);
 int strategy_class_fg_ops_get_cyclecount(int *cycle);
-int strategy_class_fg_ops_get_recharge(int *if_rechging);
 int strategy_class_fg_get_voltage_mean(int *vol_mean);
 int strategy_class_fg_ops_get_soc_decimal(int *soc_decimal, int *rate);
 bool strategy_class_fg_ops_get_charging_done(void);

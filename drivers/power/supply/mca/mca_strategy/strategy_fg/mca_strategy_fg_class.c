@@ -51,16 +51,6 @@ int strategy_class_fg_ops_is_init_ok(void)
 }
 EXPORT_SYMBOL(strategy_class_fg_ops_is_init_ok);
 
-int strategy_class_fg_ops_get_rawsoc(int *rawsoc)
-{
-	if (is_invalid_ops(strategy_fg_get_rawsoc))
-		return -1;
-
-	return strategy_fg_class_ops_with_one_para(strategy_fg_get_rawsoc,
-						   rawsoc);
-}
-EXPORT_SYMBOL(strategy_class_fg_ops_get_rawsoc);
-
 int strategy_class_fg_ops_get_rsoc(int *rsoc)
 {
 	if (is_invalid_ops(strategy_fg_get_rsoc))
@@ -117,16 +107,6 @@ int strategy_class_fg_ops_get_cyclecount(int *cycle)
 						   cycle);
 }
 EXPORT_SYMBOL(strategy_class_fg_ops_get_cyclecount);
-
-int strategy_class_fg_ops_get_recharge(int *if_rechging)
-{
-	if (is_invalid_ops(strategy_fg_get_recharge))
-		return -1;
-
-	return strategy_fg_class_ops_with_one_para(strategy_fg_get_recharge,
-						   if_rechging);
-}
-EXPORT_SYMBOL(strategy_class_fg_ops_get_recharge);
 
 int strategy_class_fg_get_voltage_mean(int *vol_mean)
 {
