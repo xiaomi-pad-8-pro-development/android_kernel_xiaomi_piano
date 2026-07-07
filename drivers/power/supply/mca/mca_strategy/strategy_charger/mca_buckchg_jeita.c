@@ -331,8 +331,7 @@ static void mca_buckchg_jeita_update(struct mca_buckchg_jeita_dev *info)
 	int vbat = 0;
 	static int last_fastcharge_mode;
 	static int last_chg_curr;
-	int vbat_index = -1,
-	    quick_charge_status = MCA_QUICK_CHG_STS_CHARGE_FAILED;
+	int vbat_index = -1;
 
 	if (!info->jeita_para.jeita_data || !info->voter_ok) {
 		mca_log_err("jeita data not ready\n");
@@ -347,13 +346,6 @@ static void mca_buckchg_jeita_update(struct mca_buckchg_jeita_dev *info)
 
 	temp /= 10;
 	fastcharge_mode = strategy_class_fg_get_fastcharge();
-	(void)mca_strategy_func_get_status(STRATEGY_FUNC_TYPE_QUICK_CHARGE,
-					   STRATEGY_STATUS_TYPE_CHARGING,
-					   &quick_charge_status);
-	if (info->jeita_para.fcc_size == 0 && fastcharge_mode &&
-	    quick_charge_status != MCA_QUICK_CHG_STS_CHARGING) {
-		strategy_class_fg_set_fastcharge(false);
-	}
 
 	if (!fastcharge_mode) {
 		for (i = 0; i < info->jeita_para.size; i++) {
@@ -467,12 +459,6 @@ static void mca_buckchg_jeita_update(struct mca_buckchg_jeita_dev *info)
 
 	vterm = jeita_data->vterm;
 	iterm = jeita_data->iterm;
-	if (info->real_type == XM_CHARGER_TYPE_SDP) {
-		vterm -= info->vi_term_decrease[VTERM_DECREASE];
-		iterm -= info->vi_term_decrease[ITERM_DECREASE];
-		mca_vote_override(info->iterm_voter, "jeita-sdp", true, iterm);
-		mca_vote_override(info->vterm_voter, "jeita-sdp", true, vterm);
-	}
 
 	if (vterm > info->high_tbat_stop_chg_fv) {
 		vterm -= info->smartchg_data.delta_fv;
@@ -842,9 +828,6 @@ static int mca_buckchg_jeita_parse_dt(struct mca_buckchg_jeita_dev *info)
 			  MCA_BUCKCHG_JEITA_VBAT_LOW_HYST);
 	mca_parse_dts_u32(node, "high_tbat_stop_chg_fv",
 			  &(info->high_tbat_stop_chg_fv), ABNORMAL_BATT_FV_MAX);
-	mca_parse_dts_u32_array(node, "sdp_decrease_vi_term",
-				info->vi_term_decrease,
-				DECREASE_VOLTAGE_PARA_MAX);
 	info->has_gbl_batt_para =
 		of_property_read_bool(node, "has-global-batt-para");
 	if (hwid && info->has_gbl_batt_para &&
@@ -895,8 +878,6 @@ static int mca_buckchg_jeita_process_event(int event, int value, void *data)
 		info->base_proc_data.cur_jeita_index = 0;
 		info->base_proc_data.temp_hys_en = 0;
 		info->base_proc_data.max_chg_curr = -1;
-		mca_vote_override(info->iterm_voter, "jeita-sdp", false, 0);
-		mca_vote_override(info->vterm_voter, "jeita-sdp", false, 0);
 		break;
 	case MCA_EVENT_BATTERY_DTPT:
 		info->dtpt_status = value;
