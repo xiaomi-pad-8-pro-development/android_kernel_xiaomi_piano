@@ -30,6 +30,7 @@
 #include <mca/common/mca_event.h>
 #include <mca/common/mca_log.h>
 #include <mca/protocol/protocol_pd_class.h>
+#include <mca/shared_memory/charger_partition_class.h>
 #include <mca/common/mca_sysfs.h>
 #include <mca/common/mca_parse_dts.h>
 
@@ -724,6 +725,7 @@ static int protocol_class_pps_adapter_get_max_power(void *data, unsigned int *ma
 	int power = 0;
 	int adv_curr = 0;
 	int i = 0;
+	bool is_eu_model = 0;
 
 	*max_power = 0;
 	protocol_class_pd_get_pd_type(g_cur_port, &type);
@@ -735,8 +737,15 @@ static int protocol_class_pps_adapter_get_max_power(void *data, unsigned int *ma
 		power = max(power, pwr_cap.cap[i].max_power / 1000);
 
 	protocol_class_pps_adapter_get_adv_current(&pwr_cap, MCA_PPS_MAX_VOL_10V, &adv_curr);
-	mca_log_info("device_max_power: %d, max_power: %d, adv_curr: %d\n",
-		device_max_power, power, adv_curr);
+	charger_partition_get_eu_model(&is_eu_model);
+	mca_log_info("is_eu_model: %d,device_max_power: %d, max_power: %d, adv_curr: %d\n",
+		is_eu_model, device_max_power, power, adv_curr);
+
+	if (is_eu_model && type == XM_CHARGER_TYPE_PPS) {
+		*max_power = min(power, device_max_power);
+		mca_log_info("caulate max_power %d\n", *max_power);
+		return 0;
+	}
 
 	// 96 is for 110V AC voltage when used in some foreigns
 	if ((power >= 96 && adv_curr == 4800) || (power >= 96 && adv_curr == 5000))
