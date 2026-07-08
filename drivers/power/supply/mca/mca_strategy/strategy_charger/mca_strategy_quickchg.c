@@ -246,7 +246,7 @@ static bool mca_qc_check_if_goto_taper(struct mca_quick_charge_info *info)
 	info->qc_normal_charge_fv_max_mv =
 		info->proc_data.temp_max_fv[FG_IC_MASTER];
 	vbat_th = info->qc_normal_charge_fv_max_mv - delta_fv -
-		  taper_vol_hys_mv - MCA_QUICK_CHG_FV_HYS;
+		  taper_vol_hys_mv - info->quick_chg_fv_hys;
 	mca_log_info("qc_normal_charge_fv_max_mv: %d, vbat_th:%d\n",
 		     info->qc_normal_charge_fv_max_mv, vbat_th);
 	ibat_now_ma = info->proc_data.ibat_total;
@@ -293,11 +293,11 @@ static bool mca_check_if_goto_hw_taper(struct mca_quick_charge_info *info)
 	/* last quick charge stage */
 	if ((cur_stage / 2) == (volt_para_size - 1)) {
 		vbat_th = vbat_th - delta_fv - info->pps_taper_vol_hys -
-			  MCA_QUICK_CHG_FV_HYS;
+			  info->quick_chg_fv_hys;
 		mca_log_info(
-			"check if goto hw taper vbat: %d, vbat_th: %d, ibat: %d, ibat_th: %d, count: %d\n",
+			"check if goto hw taper vbat: %d, vbat_th: %d, ibat: %d, ibat_th: %d, count: %d, quick_chg_fv_hys: %d\n",
 			vbat_now_mv, vbat_th, ibat_now_ma, ibat_th,
-			info->fc2_taper_timer);
+			info->fc2_taper_timer, info->quick_chg_fv_hys);
 
 		if (vbat_now_mv >= vbat_th && ibat_now_ma < ibat_th) {
 			if (info->fc2_taper_timer++ > MCA_TAPER_TIMEOUT) {
@@ -4010,6 +4010,8 @@ static int mca_quick_charge_parse_dt(struct mca_quick_charge_info *info)
 	(void)mca_parse_dts_u32(node, "pps_high_taper_fcc_thr",
 				&info->pps_high_taper_fcc_ma,
 				MCA_QUICK_CHG_QC_TAPER_FCC_THR_DEFAULT);
+	(void)mca_parse_dts_u32(node, "quick_chg_fv_hys",
+				&info->quick_chg_fv_hys, 1);
 	(void)mca_parse_dts_u32(node, "qc3_taper_vol_hys",
 				&info->qc3_taper_vol_hys,
 				MCA_QUICK_CHG_QC_TAPER_HYS_QC3B);

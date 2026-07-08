@@ -132,7 +132,6 @@
 #define ALLOW_ENABLE_CP_BATT_SOC_THR 90
 #define ALLOW_START_FFC_BATT_SOC_THR 95
 #define MCA_QUICK_CHG_PPS_TAPER_HYS 10
-#define MCA_QUICK_CHG_FV_HYS 1
 #define MCA_QUICK_CHG_VFC_INTERVAL 5000
 #define MCA_QUICK_CHG_CP_DEFAULT_FSW 480
 #define MCA_QUICK_CHG_IBUS_QUENE_SIZE 20
@@ -484,6 +483,7 @@ struct mca_quick_charge_info {
 	int qc_taper_fcc_ma;
 	int pps_taper_fcc_ma;
 	int pps_high_taper_fcc_ma;
+	int quick_chg_fv_hys;
 	int qc_normal_charge_fv_max_mv;
 	int qc3_taper_vol_hys;
 	int qc3p5_taper_vol_hys;
