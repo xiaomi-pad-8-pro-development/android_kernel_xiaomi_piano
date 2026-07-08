@@ -1894,10 +1894,10 @@ static bool mca_quick_charge_check_chg_done(struct mca_quick_charge_info *info)
 
 	if (info->batt_type <= MCA_BATTERY_TYPE_SINGLE_NUM_MAX)
 		return (info->proc_data.vbat[FG_IC_MASTER] <
-			info->recharge_vbat_delta);
+			info->recharge_vbat);
 
-	return ((info->proc_data.vbat[FG_IC_MASTER] < info->recharge_vbat_delta) &&
-		(info->proc_data.vbat[FG_IC_SLAVE] < info->recharge_vbat_delta));
+	return ((info->proc_data.vbat[FG_IC_MASTER] < info->recharge_vbat) &&
+		(info->proc_data.vbat[FG_IC_SLAVE] < info->recharge_vbat));
 }
 
 static void
@@ -3970,9 +3970,8 @@ static int mca_quick_charge_parse_dt(struct mca_quick_charge_info *info)
 				MCA_QUICK_CHG_MIN_VBAT_DEFAULT);
 	(void)mca_parse_dts_u32(node, "max_vbat", &info->max_vbat,
 				MCA_QUICK_CHG_MAX_VBAT_DEFAULT);
-	(void)mca_parse_dts_u32(node, "recharge_vbat_delta",
-				&info->recharge_vbat_delta,
-				MCA_QUICK_CHG_RECHARGE_VBAT_DELTA_DEFAULT);
+	(void)mca_parse_dts_u32(node, "recharge_vbat", &info->recharge_vbat,
+				MCA_QUICK_CHG_RECHARGE_VBAT_DEFAULT);
 	(void)mca_parse_dts_u32(node, "die_temp_max", &info->die_temp_max,
 				MCA_QUICK_CHG_MAX_TDIE_DEFAULT);
 	(void)mca_parse_dts_u32(node, "adp_temp_max", &info->adp_temp_max,

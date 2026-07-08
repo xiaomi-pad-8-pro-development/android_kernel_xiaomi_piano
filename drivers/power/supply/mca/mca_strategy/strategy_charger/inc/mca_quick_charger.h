@@ -57,7 +57,7 @@
 #define MCA_QUICK_CHG_MAX_BUFF_LEN 256
 #define MCA_QUICK_CHG_MIN_VBAT_DEFAULT 3300
 #define MCA_QUICK_CHG_MAX_VBAT_DEFAULT 4400
-#define MCA_QUICK_CHG_RECHARGE_VBAT_DELTA_DEFAULT 250
+#define MCA_QUICK_CHG_RECHARGE_VBAT_DEFAULT 4300
 #define MCA_QUICK_CHG_MAX_TDIE_DEFAULT 125
 #define MCA_QUICK_CHG_MAX_TADP_DEFAULT 125
 #define MCA_QUICK_CHG_DIV1_VOLT_DELTA_DEFAULT 300
@@ -455,7 +455,7 @@ struct mca_quick_charge_info {
 	int cp_type;
 	int min_vbat;
 	int max_vbat;
-	int recharge_vbat_delta;
+	int recharge_vbat;
 	int die_temp_max;
 	int adp_temp_max;
 	int en_buck_parallel_chg;
