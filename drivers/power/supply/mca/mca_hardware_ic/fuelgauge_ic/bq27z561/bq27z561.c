@@ -4351,6 +4351,217 @@ _write_reg:
 		mca_log_err("write ui_soh failed\n");
 }
 
+static int __fg_mac_read_block(struct bq_fg_chip *bq, u16 cmd, u8 *buf,
+					u8 len)
+{
+	int ret;
+	u8 cksum_calc, cksum;
+	u8 t_buf[40];
+	u8 t_len;
+	int i;
+
+	t_buf[0] = (u8)cmd;
+	t_buf[1] = (u8)(cmd >> 8);
+
+	ret = fg_write_read_block(bq, bq->regs[BQ_FG_REG_ALT_MAC], t_buf, 2, 36);
+	mutex_unlock(&bq->i2c_rw_lock);
+	if (ret < 0)
+		return ret;
+
+	cksum = t_buf[34];
+	t_len = t_buf[35];
+	if (t_len > 42)
+		t_len = 42;
+	else if (t_len < 2)
+		t_len = 2;
+
+	cksum_calc = checksum(t_buf, t_len - 2);
+	if (cksum_calc != cksum)
+		return -EIO;
+
+	for (i = 0; i < len; i++)
+		buf[i] = t_buf[i + 2];
+
+	return ret;
+}
+
+static int
+fg_diag_mac_read(struct bq_fg_chip *bq, u16 cmd, u8 *buf, u8 len)
+{
+	if (atomic_read(&bq->pm_suspend))
+		return -1;
+
+	while (!mutex_trylock(&bq->i2c_rw_lock)) {
+		if (atomic_read(&bq->pm_suspend))
+			return -1;
+		usleep_range(40, 50);
+	}
+
+	return __fg_mac_read_block(bq, cmd, buf, len);
+}
+
+static int fg_get_csd_flag(struct bq_fg_chip *bq)
+{
+	u8 t_buf[BATTERY_RANDOM_LEN] = { 0 };
+
+	if (fg_diag_mac_read(bq, FG_MAC_CMD_CSD, t_buf, 8) < 0)
+		return 0;
+	return t_buf[1];
+}
+
+static int fg_get_csd_r1(struct bq_fg_chip *bq)
+{
+	u8 t_buf[BATTERY_RANDOM_LEN] = { 0 };
+
+	if (fg_diag_mac_read(bq, FG_MAC_CMD_CSD, t_buf, 8) < 0)
+		return 0;
+	return fg_convert_u8_to_u16(t_buf[2], t_buf[3]);
+}
+
+static int fg_get_csd_r2(struct bq_fg_chip *bq)
+{
+	u8 t_buf[BATTERY_RANDOM_LEN] = { 0 };
+
+	if (fg_diag_mac_read(bq, FG_MAC_CMD_CSD, t_buf, 8) < 0)
+		return 0;
+	return fg_convert_u8_to_u16(t_buf[4], t_buf[5]);
+}
+
+static int fg_get_cuv_count(struct bq_fg_chip *bq)
+{
+	u8 t_buf[BATTERY_RANDOM_LEN] = { 0 };
+
+	if (fg_diag_mac_read(bq, FG_MAC_CMD_CUV_OCD, t_buf, 32) < 0)
+		return 0;
+	return fg_convert_u8_to_u16(t_buf[16], t_buf[17]);
+}
+
+static int fg_get_cuv_last_cycle(struct bq_fg_chip *bq)
+{
+	u8 t_buf[BATTERY_RANDOM_LEN] = { 0 };
+
+	if (fg_diag_mac_read(bq, FG_MAC_CMD_CUV_OCD, t_buf, 32) < 0)
+		return 0;
+	return fg_convert_u8_to_u16(t_buf[18], t_buf[19]);
+}
+
+static int fg_get_ocd_count(struct bq_fg_chip *bq)
+{
+	u8 t_buf[BATTERY_RANDOM_LEN] = { 0 };
+
+	if (fg_diag_mac_read(bq, FG_MAC_CMD_CUV_OCD, t_buf, 32) < 0)
+		return 0;
+	return fg_convert_u8_to_u16(t_buf[28], t_buf[29]);
+}
+
+static int fg_get_ocd_last_cycle(struct bq_fg_chip *bq)
+{
+	u8 t_buf[BATTERY_RANDOM_LEN] = { 0 };
+
+	if (fg_diag_mac_read(bq, FG_MAC_CMD_CUV_OCD, t_buf, 32) < 0)
+		return 0;
+	return fg_convert_u8_to_u16(t_buf[30], t_buf[31]);
+}
+
+static int fg_get_hcuv_count(struct bq_fg_chip *bq)
+{
+	u8 t_buf[BATTERY_RANDOM_LEN] = { 0 };
+
+	if (fg_diag_mac_read(bq, FG_MAC_CMD_HCUV_HOCD, t_buf, 8) < 0)
+		return 0;
+	return fg_convert_u8_to_u16(t_buf[0], t_buf[1]);
+}
+
+static int fg_get_hcuv_last_cycle(struct bq_fg_chip *bq)
+{
+	u8 t_buf[BATTERY_RANDOM_LEN] = { 0 };
+
+	if (fg_diag_mac_read(bq, FG_MAC_CMD_HCUV_HOCD, t_buf, 8) < 0)
+		return 0;
+	return fg_convert_u8_to_u16(t_buf[2], t_buf[3]);
+}
+
+static int fg_get_hocd_count(struct bq_fg_chip *bq)
+{
+	u8 t_buf[BATTERY_RANDOM_LEN] = { 0 };
+
+	if (fg_diag_mac_read(bq, FG_MAC_CMD_HCUV_HOCD, t_buf, 32) < 0)
+		return 0;
+	return fg_convert_u8_to_u16(t_buf[12], t_buf[13]);
+}
+
+static int fg_get_hocd_last_cycle(struct bq_fg_chip *bq)
+{
+	u8 t_buf[BATTERY_RANDOM_LEN] = { 0 };
+
+	if (fg_diag_mac_read(bq, FG_MAC_CMD_HCUV_HOCD, t_buf, 32) < 0)
+		return 0;
+	return fg_convert_u8_to_u16(t_buf[14], t_buf[15]);
+}
+
+static int fg_get_dcr_slope1(struct bq_fg_chip *bq)
+{
+	u8 t_buf[BATTERY_RANDOM_LEN] = { 0 };
+
+	if (fg_diag_mac_read(bq, FG_MAC_CMD_DCR_SLOPE, t_buf, 12) < 0)
+		return 0;
+	return fg_convert_u8_to_u16(t_buf[4], t_buf[5]);
+}
+
+static int fg_get_dcr_slope2(struct bq_fg_chip *bq)
+{
+	u8 t_buf[BATTERY_RANDOM_LEN] = { 0 };
+
+	if (fg_diag_mac_read(bq, FG_MAC_CMD_DCR_SLOPE, t_buf, 12) < 0)
+		return 0;
+	return fg_convert_u8_to_u16(t_buf[6], t_buf[7]);
+}
+
+static int fg_get_dcr_slope3(struct bq_fg_chip *bq)
+{
+	u8 t_buf[BATTERY_RANDOM_LEN] = { 0 };
+
+	if (fg_diag_mac_read(bq, FG_MAC_CMD_DCR_SLOPE, t_buf, 12) < 0)
+		return 0;
+	return fg_convert_u8_to_u16(t_buf[8], t_buf[9]);
+}
+
+static int fg_get_max_dsg_current(struct bq_fg_chip *bq)
+{
+	u8 t_buf[BATTERY_RANDOM_LEN] = { 0 };
+
+	if (fg_diag_mac_read(bq, FG_MAC_CMD_LIFETIME1, t_buf, 8) < 0)
+		return 0;
+	return fg_convert_u8_to_u16(t_buf[4], t_buf[5]);
+}
+
+static int fg_get_min_temp(struct bq_fg_chip *bq)
+{
+	u8 t_buf[BATTERY_RANDOM_LEN] = { 0 };
+
+	if (fg_diag_mac_read(bq, FG_MAC_CMD_LIFETIME1, t_buf, 8) < 0)
+		return 0;
+	return t_buf[7];
+}
+
+static int fg_get_min_voltage(struct bq_fg_chip *bq)
+{
+	u8 t_buf[BATTERY_RANDOM_LEN] = { 0 };
+
+	if (fg_diag_mac_read(bq, FG_MAC_CMD_MIN_VOLTAGE, t_buf, 8) < 0)
+		return 0;
+	return fg_convert_u8_to_u16(t_buf[6], t_buf[7]);
+}
+
+static int fg_get_charge_absoc(struct bq_fg_chip *bq)
+{
+	u8 t_buf[BATTERY_RANDOM_LEN] = { 0 };
+
+	if (fg_diag_mac_read(bq, FG_MAC_CMD_QMAX_CYCLECOUNT, t_buf, 8) < 0)
+		return 0;
+	return fg_convert_u8_to_u16(t_buf[2], t_buf[3]);
+}
+
 static ssize_t fg_sysfs_show(struct device *dev,
 		struct device_attribute *attr, char *buf);
 static ssize_t fg_sysfs_store(struct device *dev,
@@ -4439,6 +4650,24 @@ struct mca_sysfs_attr_info fg_sysfs_field_tbl[] = {
 	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_MIN_LIFE_TEMP, min_life_temp),
 	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_OVER_VOL_DURATION, over_vol_duration),
 	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_FC, fc),
+	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_CSD_FLAG, csd_flag),
+	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_CSD_R1, csd_r1),
+	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_CSD_R2, csd_r2),
+	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_CUV_COUNT, cuv_count),
+	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_CUV_LAST_CYCLE, cuv_last_cycle),
+	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_OCD_COUNT, ocd_count),
+	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_OCD_LAST_CYCLE, ocd_last_cycle),
+	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_HCUV_COUNT, hcuv_count),
+	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_HCUV_LAST_CYCLE, hcuv_last_cycle),
+	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_HOCD_COUNT, hocd_count),
+	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_HOCD_LAST_CYCLE, hocd_last_cycle),
+	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_DCR_SLOPE1, dcr_slope1),
+	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_DCR_SLOPE2, dcr_slope2),
+	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_DCR_SLOPE3, dcr_slope3),
+	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_MAX_DSG_CURRENT, max_dsg_current),
+	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_MIN_TEMP, min_temp),
+	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_MIN_VOLTAGE, min_voltage),
+	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_CHARGE_ABSOC, charge_absoc),
 };
 
 #define FG_SYSFS_ATTRS_SIZE   ARRAY_SIZE(fg_sysfs_field_tbl)
@@ -4805,6 +5034,65 @@ static ssize_t fg_sysfs_show(struct device *dev,
 	case FG_IC_PROP_FC:
 		fg_read_one_fc(info, &fc_val);
 		count = scnprintf(buf, PAGE_SIZE, "%d\n", fc_val);
+		break;
+	case FG_IC_PROP_CSD_FLAG:
+		count = scnprintf(buf, PAGE_SIZE, "%d\n", fg_get_csd_flag(info));
+		break;
+	case FG_IC_PROP_CSD_R1:
+		count = scnprintf(buf, PAGE_SIZE, "%d\n", fg_get_csd_r1(info));
+		break;
+	case FG_IC_PROP_CSD_R2:
+		count = scnprintf(buf, PAGE_SIZE, "%d\n", fg_get_csd_r2(info));
+		break;
+	case FG_IC_PROP_CUV_COUNT:
+		count = scnprintf(buf, PAGE_SIZE, "%d\n", fg_get_cuv_count(info));
+		break;
+	case FG_IC_PROP_CUV_LAST_CYCLE:
+		count = scnprintf(buf, PAGE_SIZE, "%d\n",
+				  fg_get_cuv_last_cycle(info));
+		break;
+	case FG_IC_PROP_OCD_COUNT:
+		count = scnprintf(buf, PAGE_SIZE, "%d\n", fg_get_ocd_count(info));
+		break;
+	case FG_IC_PROP_OCD_LAST_CYCLE:
+		count = scnprintf(buf, PAGE_SIZE, "%d\n",
+				  fg_get_ocd_last_cycle(info));
+		break;
+	case FG_IC_PROP_HCUV_COUNT:
+		count = scnprintf(buf, PAGE_SIZE, "%d\n", fg_get_hcuv_count(info));
+		break;
+	case FG_IC_PROP_HCUV_LAST_CYCLE:
+		count = scnprintf(buf, PAGE_SIZE, "%d\n",
+				  fg_get_hcuv_last_cycle(info));
+		break;
+	case FG_IC_PROP_HOCD_COUNT:
+		count = scnprintf(buf, PAGE_SIZE, "%d\n", fg_get_hocd_count(info));
+		break;
+	case FG_IC_PROP_HOCD_LAST_CYCLE:
+		count = scnprintf(buf, PAGE_SIZE, "%d\n",
+				  fg_get_hocd_last_cycle(info));
+		break;
+	case FG_IC_PROP_DCR_SLOPE1:
+		count = scnprintf(buf, PAGE_SIZE, "%d\n", fg_get_dcr_slope1(info));
+		break;
+	case FG_IC_PROP_DCR_SLOPE2:
+		count = scnprintf(buf, PAGE_SIZE, "%d\n", fg_get_dcr_slope2(info));
+		break;
+	case FG_IC_PROP_DCR_SLOPE3:
+		count = scnprintf(buf, PAGE_SIZE, "%d\n", fg_get_dcr_slope3(info));
+		break;
+	case FG_IC_PROP_MAX_DSG_CURRENT:
+		count = scnprintf(buf, PAGE_SIZE, "%d\n",
+				  fg_get_max_dsg_current(info));
+		break;
+	case FG_IC_PROP_MIN_TEMP:
+		count = scnprintf(buf, PAGE_SIZE, "%d\n", fg_get_min_temp(info));
+		break;
+	case FG_IC_PROP_MIN_VOLTAGE:
+		count = scnprintf(buf, PAGE_SIZE, "%d\n", fg_get_min_voltage(info));
+		break;
+	case FG_IC_PROP_CHARGE_ABSOC:
+		count = scnprintf(buf, PAGE_SIZE, "%d\n", fg_get_charge_absoc(info));
 		break;
 	default:
 		break;
