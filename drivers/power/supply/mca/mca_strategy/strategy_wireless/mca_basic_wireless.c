@@ -4207,7 +4207,7 @@ strategy_wireless_debug_process_data(const char *buf,
 	char *str = buf_tmp;
 	int ret = 0;
 
-	mca_log_info("buf length is %d\n", strlen(buf));
+	mca_log_info("buf length is %zu\n", strlen(buf));
 	memcpy(buf_tmp, buf, strlen(buf));
 	pchar = strsep(&str, " ");
 	while (pchar != NULL) {
