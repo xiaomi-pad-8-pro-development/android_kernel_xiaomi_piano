@@ -4339,6 +4339,15 @@ static int __fg_mac_read_block(struct bq_fg_chip *bq, u16 cmd, u8 *buf,
 	if (ret < 0)
 		return ret;
 
+	{
+		char strbuf[128];
+		int pos = 0;
+
+		for (i = 0; i < 36; i++)
+			pos += sprintf(&strbuf[pos], "%02X ", t_buf[i]);
+		mca_log_debug("mac 0x%04x read: %s\n", cmd, strbuf);
+	}
+
 	cksum = t_buf[34];
 	t_len = t_buf[35];
 	if (t_len > 42)
