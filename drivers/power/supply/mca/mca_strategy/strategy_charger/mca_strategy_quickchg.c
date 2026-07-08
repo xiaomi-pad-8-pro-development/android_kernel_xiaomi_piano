@@ -1726,7 +1726,7 @@ static void mca_quick_charge_select_stage(struct mca_quick_charge_info *info)
 			}
 		}
 		mca_log_info(
-			"fastchg_temp_flag %d, stage %d, cp_en %d, time_now %d, time_start %d, time_diff %lld\n",
+			"fastchg_temp_flag %d, stage %d, cp_en %d, time_now %lld, time_start %lld, time_diff %lld\n",
 			info->fastchg_temp_flag, stage, cp_enabled, time_now,
 			info->time_start, time_now - info->time_start);
 
