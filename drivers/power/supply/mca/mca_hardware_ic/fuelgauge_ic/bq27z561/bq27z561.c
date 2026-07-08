@@ -558,9 +558,18 @@ static int fg_read_i2c_block_data(struct bq_fg_chip *info, u8 reg, unsigned shor
 	if (!client || !client->adapter)
 		return -ENODEV;
 
-	ret = i2c_smbus_read_i2c_block_data(client, reg, len, buf);
+	{
+		struct i2c_msg msgs[2] = {
+			{ .addr = client->addr, .flags = 0, .len = 1,
+			  .buf = &reg },
+			{ .addr = client->addr, .flags = I2C_M_RD, .len = len,
+			  .buf = buf },
+		};
+
+		ret = i2c_transfer(client->adapter, msgs, 2);
+	}
 	if (ret < 0) {
-		mca_log_err("I2C SMBus read failed\n");
+		mca_log_err("I2C read failed\n");
 		return ret;
 	}
 
