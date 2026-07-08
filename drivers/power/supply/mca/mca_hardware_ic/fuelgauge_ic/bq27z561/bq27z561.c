@@ -2521,64 +2521,6 @@ static int fg_read_ttf(struct bq_fg_chip *bq, int *ttf)
 	return 0;
 }
 
-static int fg_set_co(struct bq_fg_chip *bq, bool value)
-{
-	int ret = 0;
-	bool chg;
-	u8 flag;
-	u8 data[4] = {0xa1, 0xb2, 0xc3, 0xd4};
-
-	if (value) {
-		//1.enable
-		ret =  fg_mac_write_block(bq, FG_MAC_CMD_ENABLE_CO, data, 4);
-		if (ret < 0) {
-			mca_log_err("enable co fail\n");
-		}
-		//2.close co
-		ret =  fg_mac_write_block(bq, FG_MAC_CMD_CLOSE_CO, data, 4);
-		if (ret < 0) {
-			mca_log_err("close co fail\n");
-		}
-		//3.check status
-		ret = fg_mac_read_block(bq, FG_MCA_CMD_SEAL_STATE, &flag, 1);
-		if (ret < 0) {
-			mca_log_info("failed to get co state\n");
-		}
-		chg = !!(flag & FG_FLAGS_CO);
-		if (chg) {
-			ret =  fg_mac_write_block(bq, FG_MAC_CMD_CLOSE_CO, data, 4);
-			if (ret < 0) {
-				mca_log_err("enable co fail\n");
-			}
-		}
-	} else {
-		//1.enable
-		ret =  fg_mac_write_block(bq, FG_MAC_CMD_ENABLE_CO, data, 4);
-		if (ret < 0) {
-			mca_log_err("enable co fail\n");
-		}
-		//2.open co
-		ret =  fg_mac_write_block(bq, FG_MAC_CMD_OPEN_CO, data, 4);
-		if (ret < 0) {
-			mca_log_err("open co fail\n");
-		}
-		//3.check status
-		ret = fg_mac_read_block(bq, FG_MCA_CMD_SEAL_STATE, &flag, 1);
-		if (ret < 0) {
-			mca_log_info("failed to get co state\n");
-		}
-		chg = !!(flag & FG_FLAGS_CO);
-		if (!chg) {
-			ret =  fg_mac_write_block(bq, FG_MAC_CMD_OPEN_CO, data, 4);
-			if (ret < 0) {
-				mca_log_err("enable co fail\n");
-			}
-		}
-	}
-
-	return ret;
-}
-
 static int StringToHex(char *str, unsigned char *out, unsigned int *outlen)
 {
 	char *p = str;
@@ -3828,11 +3770,33 @@ static int fg_read_one_fc(void *data, bool *fc)
 	return rc;
 }
 
+static int fg_toggle_co(struct bq_fg_chip *bq, u8 co_cmd, int expect, u8 *data);
+
 static int fg_set_one_co(void *data, bool value)
 {
 	struct bq_fg_chip *info = (struct bq_fg_chip *)data;
+	u8 buf[4] = { 0xa1, 0xb2, 0xc3, 0xd4 };
+	int ret;
 
-	return fg_set_co(info, value);
+	if (value) {
+		ret = fg_toggle_co(info, FG_MAC_CMD_CLOSE_CO, 0, buf);
+		if (ret < 0) {
+			mca_log_err("close co fail, retry\n");
+			ret = fg_toggle_co(info, FG_MAC_CMD_CLOSE_CO, 0, buf);
+			if (ret < 0)
+				mca_log_err("close co retry fail\n");
+		}
+	} else {
+		ret = fg_toggle_co(info, FG_MAC_CMD_OPEN_CO, 1, buf);
+		if (ret < 0) {
+			mca_log_err("open co fail, retry\n");
+			ret = fg_toggle_co(info, FG_MAC_CMD_OPEN_CO, 1, buf);
+			if (ret < 0)
+				mca_log_err("open co retry fail\n");
+		}
+	}
+
+	return ret;
 }
 
 static int fg_read_one_rsoc(void *data, int *rsoc)
@@ -4398,6 +4362,29 @@ fg_diag_mac_read(struct bq_fg_chip *bq, u16 cmd, u8 *buf, u8 len)
 	}
 
 	return __fg_mac_read_block(bq, cmd, buf, len);
+}
+
+static int fg_toggle_co(struct bq_fg_chip *bq, u8 co_cmd, int expect, u8 *data)
+{
+	u8 flag = 0;
+	int ret, co_state = 0, want = expect & 1, i;
+
+	ret = fg_mac_write_block(bq, co_cmd, data, 4);
+	if (ret < 0)
+		mca_log_err("write co cmd 0x%x fail\n", co_cmd);
+
+	for (i = 0; i < 4; i++) {
+		msleep(i ? 100 : 1100);
+		flag = 0;
+		if (fg_diag_mac_read(bq, FG_MCA_CMD_SEAL_STATE, &flag, 1) < 0)
+			mca_log_err("get co state fail\n");
+		co_state = !!(flag & FG_FLAGS_CO);
+		mca_log_err("co cmd 0x%x, co_state %d\n", co_cmd, co_state);
+		if (co_state == want)
+			break;
+	}
+
+	return (co_state == want) ? 0 : -1;
 }
 
 static int fg_get_csd_flag(struct bq_fg_chip *bq)
