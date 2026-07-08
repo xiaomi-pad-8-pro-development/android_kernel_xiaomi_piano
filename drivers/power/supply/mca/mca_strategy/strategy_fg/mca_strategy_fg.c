@@ -100,6 +100,8 @@
 static void strategy_fg_init_voter(struct strategy_fg *fg);
 static int strategy_fg_ops_get_curr(void *data, int *curr);
 static int strategy_fg_ops_get_rsoc(void *data, int *rsoc);
+static void strategy_fg_set_fake_soc(struct strategy_fg *info, int val);
+static void strategy_fg_set_fake_temp(struct strategy_fg *info, int val);
 
 static ssize_t strategy_fg_sysfs_show(struct device *dev,
 					   struct device_attribute *attr,
@@ -193,6 +195,40 @@ static void strategy_fg_auth_remove_group(struct device *dev)
 				    &strategy_fg_sysfs_attr_group);
 }
 
+static void strategy_fg_set_fake_soc(struct strategy_fg *info, int val)
+{
+	mca_log_err("set fake_soc: %d\n", val);
+	if (val != info->fake_soc) {
+		if (val == STRATEGY_FG_FAKE_SOC_NONE ||
+		    (val >= 0 && val <= 100)) {
+			info->fake_soc = val;
+			cancel_delayed_work_sync(&info->monitor_work);
+			mca_queue_delayed_work(&info->monitor_work, 0);
+
+			mca_event_block_notify(MCA_EVENT_TYPE_BATTERY_INFO,
+					       MCA_EVENT_BATTERY_STS_CHANGE,
+					       NULL);
+		}
+	}
+}
+
+static void strategy_fg_set_fake_temp(struct strategy_fg *info, int val)
+{
+	mca_log_err("set fake_temp: %d\n", val);
+	if (val != info->fake_temp) {
+		info->fake_temp = val;
+		platform_fg_ops_set_temp(FG_IC_MASTER, val);
+		if (info->cfg.fg_type > MCA_FG_TYPE_SINGLE_NUM_MAX)
+			platform_fg_ops_set_temp(FG_IC_SLAVE, val);
+
+		cancel_delayed_work_sync(&info->monitor_work);
+		mca_queue_delayed_work(&info->monitor_work, 0);
+
+		mca_event_block_notify(MCA_EVENT_TYPE_BATTERY_INFO,
+				       MCA_EVENT_BATTERY_STS_CHANGE, NULL);
+	}
+}
+
 static ssize_t strategy_fg_sysfs_store(struct device *dev,
 					    struct device_attribute *attr,
 					    const char *buf, size_t count)
@@ -251,37 +287,12 @@ static ssize_t strategy_fg_sysfs_store(struct device *dev,
 	case FG_PROP_FAKE_SOC:
 		if (kstrtoint(buf, 10, &val))
 			return -EINVAL;
-		mca_log_err("set fake_soc: %d\n", val);
-		if (val != info->fake_soc) {
-			if (val == STRATEGY_FG_FAKE_SOC_NONE ||
-			    (val >= 0 && val <= 100)) {
-				info->fake_soc = val;
-				cancel_delayed_work_sync(&info->monitor_work);
-				mca_queue_delayed_work(&info->monitor_work, 0);
-
-				mca_event_block_notify(
-					MCA_EVENT_TYPE_BATTERY_INFO,
-					MCA_EVENT_BATTERY_STS_CHANGE, NULL);
-			}
-		}
+		strategy_fg_set_fake_soc(info, val);
 		break;
 	case FG_PROP_FAKE_TEMP:
 		if (kstrtoint(buf, 10, &val))
 			return -EINVAL;
-		mca_log_err("set fake_temp: %d\n", val);
-		if (val != info->fake_temp) {
-			info->fake_temp = val;
-			platform_fg_ops_set_temp(FG_IC_MASTER, val);
-			if (info->cfg.fg_type > MCA_FG_TYPE_SINGLE_NUM_MAX)
-				platform_fg_ops_set_temp(FG_IC_SLAVE, val);
-
-			cancel_delayed_work_sync(&info->monitor_work);
-			mca_queue_delayed_work(&info->monitor_work, 0);
-
-			mca_event_block_notify(MCA_EVENT_TYPE_BATTERY_INFO,
-					       MCA_EVENT_BATTERY_STS_CHANGE,
-					       NULL);
-		}
+		strategy_fg_set_fake_temp(info, val);
 		break;
 	case FG_PROP_UPDATE_PERIOD:
 		if (kstrtoint(buf, 10, &val))
