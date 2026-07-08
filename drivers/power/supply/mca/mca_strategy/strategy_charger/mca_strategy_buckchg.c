@@ -203,6 +203,8 @@ static void strategy_buckchg_parse_dt(struct strategy_buckchg_dev *info)
 			  &info->pmic_fv_compensation_hot, 0);
 	mca_parse_dts_u32(info->dev->of_node, "bat_temp_fv_comp_hot_th",
 			  &info->bat_temp_fv_comp_hot_th, 50);
+	mca_parse_dts_u32(info->dev->of_node, "pmic_wls_fv_compensation",
+			  &info->pmic_wls_fv_compensation, 0);
 	mca_parse_dts_u32(info->dev->of_node, "pmic_iterm_compensation",
 			  &info->pmic_iterm_compensation, 30);
 	info->support_diff_temp_comp = of_property_read_bool(
@@ -217,6 +219,8 @@ static void strategy_buckchg_parse_dt(struct strategy_buckchg_dev *info)
 		info->dev->of_node, "support_revchg_screenon");
 	mca_parse_dts_u32(info->dev->of_node, "vusb_ovp_location",
 			  &info->vusb_ovp_location, 0);
+	mca_parse_dts_u32(info->dev->of_node, "terminated_by_cp",
+			  &info->terminated_by_cp, 0);
 
 	ret = mca_parse_dts_u32_array(info->dev->of_node, "rev_req_vadp", idata,
 				      REV_USBIN_TYPE_MAX);

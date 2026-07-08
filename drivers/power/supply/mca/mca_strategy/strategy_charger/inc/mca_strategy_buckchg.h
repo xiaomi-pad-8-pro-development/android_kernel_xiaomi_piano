@@ -153,7 +153,9 @@ struct strategy_buckchg_dev {
 	int bat_temp_fv_comp_cold_th;
 	int pmic_fv_compensation_hot;
 	int bat_temp_fv_comp_hot_th;
+	int pmic_wls_fv_compensation;
 	int pmic_iterm_compensation;
+	int terminated_by_cp;
 	bool support_diff_temp_comp;
 	int support_reverse_quick_charge;
 	int rev_req_vadp[REV_USBIN_TYPE_MAX];
