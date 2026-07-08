@@ -373,6 +373,11 @@ struct strategy_basic_wireless_smartchg_data {
 	int delta_fv;
 };
 
+struct strategy_wireless_irq_node {
+	struct list_head node;
+	int int_mask;
+};
+
 struct strategy_wireless_dev {
 	struct device *dev;
 	int strategy_init_done;
@@ -441,6 +446,10 @@ struct strategy_wireless_dev {
 	struct delayed_work update_wireless_thermal_work;
 	struct delayed_work mutex_unlock_work;
 	struct delayed_work sw_cv_work;
+	struct delayed_work process_irq_work;
+
+	bool wl_irq_running;
+	int irq_node_cnt;
 
 	int online;
 	int otg_boost_src;

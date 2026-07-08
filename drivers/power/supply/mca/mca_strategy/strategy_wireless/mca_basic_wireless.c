@@ -2848,11 +2848,74 @@ static void strategy_wireless_chg_handler(struct strategy_wireless_dev *info)
 }
 
 static void
+strategy_wireless_split_irq_index(struct strategy_wireless_dev *info,
+				  int int_index)
+{
+	struct strategy_wireless_irq_node *irq_node;
+	int bit = 0;
+
+	for (; int_index >= 1; int_index >>= 1, bit++) {
+		if (!(int_index & 0x1))
+			continue;
+
+		irq_node = kmalloc(sizeof(*irq_node), GFP_KERNEL);
+		if (!irq_node) {
+			mca_log_err("alloc irq node failed\n");
+			continue;
+		}
+
+		irq_node->int_mask = 1 << bit;
+		mca_log_info("queue irq node, int_mask = 0x%x\n",
+			     irq_node->int_mask);
+
+		spin_lock(&info->list_lock);
+		list_add(&irq_node->node, &info->header);
+		info->irq_node_cnt++;
+		spin_unlock(&info->list_lock);
+	}
+
+	wake_up(&info->wait_que);
+}
+
+static int strategy_wireless_process_irq(struct strategy_wireless_dev *info)
+{
+	struct strategy_wireless_irq_node *irq_node;
+
+	spin_lock(&info->list_lock);
+	while (!list_empty(&info->header)) {
+		irq_node = list_first_entry(&info->header,
+					    struct strategy_wireless_irq_node,
+					    node);
+		list_del(&irq_node->node);
+		info->irq_node_cnt--;
+		spin_unlock(&info->list_lock);
+
+		info->proc_data.int_flag = __ffs(irq_node->int_mask);
+		strategy_wireless_chg_handler(info);
+		kfree(irq_node);
+
+		spin_lock(&info->list_lock);
+	}
+	spin_unlock(&info->list_lock);
+
+	return !info->wl_irq_running;
+}
+
+static void strategy_wireless_process_irq_work(struct work_struct *work)
+{
+	struct strategy_wireless_dev *info = container_of(
+		work, struct strategy_wireless_dev, process_irq_work.work);
+
+	while (info->wl_irq_running)
+		wait_event(info->wait_que,
+			   strategy_wireless_process_irq(info));
+}
+
+static void
 strategy_wireless_process_int_change(int value,
 				     struct strategy_wireless_dev *info)
 {
-	info->proc_data.int_flag = value;
-	strategy_wireless_chg_handler(info);
+	strategy_wireless_split_irq_index(info, value);
 }
 
 static void
@@ -4362,6 +4425,8 @@ static void strategy_wireless_init_work(struct strategy_wireless_dev *info)
 			  strategy_wireless_mutex_unlock_work);
 	INIT_DELAYED_WORK(&info->sw_cv_work,
 			  strategy_wireless_buckchg_sw_cv_workfunc);
+	INIT_DELAYED_WORK(&info->process_irq_work,
+			  strategy_wireless_process_irq_work);
 }
 
 static int strategy_wireless_init_voter(struct strategy_wireless_dev *info)
@@ -4548,6 +4613,9 @@ static int basic_wireless_class_probe(struct platform_device *pdev)
 	init_waitqueue_head(&info->wait_que);
 	strategy_wireless_init_work(info);
 
+	info->wl_irq_running = true;
+	schedule_delayed_work(&info->process_irq_work, 0);
+
 	(void)mca_strategy_ops_register(STRATEGY_FUNC_TYPE_BASIC_WIRELESS,
 					strategy_wireless_process_event,
 					strategy_wireless_get_status, NULL,
@@ -4581,14 +4649,28 @@ static int basic_wireless_class_probe(struct platform_device *pdev)
 	return ret;
 }
 
+static void strategy_wireless_stop_irq_worker(struct strategy_wireless_dev *info)
+{
+	if (!info)
+		return;
+
+	info->wl_irq_running = false;
+	wake_up(&info->wait_que);
+	cancel_delayed_work_sync(&info->process_irq_work);
+}
+
 static int basic_wireless_class_remove(struct platform_device *pdev)
 {
+	struct strategy_wireless_dev *info = platform_get_drvdata(pdev);
+
+	strategy_wireless_stop_irq_worker(info);
 	strategy_wireless_remove_group(&pdev->dev);
 	return 0;
 }
 
 static void basic_wireless_class_shutdown(struct platform_device *pdev)
 {
+	strategy_wireless_stop_irq_worker(platform_get_drvdata(pdev));
 }
 
 static const struct of_device_id match_table[] = {
