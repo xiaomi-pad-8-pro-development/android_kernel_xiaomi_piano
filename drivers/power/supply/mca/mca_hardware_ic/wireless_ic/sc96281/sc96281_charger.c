@@ -2982,7 +2982,10 @@ static void sc96281_hall_interrupt_work(struct work_struct *work)
 {
 	struct sc96281 *chip =
 		container_of(work, struct sc96281, hall_interrupt_work.work);
+	char event[MCA_EVENT_NOTIFY_SIZE] = { 0 };
+	struct mca_event_notify_data event_data;
 	int ret = 0;
+	int len;
 
 	if (gpio_is_valid(chip->hall_int_gpio)) {
 		ret = gpio_get_value(chip->hall_int_gpio);
@@ -3002,6 +3005,18 @@ static void sc96281_hall_interrupt_work(struct work_struct *work)
 			chip->magnetic_case_flag = false;
 			chip->hall_gpio_status = true;
 		}
+
+		mca_log_info("report hall!!\n");
+		mca_strategy_func_process(STRATEGY_FUNC_TYPE_BASIC_WIRELESS,
+					  MCA_EVENT_WIRELESS_MAGNETIC_CASE_INT,
+					  chip->magnetic_case_flag);
+
+		len = snprintf(event, MCA_EVENT_NOTIFY_SIZE,
+			       "POWER_SUPPLY_WLS_HALL=%d",
+			       chip->magnetic_case_flag);
+		event_data.event = event;
+		event_data.event_len = len;
+		mca_event_report_uevent(&event_data);
 	}
 }
 
