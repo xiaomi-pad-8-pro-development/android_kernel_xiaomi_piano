@@ -460,6 +460,7 @@ static void mca_quick_charge_stop_charging(struct mca_quick_charge_info *info)
 	info->proc_data.ibus_queue.avg = 0;
 	info->check_vbat_ov = false;
 	info->proc_data.stop_charging = false;
+	info->proc_data.dual_cp_count = 0;
 
 	if (info->proc_data.adp_type == XM_CHARGER_TYPE_HVDCP3_B ||
 	    info->proc_data.adp_type == XM_CHARGER_TYPE_HVDCP3P5)
@@ -794,6 +795,8 @@ mca_quick_charge_update_work_mode_para(struct mca_quick_charge_info *info)
 			info->div_delta_ibat[CHG_MODE_DIV1];
 		info->proc_data.multi_ibus_th =
 			info->multi_ibus_th[CHG_MODE_DIV1];
+		info->proc_data.again_multi_ibus_th =
+			info->again_multi_ibus_th[CHG_MODE_DIV1];
 		info->proc_data.open_path = info->open_path_th[CHG_MODE_DIV1];
 		info->proc_data.ibus_inc =
 			info->ibus_inc_hysteresis[CHG_MODE_DIV1];
@@ -817,6 +820,8 @@ mca_quick_charge_update_work_mode_para(struct mca_quick_charge_info *info)
 			info->div_delta_ibat[CHG_MODE_DIV2];
 		info->proc_data.multi_ibus_th =
 			info->multi_ibus_th[CHG_MODE_DIV2];
+		info->proc_data.again_multi_ibus_th =
+			info->again_multi_ibus_th[CHG_MODE_DIV2];
 		info->proc_data.open_path = info->open_path_th[CHG_MODE_DIV2];
 		info->proc_data.ibus_inc =
 			info->ibus_inc_hysteresis[CHG_MODE_DIV2];
@@ -840,6 +845,8 @@ mca_quick_charge_update_work_mode_para(struct mca_quick_charge_info *info)
 			info->div_delta_ibat[CHG_MODE_DIV4];
 		info->proc_data.multi_ibus_th =
 			info->multi_ibus_th[CHG_MODE_DIV4];
+		info->proc_data.again_multi_ibus_th =
+			info->again_multi_ibus_th[CHG_MODE_DIV4];
 		info->proc_data.open_path = info->open_path_th[CHG_MODE_DIV4];
 		info->proc_data.ibus_inc =
 			info->ibus_inc_hysteresis[CHG_MODE_DIV4];
@@ -2802,6 +2809,7 @@ static void mca_quick_charge_try2_multi_path(struct mca_quick_charge_info *info)
 	int ret;
 	int ibus;
 	int cp_role;
+	int th;
 	struct mca_quick_charge_process_data *proc_data = &info->proc_data;
 
 	ret = mca_quick_charge_update_ibus(info);
@@ -2809,7 +2817,11 @@ static void mca_quick_charge_try2_multi_path(struct mca_quick_charge_info *info)
 		return;
 
 	ibus = proc_data->ibus;
-	if (ibus < proc_data->multi_ibus_th + proc_data->ibus_inc)
+	th = proc_data->dual_cp_count ? proc_data->again_multi_ibus_th :
+					proc_data->multi_ibus_th;
+	mca_log_info("multi_ibus_th:%d, dual_cp_count:%d\n", th,
+		     proc_data->dual_cp_count);
+	if (ibus < th + proc_data->ibus_inc)
 		return;
 
 	if (proc_data->cur_work_cp == MCA_QUICK_CHG_CP_MASTER)
@@ -2842,6 +2854,7 @@ static void mca_quick_charge_try2_multi_path(struct mca_quick_charge_info *info)
 		return;
 
 	proc_data->cur_work_cp = MCA_QUICK_CHG_CP_DUAL;
+	proc_data->dual_cp_count++;
 }
 
 static void mca_check_cp_work_mode(struct mca_quick_charge_info *info)
@@ -3845,6 +3858,23 @@ mca_quick_charge_parse_chg_mode_info(struct device_node *node,
 		     info->multi_ibus_th[CHG_MODE_DIV1],
 		     info->multi_ibus_th[CHG_MODE_DIV2],
 		     info->multi_ibus_th[CHG_MODE_DIV4]);
+
+	ret = mca_parse_dts_u32_array(node, "again_multi_ibus_th", idata,
+				      CHG_MODE_MAX);
+	if (ret) {
+		info->again_multi_ibus_th[CHG_MODE_DIV1] =
+			MCA_QUICK_CHG_AGAIN_IBUS_TH_DEFAULT;
+		info->again_multi_ibus_th[CHG_MODE_DIV2] =
+			MCA_QUICK_CHG_AGAIN_IBUS_TH_DEFAULT;
+		info->again_multi_ibus_th[CHG_MODE_DIV4] =
+			MCA_QUICK_CHG_AGAIN_IBUS_TH_DEFAULT;
+	} else {
+		memcpy(info->again_multi_ibus_th, idata, sizeof(idata));
+	}
+	mca_log_info("again_multi_ibus_th %d %d %d\n",
+		     info->again_multi_ibus_th[CHG_MODE_DIV1],
+		     info->again_multi_ibus_th[CHG_MODE_DIV2],
+		     info->again_multi_ibus_th[CHG_MODE_DIV4]);
 
 	ret = mca_parse_dts_u32_array(node, "ibus_inc_hysteresis", idata,
 				      CHG_MODE_MAX);

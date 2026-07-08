@@ -70,6 +70,7 @@
 #define MCA_QUICK_CHG_BUCK_FCC_CURR_TH 0
 #define MCA_QUICK_CHG_PPS_BOOST_FCC_CURR_TH 11000
 #define MCA_QUICK_CHG_IBUS_TH_DEFAULT 1500
+#define MCA_QUICK_CHG_AGAIN_IBUS_TH_DEFAULT 2800
 #define MCA_QUICK_CHG_IBUS_INC_HYS_DEFAULT 200
 #define MCA_QUICK_CHG_IBUS_DEC_HYS_DEFAULT 200
 #define MCA_QUICK_CHG_DIV4_VOLT_TH_HIGH 18000
@@ -384,6 +385,8 @@ struct mca_quick_charge_process_data {
 	int max_curr;
 	int open_path;
 	int multi_ibus_th;
+	int again_multi_ibus_th;
+	int dual_cp_count;
 	int ibus_inc;
 	int ibus_dec;
 	int temp_max_cur[FG_IC_MAX];
@@ -467,6 +470,7 @@ struct mca_quick_charge_info {
 	int div_max_curr[CHG_MODE_MAX];
 	int open_path_th[CHG_MODE_MAX];
 	int multi_ibus_th[CHG_MODE_MAX];
+	int again_multi_ibus_th[CHG_MODE_MAX];
 	int ibus_inc_hysteresis[CHG_MODE_MAX];
 	int ibus_dec_hysteresis[CHG_MODE_MAX];
 	int ibus_compensation[CHG_MODE_MAX];
