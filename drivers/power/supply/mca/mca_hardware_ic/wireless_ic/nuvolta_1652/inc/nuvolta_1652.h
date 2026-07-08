@@ -473,8 +473,6 @@ struct nuvolta_1652_chg {
 	int enable_gpio;
 	int hall_int_gpio;
 	int hall_int_irq;
-	int reverse_txon_gpio;
-	int reverse_boost_gpio;
 	//pinctrl
 	struct pinctrl *nu1652_pinctrl;
 	struct pinctrl_state *pinctrl_stat;

@@ -3217,18 +3217,6 @@ static int nuvolta_1652_parse_dt(struct nuvolta_1652_chg *chip)
 		return -EINVAL;
 	}
 
-	chip->reverse_txon_gpio =
-		of_get_named_gpio(node, "reverse-txon-gpio", 0);
-	if ((!gpio_is_valid(chip->reverse_txon_gpio)))
-		mca_log_err("fail_get_reverse_txon_gpio %d\n",
-			    chip->reverse_txon_gpio);
-
-	chip->reverse_boost_gpio =
-		of_get_named_gpio(node, "reverse-boost-gpio", 0);
-	if ((!gpio_is_valid(chip->reverse_boost_gpio)))
-		mca_log_err("fail_get_reverse_boost_gpio %d\n",
-			    chip->reverse_boost_gpio);
-
 	return 0;
 }
 
