@@ -2459,6 +2459,15 @@ static void strategy_wireless_chg_handler(struct strategy_wireless_dev *info)
 			WIRELESS_ROLE_MASTER, &info->proc_data.epp);
 		if (ret)
 			mca_log_info("get rx power mode failed\n");
+		else if (info->proc_data.epp == 0) {
+			int rsv01da = 0;
+
+			platform_class_wireless_get_rsv_eppmode_fail(
+				WIRELESS_ROLE_MASTER, &rsv01da);
+			mca_log_info(
+				"get value in LDO_ON! eppmode %d rsv01DA = 0x%04x\n",
+				info->proc_data.epp, rsv01da);
+		}
 
 		schedule_delayed_work(&info->update_wireless_thermal_work,
 				      msecs_to_jiffies(0));
