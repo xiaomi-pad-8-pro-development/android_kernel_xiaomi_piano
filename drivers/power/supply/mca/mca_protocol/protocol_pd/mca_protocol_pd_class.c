@@ -64,6 +64,7 @@ static struct protocol_class_pd_ops_data g_protocol_pd_data[TYPEC_PORT_MAX];
 static unsigned int g_cur_port;
 static struct notifier_block g_pd_class_ntf;
 static int device_max_power;
+static int support_mode;
 
 static int protocol_class_pps_get_pwr_cap(void *data, struct adapter_power_cap_info *pwr_cap);
 
@@ -733,8 +734,12 @@ static int protocol_class_pps_adapter_get_max_power(void *data, unsigned int *ma
 		return 0;
 
 	protocol_class_pps_get_pwr_cap(NULL, &pwr_cap);
-	for (i = 0; i < pwr_cap.nums; i++)
+	for (i = 0; i < pwr_cap.nums; i++) {
+		if (support_mode == 2 && type == XM_CHARGER_TYPE_PPS &&
+		    pwr_cap.cap[i].max_voltage >= 11001)
+			continue;
 		power = max(power, pwr_cap.cap[i].max_power / 1000);
+	}
 
 	protocol_class_pps_adapter_get_adv_current(&pwr_cap, MCA_PPS_MAX_VOL_10V, &adv_curr);
 	charger_partition_get_eu_model(&is_eu_model);
@@ -990,6 +995,7 @@ static int protocol_pd_class_probe(struct platform_device *pdev)
 		return ret;
 
 	mca_parse_dts_u32(pdev->dev.of_node, "max_power", &device_max_power, 0);
+	mca_parse_dts_u32(pdev->dev.of_node, "support_mode", &support_mode, 0);
 
 	g_pd_class_ntf.notifier_call = protocol_pd_notify_cb;
 	ret = mca_event_block_notify_register(MCA_EVENT_TYPE_TYPEC_PORT_STATUS, &g_pd_class_ntf);
