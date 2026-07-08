@@ -437,10 +437,15 @@ static void mca_buckchg_jeita_update(struct mca_buckchg_jeita_dev *info)
 		last_chg_curr = info->proc_data.max_chg_curr;
 	} else { //jeita_index not change, check vbat_thre
 		if (info->proc_data.max_chg_curr > last_chg_curr) {
+			bool in_cold_zone = (i == 1 || i == 2 ||
+					     (i == 3 && hys_affect));
+			int low_hyst = in_cold_zone ? info->vbat_low_cold_hyst :
+						      info->vbat_low_hyst;
+
 			if (vbat_index != -1 &&
 			    vbat < jeita_data->volt_para.volt_data[vbat_index]
 						    .voltage -
-					    info->vbat_low_hyst) {
+					    low_hyst) {
 				data_change = 1;
 				mca_log_info(
 					"vbat_thre[l->s]: max_chg_curr:%d, last_chg_curr:%d, vbat_index:%d\n",
@@ -466,7 +471,7 @@ static void mca_buckchg_jeita_update(struct mca_buckchg_jeita_dev *info)
 	vterm = jeita_data->vterm;
 	iterm = jeita_data->iterm;
 
-	if (vterm > info->high_tbat_stop_chg_fv) {
+	if (vterm > ABNORMAL_BATT_FV_MAX) {
 		vterm -= info->smartchg_data.delta_fv;
 		mca_vote(info->en_voter, "jeita-hot", true, 1);
 		if (vterm != info->vterm) {
@@ -833,8 +838,15 @@ static int mca_buckchg_jeita_parse_dt(struct mca_buckchg_jeita_dev *info)
 			  MCA_BUCKCHG_JEITA_VBAT_HIGH_HYST);
 	mca_parse_dts_u32(node, "vbat_low_hyst", &(info->vbat_low_hyst),
 			  MCA_BUCKCHG_JEITA_VBAT_LOW_HYST);
-	mca_parse_dts_u32(node, "high_tbat_stop_chg_fv",
-			  &(info->high_tbat_stop_chg_fv), ABNORMAL_BATT_FV_MAX);
+	mca_parse_dts_u32(node, "vbat_low_cold_hyst",
+			  &(info->vbat_low_cold_hyst),
+			  MCA_BUCKCHG_JEITA_VBAT_LOW_HYST);
+	mca_parse_dts_u32(node, "base_vbat_low_hyst",
+			  &(info->base_vbat_low_hyst),
+			  MCA_BUCKCHG_JEITA_VBAT_LOW_HYST);
+	mca_parse_dts_u32(node, "flip_vbat_low_hyst",
+			  &(info->flip_vbat_low_hyst),
+			  MCA_BUCKCHG_JEITA_VBAT_LOW_HYST);
 	info->has_gbl_batt_para =
 		of_property_read_bool(node, "has-global-batt-para");
 	if (hwid && info->has_gbl_batt_para &&
