@@ -792,6 +792,9 @@ int mca_wireless_rev_enable_reverse_charge(bool enable)
 	char event[MCA_EVENT_NOTIFY_SIZE] = { 0 };
 	struct mca_event_notify_data event_data = { 0 };
 	int len;
+	int cp_mode = 0;
+	int extra = 0;
+	int rev_en = enable;
 
 	if (!info)
 		return -1;
@@ -841,17 +844,24 @@ int mca_wireless_rev_enable_reverse_charge(bool enable)
 		mca_event_report_uevent(&event_data);
 
 		mca_log_err("start reverse_charge_config_work\n");
+		platform_class_cp_get_mode(0, &cp_mode);
+		extra = (cp_mode & 0x4) ? 5000 : 0;
 		schedule_delayed_work(&info->reverse_charge_config_work,
-				      msecs_to_jiffies(200));
+				      msecs_to_jiffies(extra + 200));
 		schedule_delayed_work(
 			&info->tx_ping_timeout_work,
-			msecs_to_jiffies(REVERSE_PING_TIMEOUT_TIMER));
+			msecs_to_jiffies(extra + REVERSE_PING_TIMEOUT_TIMER));
 		schedule_delayed_work(&info->monitor_work,
-				      msecs_to_jiffies(300));
+				      msecs_to_jiffies(75));
+		mca_event_block_notify(MCA_EVENT_TYPE_CHARGER_CONNECT,
+				       MCA_EVENT_WIRELESS_REVCHG, &rev_en);
 	} else {
 		mca_log_err("close");
 		if (!info->proc_data.wireless_reverse_closing) {
 			info->proc_data.wireless_reverse_closing = true;
+			mca_event_block_notify(MCA_EVENT_TYPE_CHARGER_CONNECT,
+					       MCA_EVENT_WIRELESS_REVCHG,
+					       &rev_en);
 			mca_charge_mievent_set_state(MIEVENT_STATE_PLUG, 0);
 			cancel_delayed_work_sync(&info->monitor_work);
 			ret |= platform_class_wireless_enable_reverse_chg(
