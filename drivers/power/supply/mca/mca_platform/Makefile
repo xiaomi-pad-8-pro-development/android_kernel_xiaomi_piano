@@ -8,5 +8,3 @@ obj-$(CONFIG_XM_POWER_SUPPLY)	+= mca_platform_wireless_class.o
 
 #   mca_platform_subpmic_cid_class.o
 
-CFLAGS_mca_platform_base.o += -Wno-error=initializer-overrides
-CFLAGS_mca_platform_loadsw_class.o += -Wno-error=incompatible-pointer-types

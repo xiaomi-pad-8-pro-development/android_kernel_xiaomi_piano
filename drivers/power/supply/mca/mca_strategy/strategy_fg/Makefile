@@ -5,6 +5,5 @@ mca_strategy_fg_comp-objs := mca_strategy_fg.o mca_soc_smooth.o mca_battery_shut
 obj-$(CONFIG_XM_POWER_SUPPLY)	+= mca_strategy_fg_class.o
 obj-$(CONFIG_XM_POWER_SUPPLY)	+= mca_soc_limit.o
 
-CFLAGS_mca_strategy_fg.o += -Wno-error=format
 
 #  mca_battery_auth.o
