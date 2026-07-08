@@ -132,7 +132,6 @@ struct strategy_buckchg_dev {
 	int strategy_init_done;
 	/* dt config */
 	int support_multi_buck;
-	int ship_mode_chip;
 	unsigned int in_dcp;
 	unsigned int in_pd;
 	unsigned int in_hvdcp;

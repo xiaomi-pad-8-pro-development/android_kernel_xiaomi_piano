@@ -154,8 +154,6 @@ static void strategy_buckchg_parse_dt(struct strategy_buckchg_dev *info)
 	mca_parse_dts_u32(info->dev->of_node, "support_multi_buck",
 			  &info->support_multi_buck,
 			  STATEGY_SUPPORT_MULTI_BUCK);
-	mca_parse_dts_u32(info->dev->of_node, "ship_mode_chip",
-			  &info->ship_mode_chip, MAIN_BUCK_CHARGER);
 	mca_parse_dts_u32(info->dev->of_node, "in_dcp", &info->in_dcp,
 			  CHARGE_DCP_INPUT_DEFAULT);
 	mca_parse_dts_u32(info->dev->of_node, "in_pd", &info->in_pd,
@@ -2750,11 +2748,8 @@ static int strategy_buckchg_if_set_ship_mode(const char *user, unsigned int val,
 					     void *data)
 {
 	int rc;
-	struct strategy_buckchg_dev *info = data;
-	mca_log_err("set shipmode chip:%d val:%d\n", info->ship_mode_chip, val);
 
-	rc = platform_class_buckchg_ops_set_ship_mode(info->ship_mode_chip,
-						      !!val);
+	rc = platform_class_buckchg_ops_set_ship_mode(0, !!val);
 	if (rc < 0)
 		return rc;
 
@@ -2764,10 +2759,8 @@ static int strategy_buckchg_if_set_ship_mode(const char *user, unsigned int val,
 static int strategy_buckchg_if_get_ship_mode(bool *val, void *data)
 {
 	int rc;
-	struct strategy_buckchg_dev *info = data;
 
-	rc = platform_class_buckchg_ops_get_ship_mode(info->ship_mode_chip,
-						      val);
+	rc = platform_class_buckchg_ops_get_ship_mode(0, val);
 	if (rc < 0)
 		return rc;
 
