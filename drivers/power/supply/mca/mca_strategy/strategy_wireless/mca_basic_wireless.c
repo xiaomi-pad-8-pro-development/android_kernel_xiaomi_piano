@@ -1449,8 +1449,10 @@ strategy_wireless_send_vout_range_request(struct strategy_wireless_dev *info,
 static int
 strategy_wireless_transparent_success(struct strategy_wireless_dev *info)
 {
+	const struct mca_hwid *hwid;
 	int ret = 0;
 	info->proc_data.set_tx_voltage_cnt = 0;
+	hwid = mca_get_hwid_info();
 
 	switch (info->proc_data.current_for_tx_cmd) {
 	case TX_CMD_TYPE_FREQUENCE:
@@ -1466,7 +1468,9 @@ strategy_wireless_transparent_success(struct strategy_wireless_dev *info)
 		}
 		break;
 	case TX_CMD_TYPE_VOLTAGE:
-		if (0) {
+		if (hwid && hwid->platform_version == 3 &&
+		    info->proc_data.uuid_value ==
+			    XIAOMI_TX_UUID_LOW_INDUCTANCE_50W) {
 			info->proc_data.is_2_1_mode = true;
 			info->proc_data.is_4_1_mode = false;
 		} else {
