@@ -36,6 +36,10 @@
 #define MAX_LENGTH_BYTE 600
 #define MAX_REG_COUNT 0x42
 #define MCA_SET_OVPGATE_COUNT 10
+
+#define EN_BUCK_PROJECT_PLATFORM_VER 3
+#define EN_BUCK_PROJECT_HWID 0x10004
+#define SC8581_EN_BUCK_CP_I2C_ADDR 0x6f
 static int cp_get_adc_data(struct sc8581_device *bq, int channel, u32 *result);
 /********i2c basic read/write interface***********/
 static int cp_read_word(struct i2c_client *client, u8 reg, u16 *val)
@@ -2507,6 +2511,19 @@ static struct mca_log_charge_log_ops g_sc8581_log_ops = {
 	.dump_log_context = sc8581_dump_log_context,
 };
 
+static bool mca_cp_is_en_buck_project_hwid(void)
+{
+	const struct mca_hwid *hwid = mca_get_hwid_info();
+
+	if (!hwid) {
+		mca_log_err("get hwid info failed\n");
+		return false;
+	}
+
+	return hwid->platform_version == EN_BUCK_PROJECT_PLATFORM_VER &&
+	       hwid->hwid_value == EN_BUCK_PROJECT_HWID;
+}
+
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 9))
 static int sc8581_probe(struct i2c_client *client)
 #else
@@ -2525,6 +2542,13 @@ static int sc8581_probe(struct i2c_client *client,
 	bq->client = client;
 	bq->dev = dev;
 	i2c_set_clientdata(client, bq);
+
+	if (mca_cp_is_en_buck_project_hwid()) {
+		mca_log_err("adjust en buck CP addr");
+		client->addr = SC8581_EN_BUCK_CP_I2C_ADDR;
+	} else {
+		mca_log_err("normal CP addr");
+	}
 
 	ret = sc8581_parse_dt(bq);
 	if (ret) {
