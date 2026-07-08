@@ -415,6 +415,7 @@ struct strategy_wireless_dev {
 	int cp_chip_vendor;
 	int max_power;
 	int support_mode;
+	int soc_limit_fcc;
 	int support_q_value;
 	int support_multi_buck;
 	int wls_vdd_src;

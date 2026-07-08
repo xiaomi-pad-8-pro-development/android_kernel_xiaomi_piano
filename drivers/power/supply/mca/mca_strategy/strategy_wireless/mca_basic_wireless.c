@@ -4144,6 +4144,7 @@ static int strategy_wireless_parse_dt(struct strategy_wireless_dev *info)
 	}
 	(void)mca_parse_dts_u32(node, "max_power", &info->max_power, 50);
 	(void)mca_parse_dts_u32(node, "support_mode", &info->support_mode, 4);
+	(void)mca_parse_dts_u32(node, "soc_limit_fcc", &info->soc_limit_fcc, 6000);
 	(void)mca_parse_dts_u32(node, "support_multi_buck",
 				&info->support_multi_buck,
 				MCA_WLS_SUPPORT_MULTI_BUCK);
