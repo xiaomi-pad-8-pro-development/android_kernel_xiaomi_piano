@@ -2117,7 +2117,7 @@ static int mca_strategy_check_lossless_recharge(struct strategy_fg *fg)
 
 	time_diff = ktime_to_ms(ktime_sub(time_now, last_time));
 	time_diff /= 1000;
-	mca_log_info("time_now: %ld, last_time: %ld, time_diff: %ld\n",
+	mca_log_info("time_now: %lld, last_time: %lld, time_diff: %lld\n",
 		     time_now, last_time, time_diff);
 
 	(void)strategy_class_fg_ops_get_temperature(&batt_temp);
