@@ -3102,6 +3102,15 @@ static int strategy_wireless_process_event(int event, int value, void *data)
 		mca_log_info("deal with pmic_init_done\n");
 		mca_rerun_election(info->input_limit_voter);
 		break;
+	case MCA_EVENT_WIRELESS_MAGNETIC_CASE_INT:
+		if (value)
+			mca_charge_mievent_report(
+				CHARGE_DFX_WLS_MAGNETIC_CASE_ATTACH, NULL, 0);
+		else
+			mca_charge_mievent_set_state(
+				MIEVENT_STATE_END,
+				CHARGE_DFX_WLS_MAGNETIC_CASE_ATTACH);
+		break;
 	default:
 		break;
 	}
