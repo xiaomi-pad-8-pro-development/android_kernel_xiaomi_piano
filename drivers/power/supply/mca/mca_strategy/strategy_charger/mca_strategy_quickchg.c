@@ -2238,7 +2238,7 @@ static int mca_quick_charge_select_max_ibat(struct mca_quick_charge_info *info)
 	if (info->support_base_flip && proc_data->sw_ocp_curr)
 		cur_max = min(cur_max, proc_data->sw_ocp_curr);
 	/* will overcharge when cur_max < cur_in and terminate by cp. */
-	if (!info->rawsoc_swith_pmic_th && !info->hardware_cv)
+	if (!info->hardware_cv)
 		cur_max = max(cur_max, cur_min);
 
 	if (info->proc_data.adp_type == XM_CHARGER_TYPE_PPS &&
@@ -4022,8 +4022,6 @@ static int mca_quick_charge_parse_dt(struct mca_quick_charge_info *info)
 				&info->pps_taper_vol_hys,
 				MCA_QUICK_CHG_PPS_TAPER_HYS);
 	(void)mca_parse_dts_u32(node, "hardware_cv", &info->hardware_cv, 0);
-	(void)mca_parse_dts_u32(node, "rawsoc_swith_pmic_th",
-				&info->rawsoc_swith_pmic_th, 0);
 	(void)mca_parse_dts_u32(node, "support_curr_monitor",
 				&info->support_curr_monitor, 0);
 	(void)mca_parse_dts_u32(node, "curr_monitor_time_s",
