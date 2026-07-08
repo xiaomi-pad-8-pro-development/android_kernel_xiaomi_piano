@@ -93,6 +93,7 @@ static void mca_buckchg_base_jeita_update(struct mca_buckchg_jeita_dev *info)
 	static int last_fastcharge_mode;
 	static bool runswocp;
 	int vbat_index = -1;
+	int vbat = 0;
 
 	if (!info->base_jeita_para.jeita_data || !info->voter_ok) {
 		mca_log_err("jeita data not ready\n");
@@ -110,6 +111,8 @@ static void mca_buckchg_base_jeita_update(struct mca_buckchg_jeita_dev *info)
 	temp /= 10;
 	fastcharge_mode = strategy_class_fg_get_fastcharge();
 	mca_log_err("fastcharge_mode is %d\n", fastcharge_mode);
+	platform_fg_ops_get_volt(FG_IC_MASTER, &vbat);
+	mca_log_info("vbat is %d\n", vbat);
 
 	if (!fastcharge_mode) {
 		for (i = 0; i < info->base_jeita_para.size; i++) {
@@ -218,6 +221,7 @@ static void mca_buckchg_flip_jeita_update(struct mca_buckchg_jeita_dev *info)
 	int hys_affect = 0;
 	static int last_fastcharge_mode;
 	int vbat_index = -1;
+	int vbat = 0;
 
 	if (!info->flip_jeita_para.jeita_data || !info->voter_ok) {
 		mca_log_err("jeita data not ready\n");
@@ -233,6 +237,8 @@ static void mca_buckchg_flip_jeita_update(struct mca_buckchg_jeita_dev *info)
 	temp /= 10;
 	fastcharge_mode = strategy_class_fg_get_fastcharge();
 	mca_log_err("fastcharge_mode is %d\n", fastcharge_mode);
+	platform_fg_ops_get_volt(FG_IC_SLAVE, &vbat);
+	mca_log_info("vbat is %d\n", vbat);
 
 	if (!fastcharge_mode) {
 		for (i = 0; i < info->flip_jeita_para.size; i++) {
@@ -820,6 +826,7 @@ static int mca_buckchg_jeita_parse_dt(struct mca_buckchg_jeita_dev *info)
 	struct mca_buckchg_jeita_para *flip_jeita_info = &info->flip_jeita_para;
 	struct device_node *node = info->dev->of_node;
 	const struct mca_hwid *hwid = mca_get_hwid_info();
+	const char *dev_name = NULL;
 	int ret;
 
 	mca_parse_dts_u32(node, "vbat_high_hyst", &(info->vbat_high_hyst),
@@ -833,6 +840,19 @@ static int mca_buckchg_jeita_parse_dt(struct mca_buckchg_jeita_dev *info)
 	if (hwid && info->has_gbl_batt_para &&
 	    hwid->country_version != CountryCN)
 		node = of_find_node_by_name(NULL, "mca_buckchg_jeita_gbl_para");
+
+	if (of_find_property(node, "has-tmp-batt-para", NULL)) {
+		platform_fg_ops_get_device_name(FG_IC_MASTER, &dev_name);
+		if (!dev_name) {
+			mca_log_err("get device name fail, wait for it\n");
+			return -EPROBE_DEFER;
+		}
+		mca_log_err("project O9 tmp test: device name: %s\n", dev_name);
+		if (!strcmp(dev_name, "2@BP"))
+			node = of_find_node_by_name(
+				NULL, "mca_buckchg_jeita_gbl_para");
+	}
+
 	if (!node) {
 		mca_log_err("node in null\n");
 		return -1;
@@ -1091,6 +1111,14 @@ static int mca_buckchg_jeita_probe(struct platform_device *pdev)
 
 	info->dev = &pdev->dev;
 	ret = mca_buckchg_jeita_parse_dt(info);
+	if (ret == -EPROBE_DEFER) {
+		static int parse_dt_cnt;
+
+		dev_err(&pdev->dev, "%s buckchg_jeita parse_dt_cnt = %d\n",
+			__func__, ++parse_dt_cnt);
+		msleep(100);
+		return parse_dt_cnt <= 49 ? -EPROBE_DEFER : -1;
+	}
 	if (ret) {
 		mca_log_err("parse dt failed\n");
 		return -1;
