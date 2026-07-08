@@ -3098,6 +3098,10 @@ static int strategy_wireless_process_event(int event, int value, void *data)
 		mca_log_info("battery health change\n");
 		strategy_wireless_process_battery_health_change(info);
 		break;
+	case MCA_EVENT_PMIC_INIT_DONE:
+		mca_log_info("deal with pmic_init_done\n");
+		mca_rerun_election(info->input_limit_voter);
+		break;
 	default:
 		break;
 	}
