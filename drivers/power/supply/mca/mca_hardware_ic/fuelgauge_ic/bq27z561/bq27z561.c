@@ -3540,38 +3540,23 @@ static int fg_clear_count_data(struct bq_fg_chip *bq)
 
 static const char *fg_get_device_name(struct bq_fg_chip *bq)
 {
+	const struct mca_hwid *hwid = mca_get_hwid_info();
+	char data[8] = { 0 };
 	int ret;
-	char data[20] = {0};
-	char result[10] = {0};
-	char *start, *end;
 
 	if (strcmp(bq->fake_device_name, "") != 0)
 		return bq->fake_device_name;
 
-	ret = fg_mac_read_block(bq, FG_MAC_CMD_DEVICE_NAME, data, 20);
+	ret = fg_mac_read_block(bq, FG_MAC_CMD_DEVICE_NAME, data, 8);
 	if (ret < 0) {
 		mca_log_err("could not read device_name, ret=%d\n", ret);
 		return bq->device_name;
 	}
 	// O2@BP54#    XM34@BMX0#
 	memset(bq->device_name, 0, sizeof(bq->device_name));
-	if (0) {
-		memcpy(bq->device_name, data, 5);
-	} else {
-		start = strchr(data, '@');
-		end = strchr(data, '#');
-
-		if (start && end && start < end) {
-			start++; // jump over '@'
-			strncpy(result, start, end - start);
-			result[end - start] = '\0';
-		} else {
-			mca_log_err(KERN_INFO "Parsing failed, full dev name:%s\n", data);
-		}
-
-		memcpy(bq->device_name, result, strlen(result));
-	}
-	mca_log_info("0x004A: %s, model_name: %s\n", data, bq->device_name);
+	memcpy(bq->device_name, data, 5);
+	mca_log_info("0x004A: %s, model_name: %s, hwid: %u\n", data,
+		     bq->device_name, hwid ? hwid->hwid_value : 0);
 
 	return bq->device_name;
 }
