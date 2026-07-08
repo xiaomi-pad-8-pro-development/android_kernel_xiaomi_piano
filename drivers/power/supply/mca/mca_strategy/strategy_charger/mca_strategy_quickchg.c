@@ -2544,7 +2544,12 @@ static int mca_quick_charge_regulation(struct mca_quick_charge_info *info)
 	} else {
 		if (cur_stage == (2 * volt_para_size - 1))
 			info->proc_data.ibus_compensation = 0;
-		else {
+		else if (info->support_cancel_compensation &&
+			 vbat > info->max_vbat_threshold) {
+			info->proc_data.ibus_compensation = 0;
+			mca_log_info("max_vbat_threshold %d, vbat %d\n",
+				     info->max_vbat_threshold, vbat);
+		} else {
 			if (!info->proc_data.ibus_compensation) {
 				switch (info->proc_data.work_mode) {
 				case MCA_QUICK_CHG_MODE_DIV_1:
@@ -4022,6 +4027,10 @@ static int mca_quick_charge_parse_dt(struct mca_quick_charge_info *info)
 				&info->pps_taper_vol_hys,
 				MCA_QUICK_CHG_PPS_TAPER_HYS);
 	(void)mca_parse_dts_u32(node, "hardware_cv", &info->hardware_cv, 0);
+	info->support_cancel_compensation =
+		of_property_read_bool(node, "support_cancel_compensation");
+	(void)mca_parse_dts_u32(node, "max_vbat_threshold",
+				&info->max_vbat_threshold, 5000);
 	(void)mca_parse_dts_u32(node, "support_curr_monitor",
 				&info->support_curr_monitor, 0);
 	(void)mca_parse_dts_u32(node, "curr_monitor_time_s",

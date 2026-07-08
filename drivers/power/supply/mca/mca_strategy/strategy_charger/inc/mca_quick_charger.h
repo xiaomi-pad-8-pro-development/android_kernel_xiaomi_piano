@@ -490,6 +490,8 @@ struct mca_quick_charge_info {
 	int pps_taper_vol_hys;
 	int fc2_taper_timer;
 	int hardware_cv;
+	int support_cancel_compensation;
+	int max_vbat_threshold;
 	int has_gbl_batt_para;
 	bool taper_done_no_retry;
 	bool pd_switch_to_pmic;
