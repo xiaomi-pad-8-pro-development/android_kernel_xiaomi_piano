@@ -197,8 +197,6 @@ static void strategy_buckchg_parse_dt(struct strategy_buckchg_dev *info)
 			  &info->ffc_temp_high, ALLOW_FFC_TEMP_HIGH_THR);
 	mca_parse_dts_u32(info->dev->of_node, "pmic_fv_compensation",
 			  &info->pmic_fv_compensation, 0);
-	mca_parse_dts_u32(info->dev->of_node, "support_hw_bc12", &info->hw_bc12,
-			  DEFAULT_SUPPORT_HW_BC12);
 	mca_parse_dts_u32(info->dev->of_node, "vbat_fg_to_pmic_ratio",
 			  &info->vbat_fg_to_pmic_ratio,
 			  VBAT_FG_TO_PMIC_RATIO_DEFAULT);
@@ -220,8 +218,6 @@ static void strategy_buckchg_parse_dt(struct strategy_buckchg_dev *info)
 			  &info->vusb_ovp_location, 0);
 	mca_parse_dts_u32(info->dev->of_node, "sw_cv_vterm_th",
 			  &info->sw_cv_vterm_th, STATEGY_CHARGE_VTERM_LOW_TH);
-	mca_parse_dts_u32(info->dev->of_node, "full_replug_ichg_limit",
-			  &info->full_replug_ichg_limit, 0);
 
 	ret = mca_parse_dts_u32_array(info->dev->of_node, "rev_req_vadp", idata,
 				      REV_USBIN_TYPE_MAX);

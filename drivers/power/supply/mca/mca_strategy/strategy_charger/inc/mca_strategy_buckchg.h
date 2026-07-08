@@ -82,7 +82,6 @@
 #define VBAT_FG_TO_PMIC_RATIO_DEFAULT 1
 #define VOTE_BUCK_VTERM_BUF_DEFAULT 0
 #define VOTE_BUCK_ITERM_BUF_DEFAULT 0
-#define DEFAULT_SUPPORT_HW_BC12 0
 #define MCA_WIRE_CHARGE_DEFAULT_IBUS_CURRENT 500
 #define MCA_WIRE_CHARGE_DEFAULT_IBAT_CURRENT 500
 #define FULL_REPLUG_LIMIT_RAWSOC_TH 9900
@@ -208,12 +207,10 @@ struct strategy_buckchg_dev {
 	bool sw_cv_running;
 	bool is_non_compliant_qc;
 	bool non_compliant_run_once;
-	int hw_bc12;
 	int vbat_fg_to_pmic_ratio;
 	int vote_buck_vterm_buf;
 	int vote_buck_iterm_buf;
 	int sw_cv_vterm_th;
-	int full_replug_ichg_limit;
 	bool dpdm_detect_done;
 	bool need_cp_to_pmic;
 	bool support_base_flip;
