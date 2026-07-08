@@ -482,7 +482,9 @@ struct mca_quick_charge_info {
 	int qc3p5_max_ibat_limit_ma;
 	int qc_taper_fcc_ma;
 	int pps_taper_fcc_ma;
+	int pps_middle_taper_fcc_ma;
 	int pps_high_taper_fcc_ma;
+	int qc_taper_soc_thr;
 	int quick_chg_fv_hys;
 	int qc_normal_charge_fv_max_mv;
 	int qc3_taper_vol_hys;

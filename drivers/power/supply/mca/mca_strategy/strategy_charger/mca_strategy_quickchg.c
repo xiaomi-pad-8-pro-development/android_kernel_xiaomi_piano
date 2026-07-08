@@ -251,8 +251,9 @@ static bool mca_qc_check_if_goto_taper(struct mca_quick_charge_info *info)
 		     info->qc_normal_charge_fv_max_mv, vbat_th);
 	ibat_now_ma = info->proc_data.ibat_total;
 
-	if (info->proc_data.vbat[FG_IC_MASTER] > vbat_th &&
-	    ibat_now_ma < info->qc_taper_fcc_ma) {
+	if ((info->proc_data.vbat[FG_IC_MASTER] > vbat_th &&
+	     ibat_now_ma < info->qc_taper_fcc_ma) ||
+	    strategy_class_fg_ops_get_soc() > info->qc_taper_soc_thr) {
 		if (info->fc2_taper_timer++ > MCA_TAPER_TIMEOUT) {
 			info->taper_done_no_retry = true;
 			mca_log_info("qc taper done\n");
@@ -283,8 +284,9 @@ static bool mca_check_if_goto_hw_taper(struct mca_quick_charge_info *info)
 
 	if (info->support_base_flip) {
 		strategy_class_fg_ops_get_temperature(&temp);
-		temp = temp / 10;
-		if (temp > 40)
+		if (temp >= 300 && temp < 400)
+			ibat_th = info->pps_middle_taper_fcc_ma;
+		else if (temp >= 400)
 			ibat_th = info->pps_high_taper_fcc_ma;
 	}
 	vbat_now_mv = info->proc_data.vbat[FG_IC_MASTER];
@@ -4012,9 +4014,14 @@ static int mca_quick_charge_parse_dt(struct mca_quick_charge_info *info)
 	(void)mca_parse_dts_u32(node, "pps_taper_fcc_thr",
 				&info->pps_taper_fcc_ma,
 				MCA_QUICK_CHG_QC_TAPER_FCC_THR_DEFAULT);
+	(void)mca_parse_dts_u32(node, "pps_middle_taper_fcc_thr",
+				&info->pps_middle_taper_fcc_ma,
+				MCA_QUICK_CHG_QC_TAPER_FCC_THR_DEFAULT);
 	(void)mca_parse_dts_u32(node, "pps_high_taper_fcc_thr",
 				&info->pps_high_taper_fcc_ma,
 				MCA_QUICK_CHG_QC_TAPER_FCC_THR_DEFAULT);
+	(void)mca_parse_dts_u32(node, "qc_taper_soc_thr",
+				&info->qc_taper_soc_thr, 100);
 	(void)mca_parse_dts_u32(node, "quick_chg_fv_hys",
 				&info->quick_chg_fv_hys, 1);
 	(void)mca_parse_dts_u32(node, "qc3_taper_vol_hys",
