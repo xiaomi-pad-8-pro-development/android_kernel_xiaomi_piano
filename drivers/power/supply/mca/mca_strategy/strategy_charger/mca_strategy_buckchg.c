@@ -195,15 +195,18 @@ static void strategy_buckchg_parse_dt(struct strategy_buckchg_dev *info)
 			  &info->ffc_temp_high, ALLOW_FFC_TEMP_HIGH_THR);
 	mca_parse_dts_u32(info->dev->of_node, "pmic_fv_compensation",
 			  &info->pmic_fv_compensation, 0);
-	mca_parse_dts_u32(info->dev->of_node, "vbat_fg_to_pmic_ratio",
-			  &info->vbat_fg_to_pmic_ratio,
-			  VBAT_FG_TO_PMIC_RATIO_DEFAULT);
-	mca_parse_dts_u32(info->dev->of_node, "vote_buck_vterm_buf",
-			  &info->vote_buck_vterm_buf,
-			  VOTE_BUCK_VTERM_BUF_DEFAULT);
-	mca_parse_dts_u32(info->dev->of_node, "vote_buck_iterm_buf",
-			  &info->vote_buck_iterm_buf,
-			  VOTE_BUCK_ITERM_BUF_DEFAULT);
+	mca_parse_dts_u32(info->dev->of_node, "pmic_fv_compensation_cold",
+			  &info->pmic_fv_compensation_cold, 0);
+	mca_parse_dts_u32(info->dev->of_node, "bat_temp_fv_comp_cold_th",
+			  &info->bat_temp_fv_comp_cold_th, 0);
+	mca_parse_dts_u32(info->dev->of_node, "pmic_fv_compensation_hot",
+			  &info->pmic_fv_compensation_hot, 0);
+	mca_parse_dts_u32(info->dev->of_node, "bat_temp_fv_comp_hot_th",
+			  &info->bat_temp_fv_comp_hot_th, 50);
+	mca_parse_dts_u32(info->dev->of_node, "pmic_iterm_compensation",
+			  &info->pmic_iterm_compensation, 30);
+	info->support_diff_temp_comp = of_property_read_bool(
+		info->dev->of_node, "support_diff_temp_comp");
 	info->support_reverse_quick_charge = of_property_read_bool(
 		info->dev->of_node, "support_reverse_quick_charge");
 	info->need_cp_to_pmic = of_property_read_bool(info->dev->of_node,
@@ -214,8 +217,6 @@ static void strategy_buckchg_parse_dt(struct strategy_buckchg_dev *info)
 		info->dev->of_node, "support_revchg_screenon");
 	mca_parse_dts_u32(info->dev->of_node, "vusb_ovp_location",
 			  &info->vusb_ovp_location, 0);
-	mca_parse_dts_u32(info->dev->of_node, "sw_cv_vterm_th",
-			  &info->sw_cv_vterm_th, STATEGY_CHARGE_VTERM_LOW_TH);
 
 	ret = mca_parse_dts_u32_array(info->dev->of_node, "rev_req_vadp", idata,
 				      REV_USBIN_TYPE_MAX);
@@ -374,8 +375,6 @@ static int strategy_buckchg_charge_limit(struct mca_votable *votable,
 
 	mca_log_err("set chg current %d\n", effective_result);
 
-	effective_result *= info->vbat_fg_to_pmic_ratio;
-
 	if (info->support_multi_buck)
 		return strategy_buckchg_process_multi_charge_limit(
 			info, effective_result);
@@ -397,16 +396,30 @@ static int strategy_buckchg_set_vterm(struct mca_votable *votable, void *data,
 {
 	struct strategy_buckchg_dev *info = NULL;
 	int vterm = 0;
+	int batt_temp = 0;
+	int compensation;
 
 	if (!data)
 		return -1;
-	else {
-		info = data;
-		vterm = effective_result + info->pmic_fv_compensation;
-	}
 
-	vterm = (vterm / info->vbat_fg_to_pmic_ratio) +
-		info->vote_buck_vterm_buf;
+	info = data;
+
+	if (info->support_base_flip)
+		strategy_class_fg_get_fastcharge();
+
+	strategy_class_fg_ops_get_temperature(&batt_temp);
+	batt_temp = batt_temp / 10;
+
+	if (batt_temp < info->bat_temp_fv_comp_cold_th &&
+	    info->support_diff_temp_comp)
+		compensation = info->pmic_fv_compensation_cold;
+	else if (batt_temp > info->bat_temp_fv_comp_hot_th &&
+		 info->support_diff_temp_comp)
+		compensation = info->pmic_fv_compensation_hot;
+	else
+		compensation = info->pmic_fv_compensation;
+
+	vterm = compensation + effective_result;
 
 	if (info->support_multi_buck)
 		return strategy_buckchg_process_multi_vterm(info, vterm);
@@ -431,8 +444,11 @@ static int strategy_buckchg_set_iterm(struct mca_votable *votable, void *data,
 	if (!data)
 		return -1;
 
-	effective_result = (effective_result * info->vbat_fg_to_pmic_ratio) +
-			   info->vote_buck_iterm_buf;
+	if (info->support_base_flip)
+		info->pmic_iterm_compensation =
+			strategy_class_fg_get_fastcharge() ? 40 : 0;
+
+	effective_result = info->pmic_iterm_compensation + effective_result;
 
 	if (info->support_multi_buck)
 		return strategy_buckchg_process_multi_iterm(info,
@@ -2164,7 +2180,7 @@ static void strategy_buckchg_monitor_workfunc(struct work_struct *work)
 	vterm = mca_get_effective_result(info->vterm_voter);
 	input_suspned = mca_get_effective_result(info->input_suppend_voter);
 	chg_en = mca_get_effective_result(info->chg_enable_voter);
-	if (vterm >= info->sw_cv_vterm_th && !input_suspned) {
+	if (vterm >= STATEGY_CHARGE_VTERM_LOW_TH && !input_suspned) {
 		if (chg_en &&
 		    info->proc_data.chg_status == MCA_BUCK_CHG_NO_CHARGING) {
 			strategy_class_buckchg_ops_set_chg(info, false);
@@ -2174,8 +2190,7 @@ static void strategy_buckchg_monitor_workfunc(struct work_struct *work)
 	}
 	strategy_buckchg_charge_abnormal_cold_or_hot_zone(info);
 
-	if (info->proc_data.vbat <=
-	    vterm - (20 * info->vbat_fg_to_pmic_ratio)) {
+	if (info->proc_data.vbat <= vterm - 20) {
 		vbat_drop_cnt++;
 	}
 	vbat_drop_exit_flag = vbat_drop_cnt >= VBAT_DROP_COUNT_TH ? true :
@@ -2183,7 +2198,7 @@ static void strategy_buckchg_monitor_workfunc(struct work_struct *work)
 	vbat_drop_cnt = vbat_drop_exit_flag ? 0 : vbat_drop_cnt;
 
 	if (info->proc_data.chg_status == MCA_BUCK_CHG_STS_CHARGING &&
-	    !info->sw_cv_running && vterm >= info->sw_cv_vterm_th &&
+	    !info->sw_cv_running && vterm >= STATEGY_CHARGE_VTERM_LOW_TH &&
 	    info->proc_data.vbat >= vterm - CHARGE_SW_CV_VBAT_ALARM_DELTA) {
 		mca_log_err("vbat: %d, vterm: %d, start sw_cv_work\n",
 			    info->proc_data.vbat, vterm);
