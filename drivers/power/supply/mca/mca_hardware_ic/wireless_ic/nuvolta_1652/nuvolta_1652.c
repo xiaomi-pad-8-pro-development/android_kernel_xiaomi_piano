@@ -149,88 +149,6 @@ static int nuvolta_1652_set_enable_mode(bool enable, void *data)
 	return ret;
 }
 
-static int nuvolta_1652_set_external_boost_enable(bool enable, void *data)
-{
-	int ret = 0;
-	int en = !!enable;
-	int gpio_enable_val = 0;
-	struct nuvolta_1652_chg *chip = (struct nuvolta_1652_chg *)data;
-
-	mca_log_info("set external boost enable:%d\n", enable);
-
-	if (enable) {
-		if (gpio_is_valid(chip->reverse_txon_gpio)) {
-			ret = gpio_request(chip->reverse_txon_gpio,
-					   "reverse-txon-gpio");
-			if (ret)
-				mca_log_err("request txon gpio [%d] failed\n",
-					    chip->reverse_txon_gpio);
-			ret = gpio_direction_output(chip->reverse_txon_gpio,
-						    en);
-			if (ret)
-				mca_log_err(
-					"set txon gpio [%d] output failed\n",
-					chip->reverse_txon_gpio);
-			gpio_enable_val =
-				gpio_get_value(chip->reverse_txon_gpio);
-			mca_log_err("reverse txon gpio is %d\n",
-				    gpio_enable_val);
-			gpio_free(chip->reverse_txon_gpio);
-		}
-
-		if (gpio_is_valid(chip->reverse_boost_gpio)) {
-			ret = gpio_request(chip->reverse_boost_gpio,
-					   "reverse-boost-gpio");
-			if (ret)
-				mca_log_err("request boost gpio [%d] failed\n",
-					    chip->reverse_boost_gpio);
-			ret = gpio_direction_output(chip->reverse_boost_gpio,
-						    en);
-			if (ret)
-				mca_log_err(
-					"set boost gpio [%d] output failed\n",
-					chip->reverse_boost_gpio);
-			gpio_free(chip->reverse_boost_gpio);
-		}
-	} else {
-		if (gpio_is_valid(chip->reverse_boost_gpio)) {
-			ret = gpio_request(chip->reverse_boost_gpio,
-					   "reverse-boost-gpio");
-			if (ret)
-				mca_log_err("request boost gpio [%d] failed\n",
-					    chip->reverse_boost_gpio);
-			ret = gpio_direction_output(chip->reverse_boost_gpio,
-						    en);
-			if (ret)
-				mca_log_err(
-					"set boost gpio [%d] output failed\n",
-					chip->reverse_boost_gpio);
-			gpio_free(chip->reverse_boost_gpio);
-		}
-
-		if (gpio_is_valid(chip->reverse_txon_gpio)) {
-			ret = gpio_request(chip->reverse_txon_gpio,
-					   "reverse-txon-gpio");
-			if (ret)
-				mca_log_err("request txon gpio [%d] failed\n",
-					    chip->reverse_txon_gpio);
-			ret = gpio_direction_output(chip->reverse_txon_gpio,
-						    en);
-			if (ret)
-				mca_log_err(
-					"set txon gpio [%d] output failed\n",
-					chip->reverse_txon_gpio);
-			gpio_enable_val =
-				gpio_get_value(chip->reverse_txon_gpio);
-			mca_log_err("reverse txon gpio is %d\n",
-				    gpio_enable_val);
-			gpio_free(chip->reverse_txon_gpio);
-		}
-	}
-
-	return ret;
-}
-
 static int nuvolta_1652_check_i2c(struct nuvolta_1652_chg *chip)
 {
 	int ret = 0;
@@ -1484,24 +1402,6 @@ static int nuvolta_1652_get_magnetic_case_flag(bool *status, void *data)
 	else
 		*status = false;
 
-	return 0;
-}
-
-static int nuvolta_1652_get_phone_case_category(int *category, void *data)
-{
-	struct nuvolta_1652_chg *chip = (struct nuvolta_1652_chg *)data;
-
-	*category = chip->phone_case_category;
-	mca_log_info("get phone_case_category: %d\n", *category);
-	return 0;
-}
-
-static int nuvolta_1652_set_phone_case_category(int category, void *data)
-{
-	struct nuvolta_1652_chg *chip = (struct nuvolta_1652_chg *)data;
-
-	chip->phone_case_category = category;
-	mca_log_info("set phone_case_category: %d\n", category);
 	return 0;
 }
 
@@ -2767,9 +2667,6 @@ static struct platform_class_wireless_ops nuvolta_1652_wls_ops = {
 	.wls_get_trx_isense = nuvolta_1652_get_trx_isense,
 	.wls_get_trx_vrect = nuvolta_1652_get_trx_vrect,
 	.wls_get_magnetic_case_flag = nuvolta_1652_get_magnetic_case_flag,
-	.wls_set_external_boost_enable = nuvolta_1652_set_external_boost_enable,
-	.wls_get_phone_case_category = nuvolta_1652_get_phone_case_category,
-	.wls_set_phone_case_category = nuvolta_1652_set_phone_case_category,
 };
 
 //-------------------------irq & work---------------------------
