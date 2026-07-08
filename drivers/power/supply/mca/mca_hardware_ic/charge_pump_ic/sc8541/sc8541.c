@@ -955,6 +955,12 @@ static int sc8541_register_irq(struct sc8541_device *sc)
 	return 0;
 }
 
+static void sc8541_register_platform(struct sc8541_device *sc)
+{
+	sc8541_update_bits(sc, SC8541_REG_0F, 0x80, 0);
+	platform_class_cp_register_ops(sc->cp_role, &sc8541_chg_ops, sc);
+}
+
 static int sc8541_probe(struct i2c_client *client)
 {
 	struct sc8541_device *sc;
@@ -1005,8 +1011,7 @@ static int sc8541_probe(struct i2c_client *client)
 		return ret;
 	}
 
-	sc8541_update_bits(sc, SC8541_REG_0F, 0x80, 0);
-	platform_class_cp_register_ops(sc->cp_role, &sc8541_chg_ops, sc);
+	sc8541_register_platform(sc);
 
 #ifdef CONFIG_DEBUG_FS
 	reg_info.address = 0;
