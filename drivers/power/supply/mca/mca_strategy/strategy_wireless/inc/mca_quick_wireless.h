@@ -343,6 +343,9 @@ struct mca_wireless_quick_charge_info {
 	int ibus_inc_hysteresis[CHG_MODE_MAX];
 	int ibus_dec_hysteresis[CHG_MODE_MAX];
 	int support_mode;
+	int support_cp_num_switch;
+	int try_single_cp_fcc;
+	int max_rx_vout_request;
 	int has_gbl_batt_para;
 	int support_hall;
 	bool support_base_flip;

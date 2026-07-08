@@ -1599,8 +1599,8 @@ static int mca_wireless_quick_charge_req_adp_volt(
 {
 	mca_log_info("req adp volt=%d\n", info->proc_data.cur_adp_volt);
 
-	if (info->proc_data.cur_adp_volt > 19500)
-		info->proc_data.cur_adp_volt = 19500;
+	if (info->proc_data.cur_adp_volt > info->max_rx_vout_request)
+		info->proc_data.cur_adp_volt = info->max_rx_vout_request;
 
 	return mca_wireless_quick_charge_vout_setting(
 		info, info->proc_data.cur_adp_volt);
@@ -1951,9 +1951,18 @@ static void mca_wireless_quick_charge_try2_single_path(
 	if (ret)
 		return;
 
-	ibus = proc_data->ibus;
-	if (ibus > proc_data->multi_ibus_th - proc_data->ibus_dec)
-		return;
+	if (info->support_cp_num_switch) {
+		int fcc = mca_get_effective_result(info->charge_limit_voter);
+
+		mca_log_err("cgx curr_fcc %d, sw_single_cp_fcc %d\n", fcc,
+			    info->try_single_cp_fcc);
+		if (fcc > info->try_single_cp_fcc)
+			return;
+	} else {
+		ibus = proc_data->ibus;
+		if (ibus > proc_data->multi_ibus_th - proc_data->ibus_dec)
+			return;
+	}
 
 	// TODO:add sysfs
 	if (1 /*proc_data->cp_path_enable[CP_ROLE_MASTER]*/) {
@@ -2627,11 +2636,18 @@ mca_wireless_quick_charge_parse_dt(struct mca_wireless_quick_charge_info *info)
 	(void)mca_parse_dts_u32(node, "adp_temp_max", &info->adp_temp_max,
 				MCA_WLS_QUICK_CHG_MAX_TADP_DEFAULT);
 	(void)mca_parse_dts_u32(node, "support_mode", &info->support_mode, 0);
+	(void)mca_parse_dts_u32(node, "support-cp-num-switch",
+				&info->support_cp_num_switch, 0);
+	if (info->support_cp_num_switch)
+		(void)mca_parse_dts_u32(node, "try-single-cp-fcc",
+					&info->try_single_cp_fcc, 6000);
 	info->has_gbl_batt_para =
 		of_property_read_bool(node, "has-global-batt-para");
 	(void)mca_parse_dts_u32(node, "support-hall", &info->support_hall, 0);
 	info->support_base_flip =
 		of_property_read_bool(node, "support-base-flip");
+	(void)mca_parse_dts_u32(node, "max_rx_vout_request",
+				&info->max_rx_vout_request, 19500);
 	mca_wireless_quick_charge_parse_chg_mode_info(node, info);
 	/* charge para */
 	mca_wireless_quick_charge_parse_vstep_para(info);
