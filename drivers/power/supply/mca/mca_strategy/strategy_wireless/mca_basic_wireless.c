@@ -2278,6 +2278,11 @@ static void strategy_wireless_power_good_on(struct strategy_wireless_dev *info)
 	platform_class_loadsw_set_lowpower_mode(LOADSW_ROLE_MASTER, false);
 	(void)platform_class_wireless_get_project_vendor(WIRELESS_ROLE_MASTER,
 							 &info->project_vendor);
+	(void)platform_class_cp_get_chip_vendor(CP_ROLE_MASTER,
+						&info->cp_chip_vendor);
+	if (!info->cp_chip_vendor)
+		(void)platform_class_cp_enable_ovpgate_with_check(
+			CP_ROLE_MASTER, 2, false);
 	(void)platform_class_wireless_get_magnetic_case_flag(
 		WIRELESS_ROLE_MASTER, &info->proc_data.magnetic_case_flag);
 	info->wait_for_reverse_test = false;
@@ -2362,6 +2367,9 @@ static void strategy_wireless_power_good_off(struct strategy_wireless_dev *info)
 	cancel_delayed_work_sync(&info->wls_drawload_work);
 
 	platform_class_loadsw_set_lowpower_mode(LOADSW_ROLE_MASTER, true);
+	if (!info->cp_chip_vendor)
+		(void)platform_class_cp_enable_ovpgate_with_check(
+			CP_ROLE_MASTER, 2, true);
 	usb_input_suspend = mca_get_effective_result(info->input_suspend_voter);
 	if (!usb_input_suspend)
 		platform_class_buckchg_ops_set_hiz(MAIN_BUCK_CHARGER, false);

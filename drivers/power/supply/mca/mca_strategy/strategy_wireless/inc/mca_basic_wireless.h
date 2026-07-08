@@ -411,6 +411,7 @@ struct strategy_wireless_dev {
 
 	//dt config
 	int project_vendor;
+	int cp_chip_vendor;
 	int max_power;
 	int support_mode;
 	int support_q_value;
