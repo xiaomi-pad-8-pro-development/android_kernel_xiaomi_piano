@@ -1072,10 +1072,14 @@ static void mca_wireless_update_fw_mainthread_work(struct work_struct *work)
 	/* report any firmware-upgrade failure info from the wireless IC (stock
 	 * reads this after the update; mca_charge_mievent DFX reporting of it is
 	 * pending the charge_mievent table fix) */
-	if (platform_class_wireless_get_fw_upgrade_fail_info(WIRELESS_ROLE_MASTER,
-							    &fw_fail_info) >= 0 &&
-	    fw_fail_info)
-		mca_log_err("wls fw upgrade fail info: %s\n", fw_fail_info);
+	if (info->proc_data.firmware_update_state == FIRMWARE_UPDATE_ERROR &&
+	    platform_class_wireless_get_fw_upgrade_fail_info(
+		    WIRELESS_ROLE_MASTER, &fw_fail_info) != -EOPNOTSUPP) {
+		if (!fw_fail_info)
+			fw_fail_info = "Unknown";
+		mca_charge_mievent_report(CHARGE_DFX_WLS_FW_UPGRADE_FAIL,
+					  &fw_fail_info, 1);
+	}
 
 	info->proc_data.wls_sleep_fw_update = false;
 	info->proc_data.fw_updating = false;
