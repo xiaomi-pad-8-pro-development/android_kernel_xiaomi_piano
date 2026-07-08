@@ -5654,7 +5654,7 @@ static struct i2c_device_id bq_fg_id[] = {
 	{},
 };
 
-static int fg_get_one_pack_vendor(void *data, int *vendor)
+static int fg_get_pack_vendor(void *data, int *vendor)
 {
 	struct bq_fg_chip *info = (struct bq_fg_chip *)data;
 
@@ -5709,7 +5709,7 @@ static struct fuelguage_ic_ops g_bq_fg_ops = {
 	.fg_ic_get_count_level3 = fg_get_one_count_level3,
 	.fg_ic_get_count_lowtemp = fg_get_one_count_lowtemp,
 	.fg_ic_get_adapt_power = fg_get_one_adapt_power,
-	.fg_ic_get_pack_vendor = fg_get_one_pack_vendor,
+	.fg_ic_get_pack_vendor = fg_get_pack_vendor,
 	.fg_ic_get_average_current = fg_get_one_average_current,
 	.fg_ic_get_aged_flag = fg_get_aged_flag,
 	.fg_ic_get_isc_alert_level = fg_get_one_isc_alert_level,
