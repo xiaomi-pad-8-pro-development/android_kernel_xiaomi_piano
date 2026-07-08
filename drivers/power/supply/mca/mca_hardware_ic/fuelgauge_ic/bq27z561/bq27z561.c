@@ -2269,7 +2269,6 @@ static int fg_read_first_usage_date(struct bq_fg_chip *bq, u8 *buf)
 {
 	unsigned char t_buf[64] = { 0 };
 	int ret, i, len;
-	unsigned char buf1, buf2;
 	char first_usage_date[9] = {'0', '0', '0', '0', '0', '0', '0', '0', '\0'};
 
 	ret = fg_mac_read_block(bq, FG_MAC_CMD_UI_SOH, t_buf, 32);
@@ -2278,38 +2277,44 @@ static int fg_read_first_usage_date(struct bq_fg_chip *bq, u8 *buf)
 		mca_log_info("failed to get first_usage_date\n");
 		return ret;
 	}
-	/*t_buf[11] year0x00-0x09,t_buf[12] month,0x01-0x0C,t_buf[13] day0x26,day26*/
-	first_usage_date[3] = '0' + (t_buf[11] & 0xF);
+	/*t_buf[11] year0x00-0x09,t_buf[12] month 0x01-0x0C,t_buf[13] day */
+	first_usage_date[0] = '2';
+	first_usage_date[1] = '0';
+	first_usage_date[2] = '0' + t_buf[11] / 10;
+	first_usage_date[3] = '0' + t_buf[11] % 10;
+	first_usage_date[4] = '0' + t_buf[12] / 10;
+	first_usage_date[5] = '0' + t_buf[12] % 10;
+	first_usage_date[6] = '0' + t_buf[13] / 10;
+	first_usage_date[7] = '0' + t_buf[13] % 10;
 
-	buf1 = t_buf[13] / 10;
-	buf2 = t_buf[13] % 10;
-	first_usage_date[6] = '0' + (buf1 & 0xF);
-	first_usage_date[7] = '0' + (buf2 & 0xF);
-
-	switch (t_buf[12]){
-	case 10:
-		first_usage_date[4] = '1';
-		first_usage_date[5] = '0';
-		break;
-	case 11:
-		first_usage_date[4] = '1';
-		first_usage_date[5] = '1';
-		break;
-	case 12:
-		first_usage_date[4] = '1';
-		first_usage_date[5] = '2';
-		break;
-	default:
-		first_usage_date[4] = '0';
-		first_usage_date[5] = '0' + (t_buf[12] & 0xF);
-		break;
+	if (!strncmp(&first_usage_date[2], "000000", 6)) {
+		memcpy(first_usage_date, "00000000", 8);
+		mca_log_info("usage_date init %s\n", first_usage_date);
+	} else {
+		if (!strncmp(first_usage_date, "2004", 4)) {
+			first_usage_date[2] = '2';
+			mca_log_info("11-11 version compatiable\n");
+		} else if (!strncmp(first_usage_date, "2052", 4)) {
+			first_usage_date[2] = '2';
+			first_usage_date[3] = '4';
+			first_usage_date[4] = '0';
+			first_usage_date[5] = '9';
+			first_usage_date[6] = '0';
+			first_usage_date[7] = '1';
+			mca_log_info("09-13 version compatiable\n");
+		}
+		for (i = 0; i < 8; i++) {
+			if (first_usage_date[i] < '0' ||
+			    first_usage_date[i] > '9') {
+				memcpy(buf, "99999999", 8);
+				mca_log_info("usage data has invalid char [%s]\n",
+					     first_usage_date);
+				return 0;
+			}
+		}
+		mca_log_err("read successs = %s\n", first_usage_date);
 	}
 
-	if (strncmp(&first_usage_date[3], "00000", 5)) {
-		first_usage_date[0] = '2';
-		first_usage_date[2] = '2';
-	} //read date != 00000000, show date
-	mca_log_err("read first_usage_date=%s\n", first_usage_date);
 	len = strlen(first_usage_date);
 	for (i = 0; i < len; i++)
 		buf[i] = first_usage_date[i];
