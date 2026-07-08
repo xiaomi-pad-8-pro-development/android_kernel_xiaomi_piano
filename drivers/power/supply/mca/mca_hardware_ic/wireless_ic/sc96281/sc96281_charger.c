@@ -1423,6 +1423,28 @@ static int sc96281_get_tx_adapter(int *adapter, void *data)
 	return 0;
 }
 
+static int sc96281_get_tx_adapter_by_i2c(int *adapter, void *data)
+{
+	struct sc96281 *chip = (struct sc96281 *)data;
+	u8 val = 0;
+	int ret;
+
+	if (!chip->proc_data.power_good_flag) {
+		*adapter = 0;
+		return 0;
+	}
+
+	/* 0x01D8: TX adapter type register */
+	ret = sc96281_read_block(chip, 0x01D8, &val, 1);
+	if (!ret)
+		chip->proc_data.adapter_type = val;
+
+	*adapter = chip->proc_data.adapter_type;
+	mca_log_info("wls_get_adapter: %d\n", chip->proc_data.adapter_type);
+
+	return 0;
+}
+
 static int sc96281_set_enable_mode(bool enable, void *data)
 {
 	int ret = 0;
@@ -2728,6 +2750,7 @@ static struct platform_class_wireless_ops sc96281_wls_ops = {
 	.wls_get_vrect = sc96281_get_vrect,
 	.wls_get_temp = sc96281_get_temp,
 	.wls_get_tx_adapter = sc96281_get_tx_adapter,
+	.wls_get_tx_adapter_by_i2c = sc96281_get_tx_adapter_by_i2c,
 	.wls_get_fw_upgrade_fail_info = sc96281_get_fw_upgrade_fail_info,
 	.wls_get_rsv_eppmode_fail = sc96281_rx_get_rsv_eppmode_fail,
 	.wls_set_enable_mode = sc96281_set_enable_mode,
