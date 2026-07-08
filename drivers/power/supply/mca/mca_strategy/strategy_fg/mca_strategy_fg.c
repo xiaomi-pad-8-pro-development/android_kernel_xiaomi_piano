@@ -78,7 +78,6 @@
 #define STRATEGY_FG_SOC_PROPORTION_C 96
 #define STRATEGY_FG_ADAPT_POWER 0
 #define STRATEGY_FG_SUPPORT_DTPT 0
-#define STRATEGY_FG_SUPPORT_GLOBAL 0
 #define STRATEGY_FG_TERMINATED_BY_CP 0
 #define STRATEGY_FG_SUPPORT_FL4P0 0
 #define JEITA_COOL_THR_DEGREE 150
@@ -2794,7 +2793,7 @@ static int strategy_fg_ops_get_model_name(void *data, const char **model_name)
 	*model_name = fg->cfg.model_name;
 
 country_select:
-	if (!fg->cfg.support_global)
+	if (!fg->cfg.show_model_by_country)
 		return 0;
 
 	switch (hwid->country_version) {
@@ -3149,9 +3148,8 @@ static int strategy_fg_parse_dt(struct strategy_fg *fg)
 				    &(fg->cfg.model_name_gl));
 	ret |= mca_parse_dts_string(node, "model-name-in",
 				    &(fg->cfg.model_name_in));
-	ret |= mca_parse_dts_u32(node, "support_global",
-				 &(fg->cfg.support_global),
-				 STRATEGY_FG_SUPPORT_GLOBAL);
+	fg->cfg.show_model_by_country =
+		!!of_find_property(node, "show-model-by-country-version", NULL);
 	mca_parse_dts_u32(node, "support_nvt1000_ota",
 			  &(fg->cfg.support_nvt1000_ota), 0);
 	if (ret) {
@@ -3735,10 +3733,7 @@ static int strategy_fg_probe(struct platform_device *pdev)
 	}
 
 	fg->batt_psy = power_supply_get_by_name("battery");
-	if (fg->cfg.support_global)
-		charger_partition_get_eu_model(&fg->is_eu_model);
-	else
-		fg->is_eu_model = false;
+	charger_partition_get_eu_model(&fg->is_eu_model);
 	if (fg->is_eu_model)
 		fg->boot_update_soc = true;
 	mca_log_info("probe is_eu_model[%d]\n", fg->is_eu_model);

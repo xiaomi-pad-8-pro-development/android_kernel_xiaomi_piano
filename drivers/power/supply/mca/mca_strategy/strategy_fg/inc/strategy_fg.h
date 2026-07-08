@@ -125,7 +125,7 @@ struct strategy_fg_cfg {
 	int fg_hightemp_vterm;
 	int support_fl4p0;
 	int ffc_safe_item[SAFE_ITERM_CYCLE_LEVEL][SAFE_ITERM_TEMP_LEVEL];
-	int support_global;
+	int show_model_by_country;
 	int support_nvt1000_ota;
 };
 
