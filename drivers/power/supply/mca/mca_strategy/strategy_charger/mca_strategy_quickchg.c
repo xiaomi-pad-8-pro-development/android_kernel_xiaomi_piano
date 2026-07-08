@@ -472,16 +472,28 @@ static void mca_quick_charge_stop_charging(struct mca_quick_charge_info *info)
 		info->proc_data.cur_adp_volt = MCA_QUICK_CHG_ADP_DEFAULT_VOLT;
 	info->proc_data.cur_adp_cur = MCA_QUICK_CHG_ADP_DEFAULT_CURR;
 	info->pd_switch_to_pmic = true;
-	while (check_count++ < 10 && info->proc_data.cp_iic_ok) {
-		ret = mca_quick_charge_req_adp_volt_and_cur(info);
-		platform_class_cp_get_bus_voltage(CP_ROLE_MASTER, &vbus_mv);
-		mca_log_info("avoid vusb_ovp. cp_vbus: %d\n", vbus_mv);
-		if (vbus_mv < MCA_QUICK_CHG_VBUS_OK_HIGH_TH)
-			break;
+	if ((info->proc_data.adp_type == XM_CHARGER_TYPE_PD ||
+	     info->proc_data.adp_type == XM_CHARGER_TYPE_PD_VERIFY) &&
+	    info->pmic_chg_need_fixed_volt) {
+		protocol_class_pd_set_fixed_volt(TYPEC_PORT_0,
+						 MCA_QUICK_CHG_ADP_DEFAULT_VOLT);
+		if (stategy_quickchg_is_pdo_9v(info) && !info->trigger_antr_burn)
+			protocol_class_pd_set_fixed_volt(
+				TYPEC_PORT_0,
+				MCA_QUICK_PD_FIXED_CHG_ADP_DEFAULT_VOLT);
+	} else {
+		while (check_count++ < 10 && info->proc_data.cp_iic_ok) {
+			ret = mca_quick_charge_req_adp_volt_and_cur(info);
+			platform_class_cp_get_bus_voltage(CP_ROLE_MASTER,
+							  &vbus_mv);
+			mca_log_info("avoid vusb_ovp. cp_vbus: %d\n", vbus_mv);
+			if (vbus_mv < MCA_QUICK_CHG_VBUS_OK_HIGH_TH)
+				break;
 
-		if (ret)
-			mca_log_err("stop req volt failed\n");
-		msleep(300);
+			if (ret)
+				mca_log_err("stop req volt failed\n");
+			msleep(300);
+		}
 	}
 
 	if (info->proc_data.cp_iic_ok) {
@@ -4036,6 +4048,8 @@ static int mca_quick_charge_parse_dt(struct mca_quick_charge_info *info)
 	(void)mca_parse_dts_u32(node, "hardware_cv", &info->hardware_cv, 0);
 	info->support_cancel_compensation =
 		of_property_read_bool(node, "support_cancel_compensation");
+	info->pmic_chg_need_fixed_volt =
+		of_property_read_bool(node, "pmic-chg-need-fixed-volt");
 	(void)mca_parse_dts_u32(node, "max_vbat_threshold",
 				&info->max_vbat_threshold, 5000);
 	(void)mca_parse_dts_u32(node, "support_curr_monitor",
