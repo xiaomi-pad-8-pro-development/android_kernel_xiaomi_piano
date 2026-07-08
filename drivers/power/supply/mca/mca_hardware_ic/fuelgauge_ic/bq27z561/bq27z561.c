@@ -33,6 +33,7 @@
 #include <mca/strategy/strategy_class.h>
 #include "hwid.h"
 #include "inc/bq27z561.h"
+#include "inc/bq27z561_nfg1000_fw.h"
 #include <mca/platform/platform_buckchg_class.h>
 
 #ifndef MCA_LOG_TAG
@@ -4217,6 +4218,8 @@ static int bq_parse_dt(struct bq_fg_chip *bq)
 
 	bq->support_version_compatible =
 		of_property_read_bool(node, "support-version-compatible");
+	mca_parse_dts_u32(node, "support_nvt1000_ota",
+			  &bq->support_nvt1000_ota, 0);
 
 	return 0;
 }
@@ -4395,6 +4398,431 @@ static int fg_toggle_co(struct bq_fg_chip *bq, u8 co_cmd, int expect, u8 *data)
 	}
 
 	return (co_state == want) ? 0 : -1;
+}
+
+#define NFG1000_STATUS_CMD	0x3f
+#define NFG1000_ERASE_REG	0x37
+#define NFG1000_WRITE_REG	0x30
+#define NFG1000_READ_REG	0x31
+#define NFG1000_SECTION_SIZE	0x200
+#define NFG1000_PAGE_SIZE	0x80
+
+u8 GetCRC8(u8 *buf, int len)
+{
+	int crc = 0, i;
+
+	while (len--) {
+		crc ^= *buf++;
+		for (i = 0; i < 8; i++)
+			crc = ((s8)crc < 0) ? ((crc << 1) ^ 0x07) :
+					      (crc << 1);
+	}
+	return crc;
+}
+
+static int nfg1000_write(struct bq_fg_chip *bq, u8 reg, u8 *buf,
+					 u8 len)
+{
+	int ret;
+
+	mutex_lock(&bq->i2c_rw_lock);
+	ret = __fg_write_block(bq->client, reg, buf, len);
+	mutex_unlock(&bq->i2c_rw_lock);
+	return ret;
+}
+
+static int nfg1000_status_ok(struct bq_fg_chip *bq)
+{
+	u8 wbuf = NFG1000_STATUS_CMD;
+	u8 rbuf[3] = { 0 };
+	struct i2c_msg msg[2];
+	int ret;
+
+	if (!bq->client || !bq->client->adapter)
+		return -ENODEV;
+
+	msg[0].addr = bq->client->addr;
+	msg[0].flags = 0;
+	msg[0].len = 1;
+	msg[0].buf = &wbuf;
+	msg[1].addr = bq->client->addr;
+	msg[1].flags = I2C_M_RD;
+	msg[1].len = sizeof(rbuf);
+	msg[1].buf = rbuf;
+
+	mutex_lock(&bq->i2c_rw_lock);
+	ret = i2c_transfer(bq->client->adapter, msg, 2);
+	mutex_unlock(&bq->i2c_rw_lock);
+	if (ret < 0)
+		return ret;
+
+	return (rbuf[0] == 0x01 && rbuf[1] == 0x55 && rbuf[2] == 0x48) ? 0 :
+									-EIO;
+}
+
+static int nfg1000_erase_flash_step(struct bq_fg_chip *bq, u32 addr, u8 param)
+{
+	u8 frame[10];
+	int ret, retry;
+
+	frame[0] = 0xaa;
+	frame[1] = NFG1000_ERASE_REG;
+	frame[2] = 0x06;
+	frame[3] = addr & 0xff;
+	frame[4] = (addr >> 8) & 0xff;
+	frame[5] = (addr >> 16) & 0xff;
+	frame[6] = 0;
+	frame[7] = param;
+	frame[8] = 0;
+	frame[9] = GetCRC8(frame, 9);
+
+	for (retry = 0; retry < 5; retry++) {
+		ret = nfg1000_write(bq, frame[1], &frame[2], 8);
+		msleep((param & 0xff) * 10);
+		if (ret < 0) {
+			mca_log_err("erase write fail\n");
+		} else if (nfg1000_status_ok(bq) == 0) {
+			usleep_range(2000, 2100);
+			return 0;
+		} else {
+			usleep_range(2000, 2100);
+			mca_log_err("erase status fail\n");
+		}
+		usleep_range(10000, 10100);
+	}
+
+	mca_log_err("erase flash step 0x%x fail\n", addr);
+	return -1;
+}
+
+static int nfg1000_read_flash_step(struct bq_fg_chip *bq, u32 addr, u8 *buf,
+				   int len)
+{
+	u8 frame[8];
+	struct i2c_msg msg[2];
+	u8 raddr[3];
+	int ret, retry;
+
+	frame[0] = 0xaa;
+	frame[1] = NFG1000_READ_REG;
+	frame[2] = 0x04;
+	frame[3] = 0x04;
+	frame[4] = 0x04;
+	frame[5] = 0x04;
+	frame[6] = 0;
+	frame[7] = GetCRC8(frame, 7);
+
+	for (retry = 0; retry < 5; retry++) {
+		ret = nfg1000_write(bq, frame[1], &frame[2], 6);
+		usleep_range(2000, 2100);
+		if (ret < 0) {
+			mca_log_err("read setup fail\n");
+			usleep_range(10000, 10100);
+			continue;
+		}
+
+		if (!bq->client || !bq->client->adapter)
+			return -ENODEV;
+		raddr[0] = 0xaa;
+		raddr[1] = addr & 0xff;
+		raddr[2] = 0xab;
+		msg[0].addr = bq->client->addr;
+		msg[0].flags = 0;
+		msg[0].len = sizeof(raddr);
+		msg[0].buf = raddr;
+		msg[1].addr = bq->client->addr;
+		msg[1].flags = I2C_M_RD;
+		msg[1].len = len;
+		msg[1].buf = buf;
+
+		mutex_lock(&bq->i2c_rw_lock);
+		ret = i2c_transfer(bq->client->adapter, msg, 2);
+		mutex_unlock(&bq->i2c_rw_lock);
+		usleep_range(2000, 2100);
+		if (ret >= 0)
+			return 0;
+		usleep_range(10000, 10100);
+	}
+
+	mca_log_err("read flash step 0x%x fail\n", addr);
+	return -1;
+}
+
+static int nfg1000_update_flash_step(struct bq_fg_chip *bq, u32 addr,
+				     u8 *src)
+{
+	u8 frame[8];
+	u8 page[2 + NFG1000_PAGE_SIZE];
+	u8 verify[NFG1000_SECTION_SIZE];
+	int ret, off;
+
+	if (nfg1000_erase_flash_step(bq, addr, 1) < 0)
+		mca_log_err("update: erase 0x%x fail\n", addr);
+
+	for (off = 0; off < NFG1000_SECTION_SIZE; off += NFG1000_PAGE_SIZE) {
+		u32 paddr = addr + off;
+
+		frame[0] = 0xaa;
+		frame[1] = NFG1000_WRITE_REG;
+		frame[2] = 0x04;
+		frame[3] = paddr & 0xff;
+		frame[4] = (paddr >> 8) & 0xff;
+		frame[5] = (paddr >> 16) & 0xff;
+		frame[6] = 0;
+		frame[7] = GetCRC8(frame, 7);
+		ret = nfg1000_write(bq, frame[1], &frame[2], 6);
+		usleep_range(2000, 2100);
+		if (ret < 0)
+			mca_log_err("update: setup 0x%x fail\n", paddr);
+
+		page[0] = 0xaa;
+		page[1] = paddr & 0xff;
+		memcpy(&page[2], src + off, NFG1000_PAGE_SIZE);
+		ret = nfg1000_write(bq, page[0], &page[1], 1 + NFG1000_PAGE_SIZE);
+		usleep_range(10000, 10100);
+		if (ret < 0)
+			mca_log_err("update: write 0x%x fail\n", paddr);
+	}
+
+	if (nfg1000_read_flash_step(bq, addr, verify, NFG1000_SECTION_SIZE) < 0)
+		return -1;
+	for (off = 0; off < NFG1000_SECTION_SIZE; off++) {
+		if (verify[off] != src[off]) {
+			mca_log_err("update: verify 0x%x mismatch\n", addr);
+			return -1;
+		}
+	}
+	return 0;
+}
+
+static int nfg1000_ota_program_step5_update_gauge(struct bq_fg_chip *bq)
+{
+	static const u32 erase_addr[] = { 0x3400, 0xda00, 0xd800, 0x1e200 };
+	int i, section = bq->nfg1000_section;
+	u8 *src = nfg1000_code_data + section * 0xe00 + 0x200;
+
+	for (i = 0; i < ARRAY_SIZE(erase_addr); i++) {
+		if (nfg1000_erase_flash_step(bq, erase_addr[i], 1) < 0)
+			mca_log_err("step5 erase 0x%x fail\n", erase_addr[i]);
+	}
+
+	if (nfg1000_update_flash_step(bq, 0x1f000, src) < 0) {
+		mca_log_err("step5 program fail\n");
+		return -1;
+	}
+	return 0;
+}
+
+static int nfg1000_ota_program_step6_CheckCrc(struct bq_fg_chip *bq)
+{
+	u8 frame[12];
+	int ret;
+
+	memset(frame, 0, sizeof(frame));
+	frame[0] = 0xaa;
+	frame[1] = 0x8b;
+	frame[2] = 0x01;
+	frame[10] = 0x0a;
+	frame[11] = GetCRC8(frame, 11);
+
+	ret = nfg1000_write(bq, frame[1], &frame[2], 10);
+	usleep_range(2000, 2100);
+	msleep(100);
+	if (ret < 0 || nfg1000_status_ok(bq) < 0) {
+		mca_log_err("step6 crc check fail\n");
+		return -1;
+	}
+	usleep_range(2000, 2100);
+	return 0;
+}
+
+static int nfg1000_ota_program_step7_ExitBoot(struct bq_fg_chip *bq)
+{
+	u8 frame[5];
+	int ret;
+
+	frame[0] = 0xaa;
+	frame[1] = 0x3d;
+	frame[2] = 0x01;
+	frame[3] = 0x00;
+	frame[4] = GetCRC8(frame, 4);
+
+	ret = nfg1000_write(bq, frame[1], &frame[2], 3);
+	usleep_range(2000, 2100);
+	usleep_range(10000, 10100);
+	if (ret < 0 || nfg1000_status_ok(bq) < 0) {
+		mca_log_err("step7 exit boot fail\n");
+		return -1;
+	}
+	return 0;
+}
+
+static int nfg1000_update_judge(struct bq_fg_chip *bq)
+{
+	u8 name[16] = { 0 };
+	u8 ffn[6] = { 0 };
+	u8 sub[2] = { 0 };
+	int ret;
+
+	mutex_lock(&bq->i2c_rw_lock);
+	ret = __fg_mac_read_block(bq, 0x4a, name, 16);
+	if (ret < 0) {
+		mca_log_err("judge: read name fail\n");
+		return 1;
+	}
+	if (name[0] != 'X' || name[1] != 'M' || name[2] != '1' ||
+	    name[3] != '5')
+		return 1;
+
+	mutex_lock(&bq->i2c_rw_lock);
+	ret = __fg_mac_read_block(bq, 0x4b, ffn, 6);
+	if (ret < 0) {
+		mca_log_err("judge: read ffn fail\n");
+		return 1;
+	}
+	if (ffn[0] != 'F' || ffn[1] != 'F' || ffn[2] != 'N')
+		return 1;
+	if (ffn[3] < 'B' || ffn[3] > 'N') {
+		if (ffn[3] != 'A')
+			return 1;
+	}
+
+	mutex_lock(&bq->i2c_rw_lock);
+	if (ffn[3] == 'A')
+		ret = __fg_mac_read_block(bq, 0x05, sub, 2);
+	else
+		ret = __fg_mac_read_block(bq, 0x08, sub, 2);
+	if (ret < 0) {
+		mca_log_err("judge: read sub fail\n");
+		return 1;
+	}
+
+	return sub[1] ? 1 : 0;
+}
+
+static int nfg1000_update_APP(struct bq_fg_chip *bq)
+{
+	u8 cmd[4];
+	u8 verify[NFG1000_SECTION_SIZE];
+
+	cmd[0] = 0x00; cmd[1] = 0x0f;
+	nfg1000_write(bq, 0x00, cmd, 2);
+	cmd[0] = 0x34; cmd[1] = 0x12;
+	nfg1000_write(bq, 0x00, cmd, 2);
+	cmd[0] = 0x34; cmd[1] = 0x12;
+	nfg1000_write(bq, 0x00, cmd, 2);
+	usleep_range(2000, 2100);
+
+	cmd[0] = 0x36; cmd[1] = 0x00; cmd[2] = 0x00;
+	nfg1000_write(bq, 0x36, cmd, 3);
+	usleep_range(2000, 2100);
+	nfg1000_write(bq, 0x36, cmd, 3);
+	usleep_range(2000, 2100);
+	if (nfg1000_status_ok(bq) < 0)
+		mca_log_err("update_APP: enter boot fail\n");
+
+	if (nfg1000_read_flash_step(bq, 0x1f000, verify, 0x50) < 0)
+		mca_log_err("update_APP: read 0x1f000 fail\n");
+	if (nfg1000_read_flash_step(bq, 0x1e000, verify, 0x50) < 0)
+		mca_log_err("update_APP: read 0x1e000 fail\n");
+	if (nfg1000_read_flash_step(bq, 0x3600, verify, 0x50) < 0)
+		mca_log_err("update_APP: read 0x3600 fail\n");
+
+	bq->nfg1000_section = bq->fw_ver;
+
+	if (nfg1000_ota_program_step5_update_gauge(bq) < 0)
+		return -1;
+	if (nfg1000_ota_program_step6_CheckCrc(bq) < 0)
+		return -1;
+	if (nfg1000_ota_program_step7_ExitBoot(bq) < 0)
+		return -1;
+
+	msleep(1500);
+	return 0;
+}
+
+static int nfg1000_ota_update_check(struct bq_fg_chip *bq)
+{
+	u8 cmd[4];
+	int ret = 0, i;
+
+	if (nfg1000_update_judge(bq))
+		return 0;
+
+	cmd[0] = 0x00; cmd[1] = 0x0f;
+	nfg1000_write(bq, 0x00, cmd, 2);
+	usleep_range(2000, 2100);
+
+	for (i = 0; i < 3; i++) {
+		ret = nfg1000_update_APP(bq);
+		if (ret == 0)
+			break;
+		mca_log_err("ota update attempt %d fail\n", i);
+		nfg1000_ota_program_step7_ExitBoot(bq);
+		msleep(1500);
+	}
+
+	return ret;
+}
+
+static void nfg1000_boot_app_judge(struct bq_fg_chip *bq)
+{
+	u8 alt_mac_data[2] = { 0x00, 0x02 };	/* 0x0200 */
+	u16 volt = 0;
+	u8 boot_cmd = 0;
+	int ret = 0, i;
+
+	if (!bq->support_nvt1000_ota)
+		return;
+
+	for (i = 0; i < 3; i++) {
+		mutex_lock(&bq->i2c_rw_lock);
+		ret = __fg_read_word(bq->client, bq->regs[BQ_FG_REG_VOLT],
+				     &volt);
+		mutex_unlock(&bq->i2c_rw_lock);
+		if (ret >= 0)
+			break;
+		mca_log_err("could not read volt ret = %d\n", ret);
+		msleep(100);
+	}
+	if (ret < 0)
+		return;
+
+	for (i = 0; i < 3; i++) {
+		mutex_lock(&bq->i2c_rw_lock);
+		__fg_write_block(bq->client, bq->regs[BQ_FG_REG_ALT_MAC],
+				 alt_mac_data, 2);
+		mutex_unlock(&bq->i2c_rw_lock);
+		usleep_range(1000, 1100);
+		mutex_lock(&bq->i2c_rw_lock);
+		ret = __fg_read_byte(bq->client, 0x3f, &boot_cmd);
+		mutex_unlock(&bq->i2c_rw_lock);
+		if (ret >= 0)
+			break;
+		mca_log_err("could not read boot_cmd = %d\n", 0x3f);
+		msleep(100);
+	}
+
+	if (volt == 0 && boot_cmd == 1) {
+		for (i = 0; i < 3; i++) {
+			ret = nfg1000_update_APP(bq);
+			if (ret == 0)
+				break;
+			nfg1000_ota_program_step7_ExitBoot(bq);
+			msleep(1500);
+		}
+	} else {
+		nfg1000_ota_update_check(bq);
+	}
+}
+
+static int fg_get_ota_update_flag(void *data, int *flag)
+{
+	struct bq_fg_chip *bq = (struct bq_fg_chip *)data;
+
+	*flag = bq->ota_update_flag;
+	mca_log_info("ota update flag %d\n", *flag);
+	return 0;
 }
 
 static int fg_get_csd_flag(struct bq_fg_chip *bq)
@@ -5294,6 +5722,7 @@ static struct fuelguage_ic_ops g_bq_fg_ops = {
 	.fg_ic_set_clear_count_data = fg_set_one_clear_count_data,
 	.fg_ic_get_fc = fg_read_one_fc,
 	.fg_ic_set_co = fg_set_one_co,
+	.fg_ic_get_ota_update_flag = fg_get_ota_update_flag,
 	.fg_ic_get_calibration_ffc_iterm = fg_get_one_calibration_ffc_iterm,
 	.fg_ic_get_real_supplement_energy = fg_get_one_real_supplement_energy,
 	.fg_ic_get_calibration_charge_energy = fg_get_one_calibration_charge_energy,
@@ -5401,6 +5830,7 @@ static int bq_fg_probe(struct i2c_client *client, const struct i2c_device_id *id
 	fg_read_vendor(bq);
 	fg_read_fw_version(bq);
 	fg_read_eeprom_version(bq);
+	nfg1000_boot_app_judge(bq);
 
 	ret = platform_fg_ic_ops_register(bq->dev_role, bq, &g_bq_fg_ops);
 	if (ret) {
@@ -5449,6 +5879,8 @@ static int bq_fg_resume(struct device *dev)
 
 	mca_log_info("resume\n");
 	atomic_set(&bq->pm_suspend, 0); /* 0: clear atomic pm suspend flag */
+	if (bq->fg_vendor == NFG1000A || bq->fg_vendor == NFG1000B)
+		nfg1000_ota_update_check(bq);
 
 	return 0;
 }

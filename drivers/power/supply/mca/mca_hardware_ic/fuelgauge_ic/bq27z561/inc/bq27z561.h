@@ -406,6 +406,8 @@ struct bq_fg_chip {
 	atomic_t digest_in_process;
 	int fw_ver;
 	int df_ver;
+	int nfg1000_section;
+	int ota_update_flag;
 	u8 chip_ok;
 	u8 regs[NUM_REGS];
 	char device_name[8];
@@ -425,6 +427,7 @@ struct bq_fg_chip {
 	bool batt_td_1;	/* full depleted */
 	bool support_voltage_record_level;
 	bool support_version_compatible;
+	int support_nvt1000_ota;
 	u8 version_number;
 	u8 start_byte_address;
 	u8 byte_length;
