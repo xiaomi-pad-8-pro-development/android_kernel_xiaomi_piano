@@ -506,15 +506,6 @@ int protocol_class_pd_get_pd_verifed(unsigned int port_num, int *pd_verifed)
 }
 EXPORT_SYMBOL(protocol_class_pd_get_pd_verifed);
 
-int protocol_class_pd_set_has_dp(unsigned int port_num, bool has_dp)
-{
-	struct protocol_class_pd_ops_data *temp_data = protocol_class_pd_get_ops_data(port_num);
-	if (protocol_class_pd_invalid_ops(temp_data, protocol_pd_set_has_dp))
-		return -1;
-	return temp_data->ops->protocol_pd_set_has_dp(has_dp, temp_data->data);
-}
-EXPORT_SYMBOL(protocol_class_pd_set_has_dp);
-
 int protocol_class_pd_get_has_dp(unsigned int port_num, bool *has_dp)
 {
 	struct protocol_class_pd_ops_data *temp_data = protocol_class_pd_get_ops_data(port_num);
@@ -525,17 +516,6 @@ int protocol_class_pd_get_has_dp(unsigned int port_num, bool *has_dp)
 	return temp_data->ops->protocol_pd_get_has_dp(has_dp, temp_data->data);
 }
 EXPORT_SYMBOL(protocol_class_pd_get_has_dp);
-
-int protocol_class_pd_reset_pps_stage(unsigned int port_num, bool en)
-{
-	struct protocol_class_pd_ops_data *temp_data = protocol_class_pd_get_ops_data(port_num);
-
-	if (protocol_class_pd_invalid_ops(temp_data, protocol_pd_reset_pps_stage))
-		return -1;
-
-	return temp_data->ops->protocol_pd_reset_pps_stage(en, temp_data->data);
-}
-EXPORT_SYMBOL(protocol_class_pd_reset_pps_stage);
 
 int protocol_class_pd_get_cid_status(unsigned int port_num, bool *status)
 {
@@ -604,17 +584,6 @@ int protocol_class_pd_get_cc_status(unsigned int port_num, bool *status)
 }
 EXPORT_SYMBOL(protocol_class_pd_get_cc_status);
 
-int protocol_class_pd_set_otg_plugin(unsigned int port_num,bool status)
-{
-	struct protocol_class_pd_ops_data *temp_data = protocol_class_pd_get_ops_data(port_num);
-
-	if (protocol_class_pd_invalid_ops(temp_data, protocol_pd_get_otg_plugin_status))
-		return -1;
-
-	return temp_data->ops->protocol_pd_set_otg_plugin_status(status, temp_data->data);
-}
-EXPORT_SYMBOL(protocol_class_pd_set_otg_plugin);
-
 int protocol_class_pd_get_cc_short_vbus(unsigned int port_num, int *cc_short_vbus)
 {
 	struct protocol_class_pd_ops_data *temp_data = protocol_class_pd_get_ops_data(port_num);
@@ -647,17 +616,6 @@ int protocol_class_pd_get_zimi_cypress_flag(unsigned int port_num, int *zimi_cyp
 	return temp_data->ops->protocol_pd_get_zimi_cypress_flag(zimi_cypress_flag, temp_data->data);
 }
 EXPORT_SYMBOL(protocol_class_pd_get_zimi_cypress_flag);
-
-int protocol_class_pd_get_usb_communication_support(unsigned int port_num, bool *if_support)
-{
-	struct protocol_class_pd_ops_data *temp_data = protocol_class_pd_get_ops_data(port_num);
-
-	if (protocol_class_pd_invalid_ops(temp_data, protocol_pd_get_usb_communication))
-		return -1;
-
-	return temp_data->ops->protocol_pd_get_usb_communication(if_support, temp_data->data);
-}
-EXPORT_SYMBOL(protocol_class_pd_get_usb_communication_support);
 
 int protocol_class_pd_get_port_num(void)
 {

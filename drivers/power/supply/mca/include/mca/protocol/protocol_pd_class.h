@@ -91,12 +91,9 @@ struct protocol_class_pd_ops {
 	int (*protocol_pd_get_verify_process)(int *verify_process, void *data);
 	int (*protocol_pd_set_pd_verifed)(int pd_verifed, void *data);
 	int (*protocol_pd_get_pd_verifed)(int *pd_verifed, void *data);
-	int (*protocol_pd_set_has_dp)(bool has_dp, void *data);
 	int (*protocol_pd_get_has_dp)(bool *has_dp, void *data);
-	int (*protocol_pd_reset_pps_stage)(bool en, void *data);
 	int (*protocol_pd_get_cid_status)(bool *status, void *data);
 	int (*protocol_pd_get_otg_plugin_status)(bool *status, void *data);
-	int (*protocol_pd_set_otg_plugin_status)(bool status, void *data);
 	int (*protocol_pd_set_cc_toggle)(bool en, void *data);
 	int (*protocol_pd_get_cc_toggle)(bool *en, void *data);
 	int (*protocol_pd_get_snk_src_mode)(int *snk_src_mode, void *data);
@@ -104,7 +101,6 @@ struct protocol_class_pd_ops {
 	int (*protocol_pd_get_cc_short_vbus)(int *cc_short_vbus, void *data);
 	int (*protocol_pd_get_suspend_support_status)(bool *pdsuspendsupported, void *data);
 	int (*protocol_pd_get_zimi_cypress_flag)(int *zimi_cypress_flag, void *data);
-	int (*protocol_pd_get_usb_communication)(bool *if_support, void *data);
 };
 
 int protocol_class_pd_register_ops(unsigned int port_num, struct protocol_class_pd_ops *ops, void *data);
@@ -148,12 +144,9 @@ int protocol_class_pd_set_verify_process(unsigned int port_num, int verify_proce
 int protocol_class_pd_get_verify_process(unsigned int port_num, int *verify_process);
 int protocol_class_pd_set_pd_verifed(unsigned int port_num, int pd_verifed);
 int protocol_class_pd_get_pd_verifed(unsigned int port_num, int *pd_verifed);
-int protocol_class_pd_set_has_dp(unsigned int port_num, bool has_dp);
 int protocol_class_pd_get_has_dp(unsigned int port_num, bool *has_dp);
-int protocol_class_pd_reset_pps_stage(unsigned int port_num, bool en);
 int protocol_class_pd_get_cid_status(unsigned int port_num, bool *status);
 int protocol_class_pd_get_otg_plugin_status(unsigned int port_num, bool *status);
-int protocol_class_pd_set_otg_plugin(unsigned int port_num, bool status);
 int protocol_class_pd_set_cc_toggle(unsigned int port_num, bool en);
 int protocol_class_pd_get_cc_toggle(unsigned int port_num, bool *en);
 int protocol_class_pd_get_snk_src_mode(unsigned int port_num, int *snk_src_mode);
@@ -161,7 +154,6 @@ int protocol_class_pd_get_cc_status(unsigned int port_num, bool *status);
 int protocol_class_pd_get_cc_short_vbus(unsigned int port_num, int *cc_short_vbus);
 int protocol_class_pd_get_suspend_support_status(unsigned int port_num, bool *pdsuspendsupported);
 int protocol_class_pd_get_zimi_cypress_flag(unsigned int port_num, int *zimi_cypress_flag);
-int protocol_class_pd_get_usb_communication_support(unsigned int port_num, bool *if_support);
 int protocol_class_pd_get_port_num(void);
 
 #endif /* _MCA_PROTOCOL_PROTOCOL_PD_CLASS_H_ */
