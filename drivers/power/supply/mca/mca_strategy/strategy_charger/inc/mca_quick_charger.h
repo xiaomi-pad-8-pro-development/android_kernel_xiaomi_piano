@@ -438,7 +438,6 @@ struct mca_quick_charge_info {
 	struct delayed_work monitor_work;
 	struct delayed_work pps_ptf_work;
 	struct delayed_work vfc_work;
-	struct delayed_work float_vbat_drop_work;
 	struct notifier_block shutdown_notifier;
 	struct mca_votable *voter[MCA_QUICK_CHG_CH_MAX * CHG_MODE_MAX];
 	struct mca_votable *chg_disable_voter;

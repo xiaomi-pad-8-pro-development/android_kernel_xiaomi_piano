@@ -491,7 +491,6 @@ mca_quick_charge_reset_charge_para(struct mca_quick_charge_info *info)
 	info->proc_data.sw_ocp_curr = 0;
 	mca_vote(info->chg_en_voter, "vbat_ovp", false, 1);
 	mca_vote(info->chg_en_voter, "lpd", false, 0);
-	cancel_delayed_work_sync(&info->float_vbat_drop_work);
 }
 
 static void mca_quick_charge_stop_charging(struct mca_quick_charge_info *info)
@@ -1932,83 +1931,43 @@ static int mca_quick_charge_select_volt_para(struct mca_quick_charge_info *info)
 
 #define QUICK_CHARGE_TERMATIN_TIMEOUT 5
 #define QUICK_CHARGE_VTERM_HYS 3
-#define QUICK_RAWSOC_HIGH_DONE_LIMIT 400
 static void
 mca_quick_charge_check_charge_done(struct mca_quick_charge_info *info)
 {
+	int last_volt_stage;
+	int vbat_th, vterm, iterm, ratio;
+	static int count;
+
 	if (info->hardware_cv)
 		return;
-	int last_volt_stage =
-		info->proc_data.cur_volt_para[FG_IC_MASTER]->volt_para_size - 1;
-	int vbat_th = info->proc_data.cur_volt_para[FG_IC_MASTER]
-			      ->volt_para[last_volt_stage]
-			      .voltage;
-	int smartchg_delta_fv = info->smartchg_data.delta_fv;
-	int hys_delta_mv = info->fv_hys_delta_mv;
-	int vterm = vbat_th - smartchg_delta_fv - hys_delta_mv;
-	int iterm = info->proc_data.cur_volt_para[FG_IC_MASTER]
-			    ->volt_para[last_volt_stage]
-			    .current_min;
-	static int count;
-	int charging_done = 0, ffc_flag = 0, rawsoc = 0;
-	bool high_rawsoc_exit = false;
 
-	iterm = (iterm * info->curr_terminate_ratio) / 100;
+	last_volt_stage =
+		info->proc_data.cur_volt_para[FG_IC_MASTER]->volt_para_size - 1;
+	vbat_th = info->proc_data.cur_volt_para[FG_IC_MASTER]
+			  ->volt_para[last_volt_stage]
+			  .voltage;
+	vterm = vbat_th - info->smartchg_data.delta_fv - info->fv_hys_delta_mv;
+	iterm = info->proc_data.cur_volt_para[FG_IC_MASTER]
+			->volt_para[last_volt_stage]
+			.current_min;
+	ratio = info->curr_terminate_ratio;
+	if (iterm > 3000)
+		ratio -= 10;
+	iterm = (iterm * ratio) / 100;
 
 	/* judge chg termination by vbat */
-	switch (info->batt_type) {
-	case MCA_BATTERY_TYPE_SINGLE:
-	case MCA_BATTERY_TYPE_PARALLEL:
-	case MCA_BATTERY_TYPE_SERIES:
-	case MCA_BATTERY_TYPE_SINGLE_SERIES:
-		if (info->proc_data.vbat[FG_IC_MASTER] >= vterm &&
-		    info->proc_data.ibat[FG_IC_MASTER] <= iterm)
-			count++;
-		else
-			count = 0;
-		break;
-	default:
-		mca_log_err("error! batt type unknown!\n");
-		if (info->proc_data.vbat[FG_IC_MASTER] >= vterm &&
-		    info->proc_data.ibat[FG_IC_MASTER] <= iterm)
-			count++;
-		else
-			count = 0;
-		break;
-	}
+	if (info->proc_data.vbat[FG_IC_MASTER] >= vterm &&
+	    info->proc_data.ibat[FG_IC_MASTER] <= iterm)
+		count++;
+	else
+		count = 0;
 
-	charging_done = strategy_class_fg_ops_get_charging_done();
-	ffc_flag = strategy_class_fg_get_fastcharge();
-
-	if (info->rawsoc_swith_pmic_th) {
-		strategy_class_fg_ops_get_rawsoc(&rawsoc);
-		if (rawsoc >= info->rawsoc_swith_pmic_th) {
-			mca_log_err("switch buck: %d %d\n", rawsoc,
-				    info->rawsoc_swith_pmic_th);
-			high_rawsoc_exit = true;
-		}
-	}
-
-	if (!charging_done && high_rawsoc_exit) {
-		mca_log_err("high soc swith buck\n");
-		/* high ibat may causes vbat too high if switch to pmic and normal charging */
-		mca_vote(info->buck_charge_curr_voter, "qc_done", true,
-			 QUICK_RAWSOC_HIGH_DONE_LIMIT);
-		schedule_delayed_work(&info->float_vbat_drop_work,
-				      msecs_to_jiffies(5 * 60 * 1000));
+	if (count > QUICK_CHARGE_TERMATIN_TIMEOUT) {
 		info->proc_data.charge_flag = MCA_QUICK_CHG_STS_CHARGE_DONE;
-	}
-
-	if (count > QUICK_CHARGE_TERMATIN_TIMEOUT || charging_done) {
-		info->proc_data.charge_flag = MCA_QUICK_CHG_STS_CHARGE_DONE;
-		if (ffc_flag)
+		if (info->proc_data.ffc_flag)
 			strategy_class_fg_ops_set_charging_done(true);
 
-		mca_log_err(
-			"quick charge done exit, v:%d/%d, i:%d/%d, count:%d done:%d\n",
-			vterm, info->proc_data.vbat[FG_IC_MASTER], iterm,
-			info->proc_data.ibat[FG_IC_MASTER], count,
-			charging_done);
+		mca_log_err("quick charge done exit");
 		count = 0;
 	}
 }
@@ -2868,15 +2827,6 @@ static void mca_quick_charge_vfc_work(struct work_struct *work)
 
 	schedule_delayed_work(&info->vfc_work,
 			      msecs_to_jiffies(MCA_QUICK_CHG_VFC_INTERVAL));
-}
-
-static void mca_quick_charge_fvbat_drop_work(struct work_struct *work)
-{
-	struct mca_quick_charge_info *info = container_of(
-		work, struct mca_quick_charge_info, float_vbat_drop_work.work);
-
-	mca_vote(info->buck_charge_curr_voter, "qc_done", false, 0);
-	mca_log_info("release buck chg curr limit\n");
 }
 
 static void
@@ -4763,8 +4713,6 @@ static int mca_quick_charge_probe(struct platform_device *pdev)
 	INIT_DELAYED_WORK(&info->monitor_work, mca_quick_charge_monitor_work);
 	INIT_DELAYED_WORK(&info->pps_ptf_work, mca_quick_charge_pps_ptf_work);
 	INIT_DELAYED_WORK(&info->vfc_work, mca_quick_charge_vfc_work);
-	INIT_DELAYED_WORK(&info->float_vbat_drop_work,
-			  mca_quick_charge_fvbat_drop_work);
 
 	(void)mca_strategy_ops_register(STRATEGY_FUNC_TYPE_QUICK_CHARGE,
 					mca_quick_charge_process_event,
