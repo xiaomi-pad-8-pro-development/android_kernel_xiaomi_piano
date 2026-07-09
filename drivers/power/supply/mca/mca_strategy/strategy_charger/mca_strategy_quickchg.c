@@ -1820,7 +1820,11 @@ mca_quick_charge_pre_charge_check(struct mca_quick_charge_info *info)
 	}
 
 	mca_quick_charge_update_work_mode_para(info);
+	mutex_lock(&info->data_lock);
+	mca_log_info("Acquire mutex_lock\n");
 	mca_quick_charge_start_charging(info);
+	mutex_unlock(&info->data_lock);
+	mca_log_info("Release mutex_lock\n");
 }
 
 static int mca_quick_charge_select_volt_para(struct mca_quick_charge_info *info)
@@ -2863,7 +2867,11 @@ static int mca_quick_charge_process_event(int event, int value, void *data)
 		break;
 	case MCA_EVENT_CHARGE_CAP_CHANGE:
 		info->proc_data.type_chg = 1;
+		mutex_lock(&info->data_lock);
+		mca_log_info("Acquire mutex_lock\n");
 		mca_quick_charge_force_stop_charging(info);
+		mutex_unlock(&info->data_lock);
+		mca_log_info("Release mutex_lock\n");
 		info->proc_data.type_chg = 0;
 		break;
 	case MCA_EVENT_SINK_PWR_SUSPEND_CHANGE:
@@ -4674,6 +4682,7 @@ static int mca_quick_charge_probe(struct platform_device *pdev)
 		return -EPROBE_DEFER;
 	mca_quick_charge_init_data(info);
 	mca_quick_charge_create_group(info->dev);
+	mutex_init(&info->data_lock);
 
 	INIT_DELAYED_WORK(&info->monitor_work, mca_quick_charge_monitor_work);
 	INIT_DELAYED_WORK(&info->pps_ptf_work, mca_quick_charge_pps_ptf_work);
