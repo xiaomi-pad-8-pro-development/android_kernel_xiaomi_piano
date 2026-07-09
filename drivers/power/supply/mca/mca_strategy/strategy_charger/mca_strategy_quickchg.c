@@ -731,6 +731,7 @@ mca_quick_charge_select_cur_work_mode(struct mca_quick_charge_info *info)
 	}
 
 	adp_index = info->proc_data.adp_info_index[index];
+	info->proc_data.cur_adp_index = adp_index;
 	info->proc_data.max_ibat_final = ibat_max[index];
 	mca_log_info("index: %d, adp_index: %d\n", index, adp_index);
 	info->proc_data.work_mode = BIT(index);
@@ -889,11 +890,16 @@ static void mca_cp_check_initial_mode(struct mca_quick_charge_info *info)
 	int vbat = proc_data->vbat[FG_IC_MASTER];
 	int volt_para_size =
 		proc_data->cur_volt_para[FG_IC_MASTER]->volt_para_size;
-	int adp_min_volt = proc_data->min_adp_volt;
+	int adp_min_volt;
 	int fcc, select_mode;
 
 	if (!info->support_mode_switch)
 		return;
+
+	if ((unsigned int)proc_data->cur_adp_index >= MCA_QUICK_CHG_ADP_CAP_MAX)
+		return;
+	adp_min_volt = proc_data->adp_info[proc_data->cur_adp_index]
+			       .cap_info.min_voltage;
 
 	mca_log_info(
 		"volt_para_size: %d, cur_stage: %d, vbat: %d, adp_min_volt: %d\n",
@@ -2826,7 +2832,7 @@ static void mca_check_cp_work_mode(struct mca_quick_charge_info *info)
 	int vbat = proc_data->vbat[FG_IC_MASTER];
 	int volt_para_size =
 		proc_data->cur_volt_para[FG_IC_MASTER]->volt_para_size;
-	int adp_min_volt = proc_data->min_adp_volt;
+	int adp_min_volt;
 	int fcc, select_mode;
 	int vbus_mv = 0;
 	int check_count = 0;
@@ -2834,6 +2840,11 @@ static void mca_check_cp_work_mode(struct mca_quick_charge_info *info)
 
 	if (!info->support_mode_switch)
 		return;
+
+	if ((unsigned int)proc_data->cur_adp_index >= MCA_QUICK_CHG_ADP_CAP_MAX)
+		return;
+	adp_min_volt = proc_data->adp_info[proc_data->cur_adp_index]
+			       .cap_info.min_voltage;
 
 	mca_log_info(
 		"volt_para_size: %d, cur_stage:%d, vbat: %d, adp_min_volt: %d\n",

@@ -86,6 +86,7 @@
 #define MCA_QUICK_CHG_DEFAULT_IBAT_DELTA 200
 #define MCA_QUICK_CHG_ADP_DEFAULT_VOLT 5000
 #define MCA_QUICK_CHG_VBUS_OK_HIGH_TH 12000
+#define MCA_QUICK_CHG_ADP_CAP_MAX 7
 #define MCA_QUICK_QC_CHG_ADP_DEFAULT_VOLT 9000
 #define MCA_QUICK_PD_FIXED_CHG_ADP_DEFAULT_VOLT 9000
 #define MCA_QUICK_CHG_ADP_DEFAULT_CURR 2000
@@ -397,6 +398,7 @@ struct mca_quick_charge_process_data {
 	int vbus;
 	int ibus;
 	int adp_info_index[CHG_MODE_MAX];
+	int cur_adp_index;
 	int *thermal_cur;
 	int *cp_path_enable;
 	int temp_para_index[FG_IC_MAX];
