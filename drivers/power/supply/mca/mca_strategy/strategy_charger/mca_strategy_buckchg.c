@@ -934,6 +934,32 @@ strategy_buckchg_process_csd_pulse(int value, struct strategy_buckchg_dev *info)
 	}
 }
 
+static int
+strategy_buckchg_check_reverse_quick_charge(struct strategy_buckchg_dev *info,
+					    int *out)
+{
+	int batt_temp = 0;
+	int soc;
+	bool otg = false;
+	int eligible = 0;
+
+	strategy_class_fg_ops_get_temperature(&batt_temp);
+	soc = strategy_class_fg_ops_get_soc();
+	batt_temp /= 10;
+	protocol_class_pd_get_otg_plugin_status(TYPEC_PORT_0, &otg);
+	mca_log_info(
+		"otg_present = %d, batt_temp = %d, thermal_board_temp =%d\n", otg,
+		batt_temp, info->thermal_board_temp);
+	if (otg && !info->reverse_qc_gate0 && !info->reverse_qc_gate1 &&
+	    batt_temp >= 0 && info->thermal_board_temp <= 400) {
+		int soc_th = info->reverse_auth ? 29 : 69;
+
+		eligible = (soc > soc_th);
+	}
+	*out = eligible;
+	return 0;
+}
+
 static void
 strategy_buckchg_cp_revert_handler(int auth_pos,
 				   struct strategy_buckchg_dev *info)

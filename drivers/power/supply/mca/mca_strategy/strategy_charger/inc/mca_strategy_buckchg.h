@@ -216,6 +216,9 @@ struct strategy_buckchg_dev {
 	bool support_base_flip;
 	int soc_limit_low;
 	int soc_limit_high;
+	bool reverse_auth;
+	bool reverse_qc_gate0;
+	bool reverse_qc_gate1;
 };
 
 #endif /*__MCA_STRATEGY_BUCKCHG_H__ */
