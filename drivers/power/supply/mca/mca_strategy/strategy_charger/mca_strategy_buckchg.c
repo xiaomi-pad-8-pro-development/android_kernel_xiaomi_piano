@@ -966,14 +966,40 @@ strategy_buckchg_cp_revert_handler(int auth_pos,
 {
 	static int last_otg_present = 0;
 	static int last_pos = 1;
-	bool otg_present;
+	bool otg_present = false;
+	int otg_boost_disable;
 	int otg_enable;
 	int pos;
 
-	info->cp_revert_auth = (auth_pos & 0xffff0000) >> 16;
-	pos = auth_pos & 0xffff;
+	otg_boost_disable = (auth_pos >> 24) & 0xff;
+	info->cp_revert_auth = (auth_pos >> 16) & 0xff;
+	info->reverse_auth = (auth_pos & 0xff00) != 0;
+	pos = auth_pos & 0xff;
 
-	protocol_class_pd_get_otg_plugin_status(TYPEC_PORT_0, &otg_present);
+	if (otg_boost_disable)
+		otg_present = false;
+	else
+		protocol_class_pd_get_otg_plugin_status(TYPEC_PORT_0,
+							&otg_present);
+
+	platform_class_buckchg_ops_get_otg_boost_src(MAIN_BUCK_CHARGER,
+						     &info->otg_boost_src);
+
+	if (info->cp_revert_auth && otg_present) {
+		char buf[128];
+		int len;
+		int rqc = 0;
+		struct mca_event_notify_data n;
+
+		strategy_buckchg_check_reverse_quick_charge(info, &rqc);
+		len = snprintf(buf, sizeof(buf),
+			       "POWER_SUPPLY_REVERSE_QUICK_CHARGE=%d", rqc);
+		n.event = buf;
+		n.event_len = len;
+		mca_event_report_uevent(&n);
+		mca_log_info("status: %d\n", rqc);
+	}
+
 	mca_log_err("otg_present: %d, last_otg_present: %d\n", otg_present,
 		    last_otg_present);
 	mca_log_err("cp_revert_auth: %d, pos: %d, last_pos: %d\n",

@@ -217,6 +217,7 @@ struct strategy_buckchg_dev {
 	int soc_limit_low;
 	int soc_limit_high;
 	bool reverse_auth;
+	int otg_boost_src;
 	bool reverse_qc_gate0;
 	bool reverse_qc_gate1;
 };
