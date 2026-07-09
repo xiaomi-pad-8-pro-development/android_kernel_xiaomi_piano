@@ -71,6 +71,7 @@ struct protocol_class_pd_ops {
 	int (*protocol_pd_set_typec_mode)(int typec_mode, void *data);
 	int (*protocol_pd_get_typec_mode)(int *typec_mode, void *data);
 	int (*protocol_pd_get_typec_cc_orientation)(int *cc_orientation, void *data);
+	int (*protocol_pd_set_typec_cc_orientation)(int cc_orientation, void *data);
 	int (*protocol_pd_set_in_hard_reset)(int in_hard_reset, void *data);
 	int (*protocol_pd_get_in_hard_reset)(int *in_hard_reset, void *data);
 	int (*protocol_pd_set_usb_suspend_supported)(int supported, void *data);
@@ -124,6 +125,7 @@ int protocol_class_pd_get_pd_type(unsigned int port_num, int *type);
 int protocol_class_pd_set_typec_mode(unsigned int port_num, int typec_mode);
 int protocol_class_pd_get_typec_mode(unsigned int port_num, int *typec_mode);
 int protocol_class_pd_get_typec_cc_orientation(unsigned int port_num, int *cc_orientation);
+int protocol_class_pd_set_typec_cc_orientation(unsigned int port_num, int cc_orientation);
 int protocol_class_pd_set_pd_in_hard_reset(unsigned int port_num, int in_hard_reset);
 int protocol_class_pd_get_pd_in_hard_reset(unsigned int port_num, int *in_hard_reset);
 int protocol_class_pd_set_usb_suspend_supported(unsigned int port_num, int supported);

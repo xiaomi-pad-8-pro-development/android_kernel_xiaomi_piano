@@ -294,6 +294,17 @@ int protocol_class_pd_get_typec_cc_orientation(unsigned int port_num, int *cc_or
 }
 EXPORT_SYMBOL(protocol_class_pd_get_typec_cc_orientation);
 
+int protocol_class_pd_set_typec_cc_orientation(unsigned int port_num, int cc_orientation)
+{
+	struct protocol_class_pd_ops_data *temp_data = protocol_class_pd_get_ops_data(port_num);
+
+	if (protocol_class_pd_invalid_ops(temp_data, protocol_pd_set_typec_cc_orientation))
+		return -1;
+
+	return temp_data->ops->protocol_pd_set_typec_cc_orientation(cc_orientation, temp_data->data);
+}
+EXPORT_SYMBOL(protocol_class_pd_set_typec_cc_orientation);
+
 int protocol_class_pd_set_pd_in_hard_reset(unsigned int port_num, int in_hard_reset)
 {
 	struct protocol_class_pd_ops_data *temp_data = protocol_class_pd_get_ops_data(port_num);
