@@ -1752,6 +1752,7 @@ static void
 mca_quick_charge_pre_charge_check(struct mca_quick_charge_info *info)
 {
 	int ret;
+	bool cp_present = false;
 
 	if (info->proc_data.charge_flag == MCA_QUICK_CHG_STS_CHARGING)
 		return;
@@ -1769,6 +1770,12 @@ mca_quick_charge_pre_charge_check(struct mca_quick_charge_info *info)
 	/* if fg i2c error, don't do pre charge check */
 	if (!strategy_class_fg_is_chip_ok()) {
 		mca_log_info("fg i2c error, exit pre charge check\n");
+		return;
+	}
+
+	platform_class_cp_get_present(CP_ROLE_MASTER, &cp_present);
+	if (!cp_present) {
+		mca_log_info("cp not present, exit pre charge check\n");
 		return;
 	}
 
@@ -2308,8 +2315,11 @@ strategy_quickchg_enable_buck_charging(struct mca_quick_charge_info *info,
 				  buck_icl_val); // ICL
 		mca_vote_override(info->buck_charge_curr_voter, "fcc_limit",
 				  true, buck_fcc_val); // FCC
-		mca_log_err("enable buck parallel charging! ibus :%d\n",
-			    info->proc_data.ibus);
+		platform_class_buckchg_ops_set_restart_aicl(MAIN_BUCK_CHARGER,
+							    true);
+		mca_log_err(
+			"enable buck parallel charging, pmih_fcc :%d, pmih_icl :%d\n",
+			buck_fcc_val, buck_icl_val);
 	} else if (!enable && disable_once) {
 		if (info->proc_data.ibus > 0 && info->proc_data.ibus < 3850) {
 			disable_once = false;
@@ -2457,6 +2467,21 @@ static int mca_quick_charge_regulation(struct mca_quick_charge_info *info)
 		else if (final_vstep == -MCA_QUICK_CHG_DEFAULT_VSTEP &&
 			 buck_time_diff_ms < 1000)
 			final_vstep = 0;
+	}
+
+	if (info->en_buck_parallel_chg) {
+		int master_ibus = 0, slave_ibus = 0;
+		int ibus_buck = 0, aicl_status = 0;
+
+		platform_class_cp_get_bus_current(CP_ROLE_MASTER, &master_ibus);
+		platform_class_cp_get_bus_current(CP_ROLE_SLAVE, &slave_ibus);
+		platform_class_buckchg_ops_get_bus_curr(MAIN_BUCK_CHARGER,
+							&ibus_buck);
+		platform_class_buckchg_ops_get_aicl_status(MAIN_BUCK_CHARGER,
+							   &aicl_status);
+		mca_log_info(
+			"ibus_buck :%d, aicl_status :%d, master_ibus :%d, slave_ibus :%d\n",
+			ibus_buck, aicl_status, master_ibus, slave_ibus);
 	}
 
 	if (info->en_buck_parallel_chg && cur_max > 16000) {
@@ -3253,6 +3278,28 @@ error:
 	return -1;
 }
 
+static const char *
+mca_quick_charge_check_model_name(const char *cell_name)
+{
+	const char *dev_name = NULL;
+
+	(void)platform_fg_ops_get_device_name(FG_IC_MASTER, &dev_name);
+	if (!dev_name) {
+		mca_log_err("get device name  fail\n");
+		return cell_name;
+	}
+	mca_log_err("device name: %s, name: %s\n", dev_name, cell_name);
+
+	if (!strcmp(cell_name, "atl") &&
+	    (!strcmp(dev_name, "3XM31") || !strcmp(dev_name, "2@BP"))) {
+		mca_log_info(
+			"project O9 matched XM22@BP, adjust cell_name\n");
+		cell_name = "atl2";
+	}
+
+	return cell_name;
+}
+
 static int mca_quick_charge_parse_batt_info(struct mca_quick_charge_info *info,
 					    int mode)
 {
@@ -3288,6 +3335,7 @@ static int mca_quick_charge_parse_batt_info(struct mca_quick_charge_info *info,
 		mca_log_err("get main cell name fail\n");
 		return -EINVAL;
 	}
+	main_cell_name = mca_quick_charge_check_model_name(main_cell_name);
 	if (info->batt_type > MCA_BATTERY_TYPE_SINGLE_NUM_MAX) {
 		(void)platform_fg_ops_get_batt_cell_info(FG_IC_SLAVE,
 							 &slave_cell_name);
@@ -4651,6 +4699,15 @@ static int mca_quick_charge_probe(struct platform_device *pdev)
 	info = devm_kzalloc(&pdev->dev, sizeof(*info), GFP_KERNEL);
 	if (!info)
 		return -ENOMEM;
+
+	platform_class_cp_get_chip_vendor(CP_ROLE_MASTER, &info->cp_chip_vendor);
+	if (!info->cp_chip_vendor) {
+		if (platform_class_cp_get_probe_ok(CP_ROLE_MASTER) |
+		    platform_class_cp_get_probe_ok(CP_ROLE_SLAVE)) {
+			mca_log_err("cp is not ready, wait for it\n");
+			return -EPROBE_DEFER;
+		}
+	}
 
 	info->input_suspend_voter = mca_find_votable("input_suspend");
 	if (!info->input_suspend_voter) {

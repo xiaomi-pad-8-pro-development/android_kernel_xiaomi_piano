@@ -508,6 +508,7 @@ struct mca_quick_charge_info {
 	int master_cp_enable_count;
 	int dtpt_status;
 	int trigger_antr_burn;
+	int cp_chip_vendor;
 	int is_eu_model;
 	int pps_ptf;
 	int fake_pps_ptf;
