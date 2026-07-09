@@ -2950,7 +2950,6 @@ static void mca_check_cp_work_mode(struct mca_quick_charge_info *info)
 						      false);
 		info->pd_switch_to_pmic = true;
 		mca_quick_charge_req_adp_volt_and_cur(info);
-		info->force_stop = true;
 		mca_log_err("mode switch start charging failed\n");
 		return;
 	}
