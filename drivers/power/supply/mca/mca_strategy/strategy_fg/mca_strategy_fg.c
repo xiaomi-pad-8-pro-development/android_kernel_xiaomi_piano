@@ -1802,7 +1802,7 @@ static void mca_strategy_parallel_force_fw_report_full(struct strategy_fg *fg,
 
 	if (fg->voter_ok) {
 		iterm = fg->dual_iterm[fg_index];
-		vterm = mca_get_effective_result(fg->vterm_voter);
+		vterm = mca_get_client_vote(fg->vterm_voter, "jeita");
 	}
 
 	force_vterm = vterm - 25;
