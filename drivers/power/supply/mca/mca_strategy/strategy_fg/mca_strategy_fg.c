@@ -1849,18 +1849,6 @@ static void mca_strategy_parallel_force_fw_report_full(struct strategy_fg *fg,
 						fg_index,
 						fg->self_equal_count[fg_index]);
 				}
-				if (fg->lossless_recharge) {
-					if (fg->cfg.support_base_flip &&
-					    fg_index == 0) {
-						mca_vote(fg->vterm_voter,
-							 "losslessRec", true,
-							 vterm - 20);
-						fg->lossless_recharge = false;
-					} else
-						mca_vote(fg->vterm_voter,
-							 "losslessRec", false,
-							 0);
-				}
 			}
 		} else {
 			force_full_count[fg_index] = 0;
