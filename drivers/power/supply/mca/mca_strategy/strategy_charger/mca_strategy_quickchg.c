@@ -598,6 +598,56 @@ mca_quick_charge_adjust_adapter_mode(struct mca_quick_charge_info *info)
 }
 
 static int
+mca_select_cp_work_mode_by_current(struct mca_quick_charge_info *info, int cur)
+{
+	int idx = info->cur_cp_work_mode;
+	int lo, hi, i;
+
+	if (idx >= CHG_MODE_MAX) {
+		mca_log_err(
+			"current work mode abnormal, try to get from proc_data\n");
+		switch (info->proc_data.work_mode) {
+		case MCA_QUICK_CHG_MODE_DIV_1:
+			idx = 0;
+			break;
+		case MCA_QUICK_CHG_MODE_DIV_2:
+			idx = 1;
+			break;
+		case MCA_QUICK_CHG_MODE_DIV_4:
+			idx = 2;
+			break;
+		default:
+			mca_log_err("proc_data work mode abnormal!\n");
+			return -1;
+		}
+		info->cur_cp_work_mode = idx;
+	}
+
+	lo = info->cp_mode_switch_threshold[idx][0];
+	hi = info->cp_mode_switch_threshold[idx][1];
+	if (cur >= lo && cur <= hi)
+		return idx;
+
+	if (cur > hi) {
+		for (i = idx + 1; i < CHG_MODE_MAX; i++) {
+			lo = info->cp_mode_switch_threshold[i][0];
+			hi = info->cp_mode_switch_threshold[i][1];
+			if (cur >= lo && cur <= hi)
+				return i;
+		}
+	} else {
+		for (i = idx - 1; i >= 0; i--) {
+			lo = info->cp_mode_switch_threshold[i][0];
+			hi = info->cp_mode_switch_threshold[i][1];
+			if (cur >= lo && cur <= hi)
+				return i;
+		}
+	}
+
+	return idx;
+}
+
+static int
 mca_quick_charge_select_cur_work_mode(struct mca_quick_charge_info *info)
 {
 	int i;
@@ -684,6 +734,8 @@ mca_quick_charge_select_cur_work_mode(struct mca_quick_charge_info *info)
 	info->proc_data.max_ibat_final = ibat_max[index];
 	mca_log_info("index: %d, adp_index: %d\n", index, adp_index);
 	info->proc_data.work_mode = BIT(index);
+	info->cur_cp_work_mode = index;
+	info->cp_default_work_mode = index;
 	info->proc_data.min_adp_volt =
 		info->proc_data.adp_info[adp_index].cap_info.min_voltage;
 	info->proc_data.max_adp_volt =
@@ -791,6 +843,98 @@ mca_quick_charge_update_work_mode_para(struct mca_quick_charge_info *info)
 		"delta_volt: %d, single_curr: %d, max_curr: %d, work_mode: %d\n",
 		info->proc_data.delta_volt, info->proc_data.single_curr,
 		info->proc_data.max_curr, info->proc_data.work_mode);
+}
+
+static int
+mca_get_cpmode_unrelated_fcc(struct mca_quick_charge_info *info)
+{
+	struct mca_quick_charge_process_data *proc_data = &info->proc_data;
+	int cur_stage = proc_data->cur_stage[FG_IC_MASTER];
+	int cur_max = proc_data->cur_volt_para[FG_IC_MASTER]
+			      ->volt_para[cur_stage / 2]
+			      .current_max;
+	int delta_cur = info->smartchg_data.delta_ichg;
+	int thermal_cur;
+	int fcc;
+
+	mca_log_info("cur_stage %d cur_max %d delta_cur %d cur_work_cp %d\n",
+		     cur_stage, cur_max, delta_cur, proc_data->cur_work_cp);
+	if (info->dtpt_status)
+		cur_max = cur_max * MCA_DTPT_MOLECULE_SCALE /
+			  MCA_DTPT_DENOM_SCALE;
+	else
+		cur_max = cur_max - delta_cur;
+
+	if (proc_data->cur_work_cp != MCA_QUICK_CHG_CP_DUAL)
+		thermal_cur = proc_data->thermal_cur[MCA_QUICK_CHG_CH_SINGLE];
+	else
+		thermal_cur = proc_data->thermal_cur[MCA_QUICK_CHG_CH_MULTI];
+	if (thermal_cur)
+		cur_max = min(cur_max, thermal_cur);
+	if (proc_data->secure_info.secure_cur)
+		cur_max = min(cur_max, proc_data->secure_info.secure_cur);
+	fcc = min(cur_max, proc_data->temp_max_cur[FG_IC_MASTER]);
+	mca_log_info(
+		"cur_max %d secure_cur %d temp_max_cur %d thermal_cur %d\n",
+		cur_max, proc_data->secure_info.secure_cur,
+		proc_data->temp_max_cur[FG_IC_MASTER], thermal_cur);
+
+	return fcc;
+}
+
+static void mca_cp_check_initial_mode(struct mca_quick_charge_info *info)
+{
+	struct mca_quick_charge_process_data *proc_data = &info->proc_data;
+	int cur_stage = proc_data->cur_stage[FG_IC_MASTER];
+	int vbat = proc_data->vbat[FG_IC_MASTER];
+	int volt_para_size =
+		proc_data->cur_volt_para[FG_IC_MASTER]->volt_para_size;
+	int adp_min_volt = proc_data->min_adp_volt;
+	int fcc, select_mode;
+
+	if (!info->support_mode_switch)
+		return;
+
+	mca_log_info(
+		"volt_para_size: %d, cur_stage: %d, vbat: %d, adp_min_volt: %d\n",
+		volt_para_size, cur_stage, vbat, adp_min_volt);
+
+	info->no_div1_flag = (vbat <= adp_min_volt);
+
+	if (info->last_stage_flag) {
+		mca_log_info("last charging stage, use default mode\n");
+		return;
+	}
+	if (cur_stage >= 2 * volt_para_size - 2) {
+		info->last_stage_flag = true;
+		mca_log_info("last charging stage, use default mode\n");
+		return;
+	}
+
+	fcc = mca_get_cpmode_unrelated_fcc(info);
+	select_mode = mca_select_cp_work_mode_by_current(info, fcc);
+	mca_log_info(
+		"mode_unrelated_fcc: %d, current mode: %d, select mode: %d\n",
+		fcc, info->cur_cp_work_mode, select_mode);
+
+	if (select_mode == 0 && info->no_div1_flag) {
+		mca_log_info("vbat too low, won't use div1 mode\n");
+		return;
+	}
+	if (select_mode > info->cp_default_work_mode) {
+		mca_log_info(
+			"selected mode higher than default mode, use default mode\n");
+		select_mode = info->cp_default_work_mode;
+	}
+	if (select_mode < 0 || select_mode >= CHG_MODE_MAX) {
+		mca_log_err("selected mode abnormal!\n");
+		return;
+	}
+	if (select_mode != info->cur_cp_work_mode) {
+		info->cur_cp_work_mode = select_mode;
+		info->proc_data.work_mode = BIT(select_mode);
+		mca_quick_charge_update_work_mode_para(info);
+	}
 }
 
 #define OVER_CURRENT_COUNT 3
@@ -1694,6 +1838,8 @@ static void mca_quick_charge_start_charging(struct mca_quick_charge_info *info)
 						  MCA_QUICK_CHG_CP_DEFAULT_FSW);
 		}
 	}
+
+	mca_cp_check_initial_mode(info);
 
 	platform_class_cp_enable_busucp(info->proc_data.cur_work_cp, false);
 	if (!info->is_platform_qc)
@@ -2673,7 +2819,142 @@ static void mca_quick_charge_try2_multi_path(struct mca_quick_charge_info *info)
 	proc_data->cur_work_cp = MCA_QUICK_CHG_CP_DUAL;
 }
 
-static void mca_quick_charge_change_path(struct mca_quick_charge_info *info)
+static void mca_check_cp_work_mode(struct mca_quick_charge_info *info)
+{
+	struct mca_quick_charge_process_data *proc_data = &info->proc_data;
+	int cur_stage = proc_data->cur_stage[FG_IC_MASTER];
+	int vbat = proc_data->vbat[FG_IC_MASTER];
+	int volt_para_size =
+		proc_data->cur_volt_para[FG_IC_MASTER]->volt_para_size;
+	int adp_min_volt = proc_data->min_adp_volt;
+	int fcc, select_mode;
+	int vbus_mv = 0;
+	int check_count = 0;
+	int ret;
+
+	if (!info->support_mode_switch)
+		return;
+
+	mca_log_info(
+		"volt_para_size: %d, cur_stage:%d, vbat: %d, adp_min_volt: %d\n",
+		volt_para_size, cur_stage, vbat, adp_min_volt);
+
+	if (info->last_stage_flag || cur_stage >= 2 * volt_para_size - 2) {
+		info->last_stage_flag = true;
+		select_mode = info->cp_default_work_mode;
+		mca_log_info("last charging stage, use default mode: %d\n",
+			     select_mode);
+	} else {
+		fcc = mca_get_cpmode_unrelated_fcc(info);
+		select_mode = mca_select_cp_work_mode_by_current(info, fcc);
+		if (select_mode > info->cp_default_work_mode) {
+			mca_log_info(
+				"selected mode higher than default mode, use default mode\n");
+			select_mode = info->cp_default_work_mode;
+		}
+		mca_log_info(
+			"mode_unrelated_fcc: %d, current mode: %d, select mode: %d\n",
+			fcc, info->cur_cp_work_mode, select_mode);
+
+		if (info->no_div1_flag && vbat > adp_min_volt)
+			info->no_div1_flag = false;
+		if (select_mode == 0 && info->no_div1_flag) {
+			mca_log_info("vbat too low, won't use mode div1\n");
+			if (info->cur_cp_work_mode)
+				return;
+			select_mode = info->cp_default_work_mode;
+		}
+	}
+
+	if (select_mode < 0 || select_mode >= CHG_MODE_MAX) {
+		mca_log_err("cp mode selected result abnormal!\n");
+		return;
+	}
+	if (select_mode == info->cur_cp_work_mode)
+		return;
+
+	mca_log_err("stop charge\n");
+	platform_class_cp_set_charging_enable(CP_ROLE_MASTER, false);
+	platform_class_cp_set_charging_enable(CP_ROLE_SLAVE, false);
+	cancel_delayed_work_sync(&info->vfc_work);
+	if (proc_data->cur_work_cp == MCA_QUICK_CHG_CP_DUAL) {
+		platform_class_cp_set_default_fsw(CP_ROLE_MASTER);
+		platform_class_cp_set_default_fsw(CP_ROLE_SLAVE);
+	} else {
+		platform_class_cp_set_default_fsw(proc_data->cur_work_cp);
+	}
+
+	info->pd_switch_to_pmic = true;
+	info->check_vbat_ov = false;
+	memset(proc_data->ibus_queue.data, 0,
+	       sizeof(proc_data->ibus_queue.data));
+	proc_data->ibus_queue.index = 0;
+	proc_data->ibus_queue.count = 0;
+	proc_data->ibus_queue.sum = 0;
+	proc_data->ibus_queue.avg = 0;
+
+	while (check_count++ < 10) {
+		platform_class_cp_get_bus_voltage(CP_ROLE_MASTER, &vbus_mv);
+		mca_log_info("avoid vusb_ovp. cp_vbus: %d\n", vbus_mv);
+		if (vbus_mv < MCA_QUICK_CHG_VBUS_OK_HIGH_TH)
+			break;
+		ret = mca_quick_charge_req_adp_volt_and_cur(info);
+		if (ret)
+			mca_log_err("stop req volt failed\n");
+		platform_class_cp_get_bus_voltage(CP_ROLE_MASTER, &vbus_mv);
+		mca_log_info("avoid vusb_ovp. cp_vbus: %d\n", vbus_mv);
+		if (vbus_mv < MCA_QUICK_CHG_VBUS_OK_HIGH_TH)
+			break;
+		mca_quick_charge_msleep(100, info);
+	}
+
+	if (proc_data->cur_work_cp == MCA_QUICK_CHG_CP_DUAL) {
+		platform_class_cp_set_mode(CP_ROLE_MASTER, CP_MODE_FORWARD_1_1);
+		platform_class_cp_set_mode(CP_ROLE_SLAVE, CP_MODE_FORWARD_1_1);
+	} else {
+		platform_class_cp_set_mode(proc_data->cur_work_cp,
+					   CP_MODE_FORWARD_1_1);
+	}
+	platform_class_cp_enable_adc(CP_ROLE_MASTER, false);
+	platform_class_cp_enable_adc(CP_ROLE_SLAVE, false);
+
+	proc_data->work_mode = BIT(select_mode);
+	mca_quick_charge_update_work_mode_para(info);
+
+	if (info->vfc_para.support_cp_vfc) {
+		platform_class_cp_set_fsw(CP_ROLE_MASTER,
+					  MCA_QUICK_CHG_CP_DEFAULT_FSW);
+		if (info->cp_type == MCA_CP_TYPE_PARALLEL)
+			platform_class_cp_set_fsw(CP_ROLE_SLAVE,
+						  MCA_QUICK_CHG_CP_DEFAULT_FSW);
+	}
+
+	platform_class_cp_enable_busucp(proc_data->cur_work_cp, false);
+	ret = mca_quick_charge_open_path(info);
+	platform_class_cp_enable_busucp(proc_data->cur_work_cp, true);
+	if (ret) {
+		proc_data->total_err++;
+		mca_vote(info->input_suspend_voter, "wire_qc", false, 0);
+		platform_class_cp_set_charging_enable(proc_data->cur_work_cp,
+						      false);
+		info->pd_switch_to_pmic = true;
+		mca_quick_charge_req_adp_volt_and_cur(info);
+		info->force_stop = true;
+		mca_log_err("mode switch start charging failed\n");
+		return;
+	}
+
+	info->pd_switch_to_pmic = false;
+	info->boost_done = false;
+	if (info->vfc_para.support_cp_vfc)
+		schedule_delayed_work(
+			&info->vfc_work,
+			msecs_to_jiffies(MCA_QUICK_CHG_VFC_INTERVAL));
+	info->cur_cp_work_mode = select_mode;
+}
+
+static void
+mca_quick_charge_change_path(struct mca_quick_charge_info *info)
 {
 	if (info->cp_type != MCA_CP_TYPE_PARALLEL || info->is_platform_qc)
 		return;
@@ -2783,6 +3064,7 @@ static void mca_quick_charge_monitor_work(struct work_struct *work)
 		goto out;
 	}
 	mca_quick_charge_change_path(info);
+	mca_check_cp_work_mode(info);
 
 	if (info->is_platform_qc)
 		ret = mca_qc_quick_charge_regulation(info);
@@ -3591,6 +3873,25 @@ mca_quick_charge_parse_chg_mode_info(struct device_node *node,
 		     info->ibus_compensation[CHG_MODE_DIV1],
 		     info->ibus_compensation[CHG_MODE_DIV2],
 		     info->ibus_compensation[CHG_MODE_DIV4]);
+
+	info->support_mode_switch =
+		(of_find_property(node, "support-cp-mode-switch", NULL) != NULL);
+	if (info->support_mode_switch) {
+		ret = mca_parse_dts_u32_array(
+			node, "cp-mode-switch-threshold",
+			(u32 *)info->cp_mode_switch_threshold, CHG_MODE_MAX * 2);
+		if (ret)
+			info->support_mode_switch = false;
+	}
+	mca_log_info(
+		"support_mode_switch: %d, threshold: [%d %d] [%d %d] [%d %d]\n",
+		info->support_mode_switch,
+		info->cp_mode_switch_threshold[CHG_MODE_DIV1][0],
+		info->cp_mode_switch_threshold[CHG_MODE_DIV1][1],
+		info->cp_mode_switch_threshold[CHG_MODE_DIV2][0],
+		info->cp_mode_switch_threshold[CHG_MODE_DIV2][1],
+		info->cp_mode_switch_threshold[CHG_MODE_DIV4][0],
+		info->cp_mode_switch_threshold[CHG_MODE_DIV4][1]);
 }
 
 static void mca_quick_charge_parse_vfc_info(struct mca_quick_charge_info *info)

@@ -520,6 +520,13 @@ struct mca_quick_charge_info {
 	bool boost_done;
 	bool check_vbat_ov;
 	int support_base_flip;
+	/* cp work mode switch by current */
+	bool support_mode_switch;
+	int cur_cp_work_mode;
+	int cp_default_work_mode;
+	bool no_div1_flag;
+	bool last_stage_flag;
+	int cp_mode_switch_threshold[CHG_MODE_MAX][2];
 };
 
 #endif /* __MCA_QUICK_CHARGE_H__ */
