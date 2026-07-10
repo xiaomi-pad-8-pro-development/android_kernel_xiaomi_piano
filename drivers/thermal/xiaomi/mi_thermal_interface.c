@@ -97,6 +97,7 @@ static atomic_t display_therm_temp = ATOMIC_INIT(0);
 static atomic_t dynamic_tj = ATOMIC_INIT(0);
 static atomic_t ntn_limit = ATOMIC_INIT(0);
 static atomic_t super_hdr = ATOMIC_INIT(0);
+static atomic_t voice_limit = ATOMIC_INIT(0);
 static char boost_buf[128];
 const char *board_sensor;
 static char board_sensor_temp[128];
@@ -800,6 +801,27 @@ static ssize_t super_hdr_store(struct device *dev,
 
 static DEVICE_ATTR(super_hdr, 0664, super_hdr_show, super_hdr_store);
 
+static ssize_t voice_limit_show(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	return snprintf(buf, PAGE_SIZE, "%d\n", atomic_read(&voice_limit));
+}
+
+static ssize_t voice_limit_store(struct device *dev,
+				 struct device_attribute *attr, const char *buf,
+				 size_t len)
+{
+	int val = -1;
+
+	val = simple_strtol(buf, NULL, 10);
+
+	atomic_set(&voice_limit, val);
+
+	return len;
+}
+
+static DEVICE_ATTR(voice_limit, 0664, voice_limit_show, voice_limit_store);
+
 static ssize_t thermal_modem_limit_show(struct device *dev,
 					struct device_attribute *attr,
 					char *buf)
@@ -1006,6 +1028,7 @@ static struct attribute *mi_thermal_dev_attr_group[] = {
 	&dev_attr_dynamic_tj.attr,
 	&dev_attr_ntn_limit.attr,
 	&dev_attr_super_hdr.attr,
+	&dev_attr_voice_limit.attr,
 	&dev_attr_balance_mode.attr,
 	&dev_attr_modem_limit.attr,
 	&dev_attr_poor_modem_limit.attr,
