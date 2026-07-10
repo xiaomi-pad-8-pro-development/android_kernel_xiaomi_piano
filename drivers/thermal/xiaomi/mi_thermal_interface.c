@@ -38,6 +38,12 @@ struct mi_thermal_device {
 	struct attribute_group attrs;
 };
 
+struct mi_powersave_device {
+	struct device *dev;
+	const struct class *class;
+	struct attribute_group attrs;
+};
+
 struct freq_table {
 	u32 frequency;
 };
@@ -65,6 +71,7 @@ static struct usb_monitor usb_state;
 static atomic_t charger_mode = ATOMIC_INIT(-1);
 #endif
 static struct mi_thermal_device mi_thermal_dev;
+static struct mi_powersave_device mi_powersave_dev;
 
 static int screen_state = 0;
 static int screen_light = 0;
@@ -98,6 +105,8 @@ static atomic_t dynamic_tj = ATOMIC_INIT(0);
 static atomic_t ntn_limit = ATOMIC_INIT(0);
 static atomic_t super_hdr = ATOMIC_INIT(0);
 static atomic_t voice_limit = ATOMIC_INIT(0);
+static atomic_t powersave_mode = ATOMIC_INIT(-1);
+static atomic_t power_level = ATOMIC_INIT(-1);
 static char boost_buf[128];
 const char *board_sensor;
 static char board_sensor_temp[128];
@@ -1006,6 +1015,57 @@ static int of_parse_thermal_message(void)
 	return 0;
 }
 
+static ssize_t thermal_powersave_mode_show(struct device *dev,
+					   struct device_attribute *attr,
+					   char *buf)
+{
+	return snprintf(buf, PAGE_SIZE, "%d\n", atomic_read(&powersave_mode));
+}
+
+static ssize_t thermal_powersave_mode_store(struct device *dev,
+					    struct device_attribute *attr,
+					    const char *buf, size_t len)
+{
+	int val = -1;
+
+	val = simple_strtol(buf, NULL, 10);
+
+	atomic_set(&powersave_mode, val);
+
+	return len;
+}
+
+static DEVICE_ATTR(powersave_mode, 0664, thermal_powersave_mode_show,
+		   thermal_powersave_mode_store);
+
+static ssize_t thermal_power_level_show(struct device *dev,
+					struct device_attribute *attr, char *buf)
+{
+	return snprintf(buf, PAGE_SIZE, "%d\n", atomic_read(&power_level));
+}
+
+static ssize_t thermal_power_level_store(struct device *dev,
+					 struct device_attribute *attr,
+					 const char *buf, size_t len)
+{
+	int val = -1;
+
+	val = simple_strtol(buf, NULL, 10);
+
+	atomic_set(&power_level, val);
+
+	return len;
+}
+
+static DEVICE_ATTR(power_level, 0664, thermal_power_level_show,
+		   thermal_power_level_store);
+
+static struct attribute *mi_powersave_dev_attr_group[] = {
+	&dev_attr_powersave_mode.attr,
+	&dev_attr_power_level.attr,
+	NULL,
+};
+
 static struct attribute *mi_thermal_dev_attr_group[] = {
 	&dev_attr_temp_state.attr,
 	&dev_attr_cpu_limits.attr,
@@ -1254,6 +1314,60 @@ static void create_thermal_message_node(void)
 	}
 }
 
+static void create_mi_powersave_node(void)
+{
+	int ret = 0;
+	struct kernfs_node *sysfs_sd = NULL;
+	struct kernfs_node *thermal_sd = NULL;
+	struct kernfs_node *class_sd = NULL;
+	const struct class *cls = NULL;
+	struct subsys_private *cp = NULL;
+	struct kobject *kobj_tmp = NULL;
+
+	sysfs_sd = kernel_kobj->sd->parent;
+	if (!sysfs_sd) {
+		printk(KERN_ERR "%s: sysfs_sd is NULL\n", __func__);
+	} else {
+		class_sd = kernfs_find_and_get(sysfs_sd, "class");
+		if (!class_sd) {
+			printk(KERN_ERR "%s:can not find class_sd\n", __func__);
+		} else {
+			thermal_sd = kernfs_find_and_get(class_sd, "thermal");
+			if (thermal_sd) {
+				kobj_tmp = (struct kobject *)thermal_sd->priv;
+				if (kobj_tmp) {
+					cp = to_subsys_private(kobj_tmp);
+					cls = cp->class;
+				} else {
+					printk(KERN_ERR
+					       "%s:can not find thermal kobj\n",
+					       __func__);
+				}
+			} else {
+				printk(KERN_ERR "%s:can not find thermal_sd\n",
+				       __func__);
+			}
+		}
+	}
+	if (!mi_powersave_dev.class && cls) {
+		mi_powersave_dev.class = cls;
+		mi_powersave_dev.dev = device_create(mi_powersave_dev.class, NULL,
+						     'H', NULL, "power_save");
+		if (!mi_powersave_dev.dev) {
+			pr_err("%s create device dev err\n", __func__);
+			return;
+		}
+		mi_powersave_dev.attrs.attrs = mi_powersave_dev_attr_group;
+		ret = sysfs_create_group(&mi_powersave_dev.dev->kobj,
+					 &mi_powersave_dev.attrs);
+		if (ret) {
+			pr_err("%s ERROR: Cannot create sysfs structure!:%d\n",
+			       __func__, ret);
+			return;
+		}
+	}
+}
+
 static void screen_state_check(struct work_struct *work)
 {
 #if defined(CONFIG_OF) && defined(CONFIG_DRM_PANEL)
@@ -1329,6 +1443,16 @@ static void destroy_thermal_message_node(void)
 	}
 }
 
+static void destroy_mi_powersave_node(void)
+{
+	printk(KERN_ERR "%s:destroy_mi_powersave_node", __func__);
+	sysfs_remove_group(&mi_powersave_dev.dev->kobj, &mi_powersave_dev.attrs);
+	if (NULL != mi_powersave_dev.class) {
+		device_destroy(mi_powersave_dev.class, 'H');
+		mi_powersave_dev.class = NULL;
+	}
+}
+
 #ifdef CONFIG_MI_THERMAL_MULTI_CHARGE
 static void usb_online_work(struct work_struct *work)
 {
@@ -1355,6 +1479,7 @@ static int __init mi_thermal_interface_init(void)
 		       "%s:Thermal: Can not parse thermal message node, return %d\n",
 		       __func__, result);
 	create_thermal_message_node();
+	create_mi_powersave_node();
 
 #ifdef CONFIG_MI_THERMAL_MULTI_CHARGE
 	usb_state.psy_nb.notifier_call = usb_online_callback;
@@ -1398,6 +1523,7 @@ static void __exit mi_thermal_interface_exit(void)
 #endif
 #endif
 	destroy_thermal_message_node();
+	destroy_mi_powersave_node();
 	destory_thermal_cpu();
 }
 
