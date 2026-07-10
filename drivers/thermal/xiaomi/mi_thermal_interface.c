@@ -87,6 +87,7 @@ static atomic_t market_download_limit = ATOMIC_INIT(0);
 static atomic_t flash_state = ATOMIC_INIT(0);
 static atomic_t wifi_limit = ATOMIC_INIT(0);
 static atomic_t thermal_max_brightness = ATOMIC_INIT(0);
+static atomic_t board_sensor_temp_comp_default = ATOMIC_INIT(0);
 static char boost_buf[128];
 const char *board_sensor;
 static char board_sensor_temp[128];
@@ -565,6 +566,31 @@ static DEVICE_ATTR(board_sensor_other_temp, 0664,
 		   thermal_board_sensor_other_temp_show,
 		   thermal_board_sensor_other_temp_store);
 
+static ssize_t thermal_board_sensor_temp_comp_show(struct device *dev,
+						   struct device_attribute *attr,
+						   char *buf)
+{
+	return snprintf(buf, PAGE_SIZE, "%d\n",
+			atomic_read(&board_sensor_temp_comp_default));
+}
+
+static ssize_t thermal_board_sensor_temp_comp_store(struct device *dev,
+						    struct device_attribute *attr,
+						    const char *buf, size_t len)
+{
+	int val = -1;
+
+	val = simple_strtol(buf, NULL, 10);
+
+	atomic_set(&board_sensor_temp_comp_default, val);
+
+	return len;
+}
+
+static DEVICE_ATTR(board_sensor_temp_comp, 0664,
+		   thermal_board_sensor_temp_comp_show,
+		   thermal_board_sensor_temp_comp_store);
+
 static ssize_t thermal_modem_limit_show(struct device *dev,
 					struct device_attribute *attr,
 					char *buf)
@@ -761,6 +787,7 @@ static struct attribute *mi_thermal_dev_attr_group[] = {
 	&dev_attr_ambient_sensor_temp.attr,
 	&dev_attr_board_sensor_second_temp.attr,
 	&dev_attr_board_sensor_other_temp.attr,
+	&dev_attr_board_sensor_temp_comp.attr,
 	&dev_attr_balance_mode.attr,
 	&dev_attr_modem_limit.attr,
 	&dev_attr_poor_modem_limit.attr,
