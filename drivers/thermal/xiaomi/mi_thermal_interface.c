@@ -93,6 +93,7 @@ static atomic_t torch_level = ATOMIC_INIT(0);
 static atomic_t torch_real_level = ATOMIC_INIT(-1);
 static atomic_t boot_complete = ATOMIC_INIT(0);
 static atomic_t cloud_game = ATOMIC_INIT(0);
+static atomic_t display_therm_temp = ATOMIC_INIT(0);
 static char boost_buf[128];
 const char *board_sensor;
 static char board_sensor_temp[128];
@@ -709,6 +710,28 @@ static ssize_t cloud_game_store(struct device *dev,
 
 static DEVICE_ATTR(cloud_game, 0664, cloud_game_show, cloud_game_store);
 
+static ssize_t display_therm_temp_show(struct device *dev,
+				       struct device_attribute *attr, char *buf)
+{
+	return snprintf(buf, PAGE_SIZE, "%d\n", atomic_read(&display_therm_temp));
+}
+
+static ssize_t display_therm_temp_store(struct device *dev,
+					struct device_attribute *attr,
+					const char *buf, size_t len)
+{
+	int val = -1;
+
+	val = simple_strtol(buf, NULL, 10);
+
+	atomic_set(&display_therm_temp, val);
+
+	return len;
+}
+
+static DEVICE_ATTR(display_therm_temp, 0664, display_therm_temp_show,
+		   display_therm_temp_store);
+
 static ssize_t thermal_modem_limit_show(struct device *dev,
 					struct device_attribute *attr,
 					char *buf)
@@ -911,6 +934,7 @@ static struct attribute *mi_thermal_dev_attr_group[] = {
 	&dev_attr_torch_real_level.attr,
 	&dev_attr_boot_complete.attr,
 	&dev_attr_cloud_game.attr,
+	&dev_attr_display_therm_temp.attr,
 	&dev_attr_balance_mode.attr,
 	&dev_attr_modem_limit.attr,
 	&dev_attr_poor_modem_limit.attr,
