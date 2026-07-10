@@ -90,6 +90,8 @@ static atomic_t thermal_max_brightness = ATOMIC_INIT(0);
 static char boost_buf[128];
 const char *board_sensor;
 static char board_sensor_temp[128];
+const char *ambient_sensor;
+static char ambient_sensor_temp[128];
 
 static LIST_HEAD(cpufreq_dev_list);
 static DEFINE_MUTEX(cpufreq_list_lock);
@@ -496,6 +498,33 @@ static ssize_t thermal_board_sensor_temp_store(struct device *dev,
 static DEVICE_ATTR(board_sensor_temp, 0664, thermal_board_sensor_temp_show,
 		   thermal_board_sensor_temp_store);
 
+static ssize_t thermal_ambient_sensor_show(struct device *dev,
+					   struct device_attribute *attr,
+					   char *buf)
+{
+	return snprintf(buf, PAGE_SIZE, "%s", "ABT-SENSOR");
+}
+
+static DEVICE_ATTR(ambient_sensor, 0664, thermal_ambient_sensor_show, NULL);
+
+static ssize_t thermal_ambient_sensor_temp_show(struct device *dev,
+						struct device_attribute *attr,
+						char *buf)
+{
+	return snprintf(buf, PAGE_SIZE, ambient_sensor_temp);
+}
+
+static ssize_t thermal_ambient_sensor_temp_store(struct device *dev,
+						 struct device_attribute *attr,
+						 const char *buf, size_t len)
+{
+	snprintf(ambient_sensor_temp, BOARD__BUFFER_SIZE, buf);
+	return len;
+}
+
+static DEVICE_ATTR(ambient_sensor_temp, 0664, thermal_ambient_sensor_temp_show,
+		   thermal_ambient_sensor_temp_store);
+
 static ssize_t thermal_modem_limit_show(struct device *dev,
 					struct device_attribute *attr,
 					char *buf)
@@ -688,6 +717,8 @@ static struct attribute *mi_thermal_dev_attr_group[] = {
 	&dev_attr_boost.attr,
 	&dev_attr_board_sensor.attr,
 	&dev_attr_board_sensor_temp.attr,
+	&dev_attr_ambient_sensor.attr,
+	&dev_attr_ambient_sensor_temp.attr,
 	&dev_attr_balance_mode.attr,
 	&dev_attr_modem_limit.attr,
 	&dev_attr_poor_modem_limit.attr,
