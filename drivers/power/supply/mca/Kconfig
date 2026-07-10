@@ -1,0 +1,4 @@
+config XM_POWER_SUPPLY
+	tristate "Xiaomi MCA power supply framework"
+	help
+	  Xiaomi Multi Charge Architecture (MCA) power-supply framework.
