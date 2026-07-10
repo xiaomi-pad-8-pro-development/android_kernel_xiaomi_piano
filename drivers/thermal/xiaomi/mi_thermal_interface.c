@@ -19,6 +19,10 @@
 #include <linux/kernfs.h>
 #include <linux/workqueue.h>
 #include <linux/power_supply.h>
+#if IS_ENABLED(CONFIG_XM_POWER_SUPPLY)
+#include <mca/common/mca_event.h>
+#include <mca/smartchg/smart_chg_class.h>
+#endif
 #include "../../base/base.h"
 
 #include "../thermal_core.h"
@@ -378,6 +382,10 @@ static ssize_t thermal_sconfig_store(struct device *dev,
 
 	atomic_set(&switch_mode, val);
 
+#if IS_ENABLED(CONFIG_XM_POWER_SUPPLY)
+	mca_smartchg_set_scene(val);
+#endif
+
 	return len;
 }
 
@@ -512,7 +520,18 @@ static ssize_t thermal_board_sensor_temp_store(struct device *dev,
 					       struct device_attribute *attr,
 					       const char *buf, size_t len)
 {
+#if IS_ENABLED(CONFIG_XM_POWER_SUPPLY)
+	int temp;
+#endif
+
 	snprintf(board_sensor_temp, BOARD__BUFFER_SIZE, buf);
+
+#if IS_ENABLED(CONFIG_XM_POWER_SUPPLY)
+	temp = simple_strtol(buf, NULL, 10);
+	mca_event_block_notify(MCA_EVENT_TYPE_THERMAL_TEMP,
+			       MCA_EVENT_THERMAL_BOARD_TEMP_CHANGE, &temp);
+#endif
+
 	return len;
 }
 
