@@ -1,1 +1,1 @@
-obj-$(CONFIG_XM_POWER_SUPPLY)	+= nuvolta_1652.o
+obj-$(CONFIG_MCA_EXTERNAL_WIRELESS)	+= nuvolta_1652.o

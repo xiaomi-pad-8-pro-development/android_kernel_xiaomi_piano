@@ -1,1 +1,1 @@
-obj-$(CONFIG_XM_POWER_SUPPLY)	+= mca_ut_test.o
+obj-$(CONFIG_MCA_UT_TEST)	+= mca_ut_test.o

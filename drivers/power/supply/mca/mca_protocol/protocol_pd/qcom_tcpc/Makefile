@@ -1,1 +1,1 @@
-obj-$(CONFIG_XM_POWER_SUPPLY)	+= qcom_adsp_pd_protocol.o
+obj-$(CONFIG_MCA_QCOM_ADSP)	+= qcom_adsp_pd_protocol.o

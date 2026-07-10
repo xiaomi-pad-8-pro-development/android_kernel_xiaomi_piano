@@ -1,3 +1,3 @@
-obj-$(CONFIG_XM_POWER_SUPPLY)	+= mca_protocol_pd_class.o
-obj-$(CONFIG_XM_POWER_SUPPLY)	+= qcom_tcpc/
+obj-$(CONFIG_MCA_PROTOCOL_PD)	+= mca_protocol_pd_class.o
+obj-$(CONFIG_MCA_QCOM_ADSP)	+= qcom_tcpc/
 

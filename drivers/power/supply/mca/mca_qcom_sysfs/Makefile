@@ -1,1 +1,1 @@
-obj-$(CONFIG_XM_POWER_SUPPLY)	+= mca_qcom_sysfs.o
+obj-$(CONFIG_MCA_QCOM_SYSFS)	+= mca_qcom_sysfs.o

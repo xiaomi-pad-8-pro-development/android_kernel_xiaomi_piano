@@ -1,3 +1,3 @@
 ccflags-y += -I$(srctree)/drivers/misc/hwid
-obj-$(CONFIG_XM_POWER_SUPPLY)	+= sc8581.o
+obj-$(CONFIG_MCA_EXTERNAL_CP)	+= sc8581.o
 

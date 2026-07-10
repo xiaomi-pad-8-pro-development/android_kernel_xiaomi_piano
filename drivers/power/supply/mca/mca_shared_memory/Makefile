@@ -1,4 +1,4 @@
 ccflags-y += -I$(srctree)/drivers/scsi
 
-obj-$(CONFIG_XM_POWER_SUPPLY)	+= charger_partition.o
+obj-$(CONFIG_CHARGER_PARTITION)	+= charger_partition.o
 
