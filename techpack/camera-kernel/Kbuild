@@ -90,6 +90,8 @@ ccflags-y += -I$(CAMERA_KERNEL_ROOT)/../securemsm-kernel/include/
 # After creating lists, add content of 'ccflags-m' variable to 'ccflags-y' one.
 ccflags-y += ${ccflags-m}
 
+CFLAGS_drivers/cam_msger/cam_msger.o += -Wframe-larger-than=4096
+
 camera-y := \
 	drivers/cam_req_mgr/cam_req_mgr_core.o \
 	drivers/cam_req_mgr/cam_req_mgr_dev.o \
