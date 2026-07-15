@@ -46,8 +46,6 @@
 #define FAST_HEARTBEAT_TIMER_MS 10000
 #define NORMAL_HEARTBEAT_TIMER_MS 60000
 
-static int OCP_THR[FG_IC_MAX] = { OCP_THRESHOLD_MAINT, OCP_THRESHOLD_FLIP };
-
 static int mca_ibat_mon_get_ibat_ocp_flag(struct mca_ibat_ocp_mon_dev *info)
 {
 	int master_ocp = 0;
@@ -63,10 +61,10 @@ static int mca_ibat_mon_get_ibat_ocp_flag(struct mca_ibat_ocp_mon_dev *info)
 	if (info->fake_slave_ibat_override_ma > 0)
 		slave_curr = info->fake_slave_ibat_override_ma;
 
-	if (abs(master_curr) > OCP_THR[FG_IC_MASTER]) {
+	if (abs(master_curr) > info->ocp_threshold[FG_IC_MASTER]) {
 		master_ocp = 1;
 	}
-	if (abs(slave_curr) > OCP_THR[FG_IC_SLAVE]) {
+	if (abs(slave_curr) > info->ocp_threshold[FG_IC_SLAVE]) {
 		slave_ocp = 1;
 	}
 
@@ -193,8 +191,8 @@ static int mca_ibat_ocp_mon_parse_dt(struct mca_ibat_ocp_mon_dev *info)
 	ret2 = mca_parse_dts_u32_array(np, "ocp_threshold", info->ocp_threshold,
 				       2);
 	if (ret2 || ret) {
-		info->ocp_threshold[0] = 9280000;
-		info->ocp_threshold[1] = 3540000;
+		info->ocp_threshold[FG_IC_MASTER] = OCP_THRESHOLD_MAINT;
+		info->ocp_threshold[FG_IC_SLAVE] = OCP_THRESHOLD_FLIP;
 		mca_log_err("parse ocp_threshold failed, use default value\n");
 		mca_log_info("ocp_threshold : %d %d\n", info->ocp_threshold[0],
 			     info->ocp_threshold[1]);
