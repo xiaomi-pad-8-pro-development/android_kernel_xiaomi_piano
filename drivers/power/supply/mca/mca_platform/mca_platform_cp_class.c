@@ -590,6 +590,18 @@ int platform_class_cp_get_battery_vout(unsigned int role, u32 *val)
 }
 EXPORT_SYMBOL(platform_class_cp_get_battery_vout);
 
+int platform_class_cp_get_adc_enabled(unsigned int role, bool *en)
+{
+	struct platform_cp_class_ops_data *temp_data =
+		platform_cp_class_get_ic_ops(role);
+
+	if (platform_cp_ops_invalid(temp_data, cp_get_adc_enabled))
+		return -1;
+
+	return temp_data->ops->cp_get_adc_enabled(en, temp_data->data);
+}
+EXPORT_SYMBOL(platform_class_cp_get_adc_enabled);
+
 int platform_class_cp_set_fsw(unsigned int role, int fsw)
 {
 	struct platform_cp_class_ops_data *temp_data =
