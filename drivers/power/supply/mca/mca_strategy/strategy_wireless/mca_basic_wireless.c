@@ -4297,7 +4297,6 @@ static int strategy_wireless_parse_dt(struct strategy_wireless_dev *info)
 	struct device_node *node = info->dev->of_node;
 	int ret = 0;
 	u32 idata[ADAPTER_TYPE_MAX] = { 0 };
-	u8 idata_u8[ADAPTER_TYPE_MAX] = { 0 };
 
 	if (!node) {
 		mca_log_err("device tree node missing\n");
@@ -4307,33 +4306,54 @@ static int strategy_wireless_parse_dt(struct strategy_wireless_dev *info)
 	(void)mca_parse_dts_u32(node, "support_q_value", &info->support_q_value,
 				0);
 	if (info->support_q_value) {
-		ret = mca_parse_dts_u8_array(node, "tx_q1", idata_u8,
-					     ADAPTER_TYPE_MAX);
-		if (ret) {
-			info->tx_q1[ADAPTER_LOW_INDUCTANCE_TX_50W] =
-				MCA_WLS_CHG_DEFAULT_TX_Q1;
-			info->tx_q1[ADAPTER_LOW_INDUCTANCE_TX_80W] =
-				MCA_WLS_CHG_DEFAULT_TX_Q1;
-		} else
-			memcpy(info->tx_q1, idata_u8, sizeof(idata_u8));
+		int i, len;
+		u8 *q1_buf;
+		u32 *q2_buf;
 
-		mca_log_debug("tx_q1 0x%02x 0x%02x\n",
-			      info->tx_q1[ADAPTER_LOW_INDUCTANCE_TX_50W],
-			      info->tx_q1[ADAPTER_LOW_INDUCTANCE_TX_80W]);
+		for (i = 0; i < ADAPTER_TYPE_MAX; i++)
+			info->tx_q1[i] = MCA_WLS_CHG_DEFAULT_TX_Q1;
 
-		ret = mca_parse_dts_u32_array(node, "tx_q2", idata,
-					      ADAPTER_TYPE_MAX);
-		if (ret) {
-			info->tx_q2[ADAPTER_LOW_INDUCTANCE_TX_50W] =
-				MCA_WLS_CHG_DEFAULT_TX_Q2;
-			info->tx_q2[ADAPTER_LOW_INDUCTANCE_TX_80W] =
-				MCA_WLS_CHG_DEFAULT_TX_Q2;
-		} else
-			memcpy(info->tx_q2, idata, sizeof(idata));
+		len = of_property_count_elems_of_size(node, "tx_q1", sizeof(u8));
+		if (len >= 1) {
+			q1_buf = kmalloc(len, GFP_KERNEL);
+			if (q1_buf) {
+				if (!mca_parse_dts_u8_array(node, "tx_q1", q1_buf,
+							    len))
+					memcpy(info->tx_q1, q1_buf,
+					       min_t(int, len, ADAPTER_TYPE_MAX));
+				kfree(q1_buf);
+			}
+		}
+		mca_log_err("tx_q1 0x%02x 0x%02x 0x%02x, len %d\n",
+			    info->tx_q1[ADAPTER_LOW_INDUCTANCE_TX_50W],
+			    info->tx_q1[ADAPTER_LOW_INDUCTANCE_TX_80W],
+			    info->tx_q1[ADAPTER_LOW_INDUCTANCE_TX_100W], len);
 
-		mca_log_debug("tx_q2 %d %d\n",
-			      info->tx_q2[ADAPTER_LOW_INDUCTANCE_TX_50W],
-			      info->tx_q2[ADAPTER_LOW_INDUCTANCE_TX_80W]);
+		for (i = 0; i < ADAPTER_TYPE_MAX; i++)
+			info->tx_q2[i] = MCA_WLS_CHG_DEFAULT_TX_Q2;
+
+		len = of_property_count_elems_of_size(node, "tx_q2",
+						      sizeof(u32));
+		if (len >= 1) {
+			q2_buf = kmalloc_array(len, sizeof(u32), GFP_KERNEL);
+			if (q2_buf) {
+				if (!mca_parse_dts_u32_array(node, "tx_q2",
+							     q2_buf, len))
+					for (i = 0;
+					     i < min_t(int, len, ADAPTER_TYPE_MAX);
+					     i++)
+						if (q2_buf[i])
+							info->tx_q2[i] =
+								q2_buf[i];
+				kfree(q2_buf);
+			} else {
+				mca_log_err("alloc memory for tx_q2 failed\n");
+			}
+		}
+		mca_log_err("tx_q2 %d %d %d, len %d\n",
+			    info->tx_q2[ADAPTER_LOW_INDUCTANCE_TX_50W],
+			    info->tx_q2[ADAPTER_LOW_INDUCTANCE_TX_80W],
+			    info->tx_q2[ADAPTER_LOW_INDUCTANCE_TX_100W], len);
 	}
 	(void)mca_parse_dts_u32(node, "max_power", &info->max_power, 50);
 	(void)mca_parse_dts_u32(node, "support_mode", &info->support_mode, 4);
@@ -4368,7 +4388,7 @@ static int strategy_wireless_parse_dt(struct strategy_wireless_dev *info)
 		info->rx_max_iout[CHG_MODE_DIV4] =
 			MCA_WLS_CHG_DEFAULT_DIV4_RX_MAX_IOUT;
 	} else
-		memcpy(info->rx_max_iout, idata, sizeof(idata));
+		memcpy(info->rx_max_iout, idata, sizeof(info->rx_max_iout));
 
 	mca_log_debug("rx_max_iout %d %d\n", info->rx_max_iout[CHG_MODE_DIV2],
 		      info->rx_max_iout[CHG_MODE_DIV2]);

@@ -163,6 +163,7 @@ enum sys_op_mode {
 enum mca_wireless_basic_tx_q_adapter_type {
 	ADAPTER_LOW_INDUCTANCE_TX_50W = 0,
 	ADAPTER_LOW_INDUCTANCE_TX_80W,
+	ADAPTER_LOW_INDUCTANCE_TX_100W,
 	ADAPTER_TYPE_MAX,
 };
 
