@@ -45,6 +45,7 @@
 #include <mca/common/mca_charge_interface.h>
 #include <mca/smartchg/smart_chg_class.h>
 #include <mca/common/mca_hwid.h>
+#include <mca/strategy/strategy_wireless_class.h>
 #include "hwid.h"
 #include "inc/mca_quick_wireless.h"
 #include <mca/platform/platform_loadsw_class.h>
@@ -453,6 +454,7 @@ static void mca_wireless_quick_charge_stop_charging(
 		platform_class_cp_set_mode(CP_ROLE_SLAVE, CP_MODE_FORWARD_2_1);
 
 	(void)mca_vote(info->input_limit_voter, "wireless_qc", false, 0);
+	strategy_wireless_enable_cp_error_irq(false);
 	(void)platform_class_cp_enable_adc(CP_ROLE_MASTER, false);
 	(void)platform_class_cp_enable_adc(CP_ROLE_SLAVE, false);
 	memset(info->proc_data.cur_stage, 0, sizeof(info->proc_data.cur_stage));
@@ -983,6 +985,7 @@ mca_wireless_quick_charge_open_path(struct mca_wireless_quick_charge_info *info)
 	int vout_setted;
 	int temp = 0;
 
+	strategy_wireless_enable_cp_error_irq(true);
 	ret = platform_class_cp_enable_adc(info->proc_data.cur_work_cp, true);
 	if (info->cp_type == MCA_CP_TYPE_PARALLEL) {
 		(void)platform_class_cp_set_mode(CP_ROLE_MASTER,
