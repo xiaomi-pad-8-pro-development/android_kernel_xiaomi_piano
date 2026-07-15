@@ -109,6 +109,14 @@ struct platform_class_wireless_ops {
 	int (*wls_get_pen_full_flag)(bool *, void *data);
 	int (*wls_get_pen_place_err)(int *, void *data);
 	int (*wls_set_pen_place_err)(int, void *data);
+	int (*wls_get_pen_mac)(u8 *, void *data);
+	int (*wls_get_pen_soc)(int *, void *data);
+	int (*wls_get_reverse_chg_en)(bool *, void *data);
+	int (*wls_set_hboost_enable)(bool, void *data);
+	int (*wls_set_charge_type)(int, void *data);
+	int (*wls_get_tx_iout)(int *, void *data);
+	int (*wls_get_tx_vout)(int *, void *data);
+	int (*wls_get_rx_brg_status)(int *, void *data);
 };
 int platform_class_wireless_register_ops(
 	unsigned int role, void *data, struct platform_class_wireless_ops *ops);
@@ -206,4 +214,13 @@ int platform_class_wireless_get_pen_hall_ppe_s(unsigned int role, int *val);
 int platform_class_wireless_get_pen_full_flag(unsigned int role, bool *flag);
 int platform_class_wireless_get_pen_place_err(unsigned int role, int *err);
 int platform_class_wireless_set_pen_place_err(unsigned int role, int err);
+int platform_class_wireless_get_pen_mac(unsigned int role, u8 *mac);
+int platform_class_wireless_get_pen_soc(unsigned int role, int *soc);
+int platform_class_wireless_get_reverse_chg_en(unsigned int role, bool *en);
+int platform_class_wireless_set_hboost_enable(unsigned int role, bool en);
+int platform_class_wireless_set_charge_type(unsigned int role, int type);
+int platform_class_wireless_set_external_boost_enable(unsigned int role, bool en);
+int platform_class_wireless_get_tx_iout(unsigned int role, int *iout);
+int platform_class_wireless_get_tx_vout(unsigned int role, int *vout);
+int platform_class_wireless_get_rx_brg_status(unsigned int role, int *status);
 #endif /* _MCA_PLATFORM_PLATFORM_WIRELESS_CLASS_H_ */

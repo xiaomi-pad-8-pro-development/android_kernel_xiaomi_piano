@@ -997,6 +997,114 @@ int platform_class_wireless_set_pen_place_err(unsigned int role, int err)
 }
 EXPORT_SYMBOL(platform_class_wireless_set_pen_place_err);
 
+int platform_class_wireless_get_pen_mac(unsigned int role, u8 *mac)
+{
+	struct platform_wireless_class_ops_data *temp_data =
+		platform_wireless_class_get_ic_ops(role);
+
+	if (platform_wireless_ops_invalid(temp_data, wls_get_pen_mac))
+		return -EOPNOTSUPP;
+
+	return temp_data->ops->wls_get_pen_mac(mac, temp_data->data);
+}
+EXPORT_SYMBOL(platform_class_wireless_get_pen_mac);
+
+int platform_class_wireless_get_pen_soc(unsigned int role, int *soc)
+{
+	struct platform_wireless_class_ops_data *temp_data =
+		platform_wireless_class_get_ic_ops(role);
+
+	if (platform_wireless_ops_invalid(temp_data, wls_get_pen_soc))
+		return -EOPNOTSUPP;
+
+	return temp_data->ops->wls_get_pen_soc(soc, temp_data->data);
+}
+EXPORT_SYMBOL(platform_class_wireless_get_pen_soc);
+
+int platform_class_wireless_get_reverse_chg_en(unsigned int role, bool *en)
+{
+	struct platform_wireless_class_ops_data *temp_data =
+		platform_wireless_class_get_ic_ops(role);
+
+	if (platform_wireless_ops_invalid(temp_data, wls_get_reverse_chg_en))
+		return -EOPNOTSUPP;
+
+	return temp_data->ops->wls_get_reverse_chg_en(en, temp_data->data);
+}
+EXPORT_SYMBOL(platform_class_wireless_get_reverse_chg_en);
+
+int platform_class_wireless_set_hboost_enable(unsigned int role, bool en)
+{
+	struct platform_wireless_class_ops_data *temp_data =
+		platform_wireless_class_get_ic_ops(role);
+
+	if (platform_wireless_ops_invalid(temp_data, wls_set_hboost_enable))
+		return -EOPNOTSUPP;
+
+	return temp_data->ops->wls_set_hboost_enable(en, temp_data->data);
+}
+EXPORT_SYMBOL(platform_class_wireless_set_hboost_enable);
+
+int platform_class_wireless_set_charge_type(unsigned int role, int type)
+{
+	struct platform_wireless_class_ops_data *temp_data =
+		platform_wireless_class_get_ic_ops(role);
+
+	if (platform_wireless_ops_invalid(temp_data, wls_set_charge_type))
+		return -EOPNOTSUPP;
+
+	return temp_data->ops->wls_set_charge_type(type, temp_data->data);
+}
+EXPORT_SYMBOL(platform_class_wireless_set_charge_type);
+
+int platform_class_wireless_set_external_boost_enable(unsigned int role, bool en)
+{
+	struct platform_wireless_class_ops_data *temp_data =
+		platform_wireless_class_get_ic_ops(role);
+
+	if (platform_wireless_ops_invalid(temp_data, wls_set_external_boost_enable))
+		return -EOPNOTSUPP;
+
+	return temp_data->ops->wls_set_external_boost_enable(en, temp_data->data);
+}
+EXPORT_SYMBOL(platform_class_wireless_set_external_boost_enable);
+
+int platform_class_wireless_get_tx_iout(unsigned int role, int *iout)
+{
+	struct platform_wireless_class_ops_data *temp_data =
+		platform_wireless_class_get_ic_ops(role);
+
+	if (platform_wireless_ops_invalid(temp_data, wls_get_tx_iout))
+		return -EOPNOTSUPP;
+
+	return temp_data->ops->wls_get_tx_iout(iout, temp_data->data);
+}
+EXPORT_SYMBOL(platform_class_wireless_get_tx_iout);
+
+int platform_class_wireless_get_tx_vout(unsigned int role, int *vout)
+{
+	struct platform_wireless_class_ops_data *temp_data =
+		platform_wireless_class_get_ic_ops(role);
+
+	if (platform_wireless_ops_invalid(temp_data, wls_get_tx_vout))
+		return -EOPNOTSUPP;
+
+	return temp_data->ops->wls_get_tx_vout(vout, temp_data->data);
+}
+EXPORT_SYMBOL(platform_class_wireless_get_tx_vout);
+
+int platform_class_wireless_get_rx_brg_status(unsigned int role, int *status)
+{
+	struct platform_wireless_class_ops_data *temp_data =
+		platform_wireless_class_get_ic_ops(role);
+
+	if (platform_wireless_ops_invalid(temp_data, wls_get_rx_brg_status))
+		return -EOPNOTSUPP;
+
+	return temp_data->ops->wls_get_rx_brg_status(status, temp_data->data);
+}
+EXPORT_SYMBOL(platform_class_wireless_get_rx_brg_status);
+
 static int
 platform_wireless_dev_parse_dt(struct platform_wireless_dev *wireless)
 {
