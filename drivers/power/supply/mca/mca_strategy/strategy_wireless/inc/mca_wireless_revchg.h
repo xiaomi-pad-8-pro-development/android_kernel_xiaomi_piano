@@ -29,11 +29,15 @@
 #define REVERSE_TRANSFER_TIMEOUT_TIMER (100 * 1000)
 #define REVERSE_TEST_DELAY_MS (2 * 1000)
 #define REVERSE_FW_UPDATE_CNT_NUM (15 * 1000)
+#define REVERSE_PPE_TIMEOUT_TIMER (3 * 1000)
+#define REVERSE_PEN_DELAY_TIMER (10 * 1000)
 
 #define RX_CHECK_SUCCESS (1 << 0)
 #define TX_CHECK_SUCCESS (1 << 1)
 #define BOOT_CHECK_SUCCESS (1 << 2)
 #define POWER_ON_UPDATE_TIMER (10 * 1000)
+
+#define PEN_SOC_FULL_COUNT 18
 
 // interrupts reverse definition
 enum mca_rev_chg_int_flag {
@@ -127,11 +131,14 @@ struct mca_wireless_revchg {
 	struct delayed_work poweron_update_work;
 	struct delayed_work reverse_test_start_work;
 	struct delayed_work reverse_test_stop_work;
+	struct delayed_work pen_place_err_check_work;
+	struct delayed_work pen_data_handle_work;
 
 	//dt config
 	int rev_boost_src;
 	int rev_boost_default;
 	int rev_boost_voltage;
+	int support_tx_only;
 
 	struct mca_wireless_rev_proc_data proc_data;
 
