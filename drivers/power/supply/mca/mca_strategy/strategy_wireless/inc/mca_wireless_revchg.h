@@ -133,6 +133,8 @@ struct mca_wireless_revchg {
 	struct delayed_work reverse_test_stop_work;
 	struct delayed_work pen_place_err_check_work;
 	struct delayed_work pen_data_handle_work;
+	struct delayed_work user_enable_revchg_work;
+	struct delayed_work user_disable_revchg_work;
 
 	//dt config
 	int rev_boost_src;

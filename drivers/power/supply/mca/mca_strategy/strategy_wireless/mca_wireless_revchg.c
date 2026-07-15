@@ -57,6 +57,30 @@ static void mca_wireless_rev_set_reverse_src(int boost_src);
 
 static struct mca_wireless_revchg *g_wls_rev_info;
 
+static ATOMIC_NOTIFIER_HEAD(pen_charge_state_notifier);
+
+int pen_charge_state_notifier_register_client(struct notifier_block *nb)
+{
+	return atomic_notifier_chain_register(&pen_charge_state_notifier, nb);
+}
+EXPORT_SYMBOL(pen_charge_state_notifier_register_client);
+
+int pen_charge_state_notifier_unregister_client(struct notifier_block *nb)
+{
+	return atomic_notifier_chain_unregister(&pen_charge_state_notifier, nb);
+}
+EXPORT_SYMBOL(pen_charge_state_notifier_unregister_client);
+
+static void mca_wireless_user_enable_revchg_work(struct work_struct *work)
+{
+	mca_wireless_rev_enable_reverse_charge(true);
+}
+
+static void mca_wireless_user_disable_revchg_work(struct work_struct *work)
+{
+	mca_wireless_rev_enable_reverse_charge(false);
+}
+
 int mca_wireless_rev_get_rev_boost_default(int *rev_boost_default)
 {
 	struct mca_wireless_revchg *info = g_wls_rev_info;
@@ -92,10 +116,13 @@ int mca_wireless_rev_set_user_reverse_chg(bool user_reverse_chg)
 	if (!info)
 		return -1;
 
-	if (user_reverse_chg)
+	if (user_reverse_chg) {
 		info->proc_data.user_reverse_chg = true;
-	else
+		schedule_delayed_work(&info->user_enable_revchg_work, 0);
+	} else {
 		info->proc_data.user_reverse_chg = false;
+		schedule_delayed_work(&info->user_disable_revchg_work, 0);
+	}
 
 	return 0;
 }
@@ -1426,6 +1453,10 @@ static void mca_wireless_rev_init_work(struct mca_wireless_revchg *info)
 			  mca_wireless_rev_pen_place_err_check_work);
 	INIT_DELAYED_WORK(&info->pen_data_handle_work,
 			  mca_wireless_rev_pen_data_handle_work);
+	INIT_DELAYED_WORK(&info->user_enable_revchg_work,
+			  mca_wireless_user_enable_revchg_work);
+	INIT_DELAYED_WORK(&info->user_disable_revchg_work,
+			  mca_wireless_user_disable_revchg_work);
 }
 
 static int mca_wireless_rev_get_status(int status, void *value, void *data)
