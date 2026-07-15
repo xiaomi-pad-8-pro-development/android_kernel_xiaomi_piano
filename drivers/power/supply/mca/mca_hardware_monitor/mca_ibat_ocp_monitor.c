@@ -178,7 +178,7 @@ next:
 static int mca_ibat_ocp_mon_parse_dt(struct mca_ibat_ocp_mon_dev *info)
 {
 	struct device_node *np = info->dev->of_node;
-	int ret = 0;
+	int ret = 0, ret2 = 0;
 
 	if (!np) {
 		mca_log_err("device tree info missing\n");
@@ -187,8 +187,24 @@ static int mca_ibat_ocp_mon_parse_dt(struct mca_ibat_ocp_mon_dev *info)
 
 	ret = mca_parse_dts_u32(np, "fg_type", &info->fg_type,
 				MCA_FG_TYPE_SINGLE);
+	if (ret)
+		mca_log_err("parse fg_type failed\n");
 
-	return ret;
+	ret2 = mca_parse_dts_u32_array(np, "ocp_threshold", info->ocp_threshold,
+				       2);
+	if (ret2 || ret) {
+		info->ocp_threshold[0] = 9280000;
+		info->ocp_threshold[1] = 3540000;
+		mca_log_err("parse ocp_threshold failed, use default value\n");
+		mca_log_info("ocp_threshold : %d %d\n", info->ocp_threshold[0],
+			     info->ocp_threshold[1]);
+		return -1;
+	}
+
+	mca_log_info("ocp_threshold : %d %d\n", info->ocp_threshold[0],
+		     info->ocp_threshold[1]);
+
+	return 0;
 }
 
 static ssize_t ibat_ocp_sysfs_show(struct device *dev,
