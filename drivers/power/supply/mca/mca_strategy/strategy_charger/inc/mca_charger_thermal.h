@@ -97,6 +97,7 @@ struct mca_thermal_ctrl_info {
 	int quickchg_limit_level;
 	int wired_thermal_remove;
 	int wls_thermal_remove;
+	int wls_flip_thermal_remove;
 };
 
 struct mca_buck_jeita_smartchg_data {
@@ -127,6 +128,9 @@ struct mca_thermal_info {
 	struct mca_thermal_data wired_thermal_data[MAX_THERMAL_LEVEL];
 	struct mca_wireless_thermal_data
 		wireless_thermal_data[MAX_THERMAL_LEVEL];
+	int wired_flip_thermal_data[MAX_THERMAL_LEVEL];
+	int wireless_flip_thermal_data[MAX_THERMAL_LEVEL];
+	int support_base_flip;
 	struct mca_votable *wired_voter[THERMAL_MODE_MAX];
 	struct mca_votable *wireless_voter[THERMAL_MODE_WIRELESS_MAX];
 	struct mca_thermal_ctrl_info wired_ctrl_info;

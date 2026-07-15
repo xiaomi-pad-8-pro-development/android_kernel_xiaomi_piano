@@ -175,6 +175,86 @@ int mca_get_wls_charger_thermal_remove(bool *wls_thermal_remove)
 }
 EXPORT_SYMBOL(mca_get_wls_charger_thermal_remove);
 
+static void mca_charger_thermal_flip_handle_limit(
+	struct mca_thermal_ctrl_info *ctrl, int *data, struct mca_votable *voter)
+{
+	struct mca_thermal_info *info = g_wlscharger_thermal_info;
+	int thermal_level = ctrl->limit_level;
+	struct timespec64 ts;
+	int is_zero_speed = 0;
+	static int thermal_removed;
+
+	ktime_get_boottime_ts64(&ts);
+	if ((u64)ts.tv_sec < 60) {
+		get_smem_battery_info(&is_zero_speed);
+		if (is_zero_speed) {
+			mca_log_err("is_zero_speed = %d, ignore thermal...\n",
+				    is_zero_speed);
+			return;
+		}
+	}
+
+	if (!info) {
+		mca_log_err("thermal info is NULL\n");
+	} else if (!ctrl->voter_ok) {
+		mca_log_err("voter is not ready\n");
+	} else if (!info->online) {
+		mca_log_err("charger is not online\n");
+	} else if (ctrl->max_level < thermal_level) {
+		mca_log_err("thermal level invalid\n");
+	} else if (!ctrl->wls_thermal_remove) {
+		if (thermal_removed) {
+			thermal_removed = 0;
+			mca_log_err("wired flip thermal_removed: %d\n", 0);
+		}
+		mca_vote(voter, "mca_thermal", true, data[thermal_level]);
+	} else if (!(thermal_removed & 1)) {
+		mca_vote(voter, "mca_thermal", false, data[thermal_level]);
+		thermal_removed = 1;
+		mca_log_err("wired flip thermal_removed: %d\n", 1);
+	}
+}
+
+static void mca_wireless_charger_thermal_flip_handle_limit(
+	struct mca_thermal_ctrl_info *ctrl, int *data, struct mca_votable *voter)
+{
+	struct mca_thermal_info *info = g_wlscharger_thermal_info;
+	int thermal_level = ctrl->limit_level;
+	struct timespec64 ts;
+	int is_zero_speed = 0;
+	static int thermal_removed;
+
+	ktime_get_boottime_ts64(&ts);
+	if ((u64)ts.tv_sec < 60) {
+		get_smem_battery_info(&is_zero_speed);
+		if (is_zero_speed) {
+			mca_log_err("is_zero_speed = %d, ignore thermal...\n",
+				    is_zero_speed);
+			return;
+		}
+	}
+
+	if (!info) {
+		mca_log_err("thermal info is NULL\n");
+	} else if (!ctrl->voter_ok) {
+		mca_log_err("voter is not ready\n");
+	} else if (!info->wls_online) {
+		mca_log_err("charger is not online\n");
+	} else if (ctrl->max_level < thermal_level) {
+		mca_log_err("thermal level invalid\n");
+	} else if (!ctrl->wls_flip_thermal_remove) {
+		if (thermal_removed) {
+			thermal_removed = 0;
+			mca_log_err("wireless flip thermal_removed: %d\n", 0);
+		}
+		mca_vote(voter, "mca_thermal", true, data[thermal_level]);
+	} else if (!(thermal_removed & 1)) {
+		mca_vote(voter, "mca_thermal", false, data[thermal_level]);
+		thermal_removed = 1;
+		mca_log_err("wireless flip thermal_removed: %d\n", 1);
+	}
+}
+
 static void mca_charger_thermal_handle_limit(struct mca_thermal_ctrl_info *ctrl,
 					     struct mca_thermal_data *data,
 					     struct mca_votable **voter)
@@ -662,6 +742,19 @@ static int mca_charger_thermal_parse_data(const char *name,
 	return 0;
 }
 
+static void mca_charger_thermal_flip_parse_data(const char *name,
+						struct device_node *node,
+						int *data, int *max_level)
+{
+	int i;
+
+	mca_parse_dts_u32_array(node, name, data, MAX_THERMAL_LEVEL);
+	for (i = 0; i < MAX_THERMAL_LEVEL; i++)
+		mca_log_err("thermal:%d flip curr:%d", i, data[i]);
+
+	*max_level = MAX_THERMAL_LEVEL - 1;
+}
+
 static void mca_charger_thermal_parse_dt(struct mca_thermal_info *info)
 {
 	struct device_node *node = info->dev->of_node;
@@ -670,6 +763,18 @@ static void mca_charger_thermal_parse_dt(struct mca_thermal_info *info)
 		return;
 
 	mca_parse_dts_u32(node, "support_wireless", &info->support_wireless, 0);
+	info->support_base_flip =
+		of_property_read_bool(node, "support-base-flip");
+	if (info->support_base_flip) {
+		mca_charger_thermal_flip_parse_data(
+			"wired_flip_thermal", node,
+			info->wired_flip_thermal_data,
+			&info->wired_ctrl_info.max_level);
+		mca_charger_thermal_flip_parse_data(
+			"wireless_flip_thermal", node,
+			info->wireless_flip_thermal_data,
+			&info->wireless_ctrl_info.max_level);
+	}
 	mca_parse_dts_u32(node, "wireless_phone_level",
 			  &info->wireless_phone_level, 12);
 
@@ -880,9 +985,14 @@ static int mca_charger_thermal_set_cur_level(struct thermal_cooling_device *tcd,
 
 	info->wired_ctrl_info.limit_level = (int)state;
 
-	mca_charger_thermal_handle_limit(&info->wired_ctrl_info,
-					 info->wired_thermal_data,
-					 info->wired_voter);
+	if (info->support_base_flip)
+		mca_charger_thermal_flip_handle_limit(
+			&info->wired_ctrl_info,
+			info->wired_flip_thermal_data, info->wired_voter[0]);
+	else
+		mca_charger_thermal_handle_limit(&info->wired_ctrl_info,
+						 info->wired_thermal_data,
+						 info->wired_voter);
 
 	mca_log_info("set wired level %lu\n", state);
 
@@ -904,9 +1014,15 @@ static int mca_charger_thermal_wls_super_sts_callback(void *data,
 		return -1;
 
 	info->smartchg_data.wls_super_sts = effective_result;
-	mca_wireless_charger_thermal_handle_limit(&info->wireless_ctrl_info,
-						  info->wireless_thermal_data,
-						  info->wireless_voter);
+	if (info->support_base_flip)
+		mca_wireless_charger_thermal_flip_handle_limit(
+			&info->wireless_ctrl_info,
+			info->wireless_flip_thermal_data,
+			info->wireless_voter[0]);
+	else
+		mca_wireless_charger_thermal_handle_limit(
+			&info->wireless_ctrl_info,
+			info->wireless_thermal_data, info->wireless_voter);
 	mca_log_info("effective_result: %d\n", effective_result);
 
 	return 0;
