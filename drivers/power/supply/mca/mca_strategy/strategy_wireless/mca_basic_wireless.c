@@ -2072,6 +2072,7 @@ strategy_wireless_get_charging_info(struct strategy_wireless_dev *info)
 	int pmic_status = MCA_BATT_CHGR_STATUS_CHARGING_DISABLED;
 	bool chg_en = false;
 	int enable_quickchg = 0;
+	int brg_status = 0;
 
 	(void)platform_class_wireless_get_vout(WIRELESS_ROLE_MASTER, &vout);
 	(void)platform_class_wireless_get_vrect(WIRELESS_ROLE_MASTER, &vrect);
@@ -2079,6 +2080,8 @@ strategy_wireless_get_charging_info(struct strategy_wireless_dev *info)
 	(void)platform_class_buckchg_ops_get_wls_curr(MAIN_BUCK_CHARGER, &iwls);
 	(void)platform_class_buckchg_ops_get_chg_status(MAIN_BUCK_CHARGER,
 							&pmic_status);
+	(void)platform_class_wireless_get_rx_brg_status(WIRELESS_ROLE_MASTER,
+							&brg_status);
 	info->proc_data.batt_soc = strategy_class_fg_ops_get_soc();
 	strategy_wireless_add_trans_task_to_queue(info, TRANS_DATA_FLAG_SOC, 0);
 	strategy_wireless_get_batt_chgr_status(info,
@@ -2119,9 +2122,9 @@ strategy_wireless_get_charging_info(struct strategy_wireless_dev *info)
 		vout, vrect, iout, iwls, info->proc_data.vbat_cell_mv,
 		info->proc_data.batt_soc, info->proc_data.adapter_type);
 	mca_log_err(
-		"wireless loop: icl:%d, buck_fcc:%d, chg_en:%d, charging_status:%d, pmic_status:%d, stage:%d\n",
+		"wireless loop: icl:%d, buck_fcc:%d, chg_en:%d, charging_status:%d, pmic_status:%d, stage:%d, brg_status %d\n",
 		icl, buck_fcc, chg_en, info->proc_data.chgr_status, pmic_status,
-		info->proc_data.chgr_stage);
+		info->proc_data.chgr_stage, brg_status);
 }
 
 static void strategy_wireless_enable_vdd(struct strategy_wireless_dev *info,
