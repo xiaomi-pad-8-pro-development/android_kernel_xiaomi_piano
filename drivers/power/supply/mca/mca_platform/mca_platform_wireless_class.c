@@ -889,6 +889,114 @@ int platform_class_wireless_switch_bridge(unsigned int role, bool full)
 }
 EXPORT_SYMBOL(platform_class_wireless_switch_bridge);
 
+int platform_class_wireless_get_pen_hall3(unsigned int role, int *val)
+{
+	struct platform_wireless_class_ops_data *temp_data =
+		platform_wireless_class_get_ic_ops(role);
+
+	if (platform_wireless_ops_invalid(temp_data, wls_get_pen_hall3))
+		return -EOPNOTSUPP;
+
+	return temp_data->ops->wls_get_pen_hall3(val, temp_data->data);
+}
+EXPORT_SYMBOL(platform_class_wireless_get_pen_hall3);
+
+int platform_class_wireless_get_pen_hall3_s(unsigned int role, int *val)
+{
+	struct platform_wireless_class_ops_data *temp_data =
+		platform_wireless_class_get_ic_ops(role);
+
+	if (platform_wireless_ops_invalid(temp_data, wls_get_pen_hall3_s))
+		return -EOPNOTSUPP;
+
+	return temp_data->ops->wls_get_pen_hall3_s(val, temp_data->data);
+}
+EXPORT_SYMBOL(platform_class_wireless_get_pen_hall3_s);
+
+int platform_class_wireless_get_pen_hall4(unsigned int role, int *val)
+{
+	struct platform_wireless_class_ops_data *temp_data =
+		platform_wireless_class_get_ic_ops(role);
+
+	if (platform_wireless_ops_invalid(temp_data, wls_get_pen_hall4))
+		return -EOPNOTSUPP;
+
+	return temp_data->ops->wls_get_pen_hall4(val, temp_data->data);
+}
+EXPORT_SYMBOL(platform_class_wireless_get_pen_hall4);
+
+int platform_class_wireless_get_pen_hall4_s(unsigned int role, int *val)
+{
+	struct platform_wireless_class_ops_data *temp_data =
+		platform_wireless_class_get_ic_ops(role);
+
+	if (platform_wireless_ops_invalid(temp_data, wls_get_pen_hall4_s))
+		return -EOPNOTSUPP;
+
+	return temp_data->ops->wls_get_pen_hall4_s(val, temp_data->data);
+}
+EXPORT_SYMBOL(platform_class_wireless_get_pen_hall4_s);
+
+int platform_class_wireless_get_pen_hall_ppe_n(unsigned int role, int *val)
+{
+	struct platform_wireless_class_ops_data *temp_data =
+		platform_wireless_class_get_ic_ops(role);
+
+	if (platform_wireless_ops_invalid(temp_data, wls_get_pen_hall_ppe_n))
+		return -EOPNOTSUPP;
+
+	return temp_data->ops->wls_get_pen_hall_ppe_n(val, temp_data->data);
+}
+EXPORT_SYMBOL(platform_class_wireless_get_pen_hall_ppe_n);
+
+int platform_class_wireless_get_pen_hall_ppe_s(unsigned int role, int *val)
+{
+	struct platform_wireless_class_ops_data *temp_data =
+		platform_wireless_class_get_ic_ops(role);
+
+	if (platform_wireless_ops_invalid(temp_data, wls_get_pen_hall_ppe_s))
+		return -EOPNOTSUPP;
+
+	return temp_data->ops->wls_get_pen_hall_ppe_s(val, temp_data->data);
+}
+EXPORT_SYMBOL(platform_class_wireless_get_pen_hall_ppe_s);
+
+int platform_class_wireless_get_pen_full_flag(unsigned int role, bool *flag)
+{
+	struct platform_wireless_class_ops_data *temp_data =
+		platform_wireless_class_get_ic_ops(role);
+
+	if (platform_wireless_ops_invalid(temp_data, wls_get_pen_full_flag))
+		return -EOPNOTSUPP;
+
+	return temp_data->ops->wls_get_pen_full_flag(flag, temp_data->data);
+}
+EXPORT_SYMBOL(platform_class_wireless_get_pen_full_flag);
+
+int platform_class_wireless_get_pen_place_err(unsigned int role, int *err)
+{
+	struct platform_wireless_class_ops_data *temp_data =
+		platform_wireless_class_get_ic_ops(role);
+
+	if (platform_wireless_ops_invalid(temp_data, wls_get_pen_place_err))
+		return -EOPNOTSUPP;
+
+	return temp_data->ops->wls_get_pen_place_err(err, temp_data->data);
+}
+EXPORT_SYMBOL(platform_class_wireless_get_pen_place_err);
+
+int platform_class_wireless_set_pen_place_err(unsigned int role, int err)
+{
+	struct platform_wireless_class_ops_data *temp_data =
+		platform_wireless_class_get_ic_ops(role);
+
+	if (platform_wireless_ops_invalid(temp_data, wls_set_pen_place_err))
+		return -EOPNOTSUPP;
+
+	return temp_data->ops->wls_set_pen_place_err(err, temp_data->data);
+}
+EXPORT_SYMBOL(platform_class_wireless_set_pen_place_err);
+
 static int
 platform_wireless_dev_parse_dt(struct platform_wireless_dev *wireless)
 {

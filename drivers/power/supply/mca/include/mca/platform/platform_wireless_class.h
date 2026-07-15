@@ -100,6 +100,15 @@ struct platform_class_wireless_ops {
 	int (*wls_set_phone_case_category)(int, void *data);
 	int (*wls_switch_bridge)(bool, void *data);
 	int (*wls_get_brg_rect_mode)(u8 *, void *data);
+	int (*wls_get_pen_hall3)(int *, void *data);
+	int (*wls_get_pen_hall3_s)(int *, void *data);
+	int (*wls_get_pen_hall4)(int *, void *data);
+	int (*wls_get_pen_hall4_s)(int *, void *data);
+	int (*wls_get_pen_hall_ppe_n)(int *, void *data);
+	int (*wls_get_pen_hall_ppe_s)(int *, void *data);
+	int (*wls_get_pen_full_flag)(bool *, void *data);
+	int (*wls_get_pen_place_err)(int *, void *data);
+	int (*wls_set_pen_place_err)(int, void *data);
 };
 int platform_class_wireless_register_ops(
 	unsigned int role, void *data, struct platform_class_wireless_ops *ops);
@@ -188,4 +197,13 @@ int platform_class_wireless_get_trx_vrect(unsigned int role, int *vrect);
 int platform_class_wireless_get_phone_case_category(unsigned int role, int * category);
 int platform_class_wireless_set_phone_case_category(unsigned int role, int category);
 int platform_class_wireless_switch_bridge(unsigned int role, bool full);
+int platform_class_wireless_get_pen_hall3(unsigned int role, int *val);
+int platform_class_wireless_get_pen_hall3_s(unsigned int role, int *val);
+int platform_class_wireless_get_pen_hall4(unsigned int role, int *val);
+int platform_class_wireless_get_pen_hall4_s(unsigned int role, int *val);
+int platform_class_wireless_get_pen_hall_ppe_n(unsigned int role, int *val);
+int platform_class_wireless_get_pen_hall_ppe_s(unsigned int role, int *val);
+int platform_class_wireless_get_pen_full_flag(unsigned int role, bool *flag);
+int platform_class_wireless_get_pen_place_err(unsigned int role, int *err);
+int platform_class_wireless_set_pen_place_err(unsigned int role, int err);
 #endif /* _MCA_PLATFORM_PLATFORM_WIRELESS_CLASS_H_ */
