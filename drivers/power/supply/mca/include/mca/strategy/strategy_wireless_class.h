@@ -53,4 +53,6 @@ int mca_wireless_rev_update_fw_version(int cmd);
 int mca_wireless_rev_set_usb_plugin(bool wls_sleep_usb_insert);
 int mca_wireless_rev_get_fw_update(bool *fw_update);
 
+void strategy_wireless_enable_cp_error_irq(unsigned int enable);
+
 #endif /* _MCA_STRATEGY_STRATEGY_WIRELESS_CLASS_H_ */

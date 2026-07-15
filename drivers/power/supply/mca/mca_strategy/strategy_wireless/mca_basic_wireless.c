@@ -403,6 +403,26 @@ int strategy_class_wireless_ops_get_adapter_charger_mode(int *cp_charger_mode)
 }
 EXPORT_SYMBOL(strategy_class_wireless_ops_get_adapter_charger_mode);
 
+void strategy_wireless_enable_cp_error_irq(unsigned int enable)
+{
+	struct strategy_wireless_dev *info = g_basic_wls_info;
+	unsigned int en = enable & 1;
+	int ret1, ret2, ret3, ret4;
+
+	if (!info || !info->support_base_flip)
+		return;
+
+	mca_log_info("%s vbus_errorhi and errorlo irq\n",
+		     en ? "enable" : "disable");
+	ret1 = platform_class_cp_enable_vbus_errorhi(0, en);
+	ret2 = platform_class_cp_enable_vbus_errorlo(0, en);
+	ret3 = platform_class_cp_enable_vbus_errorhi(1, en);
+	ret4 = platform_class_cp_enable_vbus_errorlo(1, en);
+	if (ret1 || ret2 || ret3 || ret4)
+		mca_log_err("enable vbus_errorhi and errorlo irq fail\n");
+}
+EXPORT_SYMBOL(strategy_wireless_enable_cp_error_irq);
+
 void strategy_class_wireless_op_get_rx_iout_limit(int *rx_iout_limit_ma)
 {
 	struct strategy_wireless_dev *info = g_basic_wls_info;
@@ -4148,6 +4168,8 @@ static int strategy_wireless_parse_dt(struct strategy_wireless_dev *info)
 	(void)mca_parse_dts_u32(node, "support_multi_buck",
 				&info->support_multi_buck,
 				MCA_WLS_SUPPORT_MULTI_BUCK);
+	info->support_base_flip =
+		of_property_read_bool(node, "support-base-flip");
 	(void)mca_parse_dts_u32(node, "wls_vdd_src", &info->wls_vdd_src,
 				EXTERNAL_BOOST);
 	if (0) {
