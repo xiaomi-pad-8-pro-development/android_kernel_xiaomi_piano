@@ -103,7 +103,7 @@ static void mca_buckchg_base_jeita_update(struct mca_buckchg_jeita_dev *info)
 	}
 	effective_curr = mca_get_effective_result(info->fcc_voter);
 
-	ret = strategy_class_fg_ops_get_temperature(&temp);
+	ret = platform_fg_ops_get_temp(FG_IC_MASTER, &temp);
 	ret |= platform_fg_ops_get_curr(FG_IC_MASTER, &now_curr);
 	if (ret) {
 		mca_log_err("get battery temp or currfailed\n");
@@ -259,7 +259,7 @@ static void mca_buckchg_flip_jeita_update(struct mca_buckchg_jeita_dev *info)
 		return;
 	}
 
-	ret = strategy_class_fg_ops_get_temperature(&temp);
+	ret = platform_fg_ops_get_temp(FG_IC_SLAVE, &temp);
 	if (ret) {
 		mca_log_err("get battery temp failed\n");
 		return;
