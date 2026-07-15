@@ -278,6 +278,16 @@ int strategy_class_fg_get_soh(int *soh)
 }
 EXPORT_SYMBOL(strategy_class_fg_get_soh);
 
+int strategy_class_fg_get_temp_offset_flag(int *flag)
+{
+	if (is_invalid_ops(strategy_fg_get_temp_offset_flag))
+		return -1;
+
+	return strategy_fg_class_ops_with_one_para(strategy_fg_get_temp_offset_flag,
+						   flag);
+}
+EXPORT_SYMBOL(strategy_class_fg_get_temp_offset_flag);
+
 static struct platform_driver strategy_fg_class_driver = {
 	.driver	= {
 		.name = "strategy_fg_class",
