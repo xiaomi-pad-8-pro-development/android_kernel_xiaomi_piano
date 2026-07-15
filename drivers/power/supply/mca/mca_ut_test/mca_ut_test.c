@@ -14,6 +14,7 @@
 #include <mca/strategy/strategy_class.h>
 #include <mca/strategy/strategy_fg_class.h>
 #include <mca/platform/platform_fg_ic_ops.h>
+#include <mca/platform/platform_wireless_class.h>
 
 #ifndef MCA_LOG_TAG
 #define MCA_LOG_TAG "ut_test"
@@ -47,20 +48,29 @@ static ssize_t current_fcc_show(const struct class *class,
 				const struct class_attribute *attr, char *buf)
 {
 	struct ut_test *ut = container_of(class, struct ut_test, class);
+	int wls_present = 0;
 	int is_quick_charge = 0;
 	int fcc = 0;
+	unsigned int type;
 
-	mca_strategy_func_get_status(STRATEGY_FUNC_TYPE_QUICK_CHARGE,
-				     UT_QC_STATUS_IS_QUICK_CHARGE,
-				     &is_quick_charge);
-	mca_log_err("is quick charge: %d\n", is_quick_charge);
+	platform_class_wireless_is_present(0, &wls_present);
+	if (!wls_present) {
+		type = STRATEGY_FUNC_TYPE_QUICK_CHARGE;
+		mca_strategy_func_get_status(STRATEGY_FUNC_TYPE_QUICK_CHARGE,
+					     UT_QC_STATUS_IS_QUICK_CHARGE,
+					     &is_quick_charge);
+	} else {
+		type = STRATEGY_FUNC_TYPE_QUICK_WIRELESS;
+		mca_strategy_func_get_status(STRATEGY_FUNC_TYPE_QUICK_WIRELESS,
+					     UT_QC_STATUS_IS_QUICK_CHARGE,
+					     &is_quick_charge);
+	}
 
-	if (is_quick_charge == 0) {
+	if (is_quick_charge == 1) {
+		mca_strategy_func_get_status(type, UT_QC_STATUS_FCC, &fcc);
+	} else {
 		if (ut->buck_charge_votable)
 			fcc = mca_get_effective_result(ut->buck_charge_votable);
-	} else {
-		mca_strategy_func_get_status(STRATEGY_FUNC_TYPE_QUICK_CHARGE,
-					     UT_QC_STATUS_FCC, &fcc);
 	}
 
 	return scnprintf(buf, PAGE_SIZE, "%d\n", fcc * 1000);
