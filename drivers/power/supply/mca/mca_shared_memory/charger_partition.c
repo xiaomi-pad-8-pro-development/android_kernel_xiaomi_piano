@@ -508,6 +508,21 @@ int charger_partition_write_soc_limit(int val)
 }
 EXPORT_SYMBOL(charger_partition_write_soc_limit);
 
+int charger_partition_get_mishow(bool *mishow)
+{
+	charger_partition_info_1 info_1 = { 0 };
+
+	if (!charger_partition) {
+		mca_log_err("charger_partition init error\n");
+		return -1;
+	}
+
+	(void)charger_partition_read_info_1(&info_1);
+	*mishow = !!info_1.mishow;
+	return 0;
+}
+EXPORT_SYMBOL(charger_partition_get_mishow);
+
 static ssize_t charger_partition_sysfs_show(struct device *dev,
 					    struct device_attribute *attr,
 					    char *buf);

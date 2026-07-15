@@ -77,5 +77,6 @@ int charger_partition_read_memory_test(int *val);
 int charger_partition_write_memory_test(int val);
 int charger_partition_read_soc_limit(int *val);
 int charger_partition_write_soc_limit(int val);
+int charger_partition_get_mishow(bool *mishow);
 
 #endif /* _MCA_SHARED_MEMORY_CHARGER_PARTITION_CLASS_H_ */
