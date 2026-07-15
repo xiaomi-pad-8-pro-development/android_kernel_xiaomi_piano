@@ -650,6 +650,18 @@ int platform_class_cp_set_manual_revchg_mode(unsigned int role, bool en)
 }
 EXPORT_SYMBOL(platform_class_cp_set_manual_revchg_mode);
 
+int platform_class_cp_set_cp_reverse_mode(unsigned int role, bool en)
+{
+	struct platform_cp_class_ops_data *temp_data =
+		platform_cp_class_get_ic_ops(role);
+
+	if (platform_cp_ops_invalid(temp_data, cp_set_cp_reverse_mode))
+		return -1;
+
+	return temp_data->ops->cp_set_cp_reverse_mode(en, temp_data->data);
+}
+EXPORT_SYMBOL(platform_class_cp_set_cp_reverse_mode);
+
 int platform_class_cp_set_fsw(unsigned int role, int fsw)
 {
 	struct platform_cp_class_ops_data *temp_data =
