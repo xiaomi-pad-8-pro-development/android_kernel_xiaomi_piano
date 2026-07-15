@@ -2741,6 +2741,41 @@ static int sc96281_get_trx_vrect(int *vrect, void *data)
 	return ret;
 }
 
+static int sc96281_switch_bridge(bool full, void *data)
+{
+	struct sc96281 *sc = data;
+	int ret;
+
+	ret = sc96281_rx_set_cust_cmd(sc, full ? 0x200000 : 0x100000);
+	mca_log_info("bridge_sw switch to %s, ret %d\n",
+		     full ? "FULL_BRIDGE" : "HALF_BRIDGE", ret);
+	return ret;
+}
+
+static int sc96281_get_brg_rect_mode(u8 *mode, void *data)
+{
+	struct sc96281 *sc = data;
+	u8 val = 0;
+	int ret;
+
+	ret = sc96281_read_block(sc, 0x18d, &val, 1);
+	if (ret) {
+		mca_log_err("bridge_sw get brg_rect_mode fail\n");
+		return ret;
+	}
+	mca_log_err("bridge_sw get brg_rect_mode %d\n", val);
+	*mode = val;
+	return ret;
+}
+
+static int sc96281_get_magnetic_case_flag(bool *flag, void *data)
+{
+	struct sc96281 *sc = data;
+
+	*flag = sc->magnetic_case_flag;
+	return 0;
+}
+
 static struct platform_class_wireless_ops sc96281_wls_ops = {
 	.wls_enable_reverse_chg = sc96281_enable_reverse_chg,
 	.wls_is_present = sc96281_is_present,
@@ -2751,6 +2786,9 @@ static struct platform_class_wireless_ops sc96281_wls_ops = {
 	.wls_get_temp = sc96281_get_temp,
 	.wls_get_tx_adapter = sc96281_get_tx_adapter,
 	.wls_get_tx_adapter_by_i2c = sc96281_get_tx_adapter_by_i2c,
+	.wls_switch_bridge = sc96281_switch_bridge,
+	.wls_get_brg_rect_mode = sc96281_get_brg_rect_mode,
+	.wls_get_magnetic_case_flag = sc96281_get_magnetic_case_flag,
 	.wls_get_fw_upgrade_fail_info = sc96281_get_fw_upgrade_fail_info,
 	.wls_get_rsv_eppmode_fail = sc96281_rx_get_rsv_eppmode_fail,
 	.wls_set_enable_mode = sc96281_set_enable_mode,
