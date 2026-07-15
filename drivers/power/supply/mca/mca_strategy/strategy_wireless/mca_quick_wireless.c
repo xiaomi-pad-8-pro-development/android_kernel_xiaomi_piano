@@ -2734,6 +2734,21 @@ static int mca_wireless_quick_charge_multi_chg_cur_voter_cb(
 	return 0;
 }
 
+static int mca_wireless_quick_charge_thermal_flip_voter_cb(
+	struct mca_votable *votable, void *data, int effective_result,
+	const char *effective_client)
+{
+	struct mca_wireless_quick_charge_info *info = data;
+
+	if (!data)
+		return -1;
+
+	mca_log_info("target wls thermal flip effective_result :%d\n",
+		     effective_result);
+	info->thermal_flip_current = effective_result;
+	return 0;
+}
+
 static int mca_wireless_quick_charge_create_voter(
 	struct mca_wireless_quick_charge_info *info)
 {
@@ -2767,6 +2782,11 @@ static int mca_wireless_quick_charge_create_voter(
 		"wls_multi_chg_cur", MCA_VOTE_MIN,
 		mca_wireless_quick_charge_multi_chg_cur_voter_cb, 0, info);
 	if (IS_ERR(info->multi_chg_cur_voter))
+		goto error;
+	info->thermal_flip_voter = mca_create_votable(
+		"wls_thermal_flip", MCA_VOTE_MIN,
+		mca_wireless_quick_charge_thermal_flip_voter_cb, 0, info);
+	if (IS_ERR(info->thermal_flip_voter))
 		goto error;
 	smartchg_ichg_voter = mca_find_votable("smartchg_delta_ichg");
 	if (smartchg_ichg_voter)
