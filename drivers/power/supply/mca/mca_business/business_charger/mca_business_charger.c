@@ -741,41 +741,40 @@ business_charger_process_set_revchg_bcl(struct business_charger *charger,
 				  MCA_EVENT_REVCHG_BCL, value);
 }
 
-static int g_handle_logic_last_handle_state;
-static int g_handle_logic_last_stop_handle_charge;
-
 static void
 business_charger_process_handle_logic(struct business_charger *charger)
 {
+	static int last_handle_state;
+	static int last_stop_handle_charge;
 	int stop = charger->stop_handle_charge;
 	int hs = charger->handle_state;
 	int allow_charge = -1;
 
-	if (g_handle_logic_last_stop_handle_charge != 0 && stop == 0 &&
+	if (last_stop_handle_charge != 0 && stop == 0 &&
 	    hs != 0) {
 		/* stop just cleared while a handle-state is set: hold off */
 		allow_charge = -1;
-	} else if (g_handle_logic_last_stop_handle_charge != 0 && stop == 0 &&
+	} else if (last_stop_handle_charge != 0 && stop == 0 &&
 		   hs == 0) {
 		allow_charge = 1;
 	} else if (stop != 0 &&
-		   g_handle_logic_last_stop_handle_charge != stop) {
+		   last_stop_handle_charge != stop) {
 		allow_charge = 1;
 	}
 
-	if (hs == 0 && g_handle_logic_last_handle_state != 0)
+	if (hs == 0 && last_handle_state != 0)
 		allow_charge = 1;
-	if (stop == 0 && hs != 0 && g_handle_logic_last_handle_state != hs)
+	if (stop == 0 && hs != 0 && last_handle_state != hs)
 		allow_charge = 0;
 
 	mca_log_info(
 		"last_allow_charge = %d, last_handle_state = %d, last_stop_handle_charge = %d, allow_charge = %d, handle_state = %d, stop_handle_charge = %d\n",
 		charger->usb_psy_info->charge_enable,
-		g_handle_logic_last_handle_state,
-		g_handle_logic_last_stop_handle_charge, allow_charge, hs, stop);
+		last_handle_state,
+		last_stop_handle_charge, allow_charge, hs, stop);
 
-	g_handle_logic_last_handle_state = charger->handle_state;
-	g_handle_logic_last_stop_handle_charge = charger->stop_handle_charge;
+	last_handle_state = charger->handle_state;
+	last_stop_handle_charge = charger->stop_handle_charge;
 
 	if (allow_charge != -1 &&
 	    allow_charge != charger->usb_psy_info->charge_enable) {
