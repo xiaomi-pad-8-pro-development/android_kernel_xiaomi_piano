@@ -3396,10 +3396,55 @@ static void strategy_wireless_sw_cv_stop(struct strategy_wireless_dev *info)
 	info->sw_cv_running = false;
 }
 
+static void strategy_wireless_bridge_icl_setting(
+	struct strategy_wireless_dev *info, bool en, unsigned int ma)
+{
+	mca_log_info("bridge_sw en: %d, ma: %u\n", en, ma);
+	mca_vote(info->input_limit_voter, "sw_bridge", en, ma);
+}
+
+static void
+strategy_wireless_switch_to_half_bridge(struct strategy_wireless_dev *info)
+{
+	int brg_status = 0;
+	int rx_vout = 0, rx_iout = 0;
+	int retry = 15;
+
+	platform_class_wireless_get_rx_brg_status(WIRELESS_ROLE_MASTER,
+						  &brg_status);
+	if (brg_status != 0) {
+		mca_log_err("bridge_sw no need switch, bridge is HALF\n");
+		return;
+	}
+
+	info->switching_bridge = true;
+	platform_class_wireless_set_vout(WIRELESS_ROLE_MASTER, BPP_DEFAULT_VOUT);
+	strategy_wireless_bridge_icl_setting(info, true, 300);
+	while (retry--) {
+		msleep(300);
+		platform_class_wireless_get_vout(WIRELESS_ROLE_MASTER, &rx_vout);
+		platform_class_wireless_get_iout(WIRELESS_ROLE_MASTER, &rx_iout);
+		if (rx_vout < 6501 && rx_iout < 401) {
+			platform_class_wireless_switch_bridge(
+				WIRELESS_ROLE_MASTER, 0);
+			break;
+		}
+		mca_log_err("bridge_sw wait, rx_vout %d, rx_iout %d\n", rx_vout,
+			    rx_iout);
+	}
+	info->switching_bridge = false;
+	msleep(20);
+	platform_class_wireless_get_rx_brg_status(WIRELESS_ROLE_MASTER,
+						  &brg_status);
+	strategy_wireless_bridge_icl_setting(info, false, 0);
+	mca_log_err("bridge_sw switch_to_half over, brg_status %d\n", brg_status);
+}
+
 static void strategy_wireless_monitor_work(struct work_struct *work)
 {
 	struct strategy_wireless_dev *info = container_of(
 		work, struct strategy_wireless_dev, monitor_work.work);
+	static bool last_quick_enable;
 	int interval = MCA_WLS_CHG_MONITOR_WORK_NORMAL_INTERVAL;
 	int quick_charge_status = MCA_QUICK_CHG_STS_CHARGE_FAILED;
 	bool if_qc_enable = false;
@@ -3421,6 +3466,14 @@ static void strategy_wireless_monitor_work(struct work_struct *work)
 		mca_strategy_func_process(STRATEGY_FUNC_TYPE_QUICK_WIRELESS,
 					  MCA_EVENT_CHARGE_ACTION,
 					  if_qc_enable);
+
+	if (last_quick_enable == if_qc_enable && !if_qc_enable) {
+		const struct mca_hwid *hwid = mca_get_hwid_info();
+
+		if (hwid && hwid->platform_version == 5 /* HARDWARE_PROJECT_O8 */)
+			strategy_wireless_switch_to_half_bridge(info);
+	}
+	last_quick_enable = if_qc_enable;
 	(void)mca_strategy_func_get_status(STRATEGY_FUNC_TYPE_QUICK_WIRELESS,
 					   STRATEGY_STATUS_TYPE_CHARGING,
 					   &quick_charge_status);

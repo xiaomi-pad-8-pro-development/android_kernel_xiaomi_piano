@@ -457,6 +457,7 @@ struct strategy_wireless_dev {
 
 	bool wl_irq_running;
 	bool changing_cp_mode;
+	bool switching_bridge;
 	int base_flip_ov_cnt;
 	int irq_node_cnt;
 
