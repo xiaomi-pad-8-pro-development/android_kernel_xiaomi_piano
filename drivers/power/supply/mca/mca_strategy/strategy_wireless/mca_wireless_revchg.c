@@ -1891,6 +1891,58 @@ mca_wireless_rev_process_online_change(int value,
 	}
 }
 
+static void mca_wireless_rev_process_hall_change(int value,
+						 struct mca_wireless_revchg *info)
+{
+	bool is_pen_attached = !!value;
+	struct mca_event_notify_data hall_data[2] = { 0 };
+	struct mca_event_notify_data n_data;
+	char hall3_event[MCA_EVENT_NOTIFY_SIZE] = { 0 };
+	char hall4_event[MCA_EVENT_NOTIFY_SIZE] = { 0 };
+	char event[MCA_EVENT_NOTIFY_SIZE] = { 0 };
+
+	mca_log_info("pen hall change, set reverse charge: %d\n",
+		     is_pen_attached);
+	if (!info->is_switching)
+		mca_wireless_rev_enable_reverse_charge(is_pen_attached);
+
+	if (!is_pen_attached) {
+		cancel_delayed_work_sync(&info->pen_data_handle_work);
+		info->proc_data.reverse_chg_sts = REVERSE_STATE_ENDTRANS;
+		n_data.event_len = snprintf(event, MCA_EVENT_NOTIFY_SIZE,
+					    "POWER_SUPPLY_REVERSE_CHG_STATE=%d",
+					    REVERSE_STATE_ENDTRANS);
+		n_data.event = event;
+		mca_event_report_uevent(&n_data);
+		if (info->support_tx_only) {
+			n_data.event_len = snprintf(
+				event, MCA_EVENT_NOTIFY_SIZE,
+				"POWER_SUPPLY_REVERSE_PEN_CHG_STATE=%d",
+				REVERSE_STATE_ENDTRANS);
+			n_data.event = event;
+			mca_event_report_uevent(&n_data);
+			n_data.event_len = snprintf(event, MCA_EVENT_NOTIFY_SIZE,
+						    "POWER_SUPPLY_PEN_PLACE_ERR=%d",
+						    0);
+			n_data.event = event;
+			mca_event_report_uevent(&n_data);
+		}
+	}
+
+	atomic_notifier_call_chain(&pen_charge_state_notifier, is_pen_attached,
+				   NULL);
+
+	hall_data[0].event_len = snprintf(hall3_event, MCA_EVENT_NOTIFY_SIZE,
+					  "POWER_SUPPLY_PEN_HALL3=%d",
+					  (~(value >> 3)) & 1);
+	hall_data[0].event = hall3_event;
+	hall_data[1].event_len = snprintf(hall4_event, MCA_EVENT_NOTIFY_SIZE,
+					  "POWER_SUPPLY_PEN_HALL4=%d",
+					  (~(value >> 4)) & 1);
+	hall_data[1].event = hall4_event;
+	mca_event_report_multiple_uevent(hall_data, 2);
+}
+
 static int mca_wireless_rev_process_event(int event, int value, void *data)
 {
 	struct mca_wireless_revchg *info = data;
@@ -1946,6 +1998,12 @@ static int mca_wireless_rev_process_event(int event, int value, void *data)
 	case MCA_EVENT_CHARGE_RESTORE:
 		mca_log_info("adsp restore, disable vote\n");
 		mca_vote(info->usbin_rev_disable_voter, "abnormal", true, 0);
+		break;
+	case MCA_EVENT_PEN_HALL_CHANGE:
+		mca_wireless_rev_process_hall_change(value, info);
+		break;
+	case MCA_EVENT_PEN_PPE_HALL_CHANGE:
+		mca_wireless_rev_process_ppe_hall_change(value, info);
 		break;
 	default:
 		break;
