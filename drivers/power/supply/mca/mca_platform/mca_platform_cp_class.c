@@ -602,6 +602,18 @@ int platform_class_cp_get_adc_enabled(unsigned int role, bool *en)
 }
 EXPORT_SYMBOL(platform_class_cp_get_adc_enabled);
 
+int platform_class_cp_set_busovp(unsigned int role, int val)
+{
+	struct platform_cp_class_ops_data *temp_data =
+		platform_cp_class_get_ic_ops(role);
+
+	if (platform_cp_ops_invalid(temp_data, cp_set_busovp))
+		return -1;
+
+	return temp_data->ops->cp_set_busovp(val, temp_data->data);
+}
+EXPORT_SYMBOL(platform_class_cp_set_busovp);
+
 int platform_class_cp_set_fsw(unsigned int role, int fsw)
 {
 	struct platform_cp_class_ops_data *temp_data =
