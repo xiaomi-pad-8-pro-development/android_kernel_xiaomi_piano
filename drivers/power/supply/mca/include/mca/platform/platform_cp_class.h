@@ -111,6 +111,7 @@ struct platform_class_cp_ops {
 	int (*cp_set_busovp)(int, void *data);
 	int (*cp_enable_vbus_errorhi)(bool, void *data);
 	int (*cp_enable_vbus_errorlo)(bool, void *data);
+	int (*cp_set_manual_revchg_mode)(bool, void *data);
 };
 int platform_class_cp_register_ops(unsigned int role,
 				   struct platform_class_cp_ops *ops,
@@ -161,6 +162,7 @@ int platform_class_cp_get_adc_enabled(unsigned int role, bool *en);
 int platform_class_cp_set_busovp(unsigned int role, int val);
 int platform_class_cp_enable_vbus_errorhi(unsigned int role, bool en);
 int platform_class_cp_enable_vbus_errorlo(unsigned int role, bool en);
+int platform_class_cp_set_manual_revchg_mode(unsigned int role, bool en);
 int platform_class_cp_set_fsw(unsigned int role, int fsw);
 int platform_class_cp_set_default_fsw(unsigned int role);
 int platform_class_cp_get_fsw(unsigned int role, int *fsw);
