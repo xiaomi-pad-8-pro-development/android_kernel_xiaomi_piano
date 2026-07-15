@@ -97,6 +97,7 @@ struct adapter_protocol_class_ops {
 	int (*set_adapter_verified)(void *data, int verified);
 	int (*get_adapter_verified)(void *data, int *verified);
 	int (*get_adapter_max_power)(void *data, unsigned int *max_power);
+	int (*get_adapter_pwr_max_power)(void *data, unsigned int *max_power);
 	int (*adapter_det_en)(void *data, int en);
 	int (*get_adapter_type)(void *data, int *type);
 	int (*get_adapter_pwr_cap)(void *data, struct adapter_power_cap_info *cap);
@@ -111,6 +112,7 @@ int protocol_class_register_ops(unsigned int protocol, struct adapter_protocol_c
 int protocol_class_set_adapter_verified(unsigned int protocol, int verified);
 int protocol_class_get_adapter_verified(unsigned int protocol, int *verified);
 int protocol_class_get_adapter_max_power(unsigned int protocol, unsigned int *max_power);
+int protocol_class_get_adapter_pwr_max_power(unsigned int protocol, unsigned int *max_power);
 int protocol_class_det_adapter_type(unsigned int protocol, int en);
 int protocol_class_get_adapter_type(unsigned int protocol, unsigned int *value);
 int protocol_class_get_adapter_power_cap(unsigned int protocol, struct adapter_power_cap_info *cap);

@@ -99,6 +99,20 @@ int protocol_class_get_adapter_max_power(unsigned int protocol,
 }
 EXPORT_SYMBOL(protocol_class_get_adapter_max_power);
 
+int protocol_class_get_adapter_pwr_max_power(unsigned int protocol,
+					     unsigned int *max_power)
+{
+	struct adapter_protocol_class_data *temp_data =
+		protocol_class_get_protocol_data(protocol);
+
+	if (adapter_protocol_invalid_ops(temp_data, get_adapter_pwr_max_power))
+		return -1;
+
+	return temp_data->ops->get_adapter_pwr_max_power(temp_data->data,
+							 max_power);
+}
+EXPORT_SYMBOL(protocol_class_get_adapter_pwr_max_power);
+
 int protocol_class_det_adapter_type(unsigned int protocol, int en)
 {
 	struct adapter_protocol_class_data *temp_data =
