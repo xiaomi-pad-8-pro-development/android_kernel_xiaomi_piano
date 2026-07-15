@@ -774,6 +774,32 @@ static int protocol_class_pps_adapter_get_max_power(void *data, unsigned int *ma
 	return 0;
 }
 
+static int protocol_class_pps_adapter_get_pwr_max_power(void *data,
+							unsigned int *max_power)
+{
+	struct adapter_power_cap_info pwr_cap = {0};
+	int type = XM_CHARGER_TYPE_UNKNOW;
+	int power = 0;
+	int i = 0;
+
+	*max_power = 0;
+	protocol_class_pd_get_pd_type(g_cur_port, &type);
+	if (type != XM_CHARGER_TYPE_PPS && type != XM_CHARGER_TYPE_PD_VERIFY)
+		return 0;
+
+	protocol_class_pps_get_pwr_cap(NULL, &pwr_cap);
+	for (i = 0; i < pwr_cap.nums; i++) {
+		if (support_mode == 2 && type == XM_CHARGER_TYPE_PPS &&
+		    pwr_cap.cap[i].max_voltage >= 11001)
+			continue;
+		power = max(power, pwr_cap.cap[i].max_power / 1000);
+	}
+
+	*max_power = power;
+	mca_log_info("get_pwr_max_power %d\n", *max_power);
+	return 0;
+}
+
 static int protocol_class_pps_get_pwr_cap(void *data, struct adapter_power_cap_info *pwr_cap)
 {
 	struct pd_pdo pdos[PROTOCOL_PD_MAX_PDO_NUMS] = { 0 };
@@ -829,6 +855,7 @@ struct adapter_protocol_class_ops g_protocol_pd_ops = {
 
 struct adapter_protocol_class_ops g_protocol_pps_ops = {
 	.get_adapter_max_power = protocol_class_pps_adapter_get_max_power,
+	.get_adapter_pwr_max_power = protocol_class_pps_adapter_get_pwr_max_power,
 	.get_adapter_pwr_cap = protocol_class_pps_get_pwr_cap,
 	.set_adapter_volt_and_curr = protocol_class_pps_set_volt_and_curr,
 	.get_adapter_volt_and_curr = protocol_class_pps_get_volt_and_curr,
