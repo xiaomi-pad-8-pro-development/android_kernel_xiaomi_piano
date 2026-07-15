@@ -31,6 +31,7 @@
 #include <linux/workqueue.h>
 #include <linux/platform_device.h>
 #include <linux/power_supply.h>
+#include <linux/soc/qcom/fsa4480-i2c.h>
 #include <mca/common/mca_log.h>
 #include <mca/common/mca_event.h>
 #include <mca/common/mca_parse_dts.h>
@@ -1164,6 +1165,34 @@ business_charger_process_debug_soc_limit(struct business_charger *charger,
 				  MCA_EVENT_DEBUG_CTRL_SOC_LIMIT, packed);
 }
 
+static void
+business_charger_process_sbu_lpd_status_change(struct business_charger *charger,
+					       int value)
+{
+	struct of_phandle_args switch_args = { 0 };
+	int sbu_event;
+	int rc;
+
+	rc = of_parse_phandle_with_args(charger->dev->of_node,
+					"fsa4480-i2c-handle", NULL, 0,
+					&switch_args);
+	if (rc != 0 || switch_args.np == NULL) {
+		mca_log_err("no switch node found\n");
+		return;
+	}
+
+	mca_log_info("handle sbu lpd changed: %#x\n", value);
+	if (value == 1)
+		sbu_event = FSA_USBC_SBU_LPD_SENSE;
+	else if (value == 2)
+		sbu_event = FSA_USBC_SBU_LPD_ISOLATE;
+	else
+		sbu_event = FSA_USBC_DISPLAYPORT_DISCONNECTED;
+
+	mca_log_err("third sbu event is %d\n", sbu_event);
+	fsa4480_switch_event(switch_args.np, sbu_event);
+}
+
 static void business_charger_process_event(struct business_charger *charger)
 {
 	struct charger_event_lis_node *event_node, *temp_node;
@@ -1248,6 +1277,14 @@ static void business_charger_process_event(struct business_charger *charger)
 							  data, 2);
 				break;
 			case MCA_EVENT_CP_TSHUT_FLAG:
+				if (charger->wls_support == 1) {
+					platform_class_cp_get_tdie(
+						CP_ROLE_MASTER,
+						&((int *)event_node->data)[0]);
+					platform_class_cp_get_tdie(
+						CP_ROLE_SLAVE,
+						&((int *)event_node->data)[1]);
+				}
 				mca_charge_mievent_report(
 					CHARGE_DFX_CP_TDIE_HOT,
 					event_node->data, 2);
@@ -1347,6 +1384,10 @@ static void business_charger_process_event(struct business_charger *charger)
 				break;
 			case MCA_EVENT_DEBUG_CTRL_SOC_LIMIT:
 				business_charger_process_debug_soc_limit(
+					charger, *((int *)event_node->data));
+				break;
+			case MCA_EVENT_SBU_LPD_STATUS_CHANGE:
+				business_charger_process_sbu_lpd_status_change(
 					charger, *((int *)event_node->data));
 				break;
 			}
