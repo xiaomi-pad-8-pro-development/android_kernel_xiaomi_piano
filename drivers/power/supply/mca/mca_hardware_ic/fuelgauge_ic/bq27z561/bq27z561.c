@@ -4977,6 +4977,34 @@ static int fg_get_batt_abnormal_info(void *data, int *info)
 	return 0;
 }
 
+static void fg_read_co_status(struct bq_fg_chip *bq, u32 *co_status)
+{
+	u8 t_buf[1] = { 0 };
+
+	if (fg_diag_mac_read(bq, FG_MCA_CMD_SEAL_STATE, t_buf, 1) < 0)
+		mca_log_err("Failed to read CO state\n");
+	*co_status = (t_buf[0] >> 2) & 1;
+}
+
+static void fg_read_co_auto_open(struct bq_fg_chip *bq, u32 *co_auto_open)
+{
+	u8 t_buf[2] = { 0 };
+
+	if (fg_diag_mac_read(bq, FG_MAC_CMD_CO_AUTO_OPEN, t_buf, 2) < 0)
+		mca_log_err("Failed to read Co Atuo Open\n");
+	*co_auto_open = (t_buf[1] >> 2) & 1;
+}
+
+static void fg_read_chem_df_sign(struct bq_fg_chip *bq, u32 *chem_df_sign)
+{
+	u8 t_buf[BATTERY_RANDOM_LEN] = { 0 };
+
+	if (fg_diag_mac_read(bq, FG_MAC_CMD_CHEM_DF_SIGN, t_buf, 32) < 0)
+		*chem_df_sign = 0;
+	else
+		*chem_df_sign = ((u32)t_buf[0] << 8) | t_buf[1];
+}
+
 static int fg_get_dcr_slope1(struct bq_fg_chip *bq)
 {
 	u8 t_buf[BATTERY_RANDOM_LEN] = { 0 };
@@ -5141,6 +5169,9 @@ struct mca_sysfs_attr_info fg_sysfs_field_tbl[] = {
 	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_HOCD_LAST_CYCLE, hocd_last_cycle),
 	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_HSCD_COUNT, hscd_count),
 	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_HSCD_LAST_CYCLE, hscd_last_cycle),
+	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_CO_STATUS, co_status),
+	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_CO_AUTO_OPEN, co_auto_open),
+	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_CHEM_DF_SIGN, chem_df_sign),
 	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_DCR_SLOPE1, dcr_slope1),
 	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_DCR_SLOPE2, dcr_slope2),
 	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_DCR_SLOPE3, dcr_slope3),
@@ -5564,6 +5595,27 @@ static ssize_t fg_sysfs_show(struct device *dev,
 		fg_get_hscd_last_cycle(info);
 		count = scnprintf(buf, PAGE_SIZE, "%d\n", info->hscd_last_cycle);
 		break;
+	case FG_IC_PROP_CO_STATUS: {
+		u32 co_status = 0;
+
+		fg_read_co_status(info, &co_status);
+		count = scnprintf(buf, PAGE_SIZE, "%d\n", co_status);
+		break;
+	}
+	case FG_IC_PROP_CO_AUTO_OPEN: {
+		u32 co_auto_open = 0;
+
+		fg_read_co_auto_open(info, &co_auto_open);
+		count = scnprintf(buf, PAGE_SIZE, "%d\n", co_auto_open);
+		break;
+	}
+	case FG_IC_PROP_CHEM_DF_SIGN: {
+		u32 chem_df_sign = 0;
+
+		fg_read_chem_df_sign(info, &chem_df_sign);
+		count = scnprintf(buf, PAGE_SIZE, "%d\n", chem_df_sign);
+		break;
+	}
 	case FG_IC_PROP_DCR_SLOPE1:
 		count = scnprintf(buf, PAGE_SIZE, "%d\n", fg_get_dcr_slope1(info));
 		break;
