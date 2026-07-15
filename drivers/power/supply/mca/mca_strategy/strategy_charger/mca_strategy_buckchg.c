@@ -1074,6 +1074,16 @@ strategy_buckchg_cp_revert_handler(int auth_pos,
 	platform_class_cp_dump_register(CP_ROLE_MASTER);
 }
 
+static void strategy_buckchg_process_pmic_init_done(struct strategy_buckchg_dev *info)
+{
+	mca_log_info("deal with pmic_init_done\n");
+	mca_rerun_election(info->chg_enable_voter);
+	mca_rerun_election(info->input_limit_voter);
+	mca_rerun_election(info->charge_limit_voter);
+	mca_rerun_election(info->iterm_voter);
+	mca_rerun_election(info->vterm_voter);
+}
+
 static int strategy_buckchg_process_event(int event, int value, void *data)
 {
 	struct strategy_buckchg_dev *info = data;
@@ -1083,6 +1093,9 @@ static int strategy_buckchg_process_event(int event, int value, void *data)
 
 	mca_log_info("receive event %d, value %d\n", event, value);
 	switch (event) {
+	case MCA_EVENT_PMIC_INIT_DONE:
+		strategy_buckchg_process_pmic_init_done(info);
+		break;
 	case MCA_EVENT_USB_CONNECT:
 	case MCA_EVENT_USB_DISCONNECT:
 		strategy_buckchg_process_online_change(value, info);
@@ -2831,11 +2844,24 @@ static int mca_charger_buckchg_pwr_boost_sts_callback(void *data, int enable)
 	return 0;
 }
 
+static int strategy_buckchg_smartchg_set_fcc_callback(void *data, int val)
+{
+	struct strategy_buckchg_dev *info = (struct strategy_buckchg_dev *)data;
+
+	if (!data)
+		return -1;
+
+	mca_vote(info->charge_limit_voter, "smartchg", val != 0, val);
+
+	return 0;
+}
+
 static struct mca_smartchg_if_ops g_buck_smartchg_if_ops = {
 	.type = MCA_SMARTCHG_IF_CHG_TYPE_BUCK,
 	.data = NULL,
 	.set_soc_limit_sts = strategy_buckchg_soc_limit_sts_callback,
 	.set_pwr_boost_sts = mca_charger_buckchg_pwr_boost_sts_callback,
+	.set_fcc = strategy_buckchg_smartchg_set_fcc_callback,
 };
 
 static int strategy_buckchg_class_probe(struct platform_device *pdev)
