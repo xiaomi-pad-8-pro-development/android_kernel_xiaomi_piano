@@ -736,6 +736,61 @@ int platform_fg_ops_ota_update_check(unsigned int ic_role)
 }
 EXPORT_SYMBOL(platform_fg_ops_ota_update_check);
 
+void platform_fg_ops_get_batt_abnormal_info(unsigned int ic_role, int *info)
+{
+	struct fuelguage_info *temp_info = platform_get_fg_ic_ops(ic_role);
+
+	if (platform_fg_ops_invalid(temp_info, fg_ic_get_batt_abnormal_info))
+		return;
+
+	temp_info->ops->fg_ic_get_batt_abnormal_info(temp_info->data, info);
+}
+EXPORT_SYMBOL(platform_fg_ops_get_batt_abnormal_info);
+
+int platform_fg_ops_get_first_usage_date(unsigned int ic_role)
+{
+	struct fuelguage_info *temp_info = platform_get_fg_ic_ops(ic_role);
+
+	if (platform_fg_ops_invalid(temp_info, fg_ic_get_first_usage_date))
+		return -EOPNOTSUPP;
+
+	return temp_info->ops->fg_ic_get_first_usage_date(temp_info->data);
+}
+EXPORT_SYMBOL(platform_fg_ops_get_first_usage_date);
+
+int platform_fg_ops_get_manufacturing_date(unsigned int ic_role)
+{
+	struct fuelguage_info *temp_info = platform_get_fg_ic_ops(ic_role);
+
+	if (platform_fg_ops_invalid(temp_info, fg_ic_get_manufacturing_date))
+		return -EOPNOTSUPP;
+
+	return temp_info->ops->fg_ic_get_manufacturing_date(temp_info->data);
+}
+EXPORT_SYMBOL(platform_fg_ops_get_manufacturing_date);
+
+void platform_fg_ops_set_first_usage_date(unsigned int ic_role, int date)
+{
+	struct fuelguage_info *temp_info = platform_get_fg_ic_ops(ic_role);
+
+	if (platform_fg_ops_invalid(temp_info, fg_ic_set_first_usage_date))
+		return;
+
+	temp_info->ops->fg_ic_set_first_usage_date(temp_info->data, date);
+}
+EXPORT_SYMBOL(platform_fg_ops_set_first_usage_date);
+
+void platform_fg_ops_qbg_send_chg_data(unsigned int ic_role)
+{
+	struct fuelguage_info *temp_info = platform_get_fg_ic_ops(ic_role);
+
+	if (platform_fg_ops_invalid(temp_info, fg_ic_qbg_send_chg_data))
+		return;
+
+	temp_info->ops->fg_ic_qbg_send_chg_data(temp_info->data);
+}
+EXPORT_SYMBOL(platform_fg_ops_qbg_send_chg_data);
+
 static struct platform_driver platform_fg_ops_driver = {
 	.driver	= {
 		.name = "platform_fg_ops",
