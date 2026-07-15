@@ -45,7 +45,7 @@ typedef struct {
 typedef struct {
 	u32 power_off_mode;
 	u32 zero_speed_mode;
-	u32 test;
+	u32 mishow;
 	u32 double85;
 	u32 remove_temp_limit;
 	u32 soc_limit;

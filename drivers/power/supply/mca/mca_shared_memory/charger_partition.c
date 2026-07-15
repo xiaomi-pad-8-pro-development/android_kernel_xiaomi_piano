@@ -517,8 +517,8 @@ static ssize_t charger_partition_sysfs_store(struct device *dev,
 
 struct mca_sysfs_attr_info charger_partition_sysfs_field_tbl[] = {
 	mca_sysfs_attr_rw(charger_partition_sysfs, 0664,
-			  MCA_PROP_CHARGER_PARTITION_TEST,
-			  charger_partition_test),
+			  MCA_PROP_CHARGER_PARTITION_MISHOW,
+			  charger_partition_mishow),
 	mca_sysfs_attr_rw(charger_partition_sysfs, 0664,
 			  MCA_PROP_CHARGER_PARTITION_POWEROFFMODE,
 			  charger_partition_poweroffmode),
@@ -554,7 +554,7 @@ static ssize_t charger_partition_sysfs_show(struct device *dev,
 		return -1;
 
 	switch (attr_info->sysfs_attr_name) {
-	case MCA_PROP_CHARGER_PARTITION_TEST:
+	case MCA_PROP_CHARGER_PARTITION_MISHOW:
 		ret = charger_partition_alloc(CHARGER_PARTITION_HOST_KERNEL,
 					      CHARGER_PARTITION_INFO_1,
 					      sizeof(charger_partition_info_1));
@@ -578,7 +578,7 @@ static ssize_t charger_partition_sysfs_show(struct device *dev,
 			}
 			return -1;
 		}
-		val = info_1->test;
+		val = info_1->mishow;
 
 		ret = charger_partition_dealloc(
 			CHARGER_PARTITION_HOST_KERNEL, CHARGER_PARTITION_INFO_1,
@@ -687,7 +687,7 @@ static ssize_t charger_partition_sysfs_store(struct device *dev,
 		return -EINVAL;
 
 	switch (attr_info->sysfs_attr_name) {
-	case MCA_PROP_CHARGER_PARTITION_TEST:
+	case MCA_PROP_CHARGER_PARTITION_MISHOW:
 		ret = charger_partition_alloc(CHARGER_PARTITION_HOST_KERNEL,
 					      CHARGER_PARTITION_INFO_1,
 					      sizeof(charger_partition_info_1));
@@ -698,7 +698,7 @@ static ssize_t charger_partition_sysfs_store(struct device *dev,
 
 		charger_partition_info_1 info_1_a = { .power_off_mode = 2,
 						      .zero_speed_mode = 2,
-						      .test = val,
+						      .mishow = val,
 						      .reserved = 0 };
 
 		ret = charger_partition_write(CHARGER_PARTITION_HOST_KERNEL,
@@ -737,7 +737,7 @@ static ssize_t charger_partition_sysfs_store(struct device *dev,
 
 		charger_partition_info_1 info_1_b = { .power_off_mode = val,
 						      .zero_speed_mode = 2,
-						      .test = 0x34567890,
+						      .mishow = 0x34567890,
 						      .reserved = 0 };
 
 		ret = charger_partition_write(CHARGER_PARTITION_HOST_KERNEL,
@@ -1027,9 +1027,12 @@ static int charger_partition_get_info_1(void)
 		}
 		return -1;
 	}
-	mca_log_err("ret:%d test:0x%0x zero_speed_mode:%u power_off_mode:%u\n",
-		    ret, info_1->test, info_1->zero_speed_mode,
-		    info_1->power_off_mode);
+	mca_log_err(
+		"ret: %d, mishow: 0x%0x, zero_speed_mode: %u, power_off_mode: %u, double85: %u, remove_temp_limit: %u, memory_test: %u, soc_limit: %d\n",
+		ret, info_1->mishow, info_1->zero_speed_mode,
+		info_1->power_off_mode, info_1->double85,
+		info_1->remove_temp_limit, info_1->memory_test,
+		info_1->soc_limit);
 
 	ret = charger_partition_dealloc(CHARGER_PARTITION_HOST_KERNEL,
 					CHARGER_PARTITION_INFO_1,
@@ -1046,7 +1049,7 @@ static int charger_partition_set_info_1(void)
 	int ret = 0;
 	charger_partition_info_1 info_1 = { .power_off_mode = 2,
 					    .zero_speed_mode = 2,
-					    .test = 0x23456789,
+					    .mishow = 0x23456789,
 					    .reserved = 0 };
 
 	ret = charger_partition_alloc(CHARGER_PARTITION_HOST_KERNEL,
