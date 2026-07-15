@@ -120,5 +120,7 @@ int mca_event_block_notify_unregister(unsigned int type,
 				      struct notifier_block *nb);
 void mca_event_block_notify(unsigned int type, unsigned long event, void *data);
 void mca_event_report_uevent(const struct mca_event_notify_data *n_data);
+void mca_event_report_multiple_uevent(const struct mca_event_notify_data *n_data,
+				      unsigned int num);
 
 #endif /* _MCA_COMMON_MCA_EVENT_H_ */

@@ -117,6 +117,63 @@ void mca_event_report_uevent(const struct mca_event_notify_data *n_data)
 }
 EXPORT_SYMBOL(mca_event_report_uevent);
 
+void mca_event_report_multiple_uevent(const struct mca_event_notify_data *n_data,
+				      unsigned int num)
+{
+	char *uevent_buf = NULL;
+	char **envp = NULL;
+	int ret, i;
+	struct mca_event_dev *l_dev = g_mca_event_dev;
+
+	if (!l_dev || !l_dev->sysfs_ne) {
+		pr_err("l_dev or sysfs_ne is null\n");
+		return;
+	}
+
+	if (!n_data || (int)num < 1) {
+		pr_err("n_data or num is invalid\n");
+		return;
+	}
+
+	uevent_buf = kmalloc((size_t)num * MCA_EVENT_NOTIFY_SIZE, GFP_KERNEL);
+	if (!uevent_buf)
+		return;
+
+	envp = kmalloc((size_t)(num + 1) * sizeof(char *), GFP_KERNEL);
+	if (!envp) {
+		kfree(uevent_buf);
+		return;
+	}
+
+	for (i = 0; i < (int)num; i++) {
+		if (!n_data[i].event) {
+			pr_err("event is null\n");
+			goto out;
+		}
+
+		if (n_data[i].event_len >= MCA_EVENT_NOTIFY_SIZE) {
+			pr_err("event_len is invalid\n");
+			goto out;
+		}
+
+		memcpy(uevent_buf + i * MCA_EVENT_NOTIFY_SIZE, n_data[i].event,
+		       n_data[i].event_len);
+		pr_info("receive uevent_buf %d,%d,%s\n", i, n_data[i].event_len,
+			uevent_buf + i * MCA_EVENT_NOTIFY_SIZE);
+		envp[i] = uevent_buf + i * MCA_EVENT_NOTIFY_SIZE;
+	}
+	envp[num] = NULL;
+
+	ret = kobject_uevent_env(l_dev->sysfs_ne, KOBJ_CHANGE, envp);
+	if (ret < 0)
+		pr_err("notify uevent fail, ret=%d\n", ret);
+
+out:
+	kfree(uevent_buf);
+	kfree(envp);
+}
+EXPORT_SYMBOL(mca_event_report_multiple_uevent);
+
 #if defined(CONFIG_SYSFS)
 static ssize_t mca_event_sysfs_store(struct device *dev,
 				     struct device_attribute *attr,
