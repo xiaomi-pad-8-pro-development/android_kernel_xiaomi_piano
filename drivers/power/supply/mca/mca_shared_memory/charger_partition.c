@@ -1023,6 +1023,61 @@ static int charger_partition_set_info_2(void)
 	return 0;
 }
 
+int charger_partition_read_ocd_count(u32 *ocd0, u32 *ocd1)
+{
+	charger_partition_get_info_2();
+	*ocd0 = charger_partition->info_2.ocd_count[0];
+	*ocd1 = charger_partition->info_2.ocd_count[1];
+	return 0;
+}
+EXPORT_SYMBOL(charger_partition_read_ocd_count);
+
+int charger_partition_write_ocd_count(u32 ocd0, u32 ocd1)
+{
+	charger_partition_get_info_2();
+	charger_partition->info_2.ocd_count[0] = ocd0;
+	charger_partition->info_2.ocd_count[1] = ocd1;
+	charger_partition_set_info_2();
+	return 0;
+}
+EXPORT_SYMBOL(charger_partition_write_ocd_count);
+
+int charger_partition_read_cuv_count(u32 *cuv0, u32 *cuv1)
+{
+	charger_partition_get_info_2();
+	*cuv0 = charger_partition->info_2.cuv_count[0];
+	*cuv1 = charger_partition->info_2.cuv_count[1];
+	return 0;
+}
+EXPORT_SYMBOL(charger_partition_read_cuv_count);
+
+int charger_partition_write_cuv_count(u32 cuv0, u32 cuv1)
+{
+	charger_partition_get_info_2();
+	charger_partition->info_2.cuv_count[0] = cuv0;
+	charger_partition->info_2.cuv_count[1] = cuv1;
+	charger_partition_set_info_2();
+	return 0;
+}
+EXPORT_SYMBOL(charger_partition_write_cuv_count);
+
+int charger_partition_read_hscd_count(u32 *hscd)
+{
+	charger_partition_get_info_2();
+	*hscd = charger_partition->info_2.hscd_count;
+	return 0;
+}
+EXPORT_SYMBOL(charger_partition_read_hscd_count);
+
+int charger_partition_write_hcsd_count(u32 hscd)
+{
+	charger_partition_get_info_2();
+	charger_partition->info_2.hscd_count = hscd;
+	charger_partition_set_info_2();
+	return 0;
+}
+EXPORT_SYMBOL(charger_partition_write_hcsd_count);
+
 static int charger_partition_get_info_1(void)
 {
 	int ret = 0;

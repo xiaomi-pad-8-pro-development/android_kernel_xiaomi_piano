@@ -82,4 +82,11 @@ int charger_partition_read_soc_limit(int *val);
 int charger_partition_write_soc_limit(int val);
 int charger_partition_get_mishow(bool *mishow);
 
+int charger_partition_read_ocd_count(u32 *ocd0, u32 *ocd1);
+int charger_partition_write_ocd_count(u32 ocd0, u32 ocd1);
+int charger_partition_read_cuv_count(u32 *cuv0, u32 *cuv1);
+int charger_partition_write_cuv_count(u32 cuv0, u32 cuv1);
+int charger_partition_read_hscd_count(u32 *hscd);
+int charger_partition_write_hcsd_count(u32 hscd);
+
 #endif /* _MCA_SHARED_MEMORY_CHARGER_PARTITION_CLASS_H_ */
