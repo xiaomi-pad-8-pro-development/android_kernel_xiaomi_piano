@@ -877,6 +877,18 @@ int platform_class_wireless_set_phone_case_category(unsigned int role, int categ
 }
 EXPORT_SYMBOL(platform_class_wireless_set_phone_case_category);
 
+int platform_class_wireless_switch_bridge(unsigned int role, bool full)
+{
+	struct platform_wireless_class_ops_data *temp_data =
+		platform_wireless_class_get_ic_ops(role);
+
+	if (platform_wireless_ops_invalid(temp_data, wls_switch_bridge))
+		return -EOPNOTSUPP;
+
+	return temp_data->ops->wls_switch_bridge(full, temp_data->data);
+}
+EXPORT_SYMBOL(platform_class_wireless_switch_bridge);
+
 static int
 platform_wireless_dev_parse_dt(struct platform_wireless_dev *wireless)
 {
