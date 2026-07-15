@@ -132,6 +132,19 @@ static bool mca_bmd_get_btb_status(struct mca_bmd_dev *info, int index)
 	return bmd_online;
 }
 
+static int mca_bmd_get_status(int type, void *value, void *data)
+{
+	struct mca_bmd_dev *info = data;
+	u32 *status = value;
+
+	/* 0x14: strategy status-type BMD (battery-missing) query */
+	if (type != 0x14 || !status || !info)
+		return -1;
+
+	*status = info->batt_missing;
+	return 0;
+}
+
 static void mca_bmd_monitor_workfunc(struct work_struct *work)
 {
 	struct mca_bmd_dev *info =
@@ -470,8 +483,8 @@ static int mca_bmd_probe(struct platform_device *pdev)
 			msecs_to_jiffies(REQUEST_HW_RESOURCE_RETRY_MS));
 
 	(void)mca_strategy_ops_register(STRATEGY_FUNC_TYPE_BMD,
-					mca_bmd_process_event, NULL, NULL,
-					info);
+					mca_bmd_process_event, mca_bmd_get_status,
+					NULL, info);
 
 	info->batt_missing = 0;
 	INIT_DELAYED_WORK(&info->monitor_bmd_work, mca_bmd_monitor_workfunc);
