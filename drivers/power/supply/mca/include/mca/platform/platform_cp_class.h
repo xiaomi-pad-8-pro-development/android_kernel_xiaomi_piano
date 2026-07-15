@@ -106,6 +106,7 @@ struct platform_class_cp_ops {
 	int (*cp_set_pmid2outuvp_th)(int, void *data);
 	int (*cp_set_revchg)(bool, void *data);
 	int (*cp_set_adjustadble_timeout)(int, void *data);
+	int (*cp_get_battery_vout)(u32 *, void *data);
 };
 int platform_class_cp_register_ops(unsigned int role,
 				   struct platform_class_cp_ops *ops,
@@ -151,6 +152,7 @@ int platform_class_cp_get_ibus_delta(int *val);
 int platform_class_cp_get_ibus_total(int *val);
 int platform_class_cp_get_errorhl_stat(unsigned int role, int *stat);
 int platform_class_cp_enable_busucp(unsigned int role, bool en);
+int platform_class_cp_get_battery_vout(unsigned int role, u32 *val);
 int platform_class_cp_set_fsw(unsigned int role, int fsw);
 int platform_class_cp_set_default_fsw(unsigned int role);
 int platform_class_cp_get_fsw(unsigned int role, int *fsw);
