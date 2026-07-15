@@ -3388,6 +3388,7 @@ static void strategy_wireless_sw_cv_stop(struct strategy_wireless_dev *info)
 	mca_log_info("chgr_stage: %d, stop sw_cv_work\n",
 		     info->proc_data.chgr_stage);
 	cancel_delayed_work(&info->sw_cv_work);
+	cancel_delayed_work(&info->base_flip_sw_cv_work);
 	mca_vote(info->charge_limit_voter, "sw_cv", false, 0);
 	info->sw_cv_running = false;
 }
@@ -3451,7 +3452,16 @@ static void strategy_wireless_monitor_work(struct work_struct *work)
 		    vterm - CHARGE_SW_CV_VBAT_ALARM_DELTA) {
 		mca_log_err("vbat: %d, vterm: %d, start sw_cv_work\n",
 			    info->proc_data.vbat_cell_mv, vterm);
-		strategy_wireless_sw_cv_start(info);
+		if (info->support_base_flip) {
+			info->sw_cv_running = true;
+			mca_vote(info->charge_limit_voter, "sw_cv", false, 0);
+			mca_queue_delayed_work(
+				&info->base_flip_sw_cv_work,
+				msecs_to_jiffies(
+					CHARGE_SW_CV_WORK_FAST_INTERVAL));
+		} else {
+			strategy_wireless_sw_cv_start(info);
+		}
 	} else if (info->sw_cv_running &&
 		   (!chg_en || info->proc_data.vbat_cell_mv <= vterm - 20)) {
 		mca_log_err(
@@ -3519,6 +3529,113 @@ static void strategy_wireless_buckchg_sw_cv_workfunc(struct work_struct *work)
 	}
 
 	mca_queue_delayed_work(&info->sw_cv_work, msecs_to_jiffies(interval));
+}
+
+static void strategy_wireless_buckchg_base_flip_sw_cv_workfunc(
+	struct work_struct *work)
+{
+	struct strategy_wireless_dev *info = container_of(
+		work, struct strategy_wireless_dev, base_flip_sw_cv_work.work);
+	static int sw_cv_volt_delta_map[][2] = { { 1000, 7 }, { 0, 5 } };
+	int interval;
+	int vbat, ibat, ibat_ua;
+	int vterm = mca_get_client_vote(info->vterm_voter, "jeita");
+	int iterm = mca_get_effective_result(info->iterm_voter);
+	int fcc = mca_get_effective_result(info->charge_limit_voter);
+	int first_termination = 0;
+	int fastcharge = strategy_class_fg_get_fastcharge();
+	int compensa_fv, ov_margin, fv_step, actual_vterm, volt_delta, i;
+
+	strategy_class_fg_get_first_termination(&first_termination);
+
+	if (!fastcharge) {
+		compensa_fv = info->pmic_fv_compensation;
+		ov_margin = 2;
+	} else {
+		compensa_fv = 25;
+		ov_margin = 4;
+	}
+
+	actual_vterm = vterm;
+	if (first_termination)
+		actual_vterm = mca_get_effective_result(info->vterm_voter);
+
+	strategy_class_fg_ops_get_voltage(&info->proc_data.vbat_cell_mv);
+	strategy_class_fg_ops_get_current(&info->proc_data.ibat_ma);
+	vbat = info->proc_data.vbat_cell_mv;
+	ibat_ua = -info->proc_data.ibat_ma;
+	ibat = ibat_ua / 1000;
+	fv_step = fastcharge ? 10 : 5;
+
+	mca_log_info(
+		"vbat: %d, ibat: %d, vterm: %d, iterm: %d, fcc: %d, actual_vterm %d, pmic_fv_compensa %d, compensa_fv %d\n",
+		vbat, ibat, vterm, iterm, fcc, actual_vterm + compensa_fv,
+		info->pmic_fv_compensation, compensa_fv);
+
+	if (ibat_ua < 1000488) {
+		if (ibat_ua < 1000) {
+			volt_delta = 7;
+			goto cv;
+		}
+		i = 1;
+	} else {
+		i = 0;
+	}
+	volt_delta = sw_cv_volt_delta_map[i][1];
+cv:
+	if (vbat < vterm - volt_delta) {
+		interval = CHARGE_SW_CV_WORK_NORMAL_INTERVAL;
+	} else {
+		if (iterm < ibat - FCC_STEP) {
+			if (fcc - ibat < 2 * FCC_STEP)
+				fcc = fcc - FCC_STEP;
+			else
+				fcc = ibat_ua / 50000 * FCC_STEP;
+			if (fcc < 501)
+				fcc = 500;
+			mca_vote(info->charge_limit_voter, "sw_cv", true, fcc);
+		}
+		interval = CHARGE_SW_CV_WORK_FAST_INTERVAL;
+	}
+
+	if (vbat >= vterm - ov_margin) {
+		int cnt;
+
+		mca_log_err("WARNING: batt ov, reduce fv, count: %d\n",
+			    info->base_flip_ov_cnt);
+		info->base_flip_ov_cnt++;
+		cnt = info->base_flip_ov_cnt;
+		if (cnt >= 5)
+			cnt = 5;
+		platform_class_buckchg_ops_set_term_volt(
+			MAIN_BUCK_CHARGER,
+			actual_vterm + compensa_fv - cnt * fv_step);
+	}
+
+	mca_queue_delayed_work(&info->base_flip_sw_cv_work,
+			       msecs_to_jiffies(interval));
+}
+
+static void strategy_wireless_get_adapter_work(struct work_struct *work)
+{
+	struct strategy_wireless_dev *info = container_of(
+		work, struct strategy_wireless_dev, get_adapter_work.work);
+
+	strategy_wireless_pre_authen_process(info);
+}
+
+static void strategy_wireless_change_cp_mode_workfunc(struct work_struct *work)
+{
+	struct strategy_wireless_dev *info = container_of(
+		work, struct strategy_wireless_dev, change_cp_mode_work.work);
+
+	mca_log_info("wireless changing CP work mode\n");
+	info->changing_cp_mode = true;
+	strategy_wireless_fcc_setting(info, true, 6000);
+	info->sw_qc_ichg = 6000;
+	mca_queue_delayed_work(&info->wireless_loop_work, 0);
+	mca_strategy_func_process(STRATEGY_FUNC_TYPE_QUICK_WIRELESS,
+				  MCA_EVENT_BATT_BTB_CHANGE, 0);
 }
 
 static void strategy_wireless_find_voter_work(struct work_struct *work)
@@ -4484,6 +4601,12 @@ static void strategy_wireless_init_work(struct strategy_wireless_dev *info)
 			  strategy_wireless_buckchg_sw_cv_workfunc);
 	INIT_DELAYED_WORK(&info->process_irq_work,
 			  strategy_wireless_process_irq_work);
+	INIT_DELAYED_WORK(&info->base_flip_sw_cv_work,
+			  strategy_wireless_buckchg_base_flip_sw_cv_workfunc);
+	INIT_DELAYED_WORK(&info->get_adapter_work,
+			  strategy_wireless_get_adapter_work);
+	INIT_DELAYED_WORK(&info->change_cp_mode_work,
+			  strategy_wireless_change_cp_mode_workfunc);
 }
 
 static int strategy_wireless_init_voter(struct strategy_wireless_dev *info)

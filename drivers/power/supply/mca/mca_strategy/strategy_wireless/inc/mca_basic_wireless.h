@@ -451,8 +451,13 @@ struct strategy_wireless_dev {
 	struct delayed_work mutex_unlock_work;
 	struct delayed_work sw_cv_work;
 	struct delayed_work process_irq_work;
+	struct delayed_work change_cp_mode_work;
+	struct delayed_work get_adapter_work;
+	struct delayed_work base_flip_sw_cv_work;
 
 	bool wl_irq_running;
+	bool changing_cp_mode;
+	int base_flip_ov_cnt;
 	int irq_node_cnt;
 
 	int online;
