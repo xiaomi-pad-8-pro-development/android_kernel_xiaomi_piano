@@ -399,7 +399,7 @@ static void mca_buckchg_jeita_update(struct mca_buckchg_jeita_dev *info)
 	int i, ret;
 	struct mca_buckchg_jeita_data *jeita_data, *cur_jeita_data;
 	int fastcharge_mode = 0;
-	int vterm = 0, iterm = 0, chg_curr = 0;
+	int vterm = 0, chg_curr = 0;
 	int hys_affect = 0;
 	int data_change = 0;
 	int vbat = 0;
@@ -542,7 +542,6 @@ static void mca_buckchg_jeita_update(struct mca_buckchg_jeita_dev *info)
 	}
 
 	vterm = jeita_data->vterm;
-	iterm = jeita_data->iterm;
 
 	if (vterm > ABNORMAL_BATT_FV_MAX) {
 		vterm -= info->smartchg_data.delta_fv;
@@ -565,11 +564,11 @@ static void mca_buckchg_jeita_update(struct mca_buckchg_jeita_dev *info)
 		chg_curr = info->proc_data.max_chg_curr;
 
 	mca_log_info(
-		"cur index %d/%d chg_curr %d/%d fastcharge %d jeita_vterm %d jeita_iterm %d vterm %d iterm %d delta_fv %d hys_affect %d real_type %d\n",
-		i, info->proc_data.cur_jeita_index,
+		"cur index %d/%d last_chg_curr %d chg_curr %d/%d fastcharge %d jeita_vterm %d jeita_iterm %d vterm %d delta_fv %d hys_affect %d\n",
+		i, info->proc_data.cur_jeita_index, last_chg_curr,
 		info->proc_data.max_chg_curr, chg_curr, fastcharge_mode,
-		jeita_data->vterm, jeita_data->iterm, vterm, iterm,
-		info->smartchg_data.delta_fv, hys_affect, info->real_type);
+		jeita_data->vterm, jeita_data->iterm, vterm,
+		info->smartchg_data.delta_fv, hys_affect);
 
 	last_fastcharge_mode = fastcharge_mode;
 	if (chg_curr)
@@ -995,9 +994,6 @@ static int mca_buckchg_jeita_process_event(int event, int value, void *data)
 		break;
 	case MCA_EVENT_BATTERY_DTPT:
 		info->dtpt_status = value;
-		break;
-	case MCA_EVENT_CHARGE_TYPE_CHANGE:
-		info->real_type = value;
 		break;
 	default:
 		break;

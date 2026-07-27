@@ -34,12 +34,6 @@ enum jeita_volt_para_ele {
 	BUCKCHG_VOLTAGE_PARA_MAX,
 };
 
-enum vi_term_decrease {
-	VTERM_DECREASE = 0,
-	ITERM_DECREASE,
-	DECREASE_VOLTAGE_PARA_MAX,
-};
-
 struct mca_buckchg_jeita_volt_data {
 	int voltage;
 	int max_current;
@@ -106,7 +100,6 @@ struct mca_buckchg_jeita_dev {
 	int flip_vbat_low_hyst;
 	int support_base_flip;
 	int base_flip_same;
-	int real_type;
 
 	struct delayed_work monitor_work;
 	struct mca_votable *flip_fcc_voter;
@@ -124,7 +117,6 @@ struct mca_buckchg_jeita_dev {
 	struct mca_buck_jeita_smartchg_data smartchg_data;
 	bool baacfg_update;
 	int vterm;
-	int vi_term_decrease[DECREASE_VOLTAGE_PARA_MAX];
 	int jeita_hot_termination_hyst;
 };
 
