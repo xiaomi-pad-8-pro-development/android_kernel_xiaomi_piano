@@ -384,12 +384,11 @@ static void mca_buckchg_flip_jeita_update(struct mca_buckchg_jeita_dev *info)
 		}
 	}
 
-	mca_log_err("cur index %d/%d max_chg_curr %d iterm %d hys_affect %d\n",
-		    i, info->flip_proc_data.cur_jeita_index,
-		    info->flip_proc_data.max_chg_curr, jeita_data->iterm,
-		    hys_affect);
-
 	chg_curr = info->flip_proc_data.max_chg_curr;
+	mca_log_info("cur index %d/%d max_chg_curr %d chg_curr %d hys_affect %d\n",
+		     i, info->flip_proc_data.cur_jeita_index,
+		     info->flip_proc_data.max_chg_curr, chg_curr, hys_affect);
+
 	if (data_change && !hys_affect) {
 		info->flip_proc_data.cur_jeita_index = i;
 		mca_vote(info->flip_fcc_voter, "jeita", true, chg_curr);
