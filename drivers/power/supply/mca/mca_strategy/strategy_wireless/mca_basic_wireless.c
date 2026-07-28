@@ -3467,7 +3467,7 @@ static void strategy_wireless_monitor_work(struct work_struct *work)
 	}
 	last_quick_enable = if_qc_enable;
 	(void)mca_strategy_func_get_status(STRATEGY_FUNC_TYPE_QUICK_WIRELESS,
-					   STRATEGY_STATUS_TYPE_CHARGING,
+					   STRATEGY_STATUS_TYPE_QC_CHARGE_STS,
 					   &quick_charge_status);
 	if (quick_charge_status == MCA_QUICK_CHG_STS_CHARGING)
 		goto out;
@@ -3847,7 +3847,7 @@ static void strategy_wireless_rx_alarm_work(struct work_struct *work)
 	}
 
 	mca_strategy_func_get_status(STRATEGY_FUNC_TYPE_QUICK_WIRELESS,
-				     STRATEGY_STATUS_TYPE_CHARGING,
+				     STRATEGY_STATUS_TYPE_QC_CHARGE_STS,
 				     &quick_charge_status);
 	if (quick_charge_status == MCA_QUICK_CHG_STS_CHARGING)
 		mca_strategy_func_get_status(STRATEGY_FUNC_TYPE_QUICK_WIRELESS,

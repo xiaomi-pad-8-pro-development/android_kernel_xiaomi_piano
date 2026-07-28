@@ -2039,7 +2039,7 @@ strategy_buckchg_enable_fast_charge_mode(struct strategy_buckchg_dev *info,
 		if (info->ffc_terminated_by_cp)
 			(void)mca_strategy_func_get_status(
 				STRATEGY_FUNC_TYPE_QUICK_CHARGE,
-				STRATEGY_STATUS_TYPE_MODE, &fcc);
+				STRATEGY_STATUS_TYPE_QC_IBAT_MAX, &fcc);
 
 		(void)strategy_class_fg_ops_get_temperature(&batt_temp);
 		batt_temp /= 10;

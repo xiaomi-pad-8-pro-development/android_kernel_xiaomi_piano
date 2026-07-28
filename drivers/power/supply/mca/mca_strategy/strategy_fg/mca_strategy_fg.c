@@ -1343,7 +1343,7 @@ static int mca_strategy_check_sigle_termination(struct strategy_fg *fg)
 				     STRATEGY_STATUS_TYPE_ONLINE, &online);
 	if (online) {
 		mca_strategy_func_get_status(STRATEGY_FUNC_TYPE_QUICK_WIRELESS,
-					     STRATEGY_STATUS_TYPE_CHARGING,
+					     STRATEGY_STATUS_TYPE_QC_CHARGE_STS,
 					     &quick_charge_status);
 	} else {
 		mca_strategy_func_get_status(STRATEGY_FUNC_TYPE_QUICK_CHARGE,
@@ -1674,7 +1674,7 @@ static void mca_strategy_single_force_fw_report_full(struct strategy_fg *fg)
 				     STRATEGY_STATUS_TYPE_ONLINE, &online);
 	if (online) {
 		mca_strategy_func_get_status(STRATEGY_FUNC_TYPE_QUICK_WIRELESS,
-					     STRATEGY_STATUS_TYPE_CHARGING,
+					     STRATEGY_STATUS_TYPE_QC_CHARGE_STS,
 					     &quick_charge_status);
 	} else {
 		mca_strategy_func_get_status(STRATEGY_FUNC_TYPE_QUICK_CHARGE,
