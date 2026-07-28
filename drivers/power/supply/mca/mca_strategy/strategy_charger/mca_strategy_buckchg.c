@@ -2496,7 +2496,7 @@ static void strategy_buckchg_sw_cv_workfunc(struct work_struct *work)
 {
 	struct strategy_buckchg_dev *info = container_of(
 		work, struct strategy_buckchg_dev, sw_cv_work.work);
-	static int sw_cv_volt_delta_map[][2] = { { 1000, 5 }, { 0, 2 } };
+	static int sw_cv_volt_delta_map[][2] = { { 1000, 4 }, { 0, 2 } };
 	int interval = CHARGE_SW_CV_WORK_NORMAL_INTERVAL;
 	int vbat, ibat;
 	int vterm = mca_get_effective_result(info->vterm_voter);
