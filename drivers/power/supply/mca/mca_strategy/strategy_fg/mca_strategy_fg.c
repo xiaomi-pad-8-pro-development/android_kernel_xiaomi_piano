@@ -96,6 +96,27 @@
 #define DEFAULT_DESIGN_CAPACITY 5000
 #define FG_FORCE_REPORT_FULL_TIMES 2
 
+void onewire_check_auth_pass(bool *auth_pass)
+{
+	*auth_pass = false;
+}
+
+void onewire_check_chip_ok(bool *chip_ok)
+{
+	*chip_ok = false;
+}
+
+int onewire_get_shutdown_uisoc(int *uisoc)
+{
+	*uisoc = STRATEGY_FG_ERROR_FAKE_SOC;
+	return -1;
+}
+
+int onewire_set_shutdown_uisoc(int uisoc)
+{
+	return -1;
+}
+
 static void strategy_fg_init_voter(struct strategy_fg *fg);
 static int strategy_fg_ops_get_curr(void *data, int *curr);
 static int strategy_fg_ops_get_rsoc(void *data, int *rsoc);

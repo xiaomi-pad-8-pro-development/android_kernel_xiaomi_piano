@@ -300,5 +300,9 @@ enum fg_auth_attr_list {
 };
 
 void strategy_fg_record_volt_mean(struct strategy_fg *fg);
+void onewire_check_auth_pass(bool *auth_pass);
+void onewire_check_chip_ok(bool *chip_ok);
+int onewire_get_shutdown_uisoc(int *uisoc);
+int onewire_set_shutdown_uisoc(int uisoc);
 
 #endif /* __STRATEGY_FG_H__ */
