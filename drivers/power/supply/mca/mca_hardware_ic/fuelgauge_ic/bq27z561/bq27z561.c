@@ -2291,17 +2291,19 @@ static int fg_read_first_usage_date(struct bq_fg_chip *bq, u8 *buf)
 		memcpy(first_usage_date, "00000000", 8);
 		mca_log_info("usage_date init %s\n", first_usage_date);
 	} else {
-		if (!strncmp(first_usage_date, "2004", 4)) {
-			first_usage_date[2] = '2';
-			mca_log_info("11-11 version compatiable\n");
-		} else if (!strncmp(first_usage_date, "2052", 4)) {
-			first_usage_date[2] = '2';
-			first_usage_date[3] = '4';
-			first_usage_date[4] = '0';
-			first_usage_date[5] = '9';
-			first_usage_date[6] = '0';
-			first_usage_date[7] = '1';
-			mca_log_info("09-13 version compatiable\n");
+		if (bq->support_version_compatible) {
+			if (!strncmp(first_usage_date, "2004", 4)) {
+				first_usage_date[2] = '2';
+				mca_log_info("11-11 version compatiable\n");
+			} else if (!strncmp(first_usage_date, "2052", 4)) {
+				first_usage_date[2] = '2';
+				first_usage_date[3] = '4';
+				first_usage_date[4] = '0';
+				first_usage_date[5] = '9';
+				first_usage_date[6] = '0';
+				first_usage_date[7] = '1';
+				mca_log_info("09-13 version compatiable\n");
+			}
 		}
 		for (i = 0; i < 8; i++) {
 			if (first_usage_date[i] < '0' ||
@@ -4212,6 +4214,9 @@ static int bq_parse_dt(struct bq_fg_chip *bq)
 			mca_log_err("OTA INFO ERROR [0x%x][0x%x][0x%x]\n", bq->version_number, bq->start_byte_address, bq->byte_length);
 		}
 	}
+
+	bq->support_version_compatible =
+		of_property_read_bool(node, "support-version-compatible");
 
 	return 0;
 }

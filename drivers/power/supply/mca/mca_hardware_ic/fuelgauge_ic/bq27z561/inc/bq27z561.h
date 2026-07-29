@@ -424,6 +424,7 @@ struct bq_fg_chip {
 	bool batt_tc_1;
 	bool batt_td_1;	/* full depleted */
 	bool support_voltage_record_level;
+	bool support_version_compatible;
 	u8 version_number;
 	u8 start_byte_address;
 	u8 byte_length;
