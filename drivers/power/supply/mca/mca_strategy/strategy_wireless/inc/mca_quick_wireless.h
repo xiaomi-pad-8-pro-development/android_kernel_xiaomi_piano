@@ -360,6 +360,7 @@ struct mca_wireless_quick_charge_info {
 	struct mca_wireless_quick_charge_smartchg_data smartchg_data;
 
 	//process data
+	int batt_para_cc_thr[FG_SITE_MAX];
 	int online;
 	struct mca_wireless_quick_charge_process_data proc_data;
 	int force_stop;
