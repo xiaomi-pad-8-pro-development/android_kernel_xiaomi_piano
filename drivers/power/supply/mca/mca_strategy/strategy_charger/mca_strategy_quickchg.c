@@ -3377,7 +3377,7 @@ static int mca_quick_charge_get_status(int status, void *value, void *data)
 		return -1;
 
 	switch (status) {
-	case STRATEGY_STATUS_TYPE_CHARGING:
+	case STRATEGY_STATUS_TYPE_QC_CHARGE_STS:
 		*cur_val = info->proc_data.charge_flag;
 		break;
 	case STRATEGY_STATUS_TYPE_QC_TYPE:

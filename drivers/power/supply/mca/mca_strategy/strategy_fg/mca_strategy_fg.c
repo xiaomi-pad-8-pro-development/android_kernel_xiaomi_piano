@@ -1347,7 +1347,7 @@ static int mca_strategy_check_sigle_termination(struct strategy_fg *fg)
 					     &quick_charge_status);
 	} else {
 		mca_strategy_func_get_status(STRATEGY_FUNC_TYPE_QUICK_CHARGE,
-					     STRATEGY_STATUS_TYPE_CHARGING,
+					     STRATEGY_STATUS_TYPE_QC_CHARGE_STS,
 					     &quick_charge_status);
 	}
 
@@ -1678,7 +1678,7 @@ static void mca_strategy_single_force_fw_report_full(struct strategy_fg *fg)
 					     &quick_charge_status);
 	} else {
 		mca_strategy_func_get_status(STRATEGY_FUNC_TYPE_QUICK_CHARGE,
-					     STRATEGY_STATUS_TYPE_CHARGING,
+					     STRATEGY_STATUS_TYPE_QC_CHARGE_STS,
 					     &quick_charge_status);
 	}
 
@@ -1820,9 +1820,9 @@ static void mca_strategy_parallel_force_fw_report_full(struct strategy_fg *fg,
 
 					mca_strategy_func_get_status(
 						STRATEGY_FUNC_TYPE_QUICK_CHARGE,
-						STRATEGY_STATUS_TYPE_ENABLE,
+						STRATEGY_STATUS_TYPE_QC_CHARGE_STS,
 						&status);
-					if (status == 1) {
+					if (status == MCA_QUICK_CHG_STS_CHARGING) {
 						mca_strategy_func_process(
 							STRATEGY_FUNC_TYPE_QUICK_CHARGE,
 							MCA_EVENT_MASTER_BATT_CLOSE,

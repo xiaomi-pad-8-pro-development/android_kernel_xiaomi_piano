@@ -2035,7 +2035,7 @@ strategy_buckchg_enable_fast_charge_mode(struct strategy_buckchg_dev *info,
 	if (info->proc_data.real_type == XM_CHARGER_TYPE_PPS) {
 		(void)mca_strategy_func_get_status(
 			STRATEGY_FUNC_TYPE_QUICK_CHARGE,
-			STRATEGY_STATUS_TYPE_CHARGING, &quick_charge_status);
+			STRATEGY_STATUS_TYPE_QC_CHARGE_STS, &quick_charge_status);
 		if (info->ffc_terminated_by_cp)
 			(void)mca_strategy_func_get_status(
 				STRATEGY_FUNC_TYPE_QUICK_CHARGE,
@@ -2329,7 +2329,7 @@ static void strategy_buckchg_monitor_workfunc(struct work_struct *work)
 	}
 
 	(void)mca_strategy_func_get_status(STRATEGY_FUNC_TYPE_QUICK_CHARGE,
-					   STRATEGY_STATUS_TYPE_CHARGING,
+					   STRATEGY_STATUS_TYPE_QC_CHARGE_STS,
 					   &quick_charge_status);
 	if (quick_charge_status == MCA_QUICK_CHG_STS_CHARGING)
 		goto out;
