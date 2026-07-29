@@ -418,6 +418,7 @@ struct strategy_wireless_dev {
 	int support_mode;
 	int soc_limit_fcc;
 	int support_q_value;
+	int support_q_tx[ADAPTER_TYPE_MAX];
 	int support_multi_buck;
 	bool support_base_flip;
 	int wls_vdd_src;

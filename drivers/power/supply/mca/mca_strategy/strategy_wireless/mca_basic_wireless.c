@@ -2595,12 +2595,20 @@ static void strategy_wireless_chg_handler(struct strategy_wireless_dev *info)
 			}
 
 			if (num >= 0 && num < EXTERNAL_ADAPTER_DEFAULT) {
-				if ((info->uuid_adapter_info[num]
-					     .compatible_info
-					     .low_inductance_50w_tx ||
-				     info->uuid_adapter_info[num]
-					     .compatible_info
-					     .low_inductance_80w_tx) &&
+				if (((info->uuid_adapter_info[num]
+					      .compatible_info
+					      .low_inductance_50w_tx &&
+				      info->support_q_tx
+					      [ADAPTER_LOW_INDUCTANCE_TX_50W]) ||
+				     (info->uuid_adapter_info[num]
+					      .compatible_info
+					      .low_inductance_80w_tx &&
+				      info->support_q_tx
+					      [ADAPTER_LOW_INDUCTANCE_TX_80W]) ||
+				     (info->uuid_adapter_info[num]
+					      .compatible_info.magnet_30w_tx &&
+				      info->support_q_tx
+					      [ADAPTER_LOW_INDUCTANCE_TX_100W])) &&
 				    info->support_q_value) {
 					mca_log_info(
 						"send_tx_q_value_request\n");
@@ -4301,6 +4309,14 @@ static int strategy_wireless_parse_dt(struct strategy_wireless_dev *info)
 		int i, len;
 		u8 *q1_buf;
 		u32 *q2_buf;
+
+		if (mca_parse_dts_u32_array(node, "support_q_tx",
+					    info->support_q_tx,
+					    ADAPTER_TYPE_MAX)) {
+			info->support_q_tx[ADAPTER_LOW_INDUCTANCE_TX_50W] = 1;
+			info->support_q_tx[ADAPTER_LOW_INDUCTANCE_TX_80W] = 1;
+			info->support_q_tx[ADAPTER_LOW_INDUCTANCE_TX_100W] = 0;
+		}
 
 		for (i = 0; i < ADAPTER_TYPE_MAX; i++)
 			info->tx_q1[i] = MCA_WLS_CHG_DEFAULT_TX_Q1;
