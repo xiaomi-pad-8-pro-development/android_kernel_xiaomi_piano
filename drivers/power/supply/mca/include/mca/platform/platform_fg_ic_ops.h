@@ -182,8 +182,8 @@ struct fuelguage_ic_ops {
 	int (*fg_ic_get_ota_update_flag)(void *data, int *);
 	int (*fg_ic_ota_update_check)(void *data);
 	int (*fg_ic_get_batt_abnormal_info)(void *data, int *);
-	int (*fg_ic_get_first_usage_date)(void *data);
-	int (*fg_ic_get_manufacturing_date)(void *data);
+	int (*fg_ic_get_first_usage_date)(void *data, u8 *buf);
+	int (*fg_ic_get_manufacturing_date)(void *data, u8 *buf);
 	int (*fg_ic_set_first_usage_date)(void *data, int);
 	int (*fg_ic_qbg_send_chg_data)(void *data);
 };
@@ -253,8 +253,8 @@ int platform_fg_ops_get_average_current(unsigned int ic_role, int *curr);
 int platform_fg_ops_get_ota_update_flag(unsigned int ic_role, int *flag);
 int platform_fg_ops_ota_update_check(unsigned int ic_role);
 void platform_fg_ops_get_batt_abnormal_info(unsigned int ic_role, int *info);
-int platform_fg_ops_get_first_usage_date(unsigned int ic_role);
-int platform_fg_ops_get_manufacturing_date(unsigned int ic_role);
+int platform_fg_ops_get_first_usage_date(unsigned int ic_role, u8 *buf);
+int platform_fg_ops_get_manufacturing_date(unsigned int ic_role, u8 *buf);
 void platform_fg_ops_set_first_usage_date(unsigned int ic_role, int date);
 void platform_fg_ops_qbg_send_chg_data(unsigned int ic_role);
 #endif /* _MCA_PLATFORM_PLATFORM_FG_IC_OPS_H_ */

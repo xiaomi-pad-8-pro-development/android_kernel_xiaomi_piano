@@ -747,25 +747,26 @@ void platform_fg_ops_get_batt_abnormal_info(unsigned int ic_role, int *info)
 }
 EXPORT_SYMBOL(platform_fg_ops_get_batt_abnormal_info);
 
-int platform_fg_ops_get_first_usage_date(unsigned int ic_role)
+int platform_fg_ops_get_first_usage_date(unsigned int ic_role, u8 *buf)
 {
 	struct fuelguage_info *temp_info = platform_get_fg_ic_ops(ic_role);
 
 	if (platform_fg_ops_invalid(temp_info, fg_ic_get_first_usage_date))
 		return -EOPNOTSUPP;
 
-	return temp_info->ops->fg_ic_get_first_usage_date(temp_info->data);
+	return temp_info->ops->fg_ic_get_first_usage_date(temp_info->data, buf);
 }
 EXPORT_SYMBOL(platform_fg_ops_get_first_usage_date);
 
-int platform_fg_ops_get_manufacturing_date(unsigned int ic_role)
+int platform_fg_ops_get_manufacturing_date(unsigned int ic_role, u8 *buf)
 {
 	struct fuelguage_info *temp_info = platform_get_fg_ic_ops(ic_role);
 
 	if (platform_fg_ops_invalid(temp_info, fg_ic_get_manufacturing_date))
 		return -EOPNOTSUPP;
 
-	return temp_info->ops->fg_ic_get_manufacturing_date(temp_info->data);
+	return temp_info->ops->fg_ic_get_manufacturing_date(temp_info->data,
+							    buf);
 }
 EXPORT_SYMBOL(platform_fg_ops_get_manufacturing_date);
 

@@ -30,6 +30,7 @@
 #include <linux/kthread.h>
 #include <linux/workqueue.h>
 #include <linux/platform_device.h>
+#include <linux/reboot.h>
 #include <mca/common/mca_log.h>
 #include <mca/common/mca_event.h>
 #include <mca/strategy/strategy_class.h>
@@ -130,6 +131,10 @@ static ssize_t strategy_fg_sysfs_store(struct device *dev,
 					    struct device_attribute *attr,
 					    const char *buf, size_t count);
 static int strategy_fg_check_battery_adapt_power(void *data, int *match);
+static void mca_strategy_get_manufacturing_date(struct strategy_fg *fg,
+						char *date);
+static void mca_strategy_get_first_usage_date(struct strategy_fg *fg,
+					      char *date);
 
 static int strategy_fg_ops_get_soc_decimal(void *data, int *soc_decimal,
 					   int *rate);
@@ -190,6 +195,10 @@ static struct mca_sysfs_attr_info strategy_fg_sysfs_field_tbl[] = {
 			  raw_soc),
 	mca_sysfs_attr_ro(strategy_fg_sysfs, 0440, FG_PROP_CALC_RVALUE,
 			  calc_rvalue),
+	mca_sysfs_attr_ro(strategy_fg_sysfs, 0440, FG_PROP_MANUFACTURING_DATE,
+			  manufacturing_date),
+	mca_sysfs_attr_ro(strategy_fg_sysfs, 0440, FG_PROP_FIRST_USAGE_DATE,
+			  first_usage_date),
 };
 
 #define FG_AUTH_ATTRS_SIZE ARRAY_SIZE(strategy_fg_sysfs_field_tbl)
@@ -459,6 +468,20 @@ static ssize_t strategy_fg_sysfs_show(struct device *dev,
 		rvalue = strategy_fg_get_calc_rvalue(info);
 		count = scnprintf(buf, PAGE_SIZE, "%lu\n", rvalue);
 		break;
+	case FG_PROP_MANUFACTURING_DATE: {
+		char date_buf[16] = { 0 };
+
+		mca_strategy_get_manufacturing_date(info, date_buf);
+		count = scnprintf(buf, PAGE_SIZE, "%s\n", date_buf);
+		break;
+	}
+	case FG_PROP_FIRST_USAGE_DATE: {
+		char date_buf[16] = { 0 };
+
+		mca_strategy_get_first_usage_date(info, date_buf);
+		count = scnprintf(buf, PAGE_SIZE, "%s\n", date_buf);
+		break;
+	}
 	default:
 		break;
 	}
@@ -1392,6 +1415,12 @@ static int strategy_fg_reset_co_to_default(struct strategy_fg *fg)
 	fg->fg_lock_flag = false;
 
 	return ret;
+}
+
+static void strategy_fg_reset_default_work(struct work_struct *work)
+{
+	platform_fg_ops_set_co(FG_IC_MASTER, 0);
+	platform_fg_ops_set_co(FG_IC_SLAVE, 0);
 }
 
 static int mca_strategy_parallel_first_termination(struct strategy_fg *fg)
@@ -3173,6 +3202,7 @@ static int strategy_fg_parse_dt(struct strategy_fg *fg)
 		!!of_find_property(node, "show-model-by-country-version", NULL);
 	mca_parse_dts_u32(node, "support_nvt1000_ota",
 			  &(fg->cfg.support_nvt1000_ota), 0);
+	fg->cfg.support_qbg = !!of_find_property(node, "support-qbg", NULL);
 	if (ret) {
 		mca_log_err("strategy fg parse dt failed, ret=%d\n", ret);
 	}
@@ -3527,6 +3557,117 @@ static int strategy_fg_ops_get_first_termiation(void *data, int *value)
 	return 0;
 }
 
+static int strategy_fg_ops_get_temp_offset_flag(void *data, int *flag)
+{
+	struct strategy_fg *fg = (struct strategy_fg *)data;
+
+	if (!fg)
+		return -1;
+	if (!fg->support_battery_date)
+		return -1;
+
+	if (fg->temp_offset_force)
+		*flag = 1;
+	else
+		*flag = fg->temp_offset_flag_val;
+
+	return 0;
+}
+
+static int strategy_fg_get_status(int status, void *value, void *data)
+{
+	struct strategy_fg *fg = (struct strategy_fg *)data;
+	int match = 0;
+
+	if (!value || !fg)
+		return -1;
+
+	switch (status) {
+	case STRATEGY_STATUS_TYPE_FG_FIRST_TERM:
+		*(int *)value = fg->first_termination;
+		return 0;
+	case STRATEGY_STATUS_TYPE_FG_BATT_MATCH:
+		strategy_fg_check_battery_adapt_power(fg, &match);
+		*(int *)value = match & fg->batt_auth;
+		return 0;
+	default:
+		return -1;
+	}
+}
+
+static void mca_strategy_get_manufacturing_date(struct strategy_fg *fg,
+						char *date)
+{
+	char date_master[9] = { 0 };
+	char date_slave[9] = { 0 };
+
+	if (!fg->support_battery_date)
+		return;
+
+	if (fg->cfg.fg_type > MCA_FG_TYPE_SINGLE_NUM_MAX) {
+		platform_fg_ops_get_manufacturing_date(FG_IC_MASTER,
+						       (u8 *)date_master);
+		platform_fg_ops_get_manufacturing_date(FG_IC_SLAVE,
+						       (u8 *)date_slave);
+		mca_log_err("manufacturing_date master:%s, slave:%s\n",
+			    date_master, date_slave);
+
+		if (date_slave[0] && memcmp(date_slave, date_master, 8) > 0)
+			memcpy(date, date_slave, 8);
+		else
+			memcpy(date, date_master, 8);
+	} else {
+		platform_fg_ops_get_manufacturing_date(FG_IC_MASTER, (u8 *)date);
+	}
+}
+
+static void mca_strategy_get_first_usage_date(struct strategy_fg *fg,
+					      char *date)
+{
+	char date_master[9] = { 0 };
+	char date_slave[9] = { 0 };
+	bool master_valid, slave_valid;
+
+	if (!fg->support_battery_date)
+		return;
+
+	if (fg->cfg.fg_type > MCA_FG_TYPE_SINGLE_NUM_MAX) {
+		platform_fg_ops_get_first_usage_date(FG_IC_MASTER,
+						     (u8 *)date_master);
+		platform_fg_ops_get_first_usage_date(FG_IC_SLAVE,
+						     (u8 *)date_slave);
+
+		master_valid = strncmp(date_master, "99999999", 8) != 0;
+		slave_valid = strncmp(date_slave, "99999999", 8) != 0;
+
+		if (master_valid && slave_valid)
+			memcpy(date,
+			       memcmp(date_slave, date_master, 8) > 0 ?
+				       date_slave :
+				       date_master,
+			       8);
+		else if (slave_valid)
+			memcpy(date, date_slave, 8);
+		else
+			memcpy(date, date_master, 8);
+	} else {
+		platform_fg_ops_get_first_usage_date(FG_IC_MASTER, (u8 *)date);
+	}
+}
+
+static int mca_strategy_fg_shutdown_cb(struct notifier_block *nb,
+				       unsigned long action, void *data)
+{
+	struct strategy_fg *fg =
+		container_of(nb, struct strategy_fg, reboot_nb);
+
+	if (fg->cfg.support_qbg)
+		mca_log_err("store uisoc: %d to onewire dev\n",
+			    fg->batt_ui_soc);
+
+	return NOTIFY_DONE;
+}
+
 static struct strategy_fg_class_ops g_strategy_fg_ops = {
 	.strategy_fg_is_init_ok = strategy_fg_ops_is_init_ok,
 	.strategy_fg_is_chip_ok = strategy_fg_ops_is_chip_ok,
@@ -3553,6 +3694,7 @@ static struct strategy_fg_class_ops g_strategy_fg_ops = {
 	.strategy_fg_get_pack_vendor_id = strategy_fg_ops_get_pack_vendor_id,
 	.strategy_fg_get_thermal_temperature = strategy_fg_ops_get_thermal_temp,
 	.strategy_fg_get_soh = strategy_fg_ops_get_soh,
+	.strategy_fg_get_temp_offset_flag = strategy_fg_ops_get_temp_offset_flag,
 };
 
 static void delay_reset_full_flag_work(struct work_struct *work)
@@ -3763,10 +3905,12 @@ static int strategy_fg_probe(struct platform_device *pdev)
 	ret = strategy_class_fg_ops_register(fg, &g_strategy_fg_ops);
 	strategy_fg_auth_create_group(fg->dev);
 	(void)mca_strategy_ops_register(STRATEGY_FUNC_TYPE_FG,
-					strategy_fg_process_event, NULL, NULL,
-					fg);
+					strategy_fg_process_event,
+					strategy_fg_get_status, NULL, fg);
 	INIT_DELAYED_WORK(&fg->delay_reset_full_flag_work,
 			  delay_reset_full_flag_work);
+	INIT_DELAYED_WORK(&fg->reset_default_work,
+			  strategy_fg_reset_default_work);
 	strategy_fg_init_voter(fg);
 	INIT_DELAYED_WORK(&fg->dtpt_monitor_work,
 			  strategy_fg_dtpt_monitor_work);
@@ -3786,6 +3930,8 @@ static int strategy_fg_probe(struct platform_device *pdev)
 	fg->thermal_board_nb.notifier_call = strategy_fg_thermal_notifier_cb;
 	mca_event_block_notify_register(MCA_EVENT_TYPE_THERMAL_TEMP,
 					&fg->thermal_board_nb);
+	fg->reboot_nb.notifier_call = mca_strategy_fg_shutdown_cb;
+	register_reboot_notifier(&fg->reboot_nb);
 
 	if (fg->cfg.support_nvt1000_ota)
 		queue_delayed_work(

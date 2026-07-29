@@ -127,6 +127,7 @@ struct strategy_fg_cfg {
 	int ffc_safe_item[SAFE_ITERM_CYCLE_LEVEL][SAFE_ITERM_TEMP_LEVEL];
 	int show_model_by_country;
 	int support_nvt1000_ota;
+	bool support_qbg;
 };
 
 struct term_volt_cfg {
@@ -173,9 +174,12 @@ struct strategy_fg {
 	struct delayed_work fl4p0_calibration_work;
 	struct delayed_work force_report_full_work;
 	struct delayed_work ota_update_work;
+	struct delayed_work batt_abnormal_dfx_work;
+	struct delayed_work reset_default_work;
 
 	struct notifier_block panel_nb;
 	struct notifier_block thermal_board_nb;
+	struct notifier_block reboot_nb;
 	struct strategy_fg_cfg cfg;
 	struct strategy_fg_smooth smooth;
 	bool fg_init_flag;
@@ -272,6 +276,9 @@ struct strategy_fg {
 	bool self_equal_flag[FG_IC_MAX];
 	bool self_equal_count[FG_IC_MAX];
 	int self_equal_max_count;
+	bool support_battery_date;
+	bool temp_offset_force;
+	int temp_offset_flag_val;
 };
 
 enum fg_auth_attr_list {
@@ -297,6 +304,8 @@ enum fg_auth_attr_list {
 	FG_PROP_PACK_TEMP,
 	FG_PROP_RAW_SOC,
 	FG_PROP_CALC_RVALUE,
+	FG_PROP_MANUFACTURING_DATE,
+	FG_PROP_FIRST_USAGE_DATE,
 };
 
 void strategy_fg_record_volt_mean(struct strategy_fg *fg);

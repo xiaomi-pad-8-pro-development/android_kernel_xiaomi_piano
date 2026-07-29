@@ -2463,18 +2463,16 @@ static void fg_write_first_usage_date(struct bq_fg_chip *bq, const char *buf, si
 	}
 }
 
-static int fg_get_one_first_usage_date(void *data)
+static int fg_get_one_first_usage_date(void *data, u8 *buf)
 {
 	struct bq_fg_chip *bq = (struct bq_fg_chip *)data;
-	u8 buf[9] = { 0 };
 
 	return fg_read_first_usage_date(bq, buf);
 }
 
-static int fg_get_one_manufacturing_date(void *data)
+static int fg_get_one_manufacturing_date(void *data, u8 *buf)
 {
 	struct bq_fg_chip *bq = (struct bq_fg_chip *)data;
-	u8 buf[9] = { 0 };
 
 	return fg_read_manufacturing_date(bq, buf);
 }
