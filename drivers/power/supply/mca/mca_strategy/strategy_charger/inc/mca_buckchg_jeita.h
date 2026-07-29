@@ -98,12 +98,14 @@ struct mca_buckchg_jeita_dev {
 	int voter_ok;
 	int dtpt_status;
 	int has_gbl_batt_para;
+	int has_tmp_batt_para;
 	int vbat_high_hyst;
 	int vbat_low_hyst;
 	int vbat_low_cold_hyst;
 	int base_vbat_low_hyst;
 	int flip_vbat_low_hyst;
 	int support_base_flip;
+	int base_flip_same;
 	int real_type;
 
 	struct delayed_work monitor_work;
@@ -123,6 +125,7 @@ struct mca_buckchg_jeita_dev {
 	bool baacfg_update;
 	int vterm;
 	int vi_term_decrease[DECREASE_VOLTAGE_PARA_MAX];
+	int jeita_hot_termination_hyst;
 };
 
 #endif /* __MCA_BUCKCHG_JEITA_H__ */

@@ -421,6 +421,12 @@ static void mca_buckchg_jeita_update(struct mca_buckchg_jeita_dev *info)
 	temp /= 10;
 	fastcharge_mode = strategy_class_fg_get_fastcharge();
 
+	ret = strategy_class_fg_ops_get_voltage(&vbat);
+	if (ret) {
+		mca_log_err("get battery volt failed\n");
+		return;
+	}
+
 	if (!fastcharge_mode) {
 		for (i = 0; i < info->jeita_para.size; i++) {
 			cur_jeita_data = info->jeita_para.jeita_data + i;
@@ -489,7 +495,6 @@ static void mca_buckchg_jeita_update(struct mca_buckchg_jeita_dev *info)
 	}
 
 	/* select whether vote */
-	ret = strategy_class_fg_ops_get_voltage(&vbat);
 	info->proc_data.max_chg_curr =
 		mca_buckchg_jeita_get_curr(jeita_data, &vbat_index);
 	if (info->baacfg_update) {
@@ -547,14 +552,10 @@ static void mca_buckchg_jeita_update(struct mca_buckchg_jeita_dev *info)
 			info->vterm = vterm;
 		}
 	} else {
-		if (ret) {
-			mca_log_err("get vbat failed\n");
-		} else {
-			if (vbat >= vterm)
-				mca_vote(info->en_voter, "jeita-hot", true, 0);
-			else if (vbat < vterm - JEITA_HOT_RECHARGE_VBAT_HYS)
-				mca_vote(info->en_voter, "jeita-hot", true, 1);
-		}
+		if (vbat >= vterm - info->jeita_hot_termination_hyst)
+			mca_vote(info->en_voter, "jeita-hot", true, 0);
+		else if (vbat < vterm - JEITA_HOT_RECHARGE_VBAT_HYS)
+			mca_vote(info->en_voter, "jeita-hot", true, 1);
 	}
 
 	if (info->dtpt_status)
@@ -581,7 +582,9 @@ static void mca_buckchg_jeita_update(struct mca_buckchg_jeita_dev *info)
 			info->proc_data.cur_jeita_index = i;
 		mca_vote(info->fcc_voter, "jeita", true, chg_curr);
 		mca_vote(info->vterm_voter, "jeita", true, vterm);
-		mca_vote(info->iterm_voter, "jeita", true, jeita_data->iterm);
+		if (!info->support_base_flip && !info->base_flip_same)
+			mca_vote(info->iterm_voter, "jeita", true,
+				 jeita_data->iterm);
 	}
 }
 
@@ -915,31 +918,42 @@ static int mca_buckchg_jeita_parse_dt(struct mca_buckchg_jeita_dev *info)
 	mca_parse_dts_u32(node, "flip_vbat_low_hyst",
 			  &(info->flip_vbat_low_hyst),
 			  MCA_BUCKCHG_JEITA_VBAT_LOW_HYST);
+	mca_parse_dts_u32(node, "jeita_hot_termination_hyst",
+			  &(info->jeita_hot_termination_hyst), 0);
 	info->has_gbl_batt_para =
 		of_property_read_bool(node, "has-global-batt-para");
 	if (hwid && info->has_gbl_batt_para &&
 	    hwid->country_version != CountryCN)
 		node = of_find_node_by_name(NULL, "mca_buckchg_jeita_gbl_para");
 
-	if (of_find_property(node, "has-tmp-batt-para", NULL)) {
-		platform_fg_ops_get_device_name(FG_IC_MASTER, &dev_name);
-		if (!dev_name) {
-			mca_log_err("get device name fail, wait for it\n");
-			return -EPROBE_DEFER;
-		}
-		mca_log_err("project O9 tmp test: device name: %s\n", dev_name);
-		if (!strcmp(dev_name, "2@BP"))
-			node = of_find_node_by_name(
-				NULL, "mca_buckchg_jeita_gbl_para");
-	}
-
 	if (!node) {
 		mca_log_err("node in null\n");
 		return -1;
 	}
+
+	info->has_tmp_batt_para =
+		of_property_read_bool(node, "has-tmp-batt-para");
+	if (info->has_tmp_batt_para) {
+		platform_fg_ops_get_device_name(FG_IC_MASTER, &dev_name);
+		if (!dev_name) {
+			mca_log_err("get device name fail, wait for it\n");
+			return -EINVAL;
+		}
+		mca_log_err("project O9 tmp test: device name: %s\n", dev_name);
+		if (!strcmp(dev_name, "2@BP")) {
+			node = of_find_node_by_name(
+				NULL, "mca_buckchg_jeita_tmp_para");
+			if (!node) {
+				mca_log_err("has-tmp-batt-para node in null\n");
+				return -1;
+			}
+		}
+	}
+
 	ret = mca_buckchg_jeita_parse_para(node, "jeita_para", jeita_info);
 	info->support_base_flip =
 		of_property_read_bool(node, "support-base-flip");
+	info->base_flip_same = of_property_read_bool(node, "base-flip-same");
 	if (info->support_base_flip) {
 		mca_log_err("support base flip, start config buckchg jeita\n");
 		ret = mca_buckchg_jeita_parse_para(node, "base_jeita_para",
@@ -1191,17 +1205,17 @@ static int mca_buckchg_jeita_probe(struct platform_device *pdev)
 
 	info->dev = &pdev->dev;
 	ret = mca_buckchg_jeita_parse_dt(info);
-	if (ret == -EPROBE_DEFER) {
-		static int parse_dt_cnt;
-
-		dev_err(&pdev->dev, "%s buckchg_jeita parse_dt_cnt = %d\n",
-			__func__, ++parse_dt_cnt);
-		msleep(100);
-		return parse_dt_cnt <= 49 ? -EPROBE_DEFER : -1;
-	}
 	if (ret) {
-		mca_log_err("parse dt failed\n");
-		return -1;
+		mca_log_err("parse dts failed, ret: %d\n", ret);
+		if (ret != -1) {
+			static int parse_dt_cnt;
+
+			dev_err(&pdev->dev,
+				"%s buckchg_jeita parse_dt_cnt = %d\n",
+				__func__, ++parse_dt_cnt);
+			msleep(100);
+			return parse_dt_cnt <= 49 ? -EPROBE_DEFER : -1;
+		}
 	}
 	INIT_DELAYED_WORK(&info->monitor_work, mca_buckchg_jeita_monitor_work);
 	mca_buckchg_jeita_init_voter(info);
