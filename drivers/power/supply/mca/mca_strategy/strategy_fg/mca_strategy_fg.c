@@ -149,6 +149,8 @@ static void mca_strategy_get_manufacturing_date(struct strategy_fg *fg,
 						char *date);
 static void mca_strategy_get_first_usage_date(struct strategy_fg *fg,
 					      char *date);
+static void mca_strategy_set_first_usage_date(struct strategy_fg *fg,
+					      const char *date);
 
 static int strategy_fg_ops_get_soc_decimal(void *data, int *soc_decimal,
 					   int *rate);
@@ -211,7 +213,7 @@ static struct mca_sysfs_attr_info strategy_fg_sysfs_field_tbl[] = {
 			  calc_rvalue),
 	mca_sysfs_attr_ro(strategy_fg_sysfs, 0440, FG_PROP_MANUFACTURING_DATE,
 			  manufacturing_date),
-	mca_sysfs_attr_ro(strategy_fg_sysfs, 0440, FG_PROP_FIRST_USAGE_DATE,
+	mca_sysfs_attr_rw(strategy_fg_sysfs, 0640, FG_PROP_FIRST_USAGE_DATE,
 			  first_usage_date),
 };
 
@@ -368,6 +370,9 @@ static ssize_t strategy_fg_sysfs_store(struct device *dev,
 			return -EINVAL;
 		mca_log_err("set self_equal_count_max: %d\n", val);
 		info->self_equal_max_count = val;
+		break;
+	case FG_PROP_FIRST_USAGE_DATE:
+		mca_strategy_set_first_usage_date(info, buf);
 		break;
 	default:
 		break;
@@ -3763,6 +3768,20 @@ static void mca_strategy_get_first_usage_date(struct strategy_fg *fg,
 			memcpy(date, date_master, 8);
 	} else {
 		platform_fg_ops_get_first_usage_date(FG_IC_MASTER, (u8 *)date);
+	}
+}
+
+static void mca_strategy_set_first_usage_date(struct strategy_fg *fg,
+					      const char *date)
+{
+	if (!fg->support_battery_date)
+		return;
+
+	if (fg->cfg.fg_type == MCA_FG_TYPE_PARALLEL) {
+		platform_fg_ops_set_first_usage_date(FG_IC_MASTER, date);
+		platform_fg_ops_set_first_usage_date(FG_IC_SLAVE, date);
+	} else if (fg->cfg.fg_type == MCA_FG_TYPE_SINGLE) {
+		platform_fg_ops_set_first_usage_date(FG_IC_MASTER, date);
 	}
 }
 

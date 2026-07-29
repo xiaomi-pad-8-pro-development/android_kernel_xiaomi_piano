@@ -770,7 +770,8 @@ int platform_fg_ops_get_manufacturing_date(unsigned int ic_role, u8 *buf)
 }
 EXPORT_SYMBOL(platform_fg_ops_get_manufacturing_date);
 
-void platform_fg_ops_set_first_usage_date(unsigned int ic_role, int date)
+void platform_fg_ops_set_first_usage_date(unsigned int ic_role,
+					  const char *date)
 {
 	struct fuelguage_info *temp_info = platform_get_fg_ic_ops(ic_role);
 

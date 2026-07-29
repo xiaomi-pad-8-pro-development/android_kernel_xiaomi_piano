@@ -2477,12 +2477,11 @@ static int fg_get_one_manufacturing_date(void *data, u8 *buf)
 	return fg_read_manufacturing_date(bq, buf);
 }
 
-static int fg_set_one_first_usage_date(void *data, int date)
+static int fg_set_one_first_usage_date(void *data, const char *date)
 {
 	struct bq_fg_chip *bq = (struct bq_fg_chip *)data;
-	const char *str = (const char *)(uintptr_t)date;
 
-	fg_write_first_usage_date(bq, str, strlen(str));
+	fg_write_first_usage_date(bq, date, strlen(date));
 	return 0;
 }
 
