@@ -1563,6 +1563,15 @@ static int strategy_fg_get_term_current_new(struct strategy_fg *fg,
 	return fg->fast_charge ? d[idx].ffc_iterm : d[idx].normal_iterm;
 }
 
+#define PARA_TERM_TEMP_WARM 300
+#define PARA_TERM_TEMP_HOT 400
+#define PARA_TERM_VTERM_SLAVE_HOT 20
+#define PARA_TERM_VTERM_WARM 50
+#define PARA_TERM_VTERM_HOT 65
+#define PARA_TERM_VTERM_CO_COLD 20
+#define PARA_TERM_VTERM_CO_WARM 30
+#define PARA_TERM_VTERM_CO_HOT 60
+
 static int strategy_fg_check_parallel_termination(struct strategy_fg *fg)
 {
 	static bool last_first_termination;
@@ -1579,17 +1588,35 @@ static int strategy_fg_check_parallel_termination(struct strategy_fg *fg)
 	if (last_first_termination != fg->first_termination) {
 		last_first_termination = fg->first_termination;
 		if (last_first_termination == true) {
+			int offset = 0;
+			bool bump = true;
+
 			vterm = mca_get_effective_result(fg->vterm_voter);
 			if (fg->fg1_batt_ctr_enabled) {
-				ret |= strategy_fg_update_batt_volt(fg);
-				if (fg->slave_batt_info.volt > vterm - 10)
-					vterm_target = vterm - 10;
-				else
-					vterm_target = vterm;
+				if (!fg->co_ctrl_active &&
+				    fg->slave_batt_info.temp >=
+					    PARA_TERM_TEMP_HOT)
+					offset = PARA_TERM_VTERM_SLAVE_HOT;
 			} else if (fg->fg2_batt_ctr_enabled) {
-				vterm_target = fg->fast_charge ? (vterm + 30) :
-								 vterm;
+				int temp = fg->master_batt_info.temp;
+
+				if (!fg->co_ctrl_active)
+					offset = temp < PARA_TERM_TEMP_HOT ?
+							 PARA_TERM_VTERM_WARM :
+							 PARA_TERM_VTERM_HOT;
+				else if (temp < PARA_TERM_TEMP_WARM)
+					offset = PARA_TERM_VTERM_CO_COLD;
+				else
+					offset = temp < PARA_TERM_TEMP_HOT ?
+							 PARA_TERM_VTERM_CO_WARM :
+							 PARA_TERM_VTERM_CO_HOT;
+			} else {
+				bump = false;
 			}
+
+			if (bump)
+				vterm_target = (fg->fast_charge ? offset : 0) +
+					       vterm;
 			mca_log_err("last_first_termination:vterm_target:%d",
 				    vterm_target);
 			mca_vote_override(fg->vterm_voter, "para_term", true,
