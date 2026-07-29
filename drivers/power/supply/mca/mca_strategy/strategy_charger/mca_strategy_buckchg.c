@@ -70,6 +70,10 @@
 #define SW_CV_FV_COMP_TEMP_MID 300
 #define SW_CV_FV_COMP_TEMP_HIGH 400
 #define SW_CV_FV_COMP_TEMP_MAX 479
+#define PPS_FFC_BOOST_TEMP_THR 34
+#define PPS_FFC_BOOST_TEMP_OFFSET_THR 32
+#define PPS_FFC_BOOST_VBAT_THR 4401
+#define PPS_FFC_IBUS_BOOST 500
 
 static void strategy_buckchg_set_charge_volt(struct strategy_buckchg_dev *info,
 					     int target_volt);
@@ -163,6 +167,8 @@ static void strategy_buckchg_parse_dt(struct strategy_buckchg_dev *info)
 			  STATEGY_SUPPORT_MULTI_BUCK);
 	mca_parse_dts_u32(info->dev->of_node, "in_dcp", &info->in_dcp,
 			  CHARGE_DCP_INPUT_DEFAULT);
+	mca_parse_dts_u32(info->dev->of_node, "in_pps", &info->in_pps,
+			  CHARGE_DCP_INPUT_DEFAULT);
 	mca_parse_dts_u32(info->dev->of_node, "in_pd", &info->in_pd,
 			  CHARGE_DCP_INPUT_DEFAULT);
 	mca_parse_dts_u32(info->dev->of_node, "in_hvdcp", &info->in_hvdcp,
@@ -178,6 +184,8 @@ static void strategy_buckchg_parse_dt(struct strategy_buckchg_dev *info)
 	mca_parse_dts_u32(info->dev->of_node, "in_float", &info->in_float,
 			  CHARGE_FLOAT_INPUT_DEFAULT);
 	mca_parse_dts_u32(info->dev->of_node, "chg_dcp", &info->chg_dcp,
+			  CHARGE_DCP_CHARGE_DEFAULT);
+	mca_parse_dts_u32(info->dev->of_node, "chg_pps", &info->chg_pps,
 			  CHARGE_DCP_CHARGE_DEFAULT);
 	mca_parse_dts_u32(info->dev->of_node, "chg_pd", &info->chg_pd,
 			  CHARGE_DCP_CHARGE_DEFAULT);
@@ -233,6 +241,8 @@ static void strategy_buckchg_parse_dt(struct strategy_buckchg_dev *info)
 			  &info->pmic_iterm_compensation, 30);
 	info->support_diff_temp_comp = of_property_read_bool(
 		info->dev->of_node, "support_diff_temp_comp");
+	info->base_flip_same =
+		of_property_read_bool(info->dev->of_node, "base-flip-same");
 	info->support_reverse_quick_charge = of_property_read_bool(
 		info->dev->of_node, "support_reverse_quick_charge");
 	info->need_cp_to_pmic = of_property_read_bool(info->dev->of_node,
@@ -1609,16 +1619,44 @@ strategy_buckchg_select_charg_para(struct strategy_buckchg_dev *info)
 			ibus_limit = CHARGE_PPS_PTF_INPUT_DEFAULT;
 			ibat_limit = CHARGE_PPS_PTF_CHARGE_DEFAULT;
 		} else {
+			unsigned int in_limit = info->in_pd;
+			int chg_limit = info->chg_pd;
+			if (info->base_flip_same &&
+			    strategy_class_fg_get_fastcharge() &&
+			    info->proc_data.real_type == XM_CHARGER_TYPE_PD) {
+				int batt_temp = 0, temp_offset_flag = 0;
+				int vbat = 0;
+
+				(void)strategy_class_fg_ops_get_temperature(
+					&batt_temp);
+				batt_temp /= 10;
+				(void)strategy_class_fg_get_temp_offset_flag(
+					&temp_offset_flag);
+				(void)strategy_class_fg_ops_get_voltage(&vbat);
+
+				in_limit = info->in_pps;
+				if (batt_temp > PPS_FFC_BOOST_TEMP_THR ||
+				    (batt_temp > PPS_FFC_BOOST_TEMP_OFFSET_THR &&
+				     temp_offset_flag)) {
+					chg_limit = info->chg_pps;
+					if (vbat >= PPS_FFC_BOOST_VBAT_THR)
+						in_limit = info->in_pps +
+							   PPS_FFC_IBUS_BOOST;
+				}
+				mca_log_info("iin_pd = %d, ichg_pd = %d\n",
+					     in_limit, chg_limit);
+			}
+
 			ibus_limit =
-				min(info->in_pd,
+				min(in_limit,
 				    (unsigned int)info->pwr_cap
 					    .cap[info->proc_data.curr_pd_pos]
 					    .max_current);
-			ibat_limit = info->chg_pd;
+			ibat_limit = chg_limit;
 			if (info->pwr_cap.cap[info->proc_data.curr_pd_pos]
 				    .max_current == 0) {
 				ibus_limit =
-					min(info->in_pd, DEFAULT_PD_CURRENT_MA);
+					min(in_limit, DEFAULT_PD_CURRENT_MA);
 				mca_log_info("pdo broadcast abnormal %d \n",
 					     info->proc_data.curr_pd_pos);
 			}

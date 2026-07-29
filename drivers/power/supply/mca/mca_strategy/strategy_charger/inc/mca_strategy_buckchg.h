@@ -131,6 +131,7 @@ struct strategy_buckchg_dev {
 	int support_multi_buck;
 	unsigned int in_dcp;
 	unsigned int in_pd;
+	unsigned int in_pps;
 	unsigned int in_hvdcp;
 	unsigned int in_hvdcp3;
 	unsigned int in_hvdcp3p5;
@@ -139,6 +140,7 @@ struct strategy_buckchg_dev {
 	unsigned int in_float;
 	unsigned int chg_dcp;
 	unsigned int chg_pd;
+	unsigned int chg_pps;
 	unsigned int chg_hvdcp;
 	unsigned int chg_hvdcp3;
 	unsigned int chg_hvdcp3p5;
@@ -159,6 +161,7 @@ struct strategy_buckchg_dev {
 	int pmic_iterm_compensation;
 	int terminated_by_cp;
 	bool support_diff_temp_comp;
+	int base_flip_same;
 	int support_reverse_quick_charge;
 	int rev_req_vadp[REV_USBIN_TYPE_MAX];
 	int rev_vadp_valid_h[REV_USBIN_TYPE_MAX];
