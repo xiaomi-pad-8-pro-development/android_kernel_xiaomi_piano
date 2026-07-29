@@ -3423,6 +3423,12 @@ static int mca_quick_charge_get_status(int status, void *value, void *data)
 				   ->volt_para[last_volt_stage]
 				   .current_min;
 		break;
+	case STRATEGY_STATUS_TYPE_QC_TAPER_DONE_NO_RETRY:
+		*cur_val = info->taper_done_no_retry;
+		break;
+	case STRATEGY_STATUS_TYPE_QC_MAX_POWER:
+		*cur_val = info->max_power;
+		break;
 	default:
 		return -1;
 	}
