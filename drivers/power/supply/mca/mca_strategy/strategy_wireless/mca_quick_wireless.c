@@ -480,6 +480,8 @@ static void mca_wireless_quick_charge_stop_charging(
 		info->proc_data.charge_flag_pre = MCA_QUICK_CHG_STS_NO_CHARGING;
 	} else
 		info->proc_data.charge_flag = MCA_QUICK_CHG_STS_NO_CHARGING;
+	if (info->support_base_flip)
+		(void)mca_rerun_election(info->flip_charge_curr_voter);
 	mca_log_info("stop quick charge\n");
 }
 
@@ -2866,6 +2868,7 @@ static int mca_wireless_quick_charge_create_voter(
 		mca_wireless_quick_charge_thermal_flip_voter_cb, 0, info);
 	if (IS_ERR(info->thermal_flip_voter))
 		goto error;
+	info->flip_charge_curr_voter = mca_find_votable("flip_charge_curr");
 	smartchg_ichg_voter = mca_find_votable("smartchg_delta_ichg");
 	if (smartchg_ichg_voter)
 		info->smartchg_data.delta_ichg =
