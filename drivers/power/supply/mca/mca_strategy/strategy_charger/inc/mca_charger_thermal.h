@@ -133,6 +133,8 @@ struct mca_thermal_info {
 	int support_base_flip;
 	struct mca_votable *wired_voter[THERMAL_MODE_MAX];
 	struct mca_votable *wireless_voter[THERMAL_MODE_WIRELESS_MAX];
+	struct mca_votable *flip_voter;
+	struct mca_votable *wls_flip_voter;
 	struct mca_thermal_ctrl_info wired_ctrl_info;
 	struct mca_thermal_ctrl_info wireless_ctrl_info;
 	struct mca_buck_jeita_smartchg_data smartchg_data;

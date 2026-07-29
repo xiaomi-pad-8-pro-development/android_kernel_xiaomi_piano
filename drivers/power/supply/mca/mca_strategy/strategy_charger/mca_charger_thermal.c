@@ -817,6 +817,7 @@ static int mca_charger_thermal_init_wired_voter(struct mca_thermal_info *info)
 		mca_find_votable("buck_5v_in");
 	if (!info->wired_voter[THERMAL_MODE_BUCK_5V_IN])
 		goto out;
+	info->flip_voter = mca_find_votable("thermal_flip");
 	info->wired_voter[THERMAL_MODE_BUCK_5V_ICH] =
 		mca_find_votable("buck_5v_ich");
 	if (!info->wired_voter[THERMAL_MODE_BUCK_5V_ICH])
@@ -873,6 +874,7 @@ mca_charger_thermal_init_wireless_voter(struct mca_thermal_info *info)
 		mca_find_votable("wireless_bpp_in");
 	if (!info->wireless_voter[THERMAL_MODE_WIRELESS_BPP_IN])
 		goto out;
+	info->wls_flip_voter = mca_find_votable("wls_thermal_flip");
 	info->wireless_voter[THERMAL_MODE_WIRELESS_BPPQC2_IN] =
 		mca_find_votable("wireless_bppqc2_in");
 	if (!info->wireless_voter[THERMAL_MODE_WIRELESS_BPPQC2_IN])
@@ -988,7 +990,7 @@ static int mca_charger_thermal_set_cur_level(struct thermal_cooling_device *tcd,
 	if (info->support_base_flip)
 		mca_charger_thermal_flip_handle_limit(
 			&info->wired_ctrl_info,
-			info->wired_flip_thermal_data, info->wired_voter[0]);
+			info->wired_flip_thermal_data, info->flip_voter);
 	else
 		mca_charger_thermal_handle_limit(&info->wired_ctrl_info,
 						 info->wired_thermal_data,
@@ -1018,7 +1020,7 @@ static int mca_charger_thermal_wls_super_sts_callback(void *data,
 		mca_wireless_charger_thermal_flip_handle_limit(
 			&info->wireless_ctrl_info,
 			info->wireless_flip_thermal_data,
-			info->wireless_voter[0]);
+			info->wls_flip_voter);
 	else
 		mca_wireless_charger_thermal_handle_limit(
 			&info->wireless_ctrl_info,

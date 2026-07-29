@@ -466,6 +466,8 @@ struct mca_quick_charge_info {
 	struct mca_votable *chg_en_voter;
 	struct mca_votable *single_chg_cur_voter;
 	struct mca_votable *multi_chg_cur_voter;
+	struct mca_votable *thermal_flip_voter;
+	int target_thermal_flip;
 	struct mca_quick_charge_smartchg_data smartchg_data;
 	/* dts config */
 	int batt_type;

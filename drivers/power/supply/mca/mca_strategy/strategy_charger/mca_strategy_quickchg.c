@@ -2410,6 +2410,9 @@ static int mca_quick_charge_select_max_ibat(struct mca_quick_charge_info *info)
 	int delta_cur = info->smartchg_data.delta_ichg;
 	int base_limit_curr;
 
+	if (info->target_thermal_flip)
+		cur_max = min(cur_max, info->target_thermal_flip);
+
 	mca_log_err("cur_stage %d cur_max %d delta_cur %d cur_work_cp %d\n",
 		    cur_stage, cur_max, delta_cur, proc_data->cur_work_cp);
 	if (info->dtpt_status)
@@ -5059,6 +5062,23 @@ mca_quick_charge_single_chg_cur_voter_cb(struct mca_votable *votable,
 	return 0;
 }
 
+static int mca_quick_charge_thermal_flip_voter_cb(struct mca_votable *votable,
+						  void *data,
+						  int effective_result,
+						  const char *effective_client)
+{
+	struct mca_quick_charge_info *info = data;
+
+	if (!data)
+		return -1;
+
+	mca_log_info("target thermal flip effective_result :%d\n",
+		     effective_result);
+	info->target_thermal_flip = effective_result;
+
+	return 0;
+}
+
 static int mca_quick_charge_multi_chg_cur_voter_cb(struct mca_votable *votable,
 						   void *data,
 						   int effective_result,
@@ -5115,6 +5135,11 @@ static int mca_quick_charge_create_voter(struct mca_quick_charge_info *info)
 		"div4_multi", MCA_VOTE_MIN,
 		mca_quick_charge_div4_multi_voter_cb, 0, info);
 	if (IS_ERR(info->voter[5]))
+		goto error;
+	info->thermal_flip_voter = mca_create_votable(
+		"thermal_flip", MCA_VOTE_MIN,
+		mca_quick_charge_thermal_flip_voter_cb, 0, info);
+	if (IS_ERR(info->thermal_flip_voter))
 		goto error;
 
 	info->chg_disable_voter = mca_create_votable(
