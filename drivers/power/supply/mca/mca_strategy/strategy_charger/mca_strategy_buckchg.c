@@ -257,6 +257,8 @@ static void strategy_buckchg_parse_dt(struct strategy_buckchg_dev *info)
 		info->dev->of_node, "support_diff_temp_comp");
 	info->base_flip_same =
 		of_property_read_bool(info->dev->of_node, "base-flip-same");
+	info->support_pmic_vterm_dynamics_adjust = of_property_read_bool(
+		info->dev->of_node, "support-pmic-vterm-dynamics-adjust");
 	info->support_reverse_quick_charge = of_property_read_bool(
 		info->dev->of_node, "support_reverse_quick_charge");
 	info->need_cp_to_pmic = of_property_read_bool(info->dev->of_node,
@@ -444,6 +446,16 @@ strategy_buckchg_process_multi_vterm(struct strategy_buckchg_dev *info,
 	return 0;
 }
 
+#define BASE_FLIP_VTERM_TEMP_HOT_LOW 48
+#define BASE_FLIP_VTERM_TEMP_HOT_HIGH 55
+#define BASE_FLIP_VTERM_TEMP_FFC_TH 35
+#define BASE_FLIP_VTERM_COMP_HOT 30
+#define BASE_FLIP_VTERM_COMP_FFC 40
+#define BASE_FLIP_VTERM_COMP_FFC_HOT 45
+#define VTERM_DYN_TEMP_WARM 180
+#define VTERM_DYN_TEMP_MIDDLE 300
+#define VTERM_DYN_TEMP_HIGH 400
+
 static int strategy_buckchg_set_vterm(struct mca_votable *votable, void *data,
 				      int effective_result,
 				      const char *effective_client)
@@ -474,6 +486,42 @@ static int strategy_buckchg_set_vterm(struct mca_votable *votable, void *data,
 		compensation = info->pmic_fv_compensation;
 
 	vterm = compensation + effective_result;
+
+	if (info->support_pmic_vterm_dynamics_adjust) {
+		int raw_temp = 0;
+
+		if (!strategy_class_fg_get_fastcharge()) {
+			vterm = effective_result;
+		} else {
+			(void)strategy_class_fg_ops_get_temperature(&raw_temp);
+			if (raw_temp >= VTERM_DYN_TEMP_WARM &&
+			    raw_temp < VTERM_DYN_TEMP_MIDDLE)
+				vterm = info->pmic_fv_compensation +
+					effective_result;
+			else if (raw_temp >= VTERM_DYN_TEMP_MIDDLE &&
+				 raw_temp < VTERM_DYN_TEMP_HIGH)
+				vterm = info->pmic_middle_fv_compensation +
+					effective_result;
+			else if (raw_temp >= VTERM_DYN_TEMP_HIGH)
+				vterm = info->pmic_high_fv_compensation +
+					effective_result;
+		}
+	}
+
+	if (info->base_flip_same) {
+		if (!strategy_class_fg_get_fastcharge())
+			compensation = (batt_temp >= BASE_FLIP_VTERM_TEMP_HOT_LOW &&
+					batt_temp < BASE_FLIP_VTERM_TEMP_HOT_HIGH) ?
+					       BASE_FLIP_VTERM_COMP_HOT :
+					       0;
+		else if (batt_temp < BASE_FLIP_VTERM_TEMP_FFC_TH)
+			compensation = BASE_FLIP_VTERM_COMP_FFC;
+		else
+			compensation = BASE_FLIP_VTERM_COMP_FFC_HOT;
+
+		info->pmic_fv_compensation = compensation;
+		vterm = compensation + effective_result;
+	}
 
 	if (info->support_multi_buck)
 		return strategy_buckchg_process_multi_vterm(info, vterm);
