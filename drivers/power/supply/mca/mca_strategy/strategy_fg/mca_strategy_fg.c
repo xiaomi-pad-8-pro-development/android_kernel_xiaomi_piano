@@ -1812,7 +1812,7 @@ static void mca_strategy_parallel_force_fw_report_full(struct strategy_fg *fg,
 					if (status == 1) {
 						mca_strategy_func_process(
 							STRATEGY_FUNC_TYPE_QUICK_CHARGE,
-							59,
+							MCA_EVENT_MASTER_BATT_CLOSE,
 							fg->dual_iterm[FG_IC_SLAVE]);
 						force_full_count[FG_IC_MASTER] = 0;
 						fg->switch_pmic_term = true;

@@ -143,6 +143,9 @@
 #define MCA_PPS_MAX_VOLT 10000
 #define MCA_THIRD_PARTY_PPS_HYS_MV 1000
 #define MCA_QUICK_CHG_MAX_CURR_MA 15600
+#define MCA_QUICK_CHG_BASE_CLOSE_VTERM_OFFSET 60
+#define MCA_QUICK_CHG_BASE_CLOSE_CURR_NUM 13
+#define MCA_QUICK_CHG_BASE_CLOSE_CURR_DEN 10
 
 /* batt_para */
 #define BATT_PARA_MAX_GROUP 16
@@ -441,6 +444,10 @@ struct mca_quick_charge_info {
 	struct mca_votable *input_suspend_voter;
 	struct mca_votable *buck_input_voter;
 	struct mca_votable *buck_charge_curr_voter;
+	struct mca_votable *term_volt_voter;
+	struct mca_votable *flip_charge_curr_voter;
+	bool master_batt_close;
+	int base_close_curr;
 	struct delayed_work monitor_work;
 	struct delayed_work pps_ptf_work;
 	struct delayed_work vfc_work;

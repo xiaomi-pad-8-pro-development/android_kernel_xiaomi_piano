@@ -515,6 +515,18 @@ static void mca_quick_charge_stop_charging(struct mca_quick_charge_info *info)
 	memset(info->proc_data.cur_stage, 0, sizeof(info->proc_data.cur_stage));
 	memset(&(info->proc_data.secure_info), 0,
 	       sizeof(info->proc_data.secure_info));
+	if (info->master_batt_close) {
+		int term_volt = mca_get_client_vote(info->term_volt_voter,
+						    "jeita");
+
+		(void)platform_class_buckchg_ops_set_term_volt(
+			MAIN_BUCK_CHARGER,
+			term_volt + MCA_QUICK_CHG_BASE_CLOSE_VTERM_OFFSET);
+		(void)mca_vote(info->flip_charge_curr_voter, "base_close_curr",
+			       true, info->base_close_curr);
+		info->master_batt_close = false;
+	}
+	(void)mca_rerun_election(info->flip_charge_curr_voter);
 	if (info->proc_data.charge_flag != MCA_QUICK_CHG_STS_CHARGE_DONE)
 		info->proc_data.charge_flag = MCA_QUICK_CHG_STS_NO_CHARGING;
 }
@@ -3183,6 +3195,13 @@ static int mca_quick_charge_process_event(int event, int value, void *data)
 
 	mca_log_info("event: %d, value: %d\n", event, value);
 	switch (event) {
+	case MCA_EVENT_MASTER_BATT_CLOSE:
+		mca_log_err("master batt close event %d\n", value);
+		info->base_close_curr = value *
+					MCA_QUICK_CHG_BASE_CLOSE_CURR_NUM /
+					MCA_QUICK_CHG_BASE_CLOSE_CURR_DEN;
+		info->master_batt_close = true;
+		break;
 	case MCA_EVENT_USB_CONNECT:
 		info->online = 1;
 		break;
@@ -5103,6 +5122,16 @@ static int mca_quick_charge_probe(struct platform_device *pdev)
 	info->buck_charge_curr_voter = mca_find_votable("buck_charge_curr");
 	if (!info->buck_charge_curr_voter) {
 		mca_log_info("get buck_charge_curr voter fail, wait for it\n");
+		return -EPROBE_DEFER;
+	}
+	info->term_volt_voter = mca_find_votable("term_volt");
+	if (!info->term_volt_voter) {
+		mca_log_info("get term_volt voter fail, wait for it\n");
+		return -EPROBE_DEFER;
+	}
+	info->flip_charge_curr_voter = mca_find_votable("flip_charge_curr");
+	if (!info->flip_charge_curr_voter) {
+		mca_log_info("get flip_charge_curr voter fail, wait for it\n");
 		return -EPROBE_DEFER;
 	}
 
