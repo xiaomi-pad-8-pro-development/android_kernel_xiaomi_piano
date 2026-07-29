@@ -1639,7 +1639,7 @@ strategy_buckchg_select_charg_para(struct strategy_buckchg_dev *info)
 			int chg_limit = info->chg_pd;
 			if (info->base_flip_same &&
 			    strategy_class_fg_get_fastcharge() &&
-			    info->proc_data.real_type == XM_CHARGER_TYPE_PD) {
+			    info->proc_data.real_type == XM_CHARGER_TYPE_PPS) {
 				int batt_temp = 0, temp_offset_flag = 0;
 				int vbat = 0;
 
@@ -1989,7 +1989,7 @@ strategy_buckchg_enable_fast_charge_mode(struct strategy_buckchg_dev *info,
 	int fcc = mca_get_effective_result(info->charge_limit_voter);
 	int quick_charge_status = MCA_QUICK_CHG_STS_CHARGE_FAILED;
 
-	if (info->proc_data.real_type == XM_CHARGER_TYPE_PD_VERIFY) {
+	if (info->proc_data.real_type == XM_CHARGER_TYPE_PPS) {
 		(void)mca_strategy_func_get_status(
 			STRATEGY_FUNC_TYPE_QUICK_CHARGE,
 			STRATEGY_STATUS_TYPE_CHARGING, &quick_charge_status);
@@ -2121,7 +2121,7 @@ strategy_buckchg_cp_to_pmic_decrease_vterm(struct strategy_buckchg_dev *info)
 
 	strategy_class_fg_get_first_termination(&first_termination);
 	mca_strategy_func_get_status(STRATEGY_FUNC_TYPE_QUICK_CHARGE,
-				     STRATEGY_STATUS_TYPE_CP_TO_PMIC_TAPER,
+				     STRATEGY_STATUS_TYPE_QC_TAPER_DONE_NO_RETRY,
 				     &taper_cp_to_pmic);
 
 	if (first_termination) {

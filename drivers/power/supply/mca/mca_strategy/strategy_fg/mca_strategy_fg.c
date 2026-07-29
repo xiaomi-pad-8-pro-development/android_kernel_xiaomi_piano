@@ -1968,9 +1968,9 @@ static void charge_slowly_monitor_func(struct strategy_fg *fg)
 		    (int)nowplugintime, (int)fg->plugin_time);
 	nowplugintime = ktime_get_boottime_seconds();
 
-	if (fg->real_type != XM_CHARGER_TYPE_PD) {
-		if (fg->real_type > XM_CHARGER_TYPE_UNKNOW &&
-		    fg->real_type < XM_CHARGER_TYPE_PD &&
+	if (fg->real_type != XM_CHARGER_TYPE_PPS) {
+		if (fg->real_type >= XM_CHARGER_TYPE_SDP &&
+		    fg->real_type <= XM_CHARGER_TYPE_PD_VERIFY &&
 		    !fg->non_std_charger_reported &&
 		    nowplugintime - fg->plugin_time >
 			    NON_STD_CHARGER_PLUGIN_TIME_S) {

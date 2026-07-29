@@ -22,6 +22,7 @@
 #include <mca/platform/platform_bc12_class.h>
 #include <mca/platform/platform_buckchg_class.h>
 #include <mca/platform/platform_cp_class.h>
+#include <mca/protocol/protocol_class.h>
 #include <mca/protocol/protocol_qc_class.h>
 #include <mca/protocol/protocol_pd_class.h>
 #include <mca/strategy/strategy_class.h>
@@ -213,15 +214,15 @@ static int qcom_subpmic_set_qc_volt(void *data, int volt)
 
 	start = ktime_get_boottime();
 	real_type = sc->real_type;
-	settle_thd = (real_type != 8) ? 200 : 20;
-	per_step_ms = (real_type != 8) ? 50 : 5;
+	settle_thd = (real_type != XM_CHARGER_TYPE_HVDCP3P5) ? 200 : 20;
+	per_step_ms = (real_type != XM_CHARGER_TYPE_HVDCP3P5) ? 50 : 5;
 
 	if (volt < SUBPMIC_QC_VOLT_MIN || volt > SUBPMIC_QC_VOLT_MAX) {
 		mca_log_err("invalid qc voltage: %d\n", volt);
 		return -1;
 	}
 
-	step = (real_type != 8) ? 800 : 500;
+	step = (real_type != XM_CHARGER_TYPE_HVDCP3P5) ? 800 : 500;
 	mca_adsp_glink_read_prop(SUBPMIC_PROP_BUS_VOLT, &vbus, sizeof(vbus));
 	vbus /= 1000;
 	delta = volt - vbus;
@@ -231,7 +232,8 @@ static int qcom_subpmic_set_qc_volt(void *data, int volt)
 
 	rc = mca_adsp_glink_write_prop(SUBPMIC_PROP_QC_VOLT, &volt_cmd,
 				       sizeof(volt_cmd));
-	if (rc != 0 || sc->real_type == 5 || volt_cmd == 5000)
+	if (rc != 0 || sc->real_type == XM_CHARGER_TYPE_HVDCP2 ||
+	    volt_cmd == 5000)
 		return 0;
 
 	if (abs(delta) < (int)settle_thd)
