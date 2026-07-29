@@ -2177,6 +2177,7 @@ mca_quick_charge_check_charge_done(struct mca_quick_charge_info *info)
 {
 	int last_volt_stage;
 	int vbat_th, vterm, iterm, ratio;
+	int first_term = 0;
 	static int count;
 
 	if (info->hardware_cv)
@@ -2194,14 +2195,24 @@ mca_quick_charge_check_charge_done(struct mca_quick_charge_info *info)
 	ratio = info->curr_terminate_ratio;
 	if (iterm > 3000)
 		ratio -= 10;
-	iterm = (iterm * ratio) / 100;
+
+	(void)mca_strategy_func_get_status(STRATEGY_FUNC_TYPE_FG,
+					   STRATEGY_STATUS_TYPE_FG_FIRST_TERM,
+					   &first_term);
 
 	/* judge chg termination by vbat */
 	if (info->proc_data.vbat[FG_IC_MASTER] >= vterm &&
-	    info->proc_data.ibat[FG_IC_MASTER] <= iterm)
+	    info->proc_data.ibat[FG_IC_MASTER] <= (iterm * ratio) / 100) {
 		count++;
-	else
+	} else if (!first_term ||
+		   iterm < info->proc_data.ibat[FG_IC_MASTER]) {
 		count = 0;
+	} else {
+		count += 2;
+		mca_log_err("triggle ibat < iterm after force_full\n");
+	}
+
+	mca_log_info("termination iterm: %d, vterm: %d\n", iterm, vterm);
 
 	if (count > QUICK_CHARGE_TERMATIN_TIMEOUT) {
 		info->proc_data.charge_flag = MCA_QUICK_CHG_STS_CHARGE_DONE;
