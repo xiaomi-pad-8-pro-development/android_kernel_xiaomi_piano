@@ -96,6 +96,7 @@
 #define BATT_LOW_VOLT_SW_HY 50
 #define DEFAULT_DESIGN_CAPACITY 5000
 #define FG_FORCE_REPORT_FULL_TIMES 2
+#define STRATEGY_FG_ABNORMAL_DFX_DELAY 17500
 
 void onewire_check_auth_pass(bool *auth_pass)
 {
@@ -3668,6 +3669,61 @@ static int mca_strategy_fg_shutdown_cb(struct notifier_block *nb,
 	return NOTIFY_DONE;
 }
 
+static void strategy_batt_abnormal_dfx_work(struct work_struct *work)
+{
+	struct strategy_fg *fg = container_of(to_delayed_work(work),
+					      struct strategy_fg,
+					      batt_abnormal_dfx_work);
+	int info[10] = { 0 };
+	u32 last_ocd = 0, last_hocd = 0;
+	u32 last_cuv = 0, last_hcuv = 0;
+	u32 last_hscd = 0;
+	int report[7];
+
+	platform_fg_ops_get_batt_abnormal_info(FG_IC_MASTER, info);
+	charger_partition_read_ocd_count(&last_ocd, &last_hocd);
+	charger_partition_read_cuv_count(&last_cuv, &last_hcuv);
+	charger_partition_read_hscd_count(&last_hscd);
+
+	mca_log_info(
+		"last_ocd_count:%d, last_hocd_count:%d, last_cuv_count:%d, last_hcuv_count:%d, last_hscd_count:%d\n",
+		last_ocd, last_hocd, last_cuv, last_hcuv, last_hscd);
+	mca_log_info(
+		"ocd_count:%d, hocd_count:%d, cuv_count:%d, hcuv_count:%d, hscd_count:%d\n",
+		info[0], info[2], info[4], info[6], info[8]);
+
+	if (last_ocd != info[0] || last_hocd != info[2]) {
+		report[0] = info[0];
+		report[1] = info[1];
+		report[2] = info[2];
+		report[3] = info[3];
+		report[4] = fg->batt_ui_soc;
+		report[5] = fg->batt_voltage;
+		report[6] = fg->batt_temperature;
+		mca_charge_mievent_report(CHARGE_DFX_BATTERY_OCD, report, 7);
+		charger_partition_write_ocd_count(info[0], info[2]);
+	}
+
+	if (last_cuv != info[4] || last_hcuv != info[6]) {
+		report[0] = info[4];
+		report[1] = info[5];
+		report[2] = info[6];
+		report[3] = info[7];
+		report[4] = fg->batt_ui_soc;
+		report[5] = fg->batt_voltage;
+		report[6] = fg->batt_temperature;
+		mca_charge_mievent_report(CHARGE_DFX_BATTERY_CUV, report, 7);
+		charger_partition_write_cuv_count(info[4], info[6]);
+	}
+
+	if (last_hscd != info[8]) {
+		report[0] = info[8];
+		report[1] = info[9];
+		mca_charge_mievent_report(CHARGE_DFX_BATTERY_HSCD, report, 2);
+		charger_partition_write_hcsd_count(info[8]);
+	}
+}
+
 static struct strategy_fg_class_ops g_strategy_fg_ops = {
 	.strategy_fg_is_init_ok = strategy_fg_ops_is_init_ok,
 	.strategy_fg_is_chip_ok = strategy_fg_ops_is_chip_ok,
@@ -3911,6 +3967,10 @@ static int strategy_fg_probe(struct platform_device *pdev)
 			  delay_reset_full_flag_work);
 	INIT_DELAYED_WORK(&fg->reset_default_work,
 			  strategy_fg_reset_default_work);
+	INIT_DELAYED_WORK(&fg->batt_abnormal_dfx_work,
+			  strategy_batt_abnormal_dfx_work);
+	queue_delayed_work(system_wq, &fg->batt_abnormal_dfx_work,
+			   msecs_to_jiffies(STRATEGY_FG_ABNORMAL_DFX_DELAY));
 	strategy_fg_init_voter(fg);
 	INIT_DELAYED_WORK(&fg->dtpt_monitor_work,
 			  strategy_fg_dtpt_monitor_work);

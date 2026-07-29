@@ -482,6 +482,38 @@ static struct charge_mievent_info g_charge_mievent_info[] = {
 		.data_count = 0,
 		.para_name = { "" },
 	},
+	{
+		.event_code = MIEVENT_CODE_BATTERY_OCD,
+		.event_type = "chgErrInfo",
+		.event_describe = "BatteryOcd",
+		.upload_type = MIEVENT_UPLOAD_TYPE_PLUG,
+		.type_index = PLUG_TYPE_BATTERY_OCD,
+		.data_type = MIEVENT_DATA_TYPE_INT,
+		.data_count = 7,
+		.para_name = { "ocdCount", "ocdLastCycle", "hocdCount",
+			       "hocdLastCycle", "uiSoc", "voltage", "temp" },
+	},
+	{
+		.event_code = MIEVENT_CODE_BATTERY_CUV,
+		.event_type = "chgErrInfo",
+		.event_describe = "BatteryCuv",
+		.upload_type = MIEVENT_UPLOAD_TYPE_PLUG,
+		.type_index = PLUG_TYPE_BATTERY_CUV,
+		.data_type = MIEVENT_DATA_TYPE_INT,
+		.data_count = 7,
+		.para_name = { "cuvCount", "cuvLastCycle", "hcuvCount",
+			       "hcuvLastCycle", "uiSoc", "voltage", "temp" },
+	},
+	{
+		.event_code = MIEVENT_CODE_BATTERY_HSCD,
+		.event_type = "chgErrInfo",
+		.event_describe = "BatteryScd",
+		.upload_type = MIEVENT_UPLOAD_TYPE_PLUG,
+		.type_index = PLUG_TYPE_BATTERY_HSCD,
+		.data_type = MIEVENT_DATA_TYPE_INT,
+		.data_count = 2,
+		.para_name = { "hscdCount", "hscdLastCycle" },
+	},
 };
 
 static struct mievent_upload_type_plug
