@@ -217,6 +217,8 @@ static void strategy_buckchg_parse_dt(struct strategy_buckchg_dev *info)
 							"support-base-flip");
 	info->support_revchg_screenon = of_property_read_bool(
 		info->dev->of_node, "support_revchg_screenon");
+	info->support_charge_more = of_property_read_bool(
+		info->dev->of_node, "support-charge-more");
 	mca_parse_dts_u32(info->dev->of_node, "vusb_ovp_location",
 			  &info->vusb_ovp_location, 0);
 	mca_parse_dts_u32(info->dev->of_node, "terminated_by_cp",
@@ -854,6 +856,55 @@ strategy_buckchg_process_batt_btb_change(int value,
 		mca_vote(info->vterm_voter, "batt_miss", false,
 			 STATEGY_VTERM_DEFAULT_VALUE);
 	}
+}
+
+static const struct {
+	int fcc_value;
+	int icl_value;
+} soc_limit_stepper_table[] = {
+	{ 0, 0 },     { 1990, 850 }, { 1400, 750 }, { 1100, 650 },
+	{ 900, 550 }, { 700, 450 },  { 500, 350 },  { 300, 350 },
+	{ 200, 350 }, { 100, 250 },  { 0, 250 },
+};
+
+static void
+strategy_buckchg_process_soc_limit_change_more(int enable,
+					       struct strategy_buckchg_dev *info)
+{
+	static u8 cur_step;
+
+	if (!enable) {
+		cur_step = 0;
+		mca_log_info("SOC limit released\n");
+		mca_vote(info->charge_limit_voter, "soc_limit", false, 0);
+		mca_vote(info->input_limit_voter, "soc_limit", false, 0);
+		mca_vote(info->chg_enable_voter, "soc_limit", false, 0);
+	} else {
+		mca_log_info("SOC limit triggered\n");
+		if (cur_step < 10)
+			cur_step++;
+		mca_vote(info->charge_limit_voter, "soc_limit", true,
+			 soc_limit_stepper_table[cur_step].fcc_value);
+		mca_vote(info->input_limit_voter, "soc_limit", true,
+			 soc_limit_stepper_table[cur_step].icl_value);
+		if (cur_step != 10) {
+			mca_vote(info->chg_enable_voter, "soc_limit", false, 0);
+			schedule_delayed_work(&info->soc_limit_stepper_work,
+					      msecs_to_jiffies(1000));
+		} else {
+			mca_vote(info->chg_enable_voter, "soc_limit", true, 0);
+		}
+	}
+	mca_log_info("cur_step = %d\n", cur_step);
+}
+
+static void strategy_buckchg_soc_limit_stepper_workfunc(struct work_struct *work)
+{
+	struct strategy_buckchg_dev *info = container_of(
+		work, struct strategy_buckchg_dev, soc_limit_stepper_work.work);
+
+	strategy_buckchg_process_soc_limit_change_more(info->soc_limit_more_enable,
+						       info);
 }
 
 static void
@@ -2821,13 +2872,22 @@ static int strategy_buckchg_soc_limit_sts_callback(void *data,
 	if (!data)
 		return -1;
 
-	if (info->proc_data.online)
+	info->soc_limit_more_enable = effective_result;
+	mca_log_info("effective_result: %d\n", effective_result);
+
+	if (info->support_charge_more) {
+		if (!effective_result || !info->proc_data.online) {
+			cancel_delayed_work_sync(&info->soc_limit_stepper_work);
+			effective_result = 0;
+		}
+		strategy_buckchg_process_soc_limit_change_more(effective_result,
+							      info);
+	} else if (info->proc_data.online) {
 		strategy_buckchg_process_soc_limit_change(effective_result,
 							  info);
-	else
+	} else {
 		strategy_buckchg_process_soc_limit_change(0, info);
-
-	mca_log_info("effective_result: %d\n", effective_result);
+	}
 
 	return 0;
 }
@@ -2901,6 +2961,8 @@ static int strategy_buckchg_class_probe(struct platform_device *pdev)
 			  strategy_buckchg_check_pdsecret_workfunc);
 	INIT_DELAYED_WORK(&info->rerun_handle_pd_auth_work,
 			  strategy_rerun_handle_pd_auth_workfunc);
+	INIT_DELAYED_WORK(&info->soc_limit_stepper_work,
+			  strategy_buckchg_soc_limit_stepper_workfunc);
 	(void)mca_strategy_ops_register(STRATEGY_FUNC_TYPE_BUCK_CHARGE,
 					strategy_buckchg_process_event,
 					strategy_buckchg_get_status,

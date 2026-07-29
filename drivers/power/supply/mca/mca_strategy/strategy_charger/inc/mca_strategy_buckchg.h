@@ -190,6 +190,7 @@ struct strategy_buckchg_dev {
 	struct delayed_work source_status_monitor_work;
 	struct delayed_work check_pd_secret_work;
 	struct delayed_work rerun_handle_pd_auth_work;
+	struct delayed_work soc_limit_stepper_work;
 	struct notifier_block thermal_board_nb;
 	struct notifier_block panel_nb;
 	bool screen_on;
@@ -216,6 +217,8 @@ struct strategy_buckchg_dev {
 	bool support_base_flip;
 	int soc_limit_low;
 	int soc_limit_high;
+	int support_charge_more;
+	int soc_limit_more_enable;
 	bool reverse_auth;
 	int otg_boost_src;
 	bool reverse_qc_gate0;
