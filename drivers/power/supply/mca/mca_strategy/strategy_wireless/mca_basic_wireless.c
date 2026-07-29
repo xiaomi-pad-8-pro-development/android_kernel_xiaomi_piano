@@ -44,6 +44,7 @@
 #include <mca/strategy/strategy_class.h>
 #include <mca/strategy/strategy_fg_class.h>
 #include <mca/strategy/strategy_wireless_class.h>
+#include <mca/strategy/strategy_soc_limit_stepper.h>
 #include <mca/platform/platform_wireless_class.h>
 #include <mca/platform/platform_buckchg_class.h>
 #include <mca/platform/platform_cp_class.h>
@@ -2981,15 +2982,6 @@ strategy_wireless_process_batt_btb_change(int value,
 			 MCA_WLS_CHG_VTERM_DEFAULT_VALUE);
 	}
 }
-
-static const struct {
-	int fcc_value;
-	int icl_value;
-} soc_limit_stepper_table[] = {
-	{ 0, 0 },     { 1990, 850 }, { 1400, 750 }, { 1100, 650 },
-	{ 900, 550 }, { 700, 450 },  { 500, 350 },  { 300, 350 },
-	{ 200, 350 }, { 100, 250 },  { 0, 250 },
-};
 
 #define SOC_LIMIT_MAX_STEP 10
 static void

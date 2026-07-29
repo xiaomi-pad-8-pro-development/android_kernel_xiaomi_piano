@@ -44,6 +44,7 @@
 #include "inc/mca_strategy_buckchg.h"
 #include <mca/strategy/strategy_fg_class.h>
 #include <mca/strategy/strategy_wireless_class.h>
+#include <mca/strategy/strategy_soc_limit_stepper.h>
 #include <mca/smartchg/smart_chg_class.h>
 #include <mca/common/mca_hwid.h>
 //#include "hwid.h"
@@ -857,15 +858,6 @@ strategy_buckchg_process_batt_btb_change(int value,
 			 STATEGY_VTERM_DEFAULT_VALUE);
 	}
 }
-
-static const struct {
-	int fcc_value;
-	int icl_value;
-} soc_limit_stepper_table[] = {
-	{ 0, 0 },     { 1990, 850 }, { 1400, 750 }, { 1100, 650 },
-	{ 900, 550 }, { 700, 450 },  { 500, 350 },  { 300, 350 },
-	{ 200, 350 }, { 100, 250 },  { 0, 250 },
-};
 
 static void
 strategy_buckchg_process_soc_limit_change_more(int enable,
