@@ -2412,6 +2412,8 @@ static int mca_quick_charge_select_max_ibat(struct mca_quick_charge_info *info)
 
 	if (info->target_thermal_flip)
 		cur_max = min(cur_max, info->target_thermal_flip);
+	if (info->smartchg_data.fcc)
+		cur_max = min(cur_max, info->smartchg_data.fcc);
 
 	mca_log_err("cur_stage %d cur_max %d delta_cur %d cur_work_cp %d\n",
 		    cur_stage, cur_max, delta_cur, proc_data->cur_work_cp);
@@ -5405,6 +5407,18 @@ static int strategy_quickchg_smartchg_delta_ichg_callback(void *data,
 	return 0;
 }
 
+static int strategy_quickchg_smartchg_set_fcc_callback(void *data, int val)
+{
+	struct mca_quick_charge_info *info = data;
+
+	if (!data)
+		return -1;
+
+	info->smartchg_data.fcc = val;
+
+	return 0;
+}
+
 static int strategy_quickchg_smartchg_soc_limit_callback(void *data,
 							 int effective_result)
 {
@@ -5543,6 +5557,7 @@ static struct mca_smartchg_if_ops g_quickchg_smartchg_if_ops = {
 	.data = NULL,
 	.set_delta_fv = strategy_quickchg_smartchg_delta_fv_callback,
 	.set_delta_ichg = strategy_quickchg_smartchg_delta_ichg_callback,
+	.set_fcc = strategy_quickchg_smartchg_set_fcc_callback,
 	.set_soc_limit_sts = strategy_quickchg_smartchg_soc_limit_callback,
 	.update_baa_para = strategy_quickchg_smartchg_update_baa_para,
 	.set_pwr_boost_sts = strategy_quickchg_smartchg_pwr_boost_sts_callback,

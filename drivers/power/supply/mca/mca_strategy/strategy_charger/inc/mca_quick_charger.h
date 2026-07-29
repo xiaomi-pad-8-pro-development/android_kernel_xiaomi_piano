@@ -445,6 +445,7 @@ struct mca_quick_charge_smartchg_data {
 	int delta_fv;
 	int delta_ichg;
 	int pwr_boost_state;
+	int fcc;
 };
 
 struct mca_quick_charge_info {
