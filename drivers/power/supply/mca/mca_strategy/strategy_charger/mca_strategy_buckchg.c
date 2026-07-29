@@ -74,6 +74,8 @@
 #define PPS_FFC_BOOST_TEMP_OFFSET_THR 32
 #define PPS_FFC_BOOST_VBAT_THR 4401
 #define PPS_FFC_IBUS_BOOST 500
+#define SOC_LIMIT_ICL_DEFAULT 500
+#define SOC_LIMIT_ICL_BATT_TYPE 1000
 
 static void strategy_buckchg_set_charge_volt(struct strategy_buckchg_dev *info,
 					     int target_volt);
@@ -167,6 +169,7 @@ static void strategy_buckchg_parse_dt(struct strategy_buckchg_dev *info)
 			  STATEGY_SUPPORT_MULTI_BUCK);
 	mca_parse_dts_u32(info->dev->of_node, "in_dcp", &info->in_dcp,
 			  CHARGE_DCP_INPUT_DEFAULT);
+	mca_parse_dts_u32(info->dev->of_node, "batt_type", &info->batt_type, 0);
 	mca_parse_dts_u32(info->dev->of_node, "in_pps", &info->in_pps,
 			  CHARGE_DCP_INPUT_DEFAULT);
 	mca_parse_dts_u32(info->dev->of_node, "in_pd", &info->in_pd,
@@ -1667,6 +1670,10 @@ strategy_buckchg_select_charg_para(struct strategy_buckchg_dev *info)
 		ibat_limit = info->chg_sdp;
 		break;
 	};
+
+	if (info->soc_limit_more_enable)
+		ibus_limit = info->batt_type ? SOC_LIMIT_ICL_BATT_TYPE :
+					       SOC_LIMIT_ICL_DEFAULT;
 
 	if (ibus_limit != info->proc_data.ibus_limit) {
 		mca_vote(info->buck_5v_in_voter, "wire_chg_type", true,
