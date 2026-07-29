@@ -3683,7 +3683,7 @@ static void strategy_wireless_change_cp_mode_workfunc(struct work_struct *work)
 	info->sw_qc_ichg = 6000;
 	mca_queue_delayed_work(&info->wireless_loop_work, 0);
 	mca_strategy_func_process(STRATEGY_FUNC_TYPE_QUICK_WIRELESS,
-				  MCA_EVENT_BATT_BTB_CHANGE, 0);
+				  MCA_EVENT_CP_MODE_CHANGE, 0);
 }
 
 static void strategy_wireless_find_voter_work(struct work_struct *work)

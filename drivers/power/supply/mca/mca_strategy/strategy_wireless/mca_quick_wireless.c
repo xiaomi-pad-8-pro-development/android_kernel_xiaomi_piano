@@ -720,6 +720,13 @@ static int mca_wireless_quick_charge_process_event(int event, int value,
 		mca_log_info("adsp restore, going quick charge\n");
 		info->charge_abnormal = false;
 		break;
+	case MCA_EVENT_CP_MODE_CHANGE:
+		if (info->proc_data.enable_quickchg) {
+			mca_log_info("new CP mode, stop quick charge\n");
+			cancel_delayed_work_sync(&info->monitor_work);
+			mca_wireless_quick_charge_stop_charging(info);
+		}
+		break;
 	case MCA_EVENT_WIRELESS_MAGNETIC_QUIT_QC:
 		if (info->proc_data.enable_quickchg) {
 			cancel_delayed_work_sync(&info->monitor_work);
