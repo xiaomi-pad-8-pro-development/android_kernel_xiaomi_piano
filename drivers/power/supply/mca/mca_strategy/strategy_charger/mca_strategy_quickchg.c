@@ -3423,6 +3423,31 @@ static int mca_quick_charge_get_status(int status, void *value, void *data)
 				   ->volt_para[last_volt_stage]
 				   .current_min;
 		break;
+	case STRATEGY_STATUS_TYPE_QC_TERM_CURR:
+		last_volt_stage = info->proc_data.cur_volt_para[FG_IC_MASTER]
+					  ->volt_para_size -
+				  1;
+		if (last_volt_stage == -1) {
+			*cur_val = MCA_QUICK_CHG_TERM_CURR_DEFAULT;
+			break;
+		}
+		*cur_val = info->proc_data.cur_volt_para[FG_IC_MASTER]
+				   ->volt_para[last_volt_stage]
+				   .current_min;
+		break;
+	case STRATEGY_STATUS_TYPE_QC_TERM_VOLT:
+		last_volt_stage = info->proc_data.cur_volt_para[FG_IC_MASTER]
+					  ->volt_para_size -
+				  1;
+		if (last_volt_stage == -1) {
+			*cur_val = MCA_QUICK_CHG_TERM_VOLT_DEFAULT;
+			break;
+		}
+		*cur_val = info->proc_data.cur_volt_para[FG_IC_MASTER]
+					   ->volt_para[last_volt_stage]
+					   .voltage -
+			   info->smartchg_data.delta_fv - info->fv_hys_delta_mv;
+		break;
 	case STRATEGY_STATUS_TYPE_QC_TAPER_DONE_NO_RETRY:
 		*cur_val = info->taper_done_no_retry;
 		break;
