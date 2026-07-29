@@ -1571,6 +1571,52 @@ static int strategy_fg_get_term_current_new(struct strategy_fg *fg,
 #define PARA_TERM_VTERM_CO_COLD 20
 #define PARA_TERM_VTERM_CO_WARM 30
 #define PARA_TERM_VTERM_CO_HOT 60
+#define QBG_CHG_DATA_DEFAULT_IBAT_MAX 500
+#define QBG_CHG_DATA_DEFAULT_TERM_CURR 565
+#define QBG_CHG_DATA_DEFAULT_TERM_VOLT 4480
+
+static void strategy_fg_update_qbg_chg_data(struct strategy_fg *fg)
+{
+	int quick_charge_status = 0;
+
+	if (!fg->cfg.support_qbg)
+		return;
+
+	(void)mca_strategy_func_get_status(STRATEGY_FUNC_TYPE_QUICK_CHARGE,
+					   STRATEGY_STATUS_TYPE_QC_CHARGE_STS,
+					   &quick_charge_status);
+
+	if (quick_charge_status == MCA_QUICK_CHG_STS_CHARGING) {
+		(void)mca_strategy_func_get_status(
+			STRATEGY_FUNC_TYPE_QUICK_CHARGE,
+			STRATEGY_STATUS_TYPE_QC_IBAT_MAX,
+			&fg->qbg_chg_data.ibat_max);
+		(void)mca_strategy_func_get_status(
+			STRATEGY_FUNC_TYPE_QUICK_CHARGE,
+			STRATEGY_STATUS_TYPE_QC_TERM_CURR,
+			&fg->qbg_chg_data.term_curr);
+		(void)mca_strategy_func_get_status(
+			STRATEGY_FUNC_TYPE_QUICK_CHARGE,
+			STRATEGY_STATUS_TYPE_QC_TERM_VOLT,
+			&fg->qbg_chg_data.term_volt);
+	} else if (!fg->voter_ok) {
+		fg->qbg_chg_data.ibat_max = QBG_CHG_DATA_DEFAULT_IBAT_MAX;
+		fg->qbg_chg_data.term_curr = QBG_CHG_DATA_DEFAULT_TERM_CURR;
+		fg->qbg_chg_data.term_volt = QBG_CHG_DATA_DEFAULT_TERM_VOLT;
+	} else {
+		fg->qbg_chg_data.ibat_max =
+			mca_get_effective_result(fg->charge_limit_voter);
+		fg->qbg_chg_data.term_curr =
+			mca_get_effective_result(fg->iterm_voter);
+		fg->qbg_chg_data.term_volt =
+			mca_get_effective_result(fg->vterm_voter);
+	}
+
+	fg->qbg_chg_data.chg_status = fg->chg_status;
+	fg->qbg_chg_data.charging =
+		quick_charge_status == MCA_QUICK_CHG_STS_CHARGING;
+	platform_fg_ops_qbg_send_chg_data(FG_IC_MASTER);
+}
 
 static int strategy_fg_check_parallel_termination(struct strategy_fg *fg)
 {
@@ -2565,6 +2611,7 @@ static void strategy_fg_monitor_workfunc(struct work_struct *work)
 		strategy_fg_init_voter(fg);
 
 	ret = fg_update_status(fg, prohibit_jump);
+	strategy_fg_update_qbg_chg_data(fg);
 	mca_strategy_check_termination(fg);
 	if (fg->cfg.base_flip_same) {
 		int cold_zone = 0;

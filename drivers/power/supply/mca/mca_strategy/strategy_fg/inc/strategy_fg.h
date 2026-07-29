@@ -185,6 +185,13 @@ struct strategy_fg {
 	struct strategy_fg_smooth smooth;
 	bool fg_init_flag;
 	int chg_status;
+	struct {
+		bool charging;
+		int ibat_max;
+		int term_curr;
+		int term_volt;
+		int chg_status;
+	} qbg_chg_data;
 	ktime_t suspend_time;
 	bool fg_error;
 	bool charging_done;
