@@ -54,7 +54,8 @@ union SMART_CHG_HEADER {
 		unsigned long wls_quiet : 1; /*bit [7:7]*/
 		unsigned long extreme_cold : 1; /*bit [8:8]*/
 		unsigned long travel_wait : 1; /*bit [9:9]*/
-		unsigned long : 6; /*bit [15:10]*/
+		unsigned long smart_bypass : 1; /*bit [10:10]*/
+		unsigned long : 5; /*bit [15:11]*/
 		/* BIT16 - BIT31: func_val */
 		unsigned long soc_limit : 8; /*bit [23:16]*/
 		unsigned long : 8; /*bit [31:24]*/
@@ -216,7 +217,6 @@ struct smart_charge_info {
 	struct mca_votable *smartchg_set_fcc_voter;
 	struct notifier_block thermal_nb;
 	int wls_online;
-	int adapter_type;
 	int support_bypass;
 	int bypass_entry_soc;
 	int bypass_exit_soc;

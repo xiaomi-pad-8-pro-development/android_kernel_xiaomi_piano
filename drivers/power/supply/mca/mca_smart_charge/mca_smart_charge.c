@@ -688,6 +688,8 @@ static void smartcharging_handle_controlmessage(void)
 			.func_value = 0;
 		smartcharging_handle_power_boost(
 			info, SMART_CHG_TRAVELWAIT_PWR_BOOST);
+	} else if (info->smart_chg_control.smart_bypass) {
+		info->bypass_enable = info->smart_chg_control.enable & 1;
 	}
 }
 
@@ -911,15 +913,15 @@ debounce:
 			    NSEC_PER_SEC);
 }
 
-static const int smart_bypass_med_adapters[] = { 0x08, 0x0b, 0x1c,
-						 0x3a, 0x3d, 0x4e };
-static const int smart_bypass_high_adapters[] = { 0x12, 0x13, 0x14, 0x19,
-						  0x4b, 0x1f5, 0x2be, 0x2bc };
+static const int smart_bypass_med_scenes[] = { 0x08, 0x0b, 0x1c,
+					       0x3a, 0x3d, 0x4e };
+static const int smart_bypass_high_scenes[] = { 0x12, 0x13, 0x14, 0x19,
+						0x4b, 0x1f5, 0x2be, 0x2bc };
 
-static bool smart_bypass_adapter_in_set(int adapter, const int *set, int n)
+static bool smart_bypass_scene_in_set(int scene, const int *set, int n)
 {
 	for (int i = 0; i < n; i++)
-		if (set[i] == adapter)
+		if (set[i] == scene)
 			return true;
 	return false;
 }
@@ -949,16 +951,15 @@ static void smart_charge_handle_bypass_chg(struct smart_charge_info *info)
 		goto report;
 	}
 
-	if (smart_bypass_adapter_in_set(info->adapter_type,
-					smart_bypass_med_adapters,
-					ARRAY_SIZE(smart_bypass_med_adapters))) {
+	if (smart_bypass_scene_in_set(info->scene, smart_bypass_med_scenes,
+				      ARRAY_SIZE(smart_bypass_med_scenes))) {
 		update_smart_bypass_temp_section(info, info->bypass_med_lmt,
 						 info->bypass_med_num);
 		info->bypass_active = 1;
 		fcc = info->bypass_med_lmt[info->bypass_temp_index].fcc;
-	} else if (smart_bypass_adapter_in_set(
-			   info->adapter_type, smart_bypass_high_adapters,
-			   ARRAY_SIZE(smart_bypass_high_adapters))) {
+	} else if (smart_bypass_scene_in_set(
+			   info->scene, smart_bypass_high_scenes,
+			   ARRAY_SIZE(smart_bypass_high_scenes))) {
 		update_smart_bypass_temp_section(info, info->bypass_high_lmt,
 						 info->bypass_high_num);
 		info->bypass_active = 1;
