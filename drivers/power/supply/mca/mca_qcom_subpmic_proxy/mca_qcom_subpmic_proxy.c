@@ -101,6 +101,7 @@ enum mca_subpmic_notify {
 	SUBPMIC_NOTIFY_SINK_PWR_SUSPEND = 8,
 	SUBPMIC_NOTIFY_CP_REVERT = 9,
 	SUBPMIC_NOTIFY_OTG_CP_CONFIG = 10,
+	SUBPMIC_NOTIFY_SBU_LPD = 11,
 };
 
 #define SUBPMIC_RAW_CODE_PLATE_SHOCK 0x3d
@@ -150,6 +151,7 @@ struct qcom_subpmic {
 	int pps_ptf;
 	u8 sink_pwr_suspend;
 	int cp_vbus_revert;
+	int sbu_lpd;
 };
 
 struct qcom_subpmic_notify_entry {
@@ -1120,6 +1122,13 @@ static void qcom_subpmic_notify_cb(u32 notify_type, void *data, u32 len,
 	case SUBPMIC_NOTIFY_OTG_CP_CONFIG:
 		mca_log_info("recv otg cp config notify: %d\n", *val);
 		platform_class_cp_set_revchg(0, *val != 0);
+		break;
+	case SUBPMIC_NOTIFY_SBU_LPD:
+		sc->sbu_lpd = *val;
+		mca_log_info("recv sbu_lpd: %d\n", sc->sbu_lpd);
+		mca_event_block_notify(MCA_EVENT_TYPE_HW_INFO,
+				       MCA_EVENT_SBU_LPD_STATUS_CHANGE,
+				       &sc->sbu_lpd);
 		break;
 	}
 }
