@@ -55,6 +55,9 @@ typedef struct {
 
 typedef struct {
 	u32 eu_mode;
+	u32 ocd_count[2];
+	u32 cuv_count[2];
+	u32 hscd_count;
 	u32 test;
 	u32 reserved;
 } charger_partition_info_2;

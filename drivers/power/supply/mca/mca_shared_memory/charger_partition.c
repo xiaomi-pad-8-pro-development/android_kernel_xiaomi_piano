@@ -64,6 +64,8 @@ struct ChargerPartition {
 	bool is_charger_partition_rdy;
 	bool is_eu_model;
 	bool not_notify_module;
+
+	charger_partition_info_2 info_2;
 };
 static struct ChargerPartition *charger_partition;
 static void *rw_buf;
@@ -529,6 +531,8 @@ static ssize_t charger_partition_sysfs_show(struct device *dev,
 static ssize_t charger_partition_sysfs_store(struct device *dev,
 					     struct device_attribute *attr,
 					     const char *buf, size_t count);
+static int charger_partition_get_info_2(void);
+static int charger_partition_set_info_2(void);
 
 struct mca_sysfs_attr_info charger_partition_sysfs_field_tbl[] = {
 	mca_sysfs_attr_rw(charger_partition_sysfs, 0664,
@@ -688,9 +692,6 @@ static ssize_t charger_partition_sysfs_store(struct device *dev,
 {
 	struct mca_sysfs_attr_info *attr_info;
 	int val = 0, ret = 0;
-	charger_partition_info_2 info_2 = { .eu_mode = 0,
-					    .test = val,
-					    .reserved = 0 };
 
 	attr_info = mca_sysfs_lookup_attr(attr->attr.name,
 					  charger_partition_sysfs_field_tbl,
@@ -781,41 +782,9 @@ static ssize_t charger_partition_sysfs_store(struct device *dev,
 		}
 		break;
 	case MCA_PROP_CHARGER_PARTITION_PROP_EU_MODE:
-		ret = charger_partition_alloc(CHARGER_PARTITION_HOST_KERNEL,
-					      CHARGER_PARTITION_INFO_2,
-					      sizeof(charger_partition_info_2));
-		if (ret < 0) {
-			mca_log_err("failed to alloc\n");
-			return -1;
-		}
-
-		info_2.eu_mode = val;
-		info_2.test = 0x34567890;
-		info_2.reserved = 0;
-		ret = charger_partition_write(CHARGER_PARTITION_HOST_KERNEL,
-					      CHARGER_PARTITION_INFO_2,
-					      (void *)&info_2,
-					      sizeof(charger_partition_info_2));
-		if (ret < 0) {
-			mca_log_err("failed to write\n");
-			ret = charger_partition_dealloc(
-				CHARGER_PARTITION_HOST_KERNEL,
-				CHARGER_PARTITION_INFO_2,
-				sizeof(charger_partition_info_2));
-			if (ret < 0) {
-				mca_log_err("failed to dealloc\n");
-				return -1;
-			}
-			return -1;
-		}
-
-		ret = charger_partition_dealloc(
-			CHARGER_PARTITION_HOST_KERNEL, CHARGER_PARTITION_INFO_2,
-			sizeof(charger_partition_info_2));
-		if (ret < 0) {
-			mca_log_err("failed to dealloc\n");
-			return -1;
-		}
+		charger_partition_get_info_2();
+		charger_partition->info_2.eu_mode = val;
+		charger_partition_set_info_2();
 		break;
 	default:
 		break;
@@ -990,6 +959,7 @@ static int charger_partition_get_info_2(void)
 		}
 		return -1;
 	}
+	charger_partition->info_2 = *info_2;
 	charger_partition->is_eu_model = info_2->eu_mode;
 	mca_log_err(" ret: %d, info_2->eu_mode: %u\n", ret, info_2->eu_mode);
 
@@ -1010,6 +980,44 @@ static int charger_partition_get_info_2(void)
 					sizeof(charger_partition_info_2));
 	if (ret < 0) {
 		mca_log_err("[ChgPartition] failed to dealloc\n");
+		return -1;
+	}
+	return 0;
+}
+
+static int charger_partition_set_info_2(void)
+{
+	int ret = 0;
+
+	ret = charger_partition_alloc(CHARGER_PARTITION_HOST_KERNEL,
+				      CHARGER_PARTITION_INFO_2,
+				      sizeof(charger_partition_info_2));
+	if (ret < 0) {
+		mca_log_err("failed to alloc\n");
+		return -1;
+	}
+
+	ret = charger_partition_write(CHARGER_PARTITION_HOST_KERNEL,
+				      CHARGER_PARTITION_INFO_2,
+				      (void *)&charger_partition->info_2,
+				      sizeof(charger_partition_info_2));
+	if (ret < 0) {
+		mca_log_err("failed to write\n");
+		ret = charger_partition_dealloc(CHARGER_PARTITION_HOST_KERNEL,
+						CHARGER_PARTITION_INFO_2,
+						sizeof(charger_partition_info_2));
+		if (ret < 0) {
+			mca_log_err("failed to dealloc\n");
+			return -1;
+		}
+		return -1;
+	}
+
+	ret = charger_partition_dealloc(CHARGER_PARTITION_HOST_KERNEL,
+					CHARGER_PARTITION_INFO_2,
+					sizeof(charger_partition_info_2));
+	if (ret < 0) {
+		mca_log_err("failed to dealloc\n");
 		return -1;
 	}
 	return 0;
