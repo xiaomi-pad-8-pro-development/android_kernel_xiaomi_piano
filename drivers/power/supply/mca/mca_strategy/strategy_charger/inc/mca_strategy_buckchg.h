@@ -163,6 +163,7 @@ struct strategy_buckchg_dev {
 	int terminated_by_cp;
 	bool support_diff_temp_comp;
 	int base_flip_same;
+	int parallel_iterm;
 	int support_reverse_quick_charge;
 	int rev_req_vadp[REV_USBIN_TYPE_MAX];
 	int rev_vadp_valid_h[REV_USBIN_TYPE_MAX];
@@ -197,6 +198,7 @@ struct strategy_buckchg_dev {
 	struct adapter_power_cap_info pwr_cap;
 	struct delayed_work monitor_work;
 	struct delayed_work sw_cv_work;
+	struct delayed_work base_flip_sw_cv_work;
 	struct delayed_work wls_revchg_monitor_work;
 	struct delayed_work csd_pulse_process_work;
 	struct delayed_work source_status_monitor_work;

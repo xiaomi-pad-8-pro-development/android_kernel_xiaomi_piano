@@ -76,6 +76,14 @@
 #define PPS_FFC_IBUS_BOOST 500
 #define SOC_LIMIT_ICL_DEFAULT 500
 #define SOC_LIMIT_ICL_BATT_TYPE 1000
+#define BASE_FLIP_SW_CV_FV_STEP_FAST 10
+#define BASE_FLIP_SW_CV_FV_STEP_SLOW 5
+#define BASE_FLIP_SW_CV_VBAT_DELTA_FAST 5
+#define BASE_FLIP_SW_CV_VBAT_DELTA_SLOW 3
+#define BASE_FLIP_SW_CV_FCC_STEP 50
+#define BASE_FLIP_SW_CV_FCC_BUFFER 100
+#define BASE_FLIP_SW_CV_ITERM_DELTA 299
+#define BASE_FLIP_SW_CV_OV_MAX_STEP 5
 
 static void strategy_buckchg_set_charge_volt(struct strategy_buckchg_dev *info,
 					     int target_volt);
@@ -730,6 +738,7 @@ static void strategy_buckchg_stop_charging(struct strategy_buckchg_dev *info)
 	cancel_delayed_work_sync(&info->wls_revchg_monitor_work);
 	cancel_delayed_work_sync(&info->check_pd_secret_work);
 	cancel_delayed_work(&info->sw_cv_work);
+	cancel_delayed_work(&info->base_flip_sw_cv_work);
 	strategy_buckchg_sw_cv_stop(info);
 	strategy_buckchg_reset_charge_para(info);
 	strategy_class_buckchg_ops_set_input_volt(
@@ -1300,6 +1309,10 @@ static int strategy_buckchg_process_event(int event, int value, void *data)
 			info->soc_limit_low = 0;
 			info->soc_limit_high = 0;
 		}
+		break;
+	case MCA_EVENT_PARALLEL_ITERM:
+		info->parallel_iterm = value;
+		mca_log_info("parallel_iterm: %d\n", info->parallel_iterm);
 		break;
 	case MCA_EVENT_DEBUG_CTRL_SOC_LIMIT:
 		info->soc_limit_low = value >> 8;
@@ -2352,12 +2365,98 @@ out:
 	schedule_delayed_work(&info->monitor_work, msecs_to_jiffies(interval));
 }
 
+static void strategy_buckchg_base_flip_sw_cv_workfunc(struct work_struct *work)
+{
+	struct strategy_buckchg_dev *info = container_of(
+		work, struct strategy_buckchg_dev, base_flip_sw_cv_work.work);
+	static int sw_cv_volt_delta_map[][2] = { { 1000, 7 }, { 0, 2 } };
+	int interval = CHARGE_SW_CV_WORK_NORMAL_INTERVAL;
+	int vterm = mca_get_client_vote(info->vterm_voter, "jeita");
+	int iterm = info->parallel_iterm;
+	int fcc = mca_get_effective_result(info->charge_limit_voter);
+	int first_termination = 0;
+	int volt_delta = sw_cv_volt_delta_map[0][1];
+	int vbat, ibat_ua, ibat, actual_vterm, fv_step, vbat_delta;
+	bool fastcharge;
+	int i;
+
+	strategy_class_fg_ops_get_voltage(&info->proc_data.vbat);
+	strategy_class_fg_ops_get_current(&info->proc_data.ibat);
+	fastcharge = strategy_class_fg_get_fastcharge();
+	vbat = info->proc_data.vbat;
+	ibat_ua = -info->proc_data.ibat;
+	ibat = ibat_ua / 1000;
+
+	(void)strategy_class_fg_get_first_termination(&first_termination);
+	mca_log_info("first_termination_flag:%d", first_termination);
+
+	actual_vterm = first_termination ?
+			       mca_get_effective_result(info->vterm_voter) :
+			       vterm;
+	actual_vterm += info->pmic_fv_compensation;
+
+	if (fastcharge && !info->base_flip_same) {
+		vbat_delta = BASE_FLIP_SW_CV_VBAT_DELTA_FAST;
+		fv_step = BASE_FLIP_SW_CV_FV_STEP_FAST;
+	} else {
+		vbat_delta = BASE_FLIP_SW_CV_VBAT_DELTA_SLOW;
+		fv_step = BASE_FLIP_SW_CV_FV_STEP_SLOW;
+	}
+
+	mca_log_info(
+		"vbat: %d, ibat: %d, vterm: %d, actual_vterm: %d, iterm: %d, fcc: %d, fast_charge: %d, fv_step: %d\n",
+		vbat, ibat, vterm, actual_vterm, iterm, fcc, fastcharge,
+		fv_step);
+
+	for (i = 0;
+	     i < sizeof(sw_cv_volt_delta_map) / sizeof(sw_cv_volt_delta_map[0]);
+	     i++) {
+		if (ibat > sw_cv_volt_delta_map[i][0]) {
+			volt_delta = sw_cv_volt_delta_map[i][1];
+			break;
+		}
+	}
+
+	if (fastcharge && vbat >= vterm - volt_delta) {
+		interval = CHARGE_SW_CV_WORK_FAST_INTERVAL;
+		if (iterm < ibat - BASE_FLIP_SW_CV_FCC_STEP) {
+			if (fcc - ibat >= BASE_FLIP_SW_CV_FCC_BUFFER)
+				mca_vote(info->charge_limit_voter, "sw_cv",
+					 true,
+					 ibat / BASE_FLIP_SW_CV_FCC_STEP *
+						 BASE_FLIP_SW_CV_FCC_STEP);
+			else if (info->base_flip_same && !first_termination &&
+				 ibat - iterm > BASE_FLIP_SW_CV_ITERM_DELTA)
+				mca_vote(info->charge_limit_voter, "sw_cv",
+					 true,
+					 fcc - BASE_FLIP_SW_CV_FCC_STEP);
+		}
+	}
+
+	if (vbat >= vterm - vbat_delta) {
+		int steps;
+
+		mca_log_err("WARNING: batt ov, reduce fv, count: %d\n",
+			    info->vbat_ov_count);
+		++info->vbat_ov_count;
+		steps = min(info->vbat_ov_count, BASE_FLIP_SW_CV_OV_MAX_STEP);
+		platform_class_buckchg_ops_set_term_volt(
+			MAIN_BUCK_CHARGER, actual_vterm - steps * fv_step);
+	}
+
+	mca_queue_delayed_work(&info->base_flip_sw_cv_work,
+			       msecs_to_jiffies(interval));
+}
+
 static void strategy_buckchg_sw_cv_start(struct strategy_buckchg_dev *info)
 {
 	info->sw_cv_running = true;
 	mca_vote(info->charge_limit_voter, "sw_cv", false, 0);
+	/* a base-flip pack runs the base-flip variant of the work */
 	mca_queue_delayed_work(
-		&info->sw_cv_work,
+		(info->support_base_flip || info->base_flip_same) ?
+			&info->base_flip_sw_cv_work :
+			&info->sw_cv_work,
 		msecs_to_jiffies(CHARGE_SW_CV_WORK_FAST_INTERVAL));
 }
 
@@ -2366,6 +2465,7 @@ static void strategy_buckchg_sw_cv_stop(struct strategy_buckchg_dev *info)
 	mca_log_err("chg_status: %d, stop sw_cv_work\n",
 		    info->proc_data.chg_status);
 	cancel_delayed_work_sync(&info->sw_cv_work);
+	cancel_delayed_work_sync(&info->base_flip_sw_cv_work);
 	mca_vote(info->charge_limit_voter, "sw_cv", false, 0);
 	info->sw_cv_running = false;
 	info->vbat_ov_count = 0;
@@ -3046,6 +3146,8 @@ static int strategy_buckchg_class_probe(struct platform_device *pdev)
 	INIT_DELAYED_WORK(&info->monitor_work,
 			  strategy_buckchg_monitor_workfunc);
 	INIT_DELAYED_WORK(&info->sw_cv_work, strategy_buckchg_sw_cv_workfunc);
+	INIT_DELAYED_WORK(&info->base_flip_sw_cv_work,
+			  strategy_buckchg_base_flip_sw_cv_workfunc);
 	INIT_DELAYED_WORK(&info->wls_revchg_monitor_work,
 			  strategy_wls_revchg_monitor_workfunc);
 	INIT_DELAYED_WORK(&info->csd_pulse_process_work,
