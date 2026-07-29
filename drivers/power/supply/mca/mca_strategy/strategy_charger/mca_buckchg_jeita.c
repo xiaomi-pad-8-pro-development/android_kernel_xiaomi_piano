@@ -1119,9 +1119,6 @@ static int mca_strategy_buckchg_jeita_get_status(int status, void *value,
 	case STRATEGY_STATUS_TYPE_JEITA_NORMAL_VTERM:
 		*cur_val = mca_strategy_buckchg_jeita_get_normal_vterm(info);
 		break;
-	case STRATEGY_STATUS_TYPE_JEITA_FFC_SIZE:
-		*cur_val = info->jeita_para.fcc_size;
-		break;
 	case STRATEGY_STATUS_TYPE_JEITA_FFC_VTERM:
 		*cur_val = mca_strategy_buckchg_jeita_get_ffc_vterm(info);
 		break;

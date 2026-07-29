@@ -257,6 +257,8 @@ static void strategy_buckchg_parse_dt(struct strategy_buckchg_dev *info)
 		info->dev->of_node, "support_diff_temp_comp");
 	info->base_flip_same =
 		of_property_read_bool(info->dev->of_node, "base-flip-same");
+	info->support_pmic_vterm_dynamics_adjust = of_property_read_bool(
+		info->dev->of_node, "support-pmic-vterm-dynamics-adjust");
 	info->support_reverse_quick_charge = of_property_read_bool(
 		info->dev->of_node, "support_reverse_quick_charge");
 	info->need_cp_to_pmic = of_property_read_bool(info->dev->of_node,
@@ -2023,14 +2025,19 @@ strategy_buckchg_update_charge_status(struct strategy_buckchg_dev *info)
 	return info->proc_data.chg_status;
 }
 
+#define FFC_START_BATT_SOC_THR 95
+
 static void
 strategy_buckchg_enable_fast_charge_mode(struct strategy_buckchg_dev *info,
 					 int soc)
 {
-	int batt_temp, fastcharge_mode, buck_jeita_ffc_size;
+	int batt_temp, fastcharge_mode;
 	int iterm = mca_get_effective_result(info->iterm_voter);
 	int fcc = mca_get_effective_result(info->charge_limit_voter);
 	int quick_charge_status = MCA_QUICK_CHG_STS_CHARGE_FAILED;
+
+	mca_log_info("allow_start_ffc_batt_soc_thr: %d\n",
+		     info->allow_start_ffc_batt_soc_thr);
 
 	if (info->proc_data.real_type == XM_CHARGER_TYPE_PPS) {
 		(void)mca_strategy_func_get_status(
@@ -2044,21 +2051,13 @@ strategy_buckchg_enable_fast_charge_mode(struct strategy_buckchg_dev *info,
 		(void)strategy_class_fg_ops_get_temperature(&batt_temp);
 		batt_temp /= 10;
 
-		mca_log_info(
-			"batt_temp = %d, soc =%d, fcc = %d, iterm = %d, quickchg_sts = %d\n",
-			batt_temp, soc, fcc, iterm, quick_charge_status);
+		mca_log_info("batt_temp = %d, soc = %d, fcc = %d\n", batt_temp,
+			     soc, fcc);
 
-		mca_strategy_func_get_status(
-			STRATEGY_FUNC_TYPE_JEITA,
-			STRATEGY_STATUS_TYPE_JEITA_FFC_SIZE,
-			&buck_jeita_ffc_size);
-		mca_log_info("allow_start_ffc_batt_soc_thr: %d\n",
-			     info->allow_start_ffc_batt_soc_thr);
 		fastcharge_mode = strategy_class_fg_get_fastcharge();
-		if (!fastcharge_mode && soc < info->allow_start_ffc_batt_soc_thr &&
+		if (soc < FFC_START_BATT_SOC_THR && !fastcharge_mode &&
 		    batt_temp >= info->ffc_temp_low &&
-		    batt_temp <= info->ffc_temp_high && info->batt_auth &&
-		    buck_jeita_ffc_size) {
+		    batt_temp <= info->ffc_temp_high && info->batt_auth) {
 			strategy_class_fg_set_fastcharge(true);
 			mca_log_info("buck charger enable fast charge mode\n");
 		} else if (batt_temp < info->ffc_temp_low ||
@@ -2069,6 +2068,19 @@ strategy_buckchg_enable_fast_charge_mode(struct strategy_buckchg_dev *info,
 			   soc >= info->allow_start_ffc_batt_soc_thr &&
 			   fcc <= iterm + info->curr_terminate_compensation &&
 			   quick_charge_status != MCA_QUICK_CHG_STS_CHARGING) {
+			if (info->base_flip_same ||
+			    info->support_pmic_vterm_dynamics_adjust) {
+				const char *client = mca_get_effective_client(
+					info->charge_limit_voter);
+
+				if (client && !strcmp(client, "fcc_limit")) {
+					mca_log_info(
+						"client_srt:%s is pmic + cp charging, skip\n",
+						client);
+					return;
+				}
+			}
+
 			strategy_class_fg_set_fastcharge(false);
 			mca_log_info(
 				"buck charger disable fast charge mode by fcc too low\n");
@@ -2211,24 +2223,6 @@ strategy_buckchg_update_aicl_restart(struct strategy_buckchg_dev *info)
 	}
 }
 
-#define FCC_LIMIT_FASTCHARGE_SOC_TH 95
-static void
-strategy_buckchg_check_fcc_limit_fastcharge(struct strategy_buckchg_dev *info,
-					    int soc)
-{
-	const char *client;
-
-	if (soc < FCC_LIMIT_FASTCHARGE_SOC_TH)
-		return;
-
-	if (info->support_base_flip) {
-		client = mca_get_effective_client(info->charge_limit_voter);
-		if (client && !strcmp(client, "fcc_limit"))
-			return;
-	}
-	strategy_class_fg_set_fastcharge(false);
-}
-
 #define VUSB_OVP_LOCATION_BEFORE_CP 1
 #define CP_PRESENT_RETRY_MAX 6
 static void strategy_buckchg_check_cp_i2c_err(struct strategy_buckchg_dev *info)
@@ -2305,7 +2299,6 @@ static void strategy_buckchg_monitor_workfunc(struct work_struct *work)
 	system_soc = strategy_class_fg_ops_get_soc();
 	strategy_buckchg_debug_soc_limit(info, system_soc);
 	strategy_buckchg_check_cp_i2c_err(info);
-	strategy_buckchg_check_fcc_limit_fastcharge(info, system_soc);
 	if (system_soc <= ALLOW_QUICK_CHG_SOC_THR) {
 		jeita_hot_result = mca_get_client_vote(info->chg_enable_voter,
 						       "jeita-hot");
