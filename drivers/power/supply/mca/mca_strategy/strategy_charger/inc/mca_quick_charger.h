@@ -194,6 +194,8 @@ struct mca_quick_charge_temp_para {
 
 /* volt para */
 #define VOLT_PARA_MAX_GROUP 10
+#define PMIC_SINGLE_CP_THRESHOLD_NR 3
+#define PMIC_SINGLE_CP_FCC_NR 4
 enum mca_quick_charge_volt_para_ele {
 	MCA_QUICK_CHG_VOLTAGE = 0,
 	MCA_QUICK_CHG_CURRENT_MAX,
@@ -543,6 +545,18 @@ struct mca_quick_charge_info {
 	ktime_t time_start;
 	bool boost_done;
 	bool check_vbat_ov;
+	int pmic_single_cp_chg;
+	int cur_max_threshold[PMIC_SINGLE_CP_THRESHOLD_NR];
+	int ibus_threshold[PMIC_SINGLE_CP_THRESHOLD_NR];
+	int pmih_fcc_value[PMIC_SINGLE_CP_FCC_NR];
+	int vbat_threshold;
+	bool single_cp_buck_disabled;
+	int last_pmih_fcc;
+	int ffc_final_vterm;
+	int override_vterm;
+	int last_override_vterm;
+	int vterm_adjust_count;
+	int pmic_fv_compensation;
 	bool force_normal_volt_para;
 	bool parall_force_normal_volt_para[FG_SITE_MAX];
 	bool init_volt_para;

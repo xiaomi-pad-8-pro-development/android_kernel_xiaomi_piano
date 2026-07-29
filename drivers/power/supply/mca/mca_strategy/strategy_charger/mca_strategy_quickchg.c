@@ -506,6 +506,13 @@ static void mca_quick_charge_stop_charging(struct mca_quick_charge_info *info)
 	if (info->en_buck_parallel_chg && info->proc_data.cp_iic_ok) {
 		strategy_quickchg_enable_buck_charging(info, 0, 0, false);
 	}
+	if (info->pmic_single_cp_chg) {
+		mca_vote_override(info->term_volt_voter, "single_cp_pmic",
+				  false, 0);
+		mca_rerun_election(info->term_volt_voter);
+		info->ffc_final_vterm = 0;
+		info->last_override_vterm = 0;
+	}
 	(void)mca_vote(info->input_suspend_voter, "wire_qc", false, 0);
 	(void)mca_vote(info->buck_charge_curr_voter, "wire_qc", false, 0);
 	if (info->proc_data.cp_iic_ok) {
@@ -2626,6 +2633,137 @@ mca_quick_charge_select_min_vbatt_th(struct mca_quick_charge_info *info)
 	return vbat_th;
 }
 
+#define SINGLE_CP_VTERM_ADJUST_PERIOD 4
+#define SINGLE_CP_VTERM_HEADROOM_LOW 24
+#define SINGLE_CP_VTERM_HEADROOM_HIGH 36
+#define SINGLE_CP_VTERM_STEP_DOWN 5
+#define SINGLE_CP_VTERM_STEP_UP 10
+
+static void strategy_quickchg_adjust_vterm(struct mca_quick_charge_info *info)
+{
+	int ffc_vterm = 0, pack_vbat = 0;
+	int final_vterm, headroom, vterm;
+
+	(void)mca_strategy_func_get_status(STRATEGY_FUNC_TYPE_JEITA,
+					   STRATEGY_STATUS_TYPE_JEITA_FFC_VTERM,
+					   &ffc_vterm);
+	(void)platform_class_buckchg_ops_get_pack_vbat(MAIN_BUCK_CHARGER,
+						       &pack_vbat);
+
+	final_vterm = ffc_vterm - info->smartchg_data.delta_fv;
+	if (info->ffc_final_vterm != final_vterm) {
+		info->last_override_vterm = final_vterm;
+		info->ffc_final_vterm = final_vterm;
+	}
+	mca_log_info("ffc_vterm :%d, final_vterm :%d\n", ffc_vterm,
+		     info->ffc_final_vterm);
+
+	if (++info->vterm_adjust_count <= SINGLE_CP_VTERM_ADJUST_PERIOD ||
+	    info->ffc_final_vterm >= pack_vbat)
+		return;
+
+	headroom = info->pmic_fv_compensation + info->last_override_vterm -
+		   pack_vbat;
+	if (headroom <= SINGLE_CP_VTERM_HEADROOM_LOW)
+		vterm = info->last_override_vterm + SINGLE_CP_VTERM_STEP_UP;
+	else if (headroom >= SINGLE_CP_VTERM_HEADROOM_HIGH)
+		vterm = info->last_override_vterm - SINGLE_CP_VTERM_STEP_DOWN;
+	else
+		vterm = info->last_override_vterm;
+	info->override_vterm = vterm;
+
+	mca_log_info(
+		"actual_vterm :%d, override_vterm :%d, last_override_vterm :%d, pvbat :%d\n",
+		info->ffc_final_vterm, info->override_vterm,
+		info->last_override_vterm, pack_vbat);
+
+	if (info->override_vterm != info->last_override_vterm) {
+		mca_vote_override(info->term_volt_voter, "single_cp_pmic", true,
+				  info->override_vterm);
+		info->last_override_vterm = info->override_vterm;
+	}
+	info->vterm_adjust_count = 0;
+}
+
+#define SINGLE_CP_CUR_MAX_TH 9000
+#define SINGLE_CP_ICL_BOOST 500
+
+static void
+strategy_quickchg_pmic_single_cp_charging(struct mca_quick_charge_info *info,
+					  int cur_max)
+{
+	int ibus_cp = 0, ibus_buck = 0, pack_vbat = 0, pmic_chg_status = 0;
+	int ibus = info->proc_data.ibus;
+	bool fastcharge = strategy_class_fg_get_fastcharge();
+	int fcc, icl, i;
+
+	if (!fastcharge && (cur_max < SINGLE_CP_CUR_MAX_TH ||
+			    info->proc_data.adp_type !=
+				    XM_CHARGER_TYPE_PD_VERIFY)) {
+		mca_vote_override(info->term_volt_voter, "single_cp_pmic",
+				  false, 0);
+		info->ffc_final_vterm = 0;
+		info->last_override_vterm = 0;
+		return;
+	}
+
+	(void)platform_class_cp_get_bus_current(0, &ibus_cp);
+	(void)platform_class_buckchg_ops_get_bus_curr(MAIN_BUCK_CHARGER,
+						      &ibus_buck);
+	(void)platform_class_buckchg_ops_get_pack_vbat(MAIN_BUCK_CHARGER,
+						       &pack_vbat);
+	(void)platform_class_buckchg_ops_get_chg_status(MAIN_BUCK_CHARGER,
+							&pmic_chg_status);
+	(void)strategy_class_fg_ops_get_voltage(
+		&info->proc_data.vbat[FG_IC_MASTER]);
+
+	mca_log_info("ffc_flag :%d\n", fastcharge);
+	if (fastcharge)
+		strategy_quickchg_adjust_vterm(info);
+
+	mca_log_info(
+		"ibus :%d, ibus_buck :%d, ibus_cp :%d, curr_vbat :%d, pvbat :%d, pmic_chg_status :%d\n",
+		ibus, ibus_buck, ibus_cp, info->proc_data.vbat[FG_IC_MASTER],
+		pack_vbat, pmic_chg_status);
+
+	if (info->proc_data.vbat[FG_IC_MASTER] >= info->vbat_threshold ||
+	    info->single_cp_buck_disabled) {
+		info->single_cp_buck_disabled = true;
+		info->last_pmih_fcc = 0;
+		mca_vote(info->input_suspend_voter, "wire_qc", true, 1);
+		mca_vote_override(info->buck_input_voter, "icl_limit", false,
+				  0);
+		mca_vote_override(info->buck_charge_curr_voter, "fcc_limit",
+				  false, 0);
+		return;
+	}
+
+	fcc = info->pmih_fcc_value[PMIC_SINGLE_CP_THRESHOLD_NR];
+	for (i = 0; i < PMIC_SINGLE_CP_THRESHOLD_NR; i++) {
+		if (info->cur_max_threshold[i] < cur_max &&
+		    info->ibus_threshold[i] < ibus) {
+			fcc = info->pmih_fcc_value[i];
+			break;
+		}
+	}
+
+	if (fcc == info->last_pmih_fcc)
+		return;
+
+	icl = fcc / 2;
+	if (fcc != info->pmih_fcc_value[PMIC_SINGLE_CP_THRESHOLD_NR])
+		icl += SINGLE_CP_ICL_BOOST;
+	info->last_pmih_fcc = fcc;
+
+	mca_vote(info->input_suspend_voter, "wire_qc", false, 0);
+	mca_vote_override(info->buck_input_voter, "icl_limit", true, icl);
+	mca_vote_override(info->buck_charge_curr_voter, "fcc_limit", true, fcc);
+	(void)platform_class_buckchg_ops_set_restart_aicl(MAIN_BUCK_CHARGER,
+							  true);
+	mca_log_err("enable cp and buck charging, pmih_fcc :%d, pmih_icl :%d\n",
+		    fcc, icl);
+}
+
 static void
 strategy_quickchg_enable_buck_charging(struct mca_quick_charge_info *info,
 				       int buck_icl_val, int buck_fcc_val,
@@ -2836,6 +2974,9 @@ static int mca_quick_charge_regulation(struct mca_quick_charge_info *info)
 	} else if (info->en_buck_parallel_chg) {
 		strategy_quickchg_enable_buck_charging(info, 0, 0, false);
 	}
+
+	if (info->pmic_single_cp_chg)
+		strategy_quickchg_pmic_single_cp_charging(info, cur_max);
 
 	if (final_vstep > 0) {
 		last_boost_time_ms = time_now_ms;
@@ -3973,6 +4114,49 @@ mca_quick_charge_parse_vstep_para(struct mca_quick_charge_info *info)
 	}
 }
 
+static void mca_quick_charge_parse_pmic_single_cp_charging_info(
+	struct device_node *node, struct mca_quick_charge_info *info)
+{
+	if (!info->pmic_single_cp_chg)
+		return;
+
+	if (mca_parse_dts_u32_array(node, "cur_max_threshold",
+				    info->cur_max_threshold,
+				    PMIC_SINGLE_CP_THRESHOLD_NR)) {
+		info->cur_max_threshold[0] = 10000;
+		info->cur_max_threshold[1] = 8000;
+		info->cur_max_threshold[2] = 5000;
+	}
+	mca_log_info("cur_max_threshold %d %d %d\n", info->cur_max_threshold[0],
+		     info->cur_max_threshold[1], info->cur_max_threshold[2]);
+
+	if (mca_parse_dts_u32_array(node, "ibus_threshold",
+				    info->ibus_threshold,
+				    PMIC_SINGLE_CP_THRESHOLD_NR)) {
+		info->ibus_threshold[0] = 5000;
+		info->ibus_threshold[1] = 4200;
+		info->ibus_threshold[2] = 2700;
+	}
+	mca_log_info("ibus_threshold %d %d %d\n", info->ibus_threshold[0],
+		     info->ibus_threshold[1], info->ibus_threshold[2]);
+
+	if (mca_parse_dts_u32_array(node, "pmih_fcc_value",
+				    info->pmih_fcc_value,
+				    PMIC_SINGLE_CP_FCC_NR)) {
+		info->pmih_fcc_value[0] = 4000;
+		info->pmih_fcc_value[1] = 3000;
+		info->pmih_fcc_value[2] = 2000;
+		info->pmih_fcc_value[3] = 1000;
+	}
+	mca_log_info("pmih_fcc_value %d %d %d %d\n", info->pmih_fcc_value[0],
+		     info->pmih_fcc_value[1], info->pmih_fcc_value[2],
+		     info->pmih_fcc_value[3]);
+
+	(void)mca_parse_dts_u32(node, "vbat_threshold", &info->vbat_threshold,
+				4480);
+	mca_log_info("vbat_threshold :%d\n", info->vbat_threshold);
+}
+
 static void
 mca_quick_charge_parse_chg_mode_info(struct device_node *node,
 				     struct mca_quick_charge_info *info)
@@ -4313,6 +4497,11 @@ static int mca_quick_charge_parse_dt(struct mca_quick_charge_info *info)
 		of_property_read_bool(node, "has-global-batt-para");
 	info->support_base_flip =
 		of_property_read_bool(node, "support-base-flip");
+	info->pmic_single_cp_chg =
+		of_property_read_bool(node, "pmic_single_cp_chg");
+	(void)mca_parse_dts_u32(node, "pmic_fv_compensation",
+				&info->pmic_fv_compensation, 0);
+	mca_quick_charge_parse_pmic_single_cp_charging_info(node, info);
 	mca_quick_charge_parse_chg_mode_info(node, info);
 	/* charge para */
 	mca_quick_charge_parse_vstep_para(info);
