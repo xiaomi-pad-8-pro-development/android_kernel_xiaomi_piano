@@ -257,8 +257,6 @@ static void strategy_buckchg_parse_dt(struct strategy_buckchg_dev *info)
 		info->dev->of_node, "support_diff_temp_comp");
 	info->base_flip_same =
 		of_property_read_bool(info->dev->of_node, "base-flip-same");
-	info->support_pmic_vterm_dynamics_adjust = of_property_read_bool(
-		info->dev->of_node, "support-pmic-vterm-dynamics-adjust");
 	info->support_reverse_quick_charge = of_property_read_bool(
 		info->dev->of_node, "support_reverse_quick_charge");
 	info->need_cp_to_pmic = of_property_read_bool(info->dev->of_node,
@@ -1683,7 +1681,7 @@ strategy_buckchg_select_charg_para(struct strategy_buckchg_dev *info)
 			unsigned int in_limit = info->in_pd;
 			int chg_limit = info->chg_pd;
 
-			if (info->support_pmic_vterm_dynamics_adjust &&
+			if (info->base_flip_same &&
 			    strategy_class_fg_get_fastcharge() &&
 			    info->proc_data.real_type == XM_CHARGER_TYPE_PPS) {
 				int batt_temp = 0, temp_offset_flag = 0;
@@ -2060,13 +2058,11 @@ strategy_buckchg_enable_fast_charge_mode(struct strategy_buckchg_dev *info,
 		batt_temp /= 10;
 		fastcharge_mode = strategy_class_fg_get_fastcharge();
 
-		if (info->base_flip_same ||
-		    info->support_pmic_vterm_dynamics_adjust) {
+		if (info->support_base_flip || info->base_flip_same) {
 			iterm = info->parallel_iterm;
 			mca_log_info("iterm: %d\n", iterm);
 
-			if (info->support_pmic_vterm_dynamics_adjust &&
-			    fastcharge_mode &&
+			if (info->base_flip_same && fastcharge_mode &&
 			    info->proc_data.real_type == XM_CHARGER_TYPE_PPS) {
 				int temp_offset_flag = 0;
 				int in_limit;
@@ -2116,8 +2112,7 @@ strategy_buckchg_enable_fast_charge_mode(struct strategy_buckchg_dev *info,
 		} else if (fastcharge_mode &&
 			   soc >= info->allow_start_ffc_batt_soc_thr &&
 			   fcc <= iterm + info->curr_terminate_compensation) {
-			if (info->base_flip_same ||
-			    info->support_pmic_vterm_dynamics_adjust) {
+			if (info->support_base_flip || info->base_flip_same) {
 				const char *client = mca_get_effective_client(
 					info->charge_limit_voter);
 

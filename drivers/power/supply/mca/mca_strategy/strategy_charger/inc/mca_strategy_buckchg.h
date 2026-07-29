@@ -163,7 +163,6 @@ struct strategy_buckchg_dev {
 	int terminated_by_cp;
 	bool support_diff_temp_comp;
 	int base_flip_same;
-	int support_pmic_vterm_dynamics_adjust;
 	int parallel_iterm;
 	int support_reverse_quick_charge;
 	int rev_req_vadp[REV_USBIN_TYPE_MAX];
