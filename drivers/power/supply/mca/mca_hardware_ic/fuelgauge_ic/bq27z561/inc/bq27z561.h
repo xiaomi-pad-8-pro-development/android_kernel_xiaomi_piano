@@ -492,7 +492,16 @@ struct bq_fg_chip {
 	int fake_count_lowtemp;
 	int update_fw_status;
 	int max_pow;
-
+	int cuv_count;
+	int cuv_last_cycle;
+	int hcuv_count;
+	int hcuv_last_cycle;
+	int ocd_count;
+	int ocd_last_cycle;
+	int hocd_count;
+	int hocd_last_cycle;
+	int hscd_count;
+	int hscd_last_cycle;
 };
 
 enum manu_macro {

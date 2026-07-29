@@ -4855,76 +4855,126 @@ static int fg_get_csd_r2(struct bq_fg_chip *bq)
 	return fg_convert_u8_to_u16(t_buf[4], t_buf[5]);
 }
 
-static int fg_get_cuv_count(struct bq_fg_chip *bq)
+static void fg_get_cuv_count(struct bq_fg_chip *bq)
 {
 	u8 t_buf[BATTERY_RANDOM_LEN] = { 0 };
 
 	if (fg_diag_mac_read(bq, FG_MAC_CMD_CUV_OCD, t_buf, 32) < 0)
-		return 0;
-	return fg_convert_u8_to_u16(t_buf[16], t_buf[17]);
+		bq->cuv_count = 0;
+	else
+		bq->cuv_count = fg_convert_u8_to_u16(t_buf[16], t_buf[17]);
 }
 
-static int fg_get_cuv_last_cycle(struct bq_fg_chip *bq)
+static void fg_get_cuv_last_cycle(struct bq_fg_chip *bq)
 {
 	u8 t_buf[BATTERY_RANDOM_LEN] = { 0 };
 
 	if (fg_diag_mac_read(bq, FG_MAC_CMD_CUV_OCD, t_buf, 32) < 0)
-		return 0;
-	return fg_convert_u8_to_u16(t_buf[18], t_buf[19]);
+		bq->cuv_last_cycle = 0;
+	else
+		bq->cuv_last_cycle = fg_convert_u8_to_u16(t_buf[18], t_buf[19]);
 }
 
-static int fg_get_ocd_count(struct bq_fg_chip *bq)
+static void fg_get_ocd_count(struct bq_fg_chip *bq)
 {
 	u8 t_buf[BATTERY_RANDOM_LEN] = { 0 };
 
 	if (fg_diag_mac_read(bq, FG_MAC_CMD_CUV_OCD, t_buf, 32) < 0)
-		return 0;
-	return fg_convert_u8_to_u16(t_buf[28], t_buf[29]);
+		bq->ocd_count = 0;
+	else
+		bq->ocd_count = fg_convert_u8_to_u16(t_buf[28], t_buf[29]);
 }
 
-static int fg_get_ocd_last_cycle(struct bq_fg_chip *bq)
+static void fg_get_ocd_last_cycle(struct bq_fg_chip *bq)
 {
 	u8 t_buf[BATTERY_RANDOM_LEN] = { 0 };
 
 	if (fg_diag_mac_read(bq, FG_MAC_CMD_CUV_OCD, t_buf, 32) < 0)
-		return 0;
-	return fg_convert_u8_to_u16(t_buf[30], t_buf[31]);
+		bq->ocd_last_cycle = 0;
+	else
+		bq->ocd_last_cycle = fg_convert_u8_to_u16(t_buf[30], t_buf[31]);
 }
 
-static int fg_get_hcuv_count(struct bq_fg_chip *bq)
+static void fg_get_hcuv_count(struct bq_fg_chip *bq)
 {
 	u8 t_buf[BATTERY_RANDOM_LEN] = { 0 };
 
 	if (fg_diag_mac_read(bq, FG_MAC_CMD_HCUV_HOCD, t_buf, 8) < 0)
-		return 0;
-	return fg_convert_u8_to_u16(t_buf[0], t_buf[1]);
+		bq->hcuv_count = 0;
+	else
+		bq->hcuv_count = fg_convert_u8_to_u16(t_buf[0], t_buf[1]);
 }
 
-static int fg_get_hcuv_last_cycle(struct bq_fg_chip *bq)
+static void fg_get_hcuv_last_cycle(struct bq_fg_chip *bq)
 {
 	u8 t_buf[BATTERY_RANDOM_LEN] = { 0 };
 
 	if (fg_diag_mac_read(bq, FG_MAC_CMD_HCUV_HOCD, t_buf, 8) < 0)
-		return 0;
-	return fg_convert_u8_to_u16(t_buf[2], t_buf[3]);
+		bq->hcuv_last_cycle = 0;
+	else
+		bq->hcuv_last_cycle = fg_convert_u8_to_u16(t_buf[2], t_buf[3]);
 }
 
-static int fg_get_hocd_count(struct bq_fg_chip *bq)
+static void fg_get_hocd_count(struct bq_fg_chip *bq)
 {
 	u8 t_buf[BATTERY_RANDOM_LEN] = { 0 };
 
 	if (fg_diag_mac_read(bq, FG_MAC_CMD_HCUV_HOCD, t_buf, 32) < 0)
-		return 0;
-	return fg_convert_u8_to_u16(t_buf[12], t_buf[13]);
+		bq->hocd_count = 0;
+	else
+		bq->hocd_count = fg_convert_u8_to_u16(t_buf[12], t_buf[13]);
 }
 
-static int fg_get_hocd_last_cycle(struct bq_fg_chip *bq)
+static void fg_get_hocd_last_cycle(struct bq_fg_chip *bq)
 {
 	u8 t_buf[BATTERY_RANDOM_LEN] = { 0 };
 
 	if (fg_diag_mac_read(bq, FG_MAC_CMD_HCUV_HOCD, t_buf, 32) < 0)
-		return 0;
-	return fg_convert_u8_to_u16(t_buf[14], t_buf[15]);
+		bq->hocd_last_cycle = 0;
+	else
+		bq->hocd_last_cycle = fg_convert_u8_to_u16(t_buf[14], t_buf[15]);
+}
+
+static void fg_get_hscd_count(struct bq_fg_chip *bq)
+{
+	u8 t_buf[BATTERY_RANDOM_LEN] = { 0 };
+
+	if (fg_diag_mac_read(bq, FG_MAC_CMD_HCUV_HOCD, t_buf, 32) < 0)
+		bq->hscd_count = 0;
+	else
+		bq->hscd_count = fg_convert_u8_to_u16(t_buf[16], t_buf[17]);
+}
+
+static void fg_get_hscd_last_cycle(struct bq_fg_chip *bq)
+{
+	u8 t_buf[BATTERY_RANDOM_LEN] = { 0 };
+
+	if (fg_diag_mac_read(bq, FG_MAC_CMD_HCUV_HOCD, t_buf, 32) < 0)
+		bq->hscd_last_cycle = 0;
+	else
+		bq->hscd_last_cycle = fg_convert_u8_to_u16(t_buf[18], t_buf[19]);
+}
+
+/*
+ * Snapshot the cached abnormal-event counters into the DFX buffer. Order is
+ * ABI: ocd, hocd, cuv, hcuv, hscd (count then last-cycle within each pair).
+ * The counters are refreshed by their fg_get_* readers (sysfs / periodic path).
+ */
+static int fg_get_batt_abnormal_info(void *data, int *info)
+{
+	struct bq_fg_chip *bq = (struct bq_fg_chip *)data;
+
+	info[0] = bq->ocd_count;
+	info[1] = bq->ocd_last_cycle;
+	info[2] = bq->hocd_count;
+	info[3] = bq->hocd_last_cycle;
+	info[4] = bq->cuv_count;
+	info[5] = bq->cuv_last_cycle;
+	info[6] = bq->hcuv_count;
+	info[7] = bq->hcuv_last_cycle;
+	info[8] = bq->hscd_count;
+	info[9] = bq->hscd_last_cycle;
+	return 0;
 }
 
 static int fg_get_dcr_slope1(struct bq_fg_chip *bq)
@@ -5089,6 +5139,8 @@ struct mca_sysfs_attr_info fg_sysfs_field_tbl[] = {
 	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_HCUV_LAST_CYCLE, hcuv_last_cycle),
 	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_HOCD_COUNT, hocd_count),
 	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_HOCD_LAST_CYCLE, hocd_last_cycle),
+	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_HSCD_COUNT, hscd_count),
+	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_HSCD_LAST_CYCLE, hscd_last_cycle),
 	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_DCR_SLOPE1, dcr_slope1),
 	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_DCR_SLOPE2, dcr_slope2),
 	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_DCR_SLOPE3, dcr_slope3),
@@ -5473,32 +5525,44 @@ static ssize_t fg_sysfs_show(struct device *dev,
 		count = scnprintf(buf, PAGE_SIZE, "%d\n", fg_get_csd_r2(info));
 		break;
 	case FG_IC_PROP_CUV_COUNT:
-		count = scnprintf(buf, PAGE_SIZE, "%d\n", fg_get_cuv_count(info));
+		fg_get_cuv_count(info);
+		count = scnprintf(buf, PAGE_SIZE, "%d\n", info->cuv_count);
 		break;
 	case FG_IC_PROP_CUV_LAST_CYCLE:
-		count = scnprintf(buf, PAGE_SIZE, "%d\n",
-				  fg_get_cuv_last_cycle(info));
+		fg_get_cuv_last_cycle(info);
+		count = scnprintf(buf, PAGE_SIZE, "%d\n", info->cuv_last_cycle);
 		break;
 	case FG_IC_PROP_OCD_COUNT:
-		count = scnprintf(buf, PAGE_SIZE, "%d\n", fg_get_ocd_count(info));
+		fg_get_ocd_count(info);
+		count = scnprintf(buf, PAGE_SIZE, "%d\n", info->ocd_count);
 		break;
 	case FG_IC_PROP_OCD_LAST_CYCLE:
-		count = scnprintf(buf, PAGE_SIZE, "%d\n",
-				  fg_get_ocd_last_cycle(info));
+		fg_get_ocd_last_cycle(info);
+		count = scnprintf(buf, PAGE_SIZE, "%d\n", info->ocd_last_cycle);
 		break;
 	case FG_IC_PROP_HCUV_COUNT:
-		count = scnprintf(buf, PAGE_SIZE, "%d\n", fg_get_hcuv_count(info));
+		fg_get_hcuv_count(info);
+		count = scnprintf(buf, PAGE_SIZE, "%d\n", info->hcuv_count);
 		break;
 	case FG_IC_PROP_HCUV_LAST_CYCLE:
-		count = scnprintf(buf, PAGE_SIZE, "%d\n",
-				  fg_get_hcuv_last_cycle(info));
+		fg_get_hcuv_last_cycle(info);
+		count = scnprintf(buf, PAGE_SIZE, "%d\n", info->hcuv_last_cycle);
 		break;
 	case FG_IC_PROP_HOCD_COUNT:
-		count = scnprintf(buf, PAGE_SIZE, "%d\n", fg_get_hocd_count(info));
+		fg_get_hocd_count(info);
+		count = scnprintf(buf, PAGE_SIZE, "%d\n", info->hocd_count);
 		break;
 	case FG_IC_PROP_HOCD_LAST_CYCLE:
-		count = scnprintf(buf, PAGE_SIZE, "%d\n",
-				  fg_get_hocd_last_cycle(info));
+		fg_get_hocd_last_cycle(info);
+		count = scnprintf(buf, PAGE_SIZE, "%d\n", info->hocd_last_cycle);
+		break;
+	case FG_IC_PROP_HSCD_COUNT:
+		fg_get_hscd_count(info);
+		count = scnprintf(buf, PAGE_SIZE, "%d\n", info->hscd_count);
+		break;
+	case FG_IC_PROP_HSCD_LAST_CYCLE:
+		fg_get_hscd_last_cycle(info);
+		count = scnprintf(buf, PAGE_SIZE, "%d\n", info->hscd_last_cycle);
 		break;
 	case FG_IC_PROP_DCR_SLOPE1:
 		count = scnprintf(buf, PAGE_SIZE, "%d\n", fg_get_dcr_slope1(info));
@@ -5732,6 +5796,7 @@ static struct fuelguage_ic_ops g_bq_fg_ops = {
 	.fg_ic_fl4p0_enable_check = fg_fl4p0_enable_check,
 	.fg_ic_get_ui_soh = fg_get_ui_soh,
 	.fg_ic_get_calc_rvalue = fg_get_one_calc_rvalue,
+	.fg_ic_get_batt_abnormal_info = fg_get_batt_abnormal_info,
 };
 
 static int bq27z561_dump_log_head(void *data, char *buf, int size)
