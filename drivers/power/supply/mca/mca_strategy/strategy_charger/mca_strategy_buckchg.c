@@ -66,6 +66,10 @@
 #define DEFAULT_PD_CURRENT_MA 500
 #define SW_CV_FCC_STEP_DEFAULT 50
 #define SW_CV_FV_STEP_DEFAULT 5
+#define SW_CV_FV_COMP_TEMP_LOW 180
+#define SW_CV_FV_COMP_TEMP_MID 300
+#define SW_CV_FV_COMP_TEMP_HIGH 400
+#define SW_CV_FV_COMP_TEMP_MAX 479
 
 static void strategy_buckchg_set_charge_volt(struct strategy_buckchg_dev *info,
 					     int target_volt);
@@ -208,6 +212,10 @@ static void strategy_buckchg_parse_dt(struct strategy_buckchg_dev *info)
 			  &info->pmic_fv_compensation_cold, 0);
 	mca_parse_dts_u32(info->dev->of_node, "bat_temp_fv_comp_cold_th",
 			  &info->bat_temp_fv_comp_cold_th, 0);
+	mca_parse_dts_u32(info->dev->of_node, "pmic_middle_fv_compensation",
+			  &info->pmic_middle_fv_compensation, 0);
+	mca_parse_dts_u32(info->dev->of_node, "pmic_high_fv_compensation",
+			  &info->pmic_high_fv_compensation, 0);
 	mca_parse_dts_u32(info->dev->of_node, "pmic_fv_compensation_hot",
 			  &info->pmic_fv_compensation_hot, 0);
 	mca_parse_dts_u32(info->dev->of_node, "bat_temp_fv_comp_hot_th",
@@ -2304,6 +2312,27 @@ static void strategy_buckchg_sw_cv_stop(struct strategy_buckchg_dev *info)
 	info->vbat_ov_count = 0;
 }
 
+static int strategy_buckchg_sw_cv_fv_comp(struct strategy_buckchg_dev *info)
+{
+	int temp = 0;
+
+	if (!info->support_diff_temp_comp)
+		return info->pmic_fv_compensation;
+
+	if (!strategy_class_fg_get_fastcharge())
+		return 0;
+
+	strategy_class_fg_ops_get_temperature(&temp);
+	if (temp >= SW_CV_FV_COMP_TEMP_LOW && temp < SW_CV_FV_COMP_TEMP_MID)
+		return info->pmic_fv_compensation;
+	if (temp >= SW_CV_FV_COMP_TEMP_MID && temp < SW_CV_FV_COMP_TEMP_HIGH)
+		return info->pmic_middle_fv_compensation;
+	if (temp >= SW_CV_FV_COMP_TEMP_HIGH && temp <= SW_CV_FV_COMP_TEMP_MAX)
+		return info->pmic_high_fv_compensation;
+
+	return 0;
+}
+
 static void strategy_buckchg_sw_cv_workfunc(struct work_struct *work)
 {
 	struct strategy_buckchg_dev *info = container_of(
@@ -2354,19 +2383,19 @@ static void strategy_buckchg_sw_cv_workfunc(struct work_struct *work)
 	}
 
 	if (vbat >= (vterm - 1)) {
+		int fv_comp = strategy_buckchg_sw_cv_fv_comp(info);
+
 		mca_log_err("WARNING: batt ov, reduce fv, count: %d\n",
 			    info->vbat_ov_count);
 		++info->vbat_ov_count;
 		if (info->vbat_ov_count == 1)
 			platform_class_buckchg_ops_set_term_volt(
 				MAIN_BUCK_CHARGER,
-				vterm + info->pmic_fv_compensation -
-					info->sw_cv_fv_step);
+				vterm + fv_comp - info->sw_cv_fv_step);
 		else if (info->vbat_ov_count >= 2)
 			platform_class_buckchg_ops_set_term_volt(
 				MAIN_BUCK_CHARGER,
-				vterm + info->pmic_fv_compensation -
-					2 * info->sw_cv_fv_step);
+				vterm + fv_comp - 2 * info->sw_cv_fv_step);
 	}
 
 	mca_queue_delayed_work(&info->sw_cv_work, msecs_to_jiffies(interval));

@@ -152,6 +152,8 @@ struct strategy_buckchg_dev {
 	int pmic_fv_compensation_cold;
 	int bat_temp_fv_comp_cold_th;
 	int pmic_fv_compensation_hot;
+	int pmic_middle_fv_compensation;
+	int pmic_high_fv_compensation;
 	int bat_temp_fv_comp_hot_th;
 	int pmic_wls_fv_compensation;
 	int pmic_iterm_compensation;
