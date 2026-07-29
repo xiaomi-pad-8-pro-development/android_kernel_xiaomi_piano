@@ -3650,7 +3650,6 @@ int strategy_fg_dual_ops_is_chip_ok(void *data, int index)
 
 	return !fg->dual_error[FG_IC_MASTER];
 }
-EXPORT_SYMBOL(strategy_fg_dual_ops_is_chip_ok);
 
 int strategy_fg_ops_get_pack_vendor_id(void *data, int *vendor_id)
 {
