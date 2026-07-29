@@ -514,6 +514,27 @@ static struct charge_mievent_info g_charge_mievent_info[] = {
 		.data_count = 2,
 		.para_name = { "hscdCount", "hscdLastCycle" },
 	},
+	{
+		.event_code = MIEVENT_CODE_CHARGE_SLOWLY,
+		.event_type = "chgStatInfo",
+		.event_describe = "ChargeSlowly",
+		.upload_type = MIEVENT_UPLOAD_TYPE_PLUG,
+		.type_index = PLUG_TYPE_CHARGE_SLOWLY,
+		.data_type = MIEVENT_DATA_TYPE_INT,
+		.data_count = 5,
+		.para_name = { "maxPower", "initialRm", "endRm", "initialSoc",
+			       "endSoc" },
+	},
+	{
+		.event_code = MIEVENT_CODE_NON_STANDARD_CHARGER,
+		.event_type = "chgStatInfo",
+		.event_describe = "NonStandardCharger",
+		.upload_type = MIEVENT_UPLOAD_TYPE_PLUG,
+		.type_index = PLUG_TYPE_NON_STANDARD_CHARGER,
+		.data_type = MIEVENT_DATA_TYPE_INT,
+		.data_count = 1,
+		.para_name = { "chgType" },
+	},
 };
 
 static struct mievent_upload_type_plug
@@ -535,6 +556,11 @@ static struct mievent_upload_type_plug
 		{ DEFAULT_MAX_COUNT, 0 },	{ DEFAULT_MAX_COUNT, 0 },
 		{ DEFAULT_MAX_COUNT, 0 },	{ DEFAULT_MAX_COUNT, 0 },
 		{ DEFAULT_MAX_COUNT, 0 },	{ DEFAULT_MAX_COUNT, 0 },
+		{ DEFAULT_MAX_COUNT, 0 },
+		{ DEFAULT_MAX_COUNT, 0 },	{ DEFAULT_MAX_COUNT, 0 },
+		{ DEFAULT_MAX_COUNT, 0 },	{ DEFAULT_MAX_COUNT, 0 },
+		{ DEFAULT_MAX_COUNT, 0 },
+		{ CHARGE_SLOWLY_MAX_REPORT_COUNT, 0 },
 		{ DEFAULT_MAX_COUNT, 0 },
 	};
 static struct mievent_upload_type_time

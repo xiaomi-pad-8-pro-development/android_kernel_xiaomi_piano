@@ -43,6 +43,7 @@
 #include <mca/platform/platform_buckchg_class.h>
 #include <mca/platform/platform_loadsw_class.h>
 #include <mca/protocol/protocol_pd_class.h>
+#include <mca/protocol/protocol_class.h>
 #include <mca/common/mca_charge_mievent.h>
 #include <mca/smartchg/smart_chg_class.h>
 #include <mca/common/mca_workqueue.h>
@@ -81,6 +82,18 @@
 #define STRATEGY_FG_SUPPORT_DTPT 0
 #define STRATEGY_FG_TERMINATED_BY_CP 0
 #define STRATEGY_FG_SUPPORT_FL4P0 0
+#define CHARGE_SLOWLY_SOC_MAX 80
+#define CHARGE_SLOWLY_POWER_MIN_W 32
+#define CHARGE_SLOWLY_POWER_MID_MW 67000
+#define CHARGE_SLOWLY_POWER_HIGH_MW 100000
+#define CHARGE_SLOWLY_RM_THR_LOW 200
+#define CHARGE_SLOWLY_RM_THR_MID 420
+#define CHARGE_SLOWLY_RM_THR_HIGH 500
+#define CHARGE_SLOWLY_CHECK_PERIOD_S 599
+#define CHARGE_SLOWLY_CAPACITY_MARGIN 100
+#define CHARGE_SLOWLY_DFX_PARA_NUM 5
+#define NON_STD_CHARGER_PLUGIN_TIME_S 60
+
 #define JEITA_COOL_THR_DEGREE 150
 #define EXTREME_HIGH_DEGREE 1000
 #define STRATEGY_FG_DEFAULT_VTERM 4400
@@ -1919,6 +1932,111 @@ static void mca_strategy_start_recharging(struct strategy_fg *fg)
 }
 
 #define EU_RECHARGER_SOC 95
+static int charge_get_batt_rm_threshold(void)
+{
+	static int device_power_max;
+	int batt_rm_thr;
+
+	if (device_power_max == 0)
+		(void)mca_strategy_func_get_status(
+			STRATEGY_FUNC_TYPE_QUICK_CHARGE,
+			STRATEGY_STATUS_TYPE_QC_MAX_POWER, &device_power_max);
+
+	if (device_power_max > CHARGE_SLOWLY_POWER_HIGH_MW)
+		batt_rm_thr = CHARGE_SLOWLY_RM_THR_HIGH;
+	else if (device_power_max >= CHARGE_SLOWLY_POWER_MID_MW)
+		batt_rm_thr = CHARGE_SLOWLY_RM_THR_MID;
+	else
+		batt_rm_thr = CHARGE_SLOWLY_RM_THR_LOW;
+
+	mca_log_info("device_power_max:%d, batt_rm_thr:%d\n", device_power_max,
+		     batt_rm_thr);
+	return batt_rm_thr;
+}
+
+static void charge_slowly_monitor_func(struct strategy_fg *fg)
+{
+	static time64_t nowtime, nowplugintime;
+	static int now_rm, now_soc;
+	unsigned int powermax = 0;
+	int batt_rm_thr, usable_capacity, expect_soc;
+	int dfx_data[CHARGE_SLOWLY_DFX_PARA_NUM];
+
+	mca_log_err("realtype:%d, soc:%d, rm:%d\n", fg->real_type,
+		    fg->batt_ui_soc, now_rm);
+	mca_log_err("time:%d, timeplugin:%d plugin:%d\n", (int)nowtime,
+		    (int)nowplugintime, (int)fg->plugin_time);
+	nowplugintime = ktime_get_boottime_seconds();
+
+	if (fg->real_type != XM_CHARGER_TYPE_PD) {
+		if (fg->real_type > XM_CHARGER_TYPE_UNKNOW &&
+		    fg->real_type < XM_CHARGER_TYPE_PD &&
+		    !fg->non_std_charger_reported &&
+		    nowplugintime - fg->plugin_time >
+			    NON_STD_CHARGER_PLUGIN_TIME_S) {
+			dfx_data[0] = fg->real_type;
+			mca_charge_mievent_report(CHARGE_DFX_NON_STANDARD_CHARGER,
+						  dfx_data, 1);
+			fg->non_std_charger_reported = true;
+			mca_log_err("report dfx\n");
+		}
+		goto reset;
+	}
+
+	if (fg->batt_ui_soc > CHARGE_SLOWLY_SOC_MAX)
+		goto reset;
+
+	fg->plugin_time = ktime_get_boottime_seconds();
+	(void)protocol_class_get_adapter_max_power(ADAPTER_PROTOCOL_PD,
+						   &powermax);
+	batt_rm_thr = charge_get_batt_rm_threshold();
+	mca_log_err("powermax:%d designcapacity:%d curr_batt_rm_thr:%d\n",
+		    powermax, fg->batt_dc, batt_rm_thr);
+
+	if ((int)powermax <= CHARGE_SLOWLY_POWER_MIN_W ||
+	    batt_rm_thr * 1000 > fg->batt_dc)
+		return;
+
+	if (fg->slow_chg_start_time == 0) {
+		fg->slow_chg_initial_rm = fg->batt_rm / 1000;
+		fg->slow_chg_initial_soc = fg->batt_ui_soc;
+		fg->slow_chg_start_time = ktime_get_boottime_seconds();
+	}
+
+	nowtime = ktime_get_boottime_seconds();
+	now_rm = fg->batt_rm / 1000;
+	now_soc = fg->batt_ui_soc;
+	if (nowtime - fg->slow_chg_start_time <= CHARGE_SLOWLY_CHECK_PERIOD_S)
+		return;
+
+	usable_capacity = fg->batt_dc / 1000 - CHARGE_SLOWLY_CAPACITY_MARGIN;
+	expect_soc = usable_capacity ? (batt_rm_thr * 100) / usable_capacity : 0;
+	if (now_soc - fg->slow_chg_initial_soc < expect_soc) {
+		mca_log_err("ntime:%d, initialtime:%d\n", (int)nowtime,
+			    (int)fg->slow_chg_start_time);
+		mca_log_err("nrm:%d, initialrm:%d\n", now_rm,
+			    fg->slow_chg_initial_rm);
+		mca_log_err("report dfx\n");
+		dfx_data[0] = powermax;
+		dfx_data[1] = fg->slow_chg_initial_rm;
+		dfx_data[2] = now_rm;
+		dfx_data[3] = fg->slow_chg_initial_soc;
+		dfx_data[4] = now_soc;
+		mca_charge_mievent_report(CHARGE_DFX_CHARGE_SLOWLY, dfx_data,
+					  CHARGE_SLOWLY_DFX_PARA_NUM);
+	}
+	fg->slow_chg_initial_rm = now_rm;
+	fg->slow_chg_initial_soc = now_soc;
+	fg->slow_chg_start_time = nowtime;
+	return;
+
+reset:
+	fg->slow_chg_start_time = 0;
+	nowtime = 0;
+	now_rm = 0;
+	now_soc = 0;
+}
+
 static int mca_strategy_check_recharge(struct strategy_fg *fg)
 {
 	if (!fg || !fg->power_present || !fg->charging_done || fg->recharging)
@@ -2430,6 +2548,7 @@ static void strategy_fg_monitor_workfunc(struct work_struct *work)
 		fg->cold_zone = cold_zone;
 	}
 	mca_strategy_force_fw_report_full(fg);
+	charge_slowly_monitor_func(fg);
 	mca_strategy_check_recharge(fg);
 	if (hwid && hwid->country_version == CountryCN && fg->cfg.support_fl4p0)
 		mca_strategy_check_fl4p0_status(fg);
@@ -3689,6 +3808,7 @@ static int strategy_fg_process_event(int event, int value, void *data)
 	case MCA_EVENT_WIRELESS_CONNECT:
 		info->power_present = true;
 		info->plugin_time = ktime_get_boottime_seconds();
+		info->non_std_charger_reported = false;
 		info->co_ctrl_support = true;
 		info->co_ctrl_active = true;
 		if (info->is_eu_model) {

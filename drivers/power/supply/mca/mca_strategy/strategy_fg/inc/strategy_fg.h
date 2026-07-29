@@ -229,6 +229,11 @@ struct strategy_fg {
 	time64_t plugin_time;
 	bool keep_full_flag;
 
+	time64_t slow_chg_start_time;
+	int slow_chg_initial_rm;
+	int slow_chg_initial_soc;
+	bool non_std_charger_reported;
+
 	struct power_supply *batt_psy;
 	bool fast_charge;
 	bool screen_status;
