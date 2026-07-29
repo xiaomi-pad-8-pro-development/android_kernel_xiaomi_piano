@@ -29,11 +29,11 @@
 
 enum strategy_fg_type {
 	MCA_FG_TYPE_SINGLE = 0,
-	MCA_FG_TYPE_SINGLE_SERIES, /* single fuelgauge, two cells in series */
-	MCA_FG_TYPE_SINGLE_NUM_MAX = MCA_FG_TYPE_SINGLE_SERIES,
+	MCA_FG_TYPE_SINGLE_NUM_MAX = MCA_FG_TYPE_SINGLE,
 	MCA_FG_TYPE_PARALLEL,
 	MCA_FG_TYPE_SERIES,
-	MCA_FG_TYPE_MAX = MCA_FG_TYPE_SERIES,
+	MCA_FG_TYPE_SINGLE_SERIES, /* single fuelgauge, two cells in series */
+	MCA_FG_TYPE_MAX = MCA_FG_TYPE_SINGLE_SERIES,
 };
 
 enum vbat_ovp_mon_attr_list {
