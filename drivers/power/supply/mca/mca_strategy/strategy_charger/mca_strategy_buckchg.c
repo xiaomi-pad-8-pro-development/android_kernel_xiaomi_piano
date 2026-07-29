@@ -70,6 +70,8 @@
 #define SW_CV_FV_COMP_TEMP_MID 300
 #define SW_CV_FV_COMP_TEMP_HIGH 400
 #define SW_CV_FV_COMP_TEMP_MAX 479
+#define CP_BUSOVP_FLOAT_MV 7000
+#define CP_BUSOVP_DEFAULT_MV 13000
 #define PPS_FFC_BOOST_TEMP_THR 34
 #define PPS_FFC_BOOST_TEMP_OFFSET_THR 32
 #define PPS_FFC_BOOST_VBAT_THR 4401
@@ -910,10 +912,22 @@ strategy_buckchg_process_online_change(int value,
 		}
 		strategy_buckchg_start_charging(info);
 	} else {
+		platform_class_loadsw_set_lowpower_mode(LOADSW_ROLE_MASTER,
+							true);
 		info->pps_ptf = USBPD_BUCK_DPM_PORT_PPS_PTF_NOT_SUPPORTED;
 		strategy_buckchg_stop_charging(info);
 		info->proc_data.charge_done_force_5v = false;
 		info->verify_process_end = 0;
+		if (info->base_flip_same) {
+			bool cp_enabled = false;
+
+			(void)platform_class_cp_set_busovp(
+				CP_ROLE_MASTER, CP_BUSOVP_DEFAULT_MV);
+			(void)platform_class_cp_get_charging_enabled(
+				CP_ROLE_MASTER, &cp_enabled);
+			mca_log_info("cp_enabled = %d in discharging\n",
+				     cp_enabled);
+		}
 	}
 }
 
@@ -1743,6 +1757,16 @@ strategy_buckchg_select_charg_para(struct strategy_buckchg_dev *info)
 	    real_type >= XM_CHARGER_TYPE_HVDCP2 &&
 	    real_type <= XM_CHARGER_TYPE_HVDCP3P5)
 		real_type = XM_CHARGER_TYPE_DCP;
+
+	if (info->base_flip_same && real_type == XM_CHARGER_TYPE_FLOAT) {
+		bool cp_enabled = false;
+
+		(void)platform_class_cp_set_busovp(CP_ROLE_MASTER,
+						   CP_BUSOVP_FLOAT_MV);
+		(void)platform_class_cp_get_charging_enabled(CP_ROLE_MASTER,
+							     &cp_enabled);
+		mca_log_info("cp_enabled = %d \n", cp_enabled);
+	}
 
 #ifdef CONFIG_FACTORY_BUILD
 	protocol_class_pd_get_cc_status(TYPEC_PORT_0, &cc_attach);
