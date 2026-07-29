@@ -1987,7 +1987,7 @@ static void charge_slowly_monitor_func(struct strategy_fg *fg)
 		goto reset;
 
 	fg->plugin_time = ktime_get_boottime_seconds();
-	(void)protocol_class_get_adapter_max_power(ADAPTER_PROTOCOL_PD,
+	(void)protocol_class_get_adapter_max_power(ADAPTER_PROTOCOL_PPS,
 						   &powermax);
 	batt_rm_thr = charge_get_batt_rm_threshold();
 	mca_log_err("powermax:%d designcapacity:%d curr_batt_rm_thr:%d\n",

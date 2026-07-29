@@ -2089,7 +2089,7 @@ mca_quick_charge_pre_charge_check(struct mca_quick_charge_info *info)
 
 	if (info->proc_data.adp_type == XM_CHARGER_TYPE_UNKNOW) {
 		protocol_class_get_adapter_type(
-			ADAPTER_PROTOCOL_BC12,
+			ADAPTER_PROTOCOL_PD,
 			(unsigned int *)&info->proc_data.adp_type);
 		mca_log_info("Update adp_type: %d\n", info->proc_data.adp_type);
 
@@ -2099,7 +2099,7 @@ mca_quick_charge_pre_charge_check(struct mca_quick_charge_info *info)
 		}
 		if (info->proc_data.adp_type == XM_CHARGER_TYPE_PPS ||
 		    info->proc_data.adp_type == XM_CHARGER_TYPE_PD_VERIFY)
-			info->proc_data.cur_protocol = ADAPTER_PROTOCOL_PD;
+			info->proc_data.cur_protocol = ADAPTER_PROTOCOL_PPS;
 	}
 
 	switch (info->proc_data.adp_type) {
@@ -3365,7 +3365,7 @@ static int mca_quick_charge_process_event(int event, int value, void *data)
 		info->parall_init_volt_para = true;
 		if (value == XM_CHARGER_TYPE_PD_VERIFY ||
 		    value == XM_CHARGER_TYPE_PPS) {
-			info->proc_data.cur_protocol = ADAPTER_PROTOCOL_PD;
+			info->proc_data.cur_protocol = ADAPTER_PROTOCOL_PPS;
 		} else if (value == XM_CHARGER_TYPE_HVDCP3_B ||
 			   value == XM_CHARGER_TYPE_HVDCP3P5) {
 			info->proc_data.adp_type = value;
