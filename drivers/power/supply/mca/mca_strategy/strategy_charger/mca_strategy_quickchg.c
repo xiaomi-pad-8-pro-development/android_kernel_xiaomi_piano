@@ -448,6 +448,7 @@ static void mca_quick_charge_stop_charging(struct mca_quick_charge_info *info)
 
 	mca_log_err("stop charge\n");
 
+	info->mult_to_single_cnt = 0;
 	info->proc_data.cp_iic_ok = true;
 
 	if (info->proc_data.cp_iic_ok) {
@@ -2410,10 +2411,12 @@ static int mca_quick_charge_select_max_ibat(struct mca_quick_charge_info *info)
 	int delta_cur = info->smartchg_data.delta_ichg;
 	int base_limit_curr;
 
-	if (info->target_thermal_flip)
-		cur_max = min(cur_max, info->target_thermal_flip);
 	if (info->smartchg_data.fcc)
 		cur_max = min(cur_max, info->smartchg_data.fcc);
+	if (info->support_ichg_cutoff_priority)
+		cur_max = max(cur_max, cur_min);
+	if (info->target_thermal_flip)
+		cur_max = min(cur_max, info->target_thermal_flip);
 
 	mca_log_err("cur_stage %d cur_max %d delta_cur %d cur_work_cp %d\n",
 		    cur_stage, cur_max, delta_cur, proc_data->cur_work_cp);
@@ -3108,6 +3111,8 @@ mca_quick_charge_try2_single_path(struct mca_quick_charge_info *info)
 
 	ibus = proc_data->ibus;
 	if (ibus > proc_data->multi_ibus_th - proc_data->ibus_dec)
+		return;
+	if (++info->mult_to_single_cnt <= info->mult_to_single_count)
 		return;
 
 	if (proc_data->cp_path_enable[CP_ROLE_MASTER]) {
@@ -4465,6 +4470,10 @@ static int mca_quick_charge_parse_dt(struct mca_quick_charge_info *info)
 	}
 
 	/* basic quick charge para */
+	(void)mca_parse_dts_u32(node, "support_ichg_cutoff_priority",
+				&info->support_ichg_cutoff_priority, 1);
+	(void)mca_parse_dts_u32(node, "mult_to_single_count",
+				&info->mult_to_single_count, 2);
 	(void)mca_parse_dts_u32(node, "batt_type", &info->batt_type, 0);
 	(void)mca_parse_dts_u32(node, "cp_type", &info->cp_type, 0);
 	(void)mca_parse_dts_u32(node, "en_buck_parallel_chg",
