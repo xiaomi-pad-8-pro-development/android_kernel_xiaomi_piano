@@ -137,8 +137,7 @@ static int mca_bmd_get_status(int type, void *value, void *data)
 	struct mca_bmd_dev *info = data;
 	u32 *status = value;
 
-	/* 0x14: strategy status-type BMD (battery-missing) query */
-	if (type != 0x14 || !status || !info)
+	if (type != STRATEGY_STATUS_TYPE_BMD_BATT_MISSING || !status || !info)
 		return -1;
 
 	*status = info->batt_missing;
