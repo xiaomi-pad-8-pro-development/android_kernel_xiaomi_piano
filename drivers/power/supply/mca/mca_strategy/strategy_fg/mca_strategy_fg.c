@@ -1515,195 +1515,39 @@ static int mca_strategy_parallel_first_termination(struct strategy_fg *fg)
 	return ret;
 }
 
-static int strategy_fg_get_term_current(struct strategy_fg *fg, int fg_index)
+static int strategy_fg_get_term_current_new(struct strategy_fg *fg,
+					    int fg_index)
 {
-	int temp = fg_index ? fg->slave_batt_info.temp :
-			      fg->master_batt_info.temp;
-	struct term_curr_para term_curr_data = fg->cfg.term_curr_data[fg_index];
-	int final_iterm = 200;
+	static int last_temp_index[2] = { -1, -1 };
+	struct term_curr_para *tc = &fg->cfg.term_curr_data[fg_index];
+	struct term_curr_data *d = tc->iterm_data;
+	int size = tc->iterm_para_size;
+	int temp = (fg_index ? fg->slave_batt_info.temp :
+			       fg->master_batt_info.temp) /
+		   10;
+	int last_idx = last_temp_index[fg_index];
+	int idx, i, offset_flag = 0;
 
-	temp = temp / 10;
-	if (term_curr_data.index == 0) {
-		if (term_curr_data.iterm_data[3].batt_temp < temp) {
-			if (fg->fast_charge)
-				final_iterm =
-					term_curr_data.iterm_data[3].ffc_iterm;
-			else
-				final_iterm = term_curr_data.iterm_data[3]
-						      .normal_iterm;
-			term_curr_data.index = 3;
-		} else if (term_curr_data.iterm_data[2].batt_temp < temp) {
-			if (fg->fast_charge)
-				final_iterm =
-					term_curr_data.iterm_data[2].ffc_iterm;
-			else
-				final_iterm = term_curr_data.iterm_data[2]
-						      .normal_iterm;
-			term_curr_data.index = 2;
-		} else {
-			if (temp < term_curr_data.iterm_data[0].batt_temp) {
-				final_iterm = term_curr_data.iterm_data[0]
-						      .normal_iterm;
-			} else {
-				if (fg->fast_charge)
-					final_iterm =
-						term_curr_data.iterm_data[1]
-							.ffc_iterm;
-				else
-					final_iterm =
-						term_curr_data.iterm_data[1]
-							.normal_iterm;
-			}
-			term_curr_data.index = 1;
-		}
-	} else {
-		switch (term_curr_data.index) {
-		case 3:
-			if (temp <= term_curr_data.iterm_data[3].batt_temp -
-					    term_curr_data.iterm_data[3]
-						    .batt_temp_offset) {
-				if (temp <=
-				    term_curr_data.iterm_data[2].batt_temp) {
-					if (temp < term_curr_data.iterm_data[0]
-							   .batt_temp) {
-						final_iterm =
-							term_curr_data
-								.iterm_data[0]
-								.normal_iterm;
-					} else {
-						if (fg->fast_charge)
-							final_iterm =
-								term_curr_data
-									.iterm_data
-										[1]
-									.ffc_iterm;
-						else
-							final_iterm =
-								term_curr_data
-									.iterm_data
-										[1]
-									.normal_iterm;
-					}
-					term_curr_data.index = 1;
-				} else {
-					if (fg->fast_charge)
-						final_iterm =
-							term_curr_data
-								.iterm_data[2]
-								.ffc_iterm;
-					else
-						final_iterm =
-							term_curr_data
-								.iterm_data[2]
-								.normal_iterm;
-					term_curr_data.index = 2;
-				}
-			} else {
-				if (fg->fast_charge)
-					final_iterm =
-						term_curr_data.iterm_data[2]
-							.ffc_iterm;
-				else
-					final_iterm =
-						term_curr_data.iterm_data[2]
-							.normal_iterm;
-				term_curr_data.index = 3;
-			}
+	/* largest index whose batt_temp is still at or below the read temp */
+	for (i = size - 1; i >= 0; i--)
+		if (d[i].batt_temp <= temp)
 			break;
-		case 2:
-			if (temp <= term_curr_data.iterm_data[2].batt_temp -
-					    term_curr_data.iterm_data[2]
-						    .batt_temp_offset) {
-				if (temp <
-				    term_curr_data.iterm_data[0].batt_temp) {
-					final_iterm =
-						term_curr_data.iterm_data[0]
-							.normal_iterm;
-				} else {
-					if (fg->fast_charge)
-						final_iterm =
-							term_curr_data
-								.iterm_data[1]
-								.ffc_iterm;
-					else
-						final_iterm =
-							term_curr_data
-								.iterm_data[1]
-								.normal_iterm;
-				}
-				term_curr_data.index = 1;
-			} else if (temp >
-				   term_curr_data.iterm_data[3].batt_temp) {
-				if (fg->fast_charge)
-					final_iterm =
-						term_curr_data.iterm_data[3]
-							.ffc_iterm;
-				else
-					final_iterm =
-						term_curr_data.iterm_data[3]
-							.normal_iterm;
-				term_curr_data.index = 3;
-			} else {
-				if (fg->fast_charge)
-					final_iterm =
-						term_curr_data.iterm_data[2]
-							.ffc_iterm;
-				else
-					final_iterm =
-						term_curr_data.iterm_data[2]
-							.normal_iterm;
-				term_curr_data.index = 2;
-			}
-			break;
-		case 1:
-			if (temp > term_curr_data.iterm_data[3].batt_temp) {
-				if (fg->fast_charge)
-					final_iterm =
-						term_curr_data.iterm_data[3]
-							.ffc_iterm;
-				else
-					final_iterm =
-						term_curr_data.iterm_data[3]
-							.normal_iterm;
-				term_curr_data.index = 3;
-			} else if (temp >
-				   term_curr_data.iterm_data[2].batt_temp) {
-				if (fg->fast_charge)
-					final_iterm =
-						term_curr_data.iterm_data[2]
-							.ffc_iterm;
-				else
-					final_iterm =
-						term_curr_data.iterm_data[2]
-							.normal_iterm;
-				term_curr_data.index = 2;
-			} else {
-				if (temp <
-				    term_curr_data.iterm_data[0].batt_temp) {
-					final_iterm =
-						term_curr_data.iterm_data[0]
-							.normal_iterm;
-				} else {
-					if (fg->fast_charge)
-						final_iterm =
-							term_curr_data
-								.iterm_data[1]
-								.ffc_iterm;
-					else
-						final_iterm =
-							term_curr_data
-								.iterm_data[1]
-								.normal_iterm;
-				}
-				term_curr_data.index = 1;
-			}
-			break;
-		default:
-			break;
+	idx = (i < 0) ? 0 : i;
+
+	mca_log_info("fg[%d] temp_index %d, last_index %d", fg_index, idx,
+		     last_idx);
+
+	if (last_idx != -1 && idx < last_idx) {
+		if (temp >= d[last_idx].batt_temp - d[last_idx].batt_temp_offset) {
+			offset_flag = 1;
+			idx = last_idx;
 		}
 	}
+	mca_log_info("temp_offset_flag[%d]: %d", fg_index, offset_flag);
+	last_temp_index[fg_index] = idx;
+	fg->temp_offset_flag[fg_index] = offset_flag;
 
-	return final_iterm;
+	return fg->fast_charge ? d[idx].ffc_iterm : d[idx].normal_iterm;
 }
 
 static int strategy_fg_check_parallel_termination(struct strategy_fg *fg)
@@ -1712,8 +1556,7 @@ static int strategy_fg_check_parallel_termination(struct strategy_fg *fg)
 	int ret, vterm_target = 0;
 	int vterm = 0;
 	int final_term_curr = 0;
-	static int last_final_term_curr;
-	int last_term[2] = { 177, 58 };
+	static int last_term[2] = { 177, 58 };
 	bool fc_master;
 
 	//the first termination
@@ -1747,7 +1590,7 @@ static int strategy_fg_check_parallel_termination(struct strategy_fg *fg)
 
 	//setting dual batetry term current
 	for (int i = 0; i < 2; i++) {
-		fg->dual_iterm[i] = strategy_fg_get_term_current(fg, i);
+		fg->dual_iterm[i] = strategy_fg_get_term_current_new(fg, i);
 		if (last_term[i] != fg->dual_iterm[i])
 			last_term[i] = fg->dual_iterm[i];
 		mca_log_err("fg_index: %d, last_term: %d, dual_iterm :%d\n", i,
@@ -1766,15 +1609,16 @@ static int strategy_fg_check_parallel_termination(struct strategy_fg *fg)
 
 	if (fg->cfg.support_base_flip) {
 		ret |= platform_fg_ops_get_fc(FG_IC_MASTER, &fc_master);
-		if (fg->fast_charge && fg->batt_temperature > 40 &&
-		    fg->fg2_batt_ctr_enabled && !fc_master) {
-			final_term_curr = min(final_term_curr, 200);
-		}
+		if (fg->fast_charge && fg->batt_temperature >= 401 &&
+		    fg->fg2_batt_ctr_enabled && !fc_master)
+			mca_vote(fg->iterm_voter, "high_temp_para", true, 200);
+		else
+			mca_vote(fg->iterm_voter, "high_temp_para", false, 0);
 	}
 
 	mca_log_info("final_term_curr:%d", final_term_curr);
-	if (final_term_curr != last_final_term_curr) {
-		last_final_term_curr = final_term_curr;
+	if (final_term_curr != fg->last_final_term_curr) {
+		fg->last_final_term_curr = final_term_curr;
 		mca_vote(fg->iterm_voter, "para_term", true, final_term_curr);
 	}
 
@@ -1893,28 +1737,51 @@ static void mca_strategy_parallel_force_fw_report_full(struct strategy_fg *fg,
 	struct fg_batt_info batt_info;
 	static int force_full_count[2] = { 0, 0 };
 
+	if (!fg->co_ctrl_support)
+		return;
+	if (mca_get_effective_result(fg->en_voter) == 0)
+		return;
+
 	batt_info = fg_index ? fg->slave_batt_info : fg->master_batt_info;
 
-	if (fg->lossless_recharge && fg->cfg.support_base_flip)
+	if (fg->cfg.base_flip_same)
+		count = fg->base_flip_diff ? 3 :
+			(fg->lossless_recharge ? 2 : 6);
+	else if (fg->lossless_recharge && fg->cfg.support_base_flip)
 		count = 2;
+	else
+		count = 6;
 
 	if (fg->voter_ok) {
 		iterm = fg->dual_iterm[fg_index];
 		vterm = mca_get_client_vote(fg->vterm_voter, "jeita");
+	} else {
+		iterm = STRATEGY_FG_DEFAULT_ITERM;
+		vterm = STRATEGY_FG_DEFAULT_VTERM;
 	}
 
-	force_vterm = vterm - 25;
-
-	if (fg->fast_charge)
-		force_iterm = iterm + 50;
-	else {
-		force_iterm = iterm + 10 + (!fg_index ? 13 : 0);
-		if (batt_info.temp / 10 < 10)
-			force_iterm += 20;
-	}
-
-	if (fg->self_equal_flag[fg_index]) {
-		force_vterm -= 10;
+	if (fg->fg1_batt_ctr_enabled || fg->fg2_batt_ctr_enabled) {
+		force_vterm = vterm - 30;
+		force_iterm = iterm * 130 / 100;
+	} else if (fg->cfg.base_flip_same) {
+		force_vterm = vterm - 15;
+		force_iterm = fg->fast_charge ? iterm * 115 / 100 : iterm + 30;
+	} else if (fg->fast_charge) {
+		force_vterm = vterm - 30;
+		force_iterm = iterm * 230 / 100;
+	} else {
+		force_vterm = vterm - 25;
+		if (fg->co_ctrl_active) {
+			if (fg->batt_rsoc < 98)
+				force_iterm = iterm + (fg_index == 0 ? 33 : 12);
+			else
+				force_iterm = iterm + 33;
+		} else {
+			if (fg->batt_temperature > 30)
+				force_iterm = iterm + (fg_index == 0 ? 33 : 12);
+			else
+				force_iterm = iterm + (fg_index == 0 ? 13 : 12);
+		}
 	}
 
 	mca_log_info(
@@ -1922,7 +1789,7 @@ static void mca_strategy_parallel_force_fw_report_full(struct strategy_fg *fg,
 		fg_index, vterm, iterm, force_iterm, force_vterm,
 		fg->dual_force_full[fg_index]);
 
-	if (fg->power_present && (batt_info.temp / 10 < 47) &&
+	if (fg->co_ctrl_support && batt_info.temp <= 479 &&
 	    !fg->charging_done) {
 		if (-batt_info.curr / 1000 < force_iterm &&
 		    batt_info.volt > force_vterm &&
@@ -1931,25 +1798,53 @@ static void mca_strategy_parallel_force_fw_report_full(struct strategy_fg *fg,
 			mca_log_err("force_full_count[%d] =  %d", fg_index,
 				    force_full_count[fg_index]);
 			if (force_full_count[fg_index] >= count) {
+				if (!fg->co_ctrl_active &&
+				    fg->cfg.support_base_flip &&
+				    !fg->fg1_batt_ctr_enabled &&
+				    fg_index == FG_IC_MASTER &&
+				    !fg->fg2_batt_ctr_enabled) {
+					int status = 0;
+
+					mca_strategy_func_get_status(
+						STRATEGY_FUNC_TYPE_QUICK_CHARGE,
+						STRATEGY_STATUS_TYPE_ENABLE,
+						&status);
+					if (status == 1) {
+						mca_strategy_func_process(
+							STRATEGY_FUNC_TYPE_QUICK_CHARGE,
+							59,
+							fg->dual_iterm[FG_IC_SLAVE]);
+						force_full_count[FG_IC_MASTER] = 0;
+						fg->switch_pmic_term = true;
+						mca_log_err(
+							"switch to pmic termination\n");
+						return;
+					}
+				}
 				platform_fg_ops_set_force_report_full(fg_index);
 				force_full_count[fg_index] = 0;
 				fg->dual_force_full[fg_index] = true;
 				mca_log_err("start report full");
 				//dual G2 self equal
 				if (fg->self_equal_flag[fg_index]) {
-					fg->self_equal_count[fg_index]++;
-					if (fg->self_equal_count[fg_index] >=
-					    15)
+					fg->self_equal_count[fg_index] = 1;
+					if (fg->self_equal_max_count <= 1) {
+						fg->self_equal_count[fg_index] =
+							0;
 						fg->self_equal_flag[fg_index] =
 							false;
+					}
 					mca_log_err(
 						"start equal report full, self_equal_count[%d]: %d",
 						fg_index,
 						fg->self_equal_count[fg_index]);
+				} else {
+					fg->self_equal_count[fg_index] = 0;
 				}
 			}
 		} else {
 			force_full_count[fg_index] = 0;
+			fg->dual_force_full[fg_index] = false;
 		}
 	} else {
 		force_full_count[fg_index] = 0;
@@ -3276,6 +3171,8 @@ static int strategy_fg_parse_dt(struct strategy_fg *fg)
 
 	fg->cfg.support_base_flip =
 		of_property_read_bool(node, "support-base-flip");
+	fg->cfg.base_flip_same =
+		of_property_read_bool(node, "base-flip-same");
 	if (fg->cfg.fg_type > MCA_FG_TYPE_SINGLE_NUM_MAX) {
 		ret = strategy_term_curr_parse_dt(fg);
 		if (ret < 0) {
@@ -3784,6 +3681,8 @@ static int strategy_fg_process_event(int event, int value, void *data)
 	case MCA_EVENT_WIRELESS_CONNECT:
 		info->power_present = true;
 		info->plugin_time = ktime_get_boottime_seconds();
+		info->co_ctrl_support = true;
+		info->co_ctrl_active = true;
 		if (info->is_eu_model) {
 			if (info->batt_ui_soc < EU_MODEL_RECHARGE_SOC) {
 				mca_vote(info->en_voter, "term_recharge", false,
@@ -3837,6 +3736,7 @@ static int strategy_fg_process_event(int event, int value, void *data)
 			cancel_delayed_work_sync(&info->dtpt_monitor_work);
 		if (info->cfg.fg_type > MCA_FG_TYPE_SINGLE_NUM_MAX) {
 			mca_vote(info->vterm_voter, "losslessRec", false, 0);
+			info->co_ctrl_active = false;
 			info->fg1_batt_ctr_enabled = false;
 			info->fg2_batt_ctr_enabled = false;
 			info->monitor_soc_flag = false;

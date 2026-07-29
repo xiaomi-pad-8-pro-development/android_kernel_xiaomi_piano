@@ -121,6 +121,7 @@ struct strategy_fg_cfg {
 	int extreme_cold_para_size;
 	struct fg_extreme_cold_para extreme_cold_para[FG_EXTREME_COLD_MAX_GROUP];
 	int support_base_flip;
+	bool base_flip_same;
 	struct term_curr_para term_curr_data[FG_IC_MAX];
 	int fg_hightemp_vterm;
 	int support_fl4p0;
@@ -278,6 +279,12 @@ struct strategy_fg {
 	bool self_equal_flag[FG_IC_MAX];
 	bool self_equal_count[FG_IC_MAX];
 	int self_equal_max_count;
+	bool temp_offset_flag[FG_IC_MAX];
+	int last_final_term_curr;
+	bool switch_pmic_term;
+	bool co_ctrl_support;
+	bool co_ctrl_active;
+	int base_flip_diff;
 	bool support_battery_date;
 	bool temp_offset_force;
 	int temp_offset_flag_val;
