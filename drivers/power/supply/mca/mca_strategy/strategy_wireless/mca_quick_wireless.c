@@ -1959,12 +1959,13 @@ static int mca_wireless_quick_charge_check_charge_done(
 	}
 
 	mca_log_info(
-		"[vbat: %d],[ibat: %d],[vbat_th: %d],[ibat_th: %d],[cur_max: %d],[delta_fv: %d],[taper_cnt: %d]\n",
+		"[vbat: %d],[ibat: %d],[vbat_th: %d],[ibat_th: %d],[cur_max: %d],[delta_fv: %d],[taper_cnt: %d],[reduce_cv: %d]\n",
 		info->proc_data.vbat[FG_IC_MASTER],
 		info->proc_data.ibat[FG_IC_MASTER], vbat_th, ibat_th, cur_max,
-		delta_fv, taper_cnt);
+		delta_fv, taper_cnt, info->sw_cv_taper_reduce_cv);
 
-	if (info->proc_data.vbat[FG_IC_MASTER] > vbat_th - delta_fv) {
+	if (info->proc_data.vbat[FG_IC_MASTER] >
+	    vbat_th - delta_fv - info->sw_cv_taper_reduce_cv) {
 		if (info->proc_data.ibat[FG_IC_MASTER] >= ibat_th)
 			taper_cnt = 0;
 		else {
@@ -2803,6 +2804,8 @@ mca_wireless_quick_charge_parse_dt(struct mca_wireless_quick_charge_info *info)
 		of_property_read_bool(node, "support-base-flip");
 	(void)mca_parse_dts_u32(node, "max_rx_vout_request",
 				&info->max_rx_vout_request, 19500);
+	(void)mca_parse_dts_u32(node, "sw_cv_taper_reduce_cv",
+				&info->sw_cv_taper_reduce_cv, 0);
 	mca_wireless_quick_charge_parse_chg_mode_info(node, info);
 	/* charge para */
 	mca_wireless_quick_charge_parse_vstep_para(info);

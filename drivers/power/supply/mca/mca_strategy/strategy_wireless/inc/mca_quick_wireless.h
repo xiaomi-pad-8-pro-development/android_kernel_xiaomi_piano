@@ -350,6 +350,7 @@ struct mca_wireless_quick_charge_info {
 	int support_cp_num_switch;
 	int try_single_cp_fcc;
 	int max_rx_vout_request;
+	int sw_cv_taper_reduce_cv;
 	int has_gbl_batt_para;
 	int support_hall;
 	bool support_base_flip;
