@@ -200,6 +200,8 @@ static void strategy_buckchg_parse_dt(struct strategy_buckchg_dev *info)
 			  &info->sw_cv_fcc_step, SW_CV_FCC_STEP_DEFAULT);
 	mca_parse_dts_u32(info->dev->of_node, "sw_cv_fv_step",
 			  &info->sw_cv_fv_step, SW_CV_FV_STEP_DEFAULT);
+	mca_parse_dts_u32(info->dev->of_node, "sw_cv_fcc_limit_buffer",
+			  &info->sw_cv_fcc_limit_buffer, 0);
 	mca_parse_dts_u32(info->dev->of_node, "pmic_fv_compensation",
 			  &info->pmic_fv_compensation, 0);
 	mca_parse_dts_u32(info->dev->of_node, "pmic_fv_compensation_cold",
@@ -2342,6 +2344,8 @@ static void strategy_buckchg_sw_cv_workfunc(struct work_struct *work)
 						    0;
 			else
 				target = fcc - fcc_step;
+			if (target - iterm < info->sw_cv_fcc_limit_buffer)
+				target = iterm + info->sw_cv_fcc_limit_buffer;
 			mca_vote(info->charge_limit_voter, "sw_cv", true,
 				 target);
 		}
