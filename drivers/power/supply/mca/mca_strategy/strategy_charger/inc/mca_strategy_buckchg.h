@@ -184,6 +184,7 @@ struct strategy_buckchg_dev {
 	int sw_cv_fcc_step;
 	int sw_cv_fv_step;
 	int sw_cv_fcc_limit_buffer;
+	int allow_start_ffc_batt_soc_thr;
 	/* proc */
 	struct mca_smartchg_data smartchg_data;
 	struct strategy_buckchg_proc_data proc_data;

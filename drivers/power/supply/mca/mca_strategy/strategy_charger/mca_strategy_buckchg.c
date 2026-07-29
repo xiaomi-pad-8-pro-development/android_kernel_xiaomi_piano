@@ -206,6 +206,9 @@ static void strategy_buckchg_parse_dt(struct strategy_buckchg_dev *info)
 			  &info->sw_cv_fv_step, SW_CV_FV_STEP_DEFAULT);
 	mca_parse_dts_u32(info->dev->of_node, "sw_cv_fcc_limit_buffer",
 			  &info->sw_cv_fcc_limit_buffer, 0);
+	mca_parse_dts_u32(info->dev->of_node, "allow_start_ffc_batt_soc_thr",
+			  &info->allow_start_ffc_batt_soc_thr,
+			  ALLOW_START_FFC_BATT_SOC_THR);
 	mca_parse_dts_u32(info->dev->of_node, "pmic_fv_compensation",
 			  &info->pmic_fv_compensation, 0);
 	mca_parse_dts_u32(info->dev->of_node, "pmic_fv_compensation_cold",
@@ -1939,8 +1942,10 @@ strategy_buckchg_enable_fast_charge_mode(struct strategy_buckchg_dev *info,
 			STRATEGY_FUNC_TYPE_JEITA,
 			STRATEGY_STATUS_TYPE_JEITA_FFC_SIZE,
 			&buck_jeita_ffc_size);
+		mca_log_info("allow_start_ffc_batt_soc_thr: %d\n",
+			     info->allow_start_ffc_batt_soc_thr);
 		fastcharge_mode = strategy_class_fg_get_fastcharge();
-		if (!fastcharge_mode && soc < ALLOW_START_FFC_BATT_SOC_THR &&
+		if (!fastcharge_mode && soc < info->allow_start_ffc_batt_soc_thr &&
 		    batt_temp >= info->ffc_temp_low &&
 		    batt_temp <= info->ffc_temp_high && info->batt_auth &&
 		    buck_jeita_ffc_size) {
@@ -1951,7 +1956,7 @@ strategy_buckchg_enable_fast_charge_mode(struct strategy_buckchg_dev *info,
 			strategy_class_fg_set_fastcharge(false);
 			mca_log_info("buck charger disable fast charge mode\n");
 		} else if (fastcharge_mode &&
-			   soc >= ALLOW_START_FFC_BATT_SOC_THR &&
+			   soc >= info->allow_start_ffc_batt_soc_thr &&
 			   fcc <= iterm &&
 			   quick_charge_status != MCA_QUICK_CHG_STS_CHARGING) {
 			strategy_class_fg_set_fastcharge(false);
