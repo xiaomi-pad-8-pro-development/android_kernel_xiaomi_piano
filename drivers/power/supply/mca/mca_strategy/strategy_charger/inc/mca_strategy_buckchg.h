@@ -235,6 +235,7 @@ struct strategy_buckchg_dev {
 	int soc_limit_low;
 	int soc_limit_high;
 	int support_charge_more;
+	int support_low_voltage_high_current_keep_buck_chg;
 	int soc_limit_more_enable;
 	bool reverse_auth;
 	int otg_boost_src;

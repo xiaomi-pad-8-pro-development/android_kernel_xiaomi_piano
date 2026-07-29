@@ -72,6 +72,8 @@
 #define SW_CV_FV_COMP_TEMP_MAX 479
 #define CP_BUSOVP_FLOAT_MV 7000
 #define CP_BUSOVP_DEFAULT_MV 13000
+#define CP_ADC_SETTLE_MS 10
+#define CP_KEEP_BUCK_VBAT_THR 3399
 #define PPS_FFC_BOOST_TEMP_THR 34
 #define PPS_FFC_BOOST_TEMP_OFFSET_THR 32
 #define PPS_FFC_BOOST_VBAT_THR 4401
@@ -271,6 +273,10 @@ static void strategy_buckchg_parse_dt(struct strategy_buckchg_dev *info)
 		info->dev->of_node, "support_revchg_screenon");
 	info->support_charge_more = of_property_read_bool(
 		info->dev->of_node, "support-charge-more");
+	info->support_low_voltage_high_current_keep_buck_chg =
+		of_property_read_bool(
+			info->dev->of_node,
+			"support-low-voltage-high-current-keep-buck-chg");
 	mca_parse_dts_u32(info->dev->of_node, "vusb_ovp_location",
 			  &info->vusb_ovp_location, 0);
 	mca_parse_dts_u32(info->dev->of_node, "terminated_by_cp",
@@ -2503,6 +2509,27 @@ static void strategy_buckchg_monitor_workfunc(struct work_struct *work)
 	strategy_buckchg_debug_soc_limit(info, system_soc);
 	strategy_buckchg_check_cp_i2c_err(info);
 	if (system_soc <= ALLOW_QUICK_CHG_SOC_THR) {
+		if (info->support_low_voltage_high_current_keep_buck_chg) {
+			bool adc_enabled = false;
+			u32 cp_vout = 0;
+
+			(void)platform_class_cp_get_adc_enabled(CP_ROLE_MASTER,
+								&adc_enabled);
+			if (!adc_enabled) {
+				(void)platform_class_cp_enable_adc(
+					CP_ROLE_MASTER, true);
+				mdelay(CP_ADC_SETTLE_MS);
+			}
+			(void)platform_class_cp_get_battery_vout(CP_ROLE_MASTER,
+								 &cp_vout);
+			if (cp_vout <= CP_KEEP_BUCK_VBAT_THR) {
+				mca_log_err(
+					"vout is: %d less than 3.4V, keep buck charge action\n",
+					(int)cp_vout);
+				goto qc_status;
+			}
+		}
+
 		jeita_hot_result = mca_get_client_vote(info->chg_enable_voter,
 						       "jeita-hot");
 		mca_log_info("jeita_hot vote value: %d\n", jeita_hot_result);
@@ -2524,6 +2551,7 @@ static void strategy_buckchg_monitor_workfunc(struct work_struct *work)
 		strategy_buckchg_enable_fast_charge_mode(info, system_soc);
 	}
 
+qc_status:
 	(void)mca_strategy_func_get_status(STRATEGY_FUNC_TYPE_QUICK_CHARGE,
 					   STRATEGY_STATUS_TYPE_QC_CHARGE_STS,
 					   &quick_charge_status);
