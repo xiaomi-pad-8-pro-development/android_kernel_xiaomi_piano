@@ -3879,6 +3879,11 @@ static void mca_quick_charge_parse_stage_para(
 				volt_info->volt_para_size * 2);
 }
 
+#define BATT_PARA_CC_NAME_LEN 50
+#define BATT_PARA_CC_TEMP_23 23
+#define BATT_PARA_CC_TEMP_30 30
+#define BATT_PARA_CC_TEMP_40 40
+
 static int mca_quick_charge_parse_temp_para(struct device_node *node,
 					    int batt_role, const char *name,
 					    struct mca_quick_charge_info *info,
@@ -3960,12 +3965,38 @@ static int mca_quick_charge_parse_temp_para(struct device_node *node,
 				    &temp_info[row].volt_info))
 				goto error;
 			break;
-		case MCA_QUICK_CHG_VOLT_FFC_PARA_NAME:
+		case MCA_QUICK_CHG_VOLT_FFC_PARA_NAME: {
+			const char *ffc_name = tmp_string;
+			struct device_node *ffc_node = node;
+			struct device_node *cc_node;
+			char cc_name[BATT_PARA_CC_NAME_LEN] = { 0 };
+			if (info->support_base_flip &&
+			    (temp_info[row].temp_para.temp_low ==
+				     BATT_PARA_CC_TEMP_23 ||
+			     temp_info[row].temp_para.temp_low ==
+				     BATT_PARA_CC_TEMP_30 ||
+			     temp_info[row].temp_para.temp_low ==
+				     BATT_PARA_CC_TEMP_40)) {
+				snprintf(cc_name, sizeof(cc_name), "%s_cc%d",
+					 batt_role == FG_IC_MASTER ?
+						 "base_ffc_volt_para" :
+						 "flip_ffc_volt_para",
+					 info->batt_para_cc_thr[batt_role]);
+				mca_log_err("base/flip FFC cc cv para:%s\n",
+					    cc_name);
+				cc_node = of_find_node_by_name(
+					NULL, "mca_parallel_cyclecount_para");
+				if (cc_node) {
+					ffc_name = cc_name;
+					ffc_node = cc_node;
+				}
+			}
 			if (mca_quick_charge_parse_volt_para(
-				    node, tmp_string,
+				    ffc_node, ffc_name,
 				    &temp_info[row].volt_ffc_info))
 				goto error;
 			break;
+		}
 		case MCA_QUICK_CHG_STAGE_PARA_NAME:
 			mca_quick_charge_parse_stage_para(
 				node, tmp_string, &temp_info[row].volt_info);
