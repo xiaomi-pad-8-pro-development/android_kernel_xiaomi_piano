@@ -1687,21 +1687,22 @@ strategy_buckchg_select_charg_para(struct strategy_buckchg_dev *info)
 			    strategy_class_fg_get_fastcharge() &&
 			    info->proc_data.real_type == XM_CHARGER_TYPE_PPS) {
 				int batt_temp = 0, temp_offset_flag = 0;
-				int vbat = 0;
 
 				(void)strategy_class_fg_ops_get_temperature(
 					&batt_temp);
 				batt_temp /= 10;
 				(void)strategy_class_fg_get_temp_offset_flag(
 					&temp_offset_flag);
-				(void)strategy_class_fg_ops_get_voltage(&vbat);
+				(void)strategy_class_fg_ops_get_voltage(
+					&info->proc_data.vbat);
 
 				in_limit = info->in_pps;
 				if (batt_temp > PPS_FFC_BOOST_TEMP_THR ||
 				    (batt_temp > PPS_FFC_BOOST_TEMP_OFFSET_THR &&
 				     temp_offset_flag)) {
 					chg_limit = info->chg_pps;
-					if (vbat >= PPS_FFC_BOOST_VBAT_THR)
+					if (info->proc_data.vbat >=
+					    PPS_FFC_BOOST_VBAT_THR)
 						in_limit = info->in_pps +
 							   PPS_FFC_IBUS_BOOST;
 				}
@@ -2029,12 +2030,67 @@ strategy_buckchg_update_charge_status(struct strategy_buckchg_dev *info)
 #define FFC_START_BATT_SOC_THR 95
 
 static void
+strategy_buckchg_ffc_pps_boost(struct strategy_buckchg_dev *info, int iin,
+			       int ichg)
+{
+	struct mca_votable *ichg_voter;
+
+	mca_log_info("iin_pd = %d, ichg_pd = %d\n", iin, ichg);
+
+	if (info->proc_data.voltage == STATEGY_CHARGE_VBUS_5V) {
+		mca_vote(info->buck_5v_in_voter, "wire_chg_type", true, iin);
+		ichg_voter = info->buck_5v_ich_voter;
+	} else {
+		mca_vote(info->buck_9v_in_voter, "wire_chg_type", true, iin);
+		ichg_voter = info->buck_9v_ich_voter;
+	}
+	mca_vote(ichg_voter, "wire_chg_type", true, ichg);
+}
+
+static void
 strategy_buckchg_enable_fast_charge_mode(struct strategy_buckchg_dev *info,
 					 int soc)
 {
-	int batt_temp, fastcharge_mode;
+	int batt_temp = 0, fastcharge_mode = 0;
 	int iterm = mca_get_effective_result(info->iterm_voter);
 	int fcc = mca_get_effective_result(info->charge_limit_voter);
+
+	if (!info->terminated_by_cp) {
+		(void)strategy_class_fg_ops_get_temperature(&batt_temp);
+		batt_temp /= 10;
+		fastcharge_mode = strategy_class_fg_get_fastcharge();
+
+		if (info->base_flip_same ||
+		    info->support_pmic_vterm_dynamics_adjust) {
+			iterm = info->parallel_iterm;
+			mca_log_info("iterm: %d\n", iterm);
+
+			if (info->support_pmic_vterm_dynamics_adjust &&
+			    fastcharge_mode &&
+			    info->proc_data.real_type == XM_CHARGER_TYPE_PPS) {
+				int temp_offset_flag = 0;
+				int in_limit;
+
+				fcc = mca_get_effective_result(
+					info->charge_limit_voter);
+				(void)strategy_class_fg_get_temp_offset_flag(
+					&temp_offset_flag);
+				(void)strategy_class_fg_ops_get_voltage(
+					&info->proc_data.vbat);
+				if (iterm >= fcc &&
+				    (batt_temp > PPS_FFC_BOOST_TEMP_THR ||
+				     (batt_temp > PPS_FFC_BOOST_TEMP_OFFSET_THR &&
+				      temp_offset_flag))) {
+					in_limit = info->in_pps;
+					if (info->proc_data.vbat >=
+					    PPS_FFC_BOOST_VBAT_THR)
+						in_limit += PPS_FFC_IBUS_BOOST;
+					strategy_buckchg_ffc_pps_boost(
+						info, in_limit, info->chg_pps);
+				}
+			}
+		}
+	}
 
 	mca_log_info("allow_start_ffc_batt_soc_thr: %d\n",
 		     info->allow_start_ffc_batt_soc_thr);
@@ -2045,13 +2101,9 @@ strategy_buckchg_enable_fast_charge_mode(struct strategy_buckchg_dev *info,
 				STRATEGY_FUNC_TYPE_QUICK_CHARGE,
 				STRATEGY_STATUS_TYPE_QC_IBAT_MAX, &fcc);
 
-		(void)strategy_class_fg_ops_get_temperature(&batt_temp);
-		batt_temp /= 10;
-
 		mca_log_info("batt_temp = %d, soc = %d, fcc = %d\n", batt_temp,
 			     soc, fcc);
 
-		fastcharge_mode = strategy_class_fg_get_fastcharge();
 		if (soc < FFC_START_BATT_SOC_THR && !fastcharge_mode &&
 		    batt_temp >= info->ffc_temp_low &&
 		    batt_temp <= info->ffc_temp_high && info->batt_auth) {
