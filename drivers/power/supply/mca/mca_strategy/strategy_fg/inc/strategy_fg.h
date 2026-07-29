@@ -198,6 +198,8 @@ struct strategy_fg {
 	struct mca_votable *vterm_voter;
 	struct mca_votable *iterm_voter;
 	struct mca_votable *charge_limit_voter;
+	struct mca_votable *flip_charge_curr_voter;
+	struct mca_votable *buck_input_voter;
 
 	int batt_current;
 	int batt_current_mean;

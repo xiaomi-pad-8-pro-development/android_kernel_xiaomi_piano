@@ -3408,6 +3408,12 @@ static int strategy_fg_ops_set_fastcharge(void *data, bool en)
 	if (fg->cfg.fg_type > MCA_FG_TYPE_SINGLE_NUM_MAX)
 		ret |= platform_fg_ops_set_fastcharge(FG_IC_SLAVE, en);
 
+	if (!en && fg->cfg.fg_type > MCA_FG_TYPE_SINGLE_NUM_MAX &&
+	    mca_is_override_vote_enabled(fg->vterm_voter)) {
+		mca_vote_override(fg->vterm_voter, "para_term", false, 0);
+		mca_log_err("fastcharge off, clean para_term override\n");
+	}
+
 	return ret;
 }
 
@@ -3886,6 +3892,12 @@ static void strategy_fg_init_voter(struct strategy_fg *fg)
 		return;
 	fg->charge_limit_voter = mca_find_votable("buck_charge_curr");
 	if (!fg->charge_limit_voter)
+		return;
+	fg->flip_charge_curr_voter = mca_find_votable("flip_charge_curr");
+	if (!fg->flip_charge_curr_voter)
+		return;
+	fg->buck_input_voter = mca_find_votable("buck_input");
+	if (!fg->buck_input_voter)
 		return;
 
 	fg->voter_ok = true;
