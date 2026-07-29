@@ -18,6 +18,9 @@
 #include <linux/init.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
+#include <linux/of_gpio.h>
+#include <linux/gpio.h>
+#include <linux/gpio/consumer.h>
 #include <linux/slab.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
@@ -4215,6 +4218,26 @@ static int bq_parse_dt(struct bq_fg_chip *bq)
 	mca_parse_dts_u32(node, "support_nvt1000_ota",
 			  &bq->support_nvt1000_ota, 0);
 
+	bq->support_co_by_gpio = of_property_read_bool(node, "co_by_gpio");
+	if (bq->support_co_by_gpio) {
+		bq->co_gpio = of_get_named_gpio(node, "batt_ctl", 0);
+		if (bq->co_gpio < 0) {
+			mca_log_err("failed to parse ctl_co_gpio\n");
+		} else {
+			if (devm_gpio_request(bq->dev, bq->co_gpio,
+					      dev_name(bq->dev)))
+				mca_log_err("%s unable to request ctl_co gpio [%d]\n",
+					    dev_name(bq->dev), bq->co_gpio);
+			else if (gpiod_direction_output_raw(
+					 gpio_to_desc(bq->co_gpio), 0))
+				mca_log_err("%s unable to set direction for ctl_co gpio [%d]\n",
+					    dev_name(bq->dev), bq->co_gpio);
+			mca_log_info("ctl_co_gpio[%d] val is :%d\n", bq->co_gpio,
+				     gpiod_get_raw_value(
+					     gpio_to_desc(bq->co_gpio)));
+		}
+	}
+
 	return 0;
 }
 
@@ -4410,6 +4433,41 @@ static int fg_toggle_co(struct bq_fg_chip *bq, u8 co_cmd, int expect, u8 *data)
 #define NFG1000_SECTION_SIZE	0x200
 #define NFG1000_PAGE_SIZE	0x80
 
+#define NFG1000_OTA_VER_MARK	20
+#define NFG1000_OTA_DEV_NAME	64
+#define NFG1000_OTA_STAMP	99
+#define NFG1000_OTA_DF_SIG	120
+#define NFG1000_OTA_FLAG	231
+#define NFG1000_OTA_CRC		511
+
+#define NFG1000_OTA_MAGIC	0x33666633
+
+u8 sha_256_ramdom_data[32] = {
+	0x12, 0x12, 0xe3, 0x39, 0x36, 0x86, 0x49, 0xf0,
+	0x3f, 0xc7, 0x6b, 0x4c, 0x17, 0xfb, 0xb3, 0x15,
+	0x32, 0xbe, 0x5c, 0xa5, 0xfc, 0x63, 0x99, 0x22,
+	0x71, 0xe9, 0xf9, 0x36, 0x91, 0x35, 0xb1, 0x72,
+};
+u8 sha_256_pass_word[32] = {
+	0x46, 0x6c, 0xea, 0x38, 0xbd, 0x1f, 0x52, 0x73,
+	0x69, 0x96, 0x79, 0x0e, 0x53, 0xd5, 0xa2, 0x89,
+	0xb8, 0x6b, 0x91, 0x77, 0xd6, 0xee, 0x82, 0x94,
+	0x6b, 0x78, 0x94, 0x53, 0xbe, 0xbb, 0x32, 0xf5,
+};
+u8 data_flash_erase_order[19] = {
+	0x00, 0x07, 0x01, 0x86, 0x01, 0x87, 0x01, 0x88,
+	0x01, 0x89, 0x01, 0x8a, 0x01, 0x8b, 0x01, 0x8c,
+	0x01, 0x8d, 0x07,
+};
+u8 static_df_sig[16] = {
+	0x08, 0x00, 0x0e, 0x00, 0x10, 0x00, 0x0d, 0x00,
+	0xf4, 0x00, 0x19, 0x00, 0xb9, 0x00, 0x7c, 0x00,
+};
+u8 code_version_crc16[16] = {
+	0x23, 0x0e, 0x23, 0x0e, 0x23, 0x0e, 0x23, 0x0e,
+	0xe2, 0x1a, 0xfb, 0x9e, 0x38, 0xc2, 0x38, 0xc2,
+};
+
 u8 GetCRC8(u8 *buf, int len)
 {
 	int crc = 0, i;
@@ -4600,17 +4658,64 @@ static int nfg1000_update_flash_step(struct bq_fg_chip *bq, u32 addr,
 
 static int nfg1000_ota_program_step5_update_gauge(struct bq_fg_chip *bq)
 {
-	static const u32 erase_addr[] = { 0x3400, 0xda00, 0xd800, 0x1e200 };
-	int i, section = bq->nfg1000_section;
-	u8 *src = nfg1000_code_data + section * 0xe00 + 0x200;
+	int ver = bq->nfg1000_ver;
+	u8 *code = nfg1000_code_data;
 
-	for (i = 0; i < ARRAY_SIZE(erase_addr); i++) {
-		if (nfg1000_erase_flash_step(bq, erase_addr[i], 1) < 0)
-			mca_log_err("step5 erase 0x%x fail\n", erase_addr[i]);
+	if (ver < 0 || ver > 7)
+		return -1;
+
+	bq->nfg1000_section_marker = 0xaaaaaaaa;
+
+	if (nfg1000_erase_flash_step(bq, 0x3400, 1) < 0) {
+		mca_log_err("failed earse flash step1\n");
+		return -1;
+	}
+	if (nfg1000_erase_flash_step(bq, ver < 4 ? 0xda00 : 0xd800, 1) < 0) {
+		mca_log_err("failed earse flash step2/3\n");
+		return -1;
+	}
+	if (nfg1000_erase_flash_step(bq, 0x1e200, ver < 2 ? 2 : 4) < 0) {
+		mca_log_err("failed earse flash step4/5\n");
+		return -1;
 	}
 
-	if (nfg1000_update_flash_step(bq, 0x1f000, src) < 0) {
-		mca_log_err("step5 program fail\n");
+	if (bq->nfg1000_magic == NFG1000_OTA_MAGIC &&
+	    nfg1000_update_flash_step(bq, 0x1f000, bq->nfg1000_ota_buf) < 0) {
+		mca_log_err("failed earse flash step6\n");
+		return -1;
+	}
+
+	bq->nfg1000_ota_buf[NFG1000_OTA_STAMP] = 0x42;
+	bq->nfg1000_ota_buf[NFG1000_OTA_DF_SIG] = static_df_sig[ver * 2];
+	bq->nfg1000_ota_buf[NFG1000_OTA_DF_SIG + 1] = static_df_sig[ver * 2 + 1];
+	bq->nfg1000_ota_buf[NFG1000_OTA_FLAG] &= 0xfb;
+	bq->nfg1000_ota_buf[NFG1000_OTA_CRC] =
+		GetCRC8(bq->nfg1000_ota_buf, NFG1000_OTA_CRC);
+
+	if (nfg1000_update_flash_step(bq, 0x1e000, bq->nfg1000_ota_buf) < 0) {
+		mca_log_err("failed write flash step11\n");
+		return -1;
+	}
+
+	if (nfg1000_update_flash_step(bq, 0x1e200, code + ver * 0xe00 + 0x600) < 0 ||
+	    nfg1000_update_flash_step(bq, 0x1e400, code + ver * 0xe00 + 0x800) < 0) {
+		mca_log_err("update 0x0001E200 error\n");
+		return -1;
+	}
+	if (ver > 1 &&
+	    (nfg1000_update_flash_step(bq, 0x1e600, code + ver * 0xe00 + 0xa00) < 0 ||
+	     nfg1000_update_flash_step(bq, 0x1e800, code + ver * 0xe00 + 0xc00) < 0)) {
+		mca_log_err("update 0x0001E200 error\n");
+		return -1;
+	}
+
+	if (nfg1000_update_flash_step(bq, ver < 4 ? 0xda00 : 0xd800,
+				      code + ver * 0xe00 + 0x400) < 0) {
+		mca_log_err("update 0x0000DA00/D800 error\n");
+		return -1;
+	}
+	if (nfg1000_update_flash_step(bq, 0x3400, code + ver * 0xe00) < 0) {
+		mca_log_err("update 0x00003400 error\n");
 		return -1;
 	}
 	return 0;
@@ -4618,25 +4723,39 @@ static int nfg1000_ota_program_step5_update_gauge(struct bq_fg_chip *bq)
 
 static int nfg1000_ota_program_step6_CheckCrc(struct bq_fg_chip *bq)
 {
-	u8 frame[12];
-	int ret;
+	u8 frame[14] = { 0 };
+	int ret, retry;
 
-	memset(frame, 0, sizeof(frame));
-	frame[0] = 0xaa;
-	frame[1] = 0x8b;
-	frame[2] = 0x01;
-	frame[10] = 0x0a;
-	frame[11] = GetCRC8(frame, 11);
-
-	ret = nfg1000_write(bq, frame[1], &frame[2], 10);
-	usleep_range(2000, 2100);
-	msleep(100);
-	if (ret < 0 || nfg1000_status_ok(bq) < 0) {
-		mca_log_err("step6 crc check fail\n");
+	if (bq->nfg1000_ver > 7)
 		return -1;
+
+	frame[0] = 0xaa;
+	frame[1] = 0x38;
+	frame[2] = 0x0a;
+	frame[3] = 0x04;
+	frame[4] = 0x34;
+	frame[7] = 0xfc;
+	frame[8] = 0x8b;
+	frame[9] = 0x01;
+	frame[11] = code_version_crc16[bq->nfg1000_ver * 2];
+	frame[12] = code_version_crc16[bq->nfg1000_ver * 2 + 1];
+	frame[13] = GetCRC8(frame, 13);
+
+	for (retry = 0; retry < 5; retry++) {
+		ret = nfg1000_write(bq, frame[1], &frame[2], 12);
+		usleep_range(2000, 2100);
+		if (ret < 0) {
+			mca_log_err("could not write flash\n");
+		} else {
+			msleep(100);
+			if (nfg1000_status_ok(bq) == 0)
+				return 0;
+		}
+		usleep_range(10000, 10100);
 	}
-	usleep_range(2000, 2100);
-	return 0;
+
+	mca_log_err("nfg1000_crc16_check_step: %x error!!\n", NFG1000_STATUS_CMD);
+	return -1;
 }
 
 static int nfg1000_ota_program_step7_ExitBoot(struct bq_fg_chip *bq)
@@ -4703,10 +4822,148 @@ static int nfg1000_update_judge(struct bq_fg_chip *bq)
 	return sub[1] ? 1 : 0;
 }
 
+static int nfg1000_ota_program_step2_ShaAuth(struct bq_fg_chip *bq)
+{
+	u8 frame[36] = { 0 };
+	int ret;
+
+	frame[0] = 0xaa;
+	frame[1] = 0x81;
+	frame[2] = 0x20;
+	memcpy(&frame[3], sha_256_ramdom_data, sizeof(sha_256_ramdom_data));
+	frame[35] = GetCRC8(frame, 35);
+	ret = nfg1000_write(bq, frame[1], &frame[2], 34);
+	usleep_range(2000, 2100);
+	if (ret < 0) {
+		mca_log_err("sha auth: challenge write fail\n");
+		return -1;
+	}
+
+	frame[0] = 0xaa;
+	frame[1] = 0x82;
+	frame[2] = 0x20;
+	memcpy(&frame[3], sha_256_pass_word, sizeof(sha_256_pass_word));
+	frame[35] = GetCRC8(frame, 35);
+	ret = nfg1000_write(bq, frame[1], &frame[2], 34);
+	usleep_range(2000, 2100);
+	if (ret < 0) {
+		mca_log_err("sha auth: response write fail\n");
+		return -1;
+	}
+
+	if (nfg1000_status_ok(bq) < 0) {
+		mca_log_err("sha auth status fail\n");
+		return -1;
+	}
+	return 0;
+}
+
+static int nfg1000_mcu_auth_ok(struct bq_fg_chip *bq)
+{
+	u8 wbuf = 0x50;
+	u8 rbuf[6] = { 0 };
+	struct i2c_msg msg[2];
+	int ret;
+
+	if (!bq->client || !bq->client->adapter)
+		return -ENODEV;
+
+	msg[0].addr = bq->client->addr;
+	msg[0].flags = 0;
+	msg[0].len = 1;
+	msg[0].buf = &wbuf;
+	msg[1].addr = bq->client->addr;
+	msg[1].flags = I2C_M_RD;
+	msg[1].len = sizeof(rbuf);
+	msg[1].buf = rbuf;
+
+	mutex_lock(&bq->i2c_rw_lock);
+	ret = i2c_transfer(bq->client->adapter, msg, 2);
+	mutex_unlock(&bq->i2c_rw_lock);
+	if (ret < 0)
+		return ret;
+
+	return (rbuf[0] == 0x04 && rbuf[1] == 0x11 && rbuf[2] == 0x83 &&
+		rbuf[3] == 0x00 && rbuf[4] == 0x00 && rbuf[5] == 'R') ? 0 :
+									-EIO;
+}
+
+static int nfg1000_ota_program_step4_gauge_version(struct bq_fg_chip *bq)
+{
+	u8 *buf = bq->nfg1000_ota_buf;
+	u8 code_sec[NFG1000_SECTION_SIZE];
+	int ver;
+	u8 sig;
+
+	if (nfg1000_read_flash_step(bq, 0x1f000, buf, NFG1000_SECTION_SIZE) < 0) {
+		mca_log_err("failed read flash step1\n");
+		return -1;
+	}
+	if (GetCRC8(buf, NFG1000_OTA_CRC) == buf[NFG1000_OTA_CRC] &&
+	    buf[NFG1000_OTA_VER_MARK] == 0x06 &&
+	    buf[NFG1000_OTA_VER_MARK + 1] == 0x00 &&
+	    buf[NFG1000_OTA_CRC] != 0xff) {
+		bq->nfg1000_magic = NFG1000_OTA_MAGIC;
+	} else {
+		if (nfg1000_read_flash_step(bq, 0x1e000, buf,
+					    NFG1000_SECTION_SIZE) < 0) {
+			mca_log_err("failed read flash step2\n");
+			return -1;
+		}
+		if (!(GetCRC8(buf, NFG1000_OTA_CRC) == buf[NFG1000_OTA_CRC] &&
+		      buf[NFG1000_OTA_VER_MARK] == 0x06 &&
+		      buf[NFG1000_OTA_VER_MARK + 1] == 0x00 &&
+		      buf[NFG1000_OTA_CRC] != 0xff)) {
+			mca_log_err("read error: %x\n", buf[NFG1000_OTA_CRC]);
+			return -1;
+		}
+		bq->nfg1000_magic = 0;
+	}
+
+	if (buf[NFG1000_OTA_DF_SIG + 1] != 0) {
+		mca_log_err("static df signature check error: %x\n",
+			    buf[NFG1000_OTA_DF_SIG]);
+		return -1;
+	}
+	sig = buf[NFG1000_OTA_DF_SIG];
+	switch (sig) {
+	case 0x47: ver = 0; break;
+	case 0x41: ver = 1; break;
+	case 0xc3: ver = 2; break;
+	case 0x7f: ver = 3; break;
+	case 0xa8: ver = 4; break;
+	case 0xf6: ver = 5; break;
+	case 0x14: ver = 6; break;
+	case 0x2b: ver = 7; break;
+	default:
+		mca_log_err("static df signature check error: %x\n", sig);
+		return -1;
+	}
+	bq->nfg1000_ver = ver;
+
+	/* even versions ship device name "XM15@BM6A#", odd "XM15@BP5B#" */
+	if (memcmp(&buf[NFG1000_OTA_DEV_NAME],
+		   (ver & 1) ? "XM15@BP5B#" : "XM15@BM6A#", 10)) {
+		mca_log_err("device name error\n");
+		return -1;
+	}
+
+	if (nfg1000_read_flash_step(bq, 0x3600, code_sec,
+				    NFG1000_SECTION_SIZE) < 0) {
+		mca_log_err("failed read flash step3\n");
+		return -1;
+	}
+	if (memcmp(nfg1000_code_data + ver * 0xe00 + 0x200, code_sec,
+		   NFG1000_SECTION_SIZE)) {
+		mca_log_err("app code check error\n");
+		return -1;
+	}
+	return 0;
+}
+
 static int nfg1000_update_APP(struct bq_fg_chip *bq)
 {
 	u8 cmd[4];
-	u8 verify[NFG1000_SECTION_SIZE];
 
 	cmd[0] = 0x00; cmd[1] = 0x0f;
 	nfg1000_write(bq, 0x00, cmd, 2);
@@ -4724,14 +4981,16 @@ static int nfg1000_update_APP(struct bq_fg_chip *bq)
 	if (nfg1000_status_ok(bq) < 0)
 		mca_log_err("update_APP: enter boot fail\n");
 
-	if (nfg1000_read_flash_step(bq, 0x1f000, verify, 0x50) < 0)
-		mca_log_err("update_APP: read 0x1f000 fail\n");
-	if (nfg1000_read_flash_step(bq, 0x1e000, verify, 0x50) < 0)
-		mca_log_err("update_APP: read 0x1e000 fail\n");
-	if (nfg1000_read_flash_step(bq, 0x3600, verify, 0x50) < 0)
-		mca_log_err("update_APP: read 0x3600 fail\n");
+	if (nfg1000_ota_program_step2_ShaAuth(bq) < 0)
+		return -1;
 
-	bq->nfg1000_section = bq->fw_ver;
+	if (nfg1000_mcu_auth_ok(bq) < 0) {
+		mca_log_err("nfg1000 ota program step3 fail\n");
+		return -1;
+	}
+
+	if (nfg1000_ota_program_step4_gauge_version(bq) < 0)
+		return -1;
 
 	if (nfg1000_ota_program_step5_update_gauge(bq) < 0)
 		return -1;

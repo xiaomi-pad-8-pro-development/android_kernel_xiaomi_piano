@@ -410,6 +410,10 @@ struct bq_fg_chip {
 	int df_ver;
 	int nfg1000_section;
 	int ota_update_flag;
+	int nfg1000_ver;
+	u32 nfg1000_section_marker;
+	u32 nfg1000_magic;
+	u8 nfg1000_ota_buf[512];
 	u8 chip_ok;
 	u8 regs[NUM_REGS];
 	char device_name[8];
@@ -429,6 +433,8 @@ struct bq_fg_chip {
 	bool batt_td_1;	/* full depleted */
 	bool support_voltage_record_level;
 	bool support_version_compatible;
+	bool support_co_by_gpio;
+	int co_gpio;
 	int support_nvt1000_ota;
 	u8 version_number;
 	u8 start_byte_address;
