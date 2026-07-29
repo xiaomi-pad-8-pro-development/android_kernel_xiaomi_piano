@@ -1310,13 +1310,13 @@ static void mca_wireless_rev_pen_place_err_check_work(struct work_struct *work)
 	struct mca_wireless_revchg *info =
 		container_of(work, struct mca_wireless_revchg,
 			     pen_place_err_check_work.work);
-	int ss = 0;
 	int len;
 	char event[MCA_EVENT_NOTIFY_SIZE] = { 0 };
 	struct mca_event_notify_data event_data = { 0 };
 
-	(void)platform_class_wireless_get_ss_voltage(WIRELESS_ROLE_MASTER, &ss);
-	if (!ss) {
+	(void)platform_class_wireless_get_ss_voltage(WIRELESS_ROLE_MASTER,
+						     &info->pen_ss_voltage);
+	if (!info->pen_ss_voltage) {
 		mca_log_err(
 			"pen place err check timeout, pen place err: hall\n");
 		platform_class_wireless_set_pen_place_err(WIRELESS_ROLE_MASTER,
@@ -1524,7 +1524,6 @@ static void mca_wireless_reverse_chg_handler(struct mca_wireless_revchg *info)
 	char event[MCA_EVENT_NOTIFY_SIZE] = { 0 };
 	struct mca_event_notify_data event_data = { 0 };
 	u8 err_code;
-	int ss = 0;
 	int pen_soc = 255;
 	u64 pen_mac = 0;
 	bool reverse_chg_en = false;
@@ -1710,14 +1709,15 @@ static void mca_wireless_reverse_chg_handler(struct mca_wireless_revchg *info)
 	case RTX_INT_TX_DET_RX:
 		mca_log_info("RTX_INT_TX_DET_RX trigger!");
 		cancel_delayed_work_sync(&info->pen_place_err_check_work);
-		(void)platform_class_wireless_get_ss_voltage(WIRELESS_ROLE_MASTER,
-							&ss);
-		if (ss < 100) {
+		(void)platform_class_wireless_get_ss_voltage(
+			WIRELESS_ROLE_MASTER, &info->pen_ss_voltage);
+		if (info->pen_ss_voltage < 100) {
 			mca_log_info(
 				"tx get ss_reg value: %d, pen place err: ss\n",
-				ss);
+				info->pen_ss_voltage);
 			mca_wireless_rev_enable_reverse_charge(false);
 			cancel_delayed_work_sync(&info->pen_data_handle_work);
+			info->pen_ss_voltage = 0;
 			platform_class_wireless_set_pen_place_err(
 				WIRELESS_ROLE_MASTER, 1);
 			len = snprintf(event, MCA_EVENT_NOTIFY_SIZE,
@@ -1834,6 +1834,7 @@ mca_wireless_rev_process_ppe_hall_change(int value,
 			cancel_delayed_work_sync(&info->pen_data_handle_work);
 			cancel_delayed_work_sync(
 				&info->pen_place_err_check_work);
+			info->pen_ss_voltage = 0;
 			info->proc_data.reverse_chg_sts =
 				REVERSE_STATE_ENDTRANS;
 			len = snprintf(event, MCA_EVENT_NOTIFY_SIZE,
@@ -1961,6 +1962,7 @@ static void mca_wireless_rev_process_hall_change(int value,
 
 	if (!is_pen_attached) {
 		cancel_delayed_work_sync(&info->pen_data_handle_work);
+		info->pen_ss_voltage = 0;
 		info->proc_data.reverse_chg_sts = REVERSE_STATE_ENDTRANS;
 		n_data.event_len = snprintf(event, MCA_EVENT_NOTIFY_SIZE,
 					    "POWER_SUPPLY_REVERSE_CHG_STATE=%d",
@@ -2082,6 +2084,30 @@ static struct mca_sysfs_attr_info strategy_wireless_rev_sysfs_field_tbl[] = {
 			  MCA_REV_CHG_REVERSE_CHG_MODE, reverse_chg_mode),
 	mca_sysfs_attr_rw(strategy_wireless_rev_sysfs, 0664,
 			  MCA_REV_CHG_REVERSE_CHG_STATE, reverse_chg_state),
+	mca_sysfs_attr_rw(strategy_wireless_rev_sysfs, 0664,
+			  MCA_REV_CHG_PEN_SOC, pen_soc),
+	mca_sysfs_attr_rw(strategy_wireless_rev_sysfs, 0664,
+			  MCA_REV_CHG_PEN_HALL3, pen_hall3),
+	mca_sysfs_attr_rw(strategy_wireless_rev_sysfs, 0664,
+			  MCA_REV_CHG_PEN_HALL4, pen_hall4),
+	mca_sysfs_attr_rw(strategy_wireless_rev_sysfs, 0664,
+			  MCA_REV_CHG_PEN_HALL3_S, pen_hall3_s),
+	mca_sysfs_attr_rw(strategy_wireless_rev_sysfs, 0664,
+			  MCA_REV_CHG_PEN_HALL4_S, pen_hall4_s),
+	mca_sysfs_attr_rw(strategy_wireless_rev_sysfs, 0664,
+			  MCA_REV_CHG_PEN_PPE_HALL_N, pen_ppe_hall_n),
+	mca_sysfs_attr_rw(strategy_wireless_rev_sysfs, 0664,
+			  MCA_REV_CHG_PEN_PPE_HALL_S, pen_ppe_hall_s),
+	mca_sysfs_attr_rw(strategy_wireless_rev_sysfs, 0664,
+			  MCA_REV_CHG_PEN_SS_VOLTAGE, pen_ss_voltage),
+	mca_sysfs_attr_rw(strategy_wireless_rev_sysfs, 0664,
+			  MCA_REV_CHG_TX_VOUT, tx_vout),
+	mca_sysfs_attr_rw(strategy_wireless_rev_sysfs, 0664,
+			  MCA_REV_CHG_TX_IOUT, tx_iout),
+	mca_sysfs_attr_rw(strategy_wireless_rev_sysfs, 0664,
+			  MCA_REV_CHG_TX_TDIE, tx_tdie),
+	mca_sysfs_attr_rw(strategy_wireless_rev_sysfs, 0664,
+			  MCA_REV_CHG_PEN_PLACE_ERR, pen_place_err),
 };
 
 #define MCA_REV_CHG_ATTRS_SIZE ARRAY_SIZE(strategy_wireless_rev_sysfs_field_tbl)
@@ -2101,6 +2127,7 @@ static ssize_t strategy_wireless_rev_sysfs_show(struct device *dev,
 	struct mca_sysfs_attr_info *attr_info;
 	int len = 0;
 	int rc;
+	int val = 0;
 	char wls_fw_data[10] = { 0 };
 
 	if (!info)
@@ -2131,6 +2158,64 @@ static ssize_t strategy_wireless_rev_sysfs_show(struct device *dev,
 	case MCA_REV_CHG_REVERSE_CHG_STATE:
 		len = snprintf(buf, PAGE_SIZE, "%d\n",
 			       info->proc_data.reverse_chg_sts);
+		break;
+	case MCA_REV_CHG_PEN_SOC:
+		(void)platform_class_wireless_get_pen_soc(
+			WIRELESS_ROLE_MASTER, &val);
+		len = snprintf(buf, PAGE_SIZE, "%d\n", val);
+		break;
+	case MCA_REV_CHG_PEN_HALL3:
+		(void)platform_class_wireless_get_pen_hall3(
+			WIRELESS_ROLE_MASTER, &val);
+		len = snprintf(buf, PAGE_SIZE, "%d\n", val);
+		break;
+	case MCA_REV_CHG_PEN_HALL4:
+		(void)platform_class_wireless_get_pen_hall4(
+			WIRELESS_ROLE_MASTER, &val);
+		len = snprintf(buf, PAGE_SIZE, "%d\n", val);
+		break;
+	case MCA_REV_CHG_PEN_HALL3_S:
+		(void)platform_class_wireless_get_pen_hall3_s(
+			WIRELESS_ROLE_MASTER, &val);
+		len = snprintf(buf, PAGE_SIZE, "%d\n", val);
+		break;
+	case MCA_REV_CHG_PEN_HALL4_S:
+		(void)platform_class_wireless_get_pen_hall4_s(
+			WIRELESS_ROLE_MASTER, &val);
+		len = snprintf(buf, PAGE_SIZE, "%d\n", val);
+		break;
+	case MCA_REV_CHG_PEN_PPE_HALL_N:
+		(void)platform_class_wireless_get_pen_hall_ppe_n(
+			WIRELESS_ROLE_MASTER, &val);
+		len = snprintf(buf, PAGE_SIZE, "%d\n", val);
+		break;
+	case MCA_REV_CHG_PEN_PPE_HALL_S:
+		(void)platform_class_wireless_get_pen_hall_ppe_s(
+			WIRELESS_ROLE_MASTER, &val);
+		len = snprintf(buf, PAGE_SIZE, "%d\n", val);
+		break;
+	case MCA_REV_CHG_PEN_SS_VOLTAGE:
+		len = snprintf(buf, PAGE_SIZE, "%d\n", info->pen_ss_voltage);
+		break;
+	case MCA_REV_CHG_TX_VOUT:
+		(void)platform_class_wireless_get_tx_vout(
+			WIRELESS_ROLE_MASTER, &val);
+		len = snprintf(buf, PAGE_SIZE, "%d\n", val);
+		break;
+	case MCA_REV_CHG_TX_IOUT:
+		(void)platform_class_wireless_get_tx_iout(
+			WIRELESS_ROLE_MASTER, &val);
+		len = snprintf(buf, PAGE_SIZE, "%d\n", val);
+		break;
+	case MCA_REV_CHG_TX_TDIE:
+		(void)platform_class_wireless_get_temp(
+			WIRELESS_ROLE_MASTER, &val);
+		len = snprintf(buf, PAGE_SIZE, "%d\n", val);
+		break;
+	case MCA_REV_CHG_PEN_PLACE_ERR:
+		(void)platform_class_wireless_get_pen_place_err(
+			WIRELESS_ROLE_MASTER, &val);
+		len = snprintf(buf, PAGE_SIZE, "%d\n", val);
 		break;
 	default:
 		len = 0;

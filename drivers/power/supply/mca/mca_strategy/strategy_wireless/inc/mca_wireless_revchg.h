@@ -87,7 +87,19 @@ enum mca_rev_chg_attr_list {
 	MCA_REV_CHG_WIRELESS_CHIP_FW = 0,
 	MCA_REV_CHG_WLS_FW_STATE,
 	MCA_REV_CHG_REVERSE_CHG_MODE,
-	MCA_REV_CHG_REVERSE_CHG_STATE
+	MCA_REV_CHG_REVERSE_CHG_STATE,
+	MCA_REV_CHG_PEN_SOC,
+	MCA_REV_CHG_PEN_HALL3,
+	MCA_REV_CHG_PEN_HALL4,
+	MCA_REV_CHG_PEN_HALL3_S,
+	MCA_REV_CHG_PEN_HALL4_S,
+	MCA_REV_CHG_PEN_PPE_HALL_N,
+	MCA_REV_CHG_PEN_PPE_HALL_S,
+	MCA_REV_CHG_PEN_SS_VOLTAGE,
+	MCA_REV_CHG_TX_VOUT,
+	MCA_REV_CHG_TX_IOUT,
+	MCA_REV_CHG_TX_TDIE,
+	MCA_REV_CHG_PEN_PLACE_ERR
 };
 
 struct mca_wireless_rev_proc_data {
@@ -138,6 +150,7 @@ struct mca_wireless_revchg {
 
 	//dt config
 	int rev_boost_src;
+	int pen_ss_voltage;
 	int rev_boost_default;
 	int rev_boost_voltage;
 	int support_tx_only;
