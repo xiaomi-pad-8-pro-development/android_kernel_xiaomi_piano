@@ -68,6 +68,10 @@ static void mca_wireless_quick_charge_force_stop_charging(
 static int mca_wireless_quick_charge_parse_batt_info(
 	struct mca_wireless_quick_charge_info *info, int mode);
 
+#define BATT_PARA_CC_NAME_LEN 50
+#define BATT_PARA_CC_TEMP_23 23
+#define BATT_PARA_CC_TEMP_30 30
+#define BATT_PARA_CC_TEMP_40 40
 static const int batt_para_cc_thr_list[] = { 0, 50, 100, 150, 300, 800 };
 
 static void
@@ -2453,12 +2457,31 @@ static int mca_wireless_quick_charge_parse_temp_para(
 				    &temp_info[row].volt_info))
 				goto error;
 			break;
-		case MCA_WLS_QUICK_CHG_VOLT_FFC_PARA_NAME:
+		case MCA_WLS_QUICK_CHG_VOLT_FFC_PARA_NAME: {
+			const char *ffc_name = tmp_string;
+			char cc_name[BATT_PARA_CC_NAME_LEN] = { 0 };
+			if (info->support_base_flip &&
+			    (temp_info[row].temp_para.temp_low ==
+				     BATT_PARA_CC_TEMP_23 ||
+			     temp_info[row].temp_para.temp_low ==
+				     BATT_PARA_CC_TEMP_30 ||
+			     temp_info[row].temp_para.temp_low ==
+				     BATT_PARA_CC_TEMP_40)) {
+				snprintf(cc_name, sizeof(cc_name), "%s_cc%d",
+					 batt_role == FG_IC_MASTER ?
+						 "base_ffc_volt_para" :
+						 "flip_ffc_volt_para",
+					 info->batt_para_cc_thr[batt_role]);
+				mca_log_err("base/flip FFC cc cv para:%s\n",
+					    cc_name);
+				ffc_name = cc_name;
+			}
 			if (mca_wireless_quick_charge_parse_volt_para(
-				    node, tmp_string,
+				    node, ffc_name,
 				    &temp_info[row].volt_ffc_info))
 				goto error;
 			break;
+		}
 		case MCA_WLS_QUICK_CHG_STAGE_PARA_NAME:
 			mca_wireless_quick_charge_parse_stage_para(
 				node, tmp_string, &temp_info[row].volt_info);
