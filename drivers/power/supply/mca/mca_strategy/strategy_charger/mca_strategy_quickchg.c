@@ -1020,6 +1020,14 @@ static int mca_quick_get_parallel_volt_para(struct mca_quick_charge_info *info,
 	return ret;
 }
 
+static int mca_quick_charge_parallel_judge_temp(struct mca_quick_charge_info *info)
+{
+	int base = mca_quick_get_parallel_volt_para(info, FG_IC_BASE);
+	int flip = mca_quick_get_parallel_volt_para(info, FG_IC_FLIP);
+
+	return base | flip;
+}
+
 static int
 mca_quick_charger_get_base_limit_cur(struct mca_quick_charge_info *info,
 				     int cur_max)
@@ -1168,8 +1176,9 @@ static int mca_quick_charge_can_tbat_do_charge(
 	info->proc_data.temp_para_index[role] = i;
 	info->proc_data.zone_changed = true;
 	info->proc_data.temp_max_cur[role] = temp_para->max_current;
-	if ((info->proc_data.adp_type == XM_CHARGER_TYPE_PD_VERIFY) &&
-	    batt_para->temp_info[i].volt_ffc_info.volt_para_size) {
+	if ((info->proc_data.adp_type == XM_CHARGER_TYPE_PPS) &&
+	    batt_para->temp_info[i].volt_ffc_info.volt_para_size &&
+	    !info->force_normal_volt_para) {
 		mca_log_info("select ffc volt para\n");
 		info->proc_data.ffc_flag = 1;
 		info->proc_data.temp_max_fv[role] = temp_para->ffc_max_fv;
@@ -1181,9 +1190,11 @@ static int mca_quick_charge_can_tbat_do_charge(
 		info->proc_data.temp_max_fv[role] = temp_para->normal_max_fv;
 		info->proc_data.cur_volt_para[role] =
 			&batt_para->temp_info[i].volt_info;
+		info->force_normal_volt_para = false;
 	} else {
 		mca_log_info("no volt para\n");
 		info->proc_data.ffc_flag = 0;
+		info->force_normal_volt_para = false;
 		return -1;
 	}
 
@@ -3204,6 +3215,19 @@ static int mca_quick_charge_process_event(int event, int value, void *data)
 					MCA_QUICK_CHG_BASE_CLOSE_CURR_DEN;
 		info->master_batt_close = true;
 		break;
+	case MCA_EVENT_FCC_TOO_LOW: {
+		int update_ret;
+
+		mca_log_info("fcc too low event, update normal volt para\n");
+		info->force_normal_volt_para = true;
+		update_ret = mca_quick_charge_can_tbat_do_charge(FG_IC_MASTER,
+								 info, true);
+		if (info->support_base_flip)
+			update_ret = mca_quick_charge_parallel_judge_temp(info);
+		if (update_ret)
+			mca_log_info("temp range invalid, update fail!\n");
+		break;
+	}
 	case MCA_EVENT_USB_CONNECT:
 		info->online = 1;
 		break;

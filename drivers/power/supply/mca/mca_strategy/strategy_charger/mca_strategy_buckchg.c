@@ -1682,7 +1682,8 @@ strategy_buckchg_select_charg_para(struct strategy_buckchg_dev *info)
 		} else {
 			unsigned int in_limit = info->in_pd;
 			int chg_limit = info->chg_pd;
-			if (info->base_flip_same &&
+
+			if (info->support_pmic_vterm_dynamics_adjust &&
 			    strategy_class_fg_get_fastcharge() &&
 			    info->proc_data.real_type == XM_CHARGER_TYPE_PPS) {
 				int batt_temp = 0, temp_offset_flag = 0;
@@ -2034,15 +2035,11 @@ strategy_buckchg_enable_fast_charge_mode(struct strategy_buckchg_dev *info,
 	int batt_temp, fastcharge_mode;
 	int iterm = mca_get_effective_result(info->iterm_voter);
 	int fcc = mca_get_effective_result(info->charge_limit_voter);
-	int quick_charge_status = MCA_QUICK_CHG_STS_CHARGE_FAILED;
 
 	mca_log_info("allow_start_ffc_batt_soc_thr: %d\n",
 		     info->allow_start_ffc_batt_soc_thr);
 
 	if (info->proc_data.real_type == XM_CHARGER_TYPE_PPS) {
-		(void)mca_strategy_func_get_status(
-			STRATEGY_FUNC_TYPE_QUICK_CHARGE,
-			STRATEGY_STATUS_TYPE_QC_CHARGE_STS, &quick_charge_status);
 		if (info->ffc_terminated_by_cp)
 			(void)mca_strategy_func_get_status(
 				STRATEGY_FUNC_TYPE_QUICK_CHARGE,
@@ -2066,8 +2063,7 @@ strategy_buckchg_enable_fast_charge_mode(struct strategy_buckchg_dev *info,
 			mca_log_info("buck charger disable fast charge mode\n");
 		} else if (fastcharge_mode &&
 			   soc >= info->allow_start_ffc_batt_soc_thr &&
-			   fcc <= iterm + info->curr_terminate_compensation &&
-			   quick_charge_status != MCA_QUICK_CHG_STS_CHARGING) {
+			   fcc <= iterm + info->curr_terminate_compensation) {
 			if (info->base_flip_same ||
 			    info->support_pmic_vterm_dynamics_adjust) {
 				const char *client = mca_get_effective_client(
@@ -2082,6 +2078,8 @@ strategy_buckchg_enable_fast_charge_mode(struct strategy_buckchg_dev *info,
 			}
 
 			strategy_class_fg_set_fastcharge(false);
+			mca_strategy_func_process(STRATEGY_FUNC_TYPE_QUICK_CHARGE,
+						  MCA_EVENT_FCC_TOO_LOW, 0);
 			mca_log_info(
 				"buck charger disable fast charge mode by fcc too low\n");
 		}

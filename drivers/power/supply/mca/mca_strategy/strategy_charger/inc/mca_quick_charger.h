@@ -539,6 +539,7 @@ struct mca_quick_charge_info {
 	ktime_t time_start;
 	bool boost_done;
 	bool check_vbat_ov;
+	bool force_normal_volt_para;
 	int support_base_flip;
 	/* cp work mode switch by current */
 	bool support_mode_switch;
