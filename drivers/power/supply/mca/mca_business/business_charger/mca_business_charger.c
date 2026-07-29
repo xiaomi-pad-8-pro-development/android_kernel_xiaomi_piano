@@ -1385,7 +1385,7 @@ static void business_charger_process_event(struct business_charger *charger)
 				business_charger_process_debug_soc_limit(
 					charger, *((int *)event_node->data));
 				break;
-			case MCA_EVENT_SBU_LPD_STATUS_CHANGE:
+			case MCA_EVENT_SBU_LPD_CHANGE:
 				business_charger_process_sbu_lpd_status_change(
 					charger, *((int *)event_node->data));
 				break;

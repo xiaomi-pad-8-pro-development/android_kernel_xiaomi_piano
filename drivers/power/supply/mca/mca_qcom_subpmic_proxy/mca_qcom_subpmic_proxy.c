@@ -1127,8 +1127,7 @@ static void qcom_subpmic_notify_cb(u32 notify_type, void *data, u32 len,
 		sc->sbu_lpd = *val;
 		mca_log_info("recv sbu_lpd: %d\n", sc->sbu_lpd);
 		mca_event_block_notify(MCA_EVENT_TYPE_HW_INFO,
-				       MCA_EVENT_SBU_LPD_STATUS_CHANGE,
-				       &sc->sbu_lpd);
+				       MCA_EVENT_SBU_LPD_CHANGE, &sc->sbu_lpd);
 		break;
 	}
 }
