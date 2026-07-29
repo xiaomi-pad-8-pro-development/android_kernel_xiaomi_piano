@@ -1060,15 +1060,27 @@ static void mca_charger_thermal_update_chg_curr(struct mca_thermal_info *info)
 }
 
 #define QC_27W_SIC_INIT_FCC 6000
+#define SIC_PWR_MAX_POWER_THR 68
+
 static void
 mca_charger_thermal_sic_initial_chg_curr(struct mca_thermal_info *info)
 {
 	int power_max = 0;
+	int qc_power_max = 0;
 
 	if (info->real_type == XM_CHARGER_TYPE_PPS ||
 	    info->real_type == XM_CHARGER_TYPE_PD_VERIFY) {
-		protocol_class_get_adapter_max_power(
-			ADAPTER_PROTOCOL_PPS, (unsigned int *)(&power_max));
+		(void)mca_strategy_func_get_status(
+			STRATEGY_FUNC_TYPE_QUICK_CHARGE,
+			STRATEGY_STATUS_TYPE_POWER_MAX, &qc_power_max);
+		if (qc_power_max < SIC_PWR_MAX_POWER_THR)
+			protocol_class_get_adapter_pwr_max_power(
+				ADAPTER_PROTOCOL_PPS,
+				(unsigned int *)(&power_max));
+		else
+			protocol_class_get_adapter_max_power(
+				ADAPTER_PROTOCOL_PPS,
+				(unsigned int *)(&power_max));
 		for (int i = 0; i < POWER_MAX_LIST; i++) {
 			if (power_max <= sic_init_list[i].power_max) {
 				info->wired_ctrl_info.sic_init_fcc =
