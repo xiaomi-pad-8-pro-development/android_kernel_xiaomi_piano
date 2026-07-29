@@ -64,6 +64,7 @@
 #define CHECK_VBUS_9V_HIGH_TH 7600
 #define CHECK_VBUS_5V_LOW_TH 6000
 #define DEFAULT_PD_CURRENT_MA 500
+#define SW_CV_FCC_STEP_DEFAULT 50
 
 static void strategy_buckchg_set_charge_volt(struct strategy_buckchg_dev *info,
 					     int target_volt);
@@ -194,6 +195,8 @@ static void strategy_buckchg_parse_dt(struct strategy_buckchg_dev *info)
 			  &info->ffc_temp_low, ALLOW_FFC_TEMP_LOW_THR);
 	mca_parse_dts_u32(info->dev->of_node, "ffc_temp_high",
 			  &info->ffc_temp_high, ALLOW_FFC_TEMP_HIGH_THR);
+	mca_parse_dts_u32(info->dev->of_node, "sw_cv_fcc_step",
+			  &info->sw_cv_fcc_step, SW_CV_FCC_STEP_DEFAULT);
 	mca_parse_dts_u32(info->dev->of_node, "pmic_fv_compensation",
 			  &info->pmic_fv_compensation, 0);
 	mca_parse_dts_u32(info->dev->of_node, "pmic_fv_compensation_cold",
@@ -2296,7 +2299,6 @@ static void strategy_buckchg_sw_cv_stop(struct strategy_buckchg_dev *info)
 	info->vbat_ov_count = 0;
 }
 
-#define FCC_STEP 50
 #define FV_STEP 5
 static void strategy_buckchg_sw_cv_workfunc(struct work_struct *work)
 {
@@ -2327,14 +2329,19 @@ static void strategy_buckchg_sw_cv_workfunc(struct work_struct *work)
 	}
 
 	if (vbat >= vterm - volt_delta) {
+		int fcc_step = info->sw_cv_fcc_step;
+
 		interval = CHARGE_SW_CV_WORK_FAST_INTERVAL;
-		if (ibat - FCC_STEP > iterm) {
-			if (fcc - ibat >= 2 * FCC_STEP)
-				mca_vote(info->charge_limit_voter, "sw_cv",
-					 true, ibat / FCC_STEP * FCC_STEP);
+		if (ibat - fcc_step > iterm) {
+			int target;
+
+			if (fcc - ibat >= 2 * fcc_step)
+				target = fcc_step ? ibat / fcc_step * fcc_step :
+						    0;
 			else
-				mca_vote(info->charge_limit_voter, "sw_cv",
-					 true, fcc - FCC_STEP);
+				target = fcc - fcc_step;
+			mca_vote(info->charge_limit_voter, "sw_cv", true,
+				 target);
 		}
 	} else {
 		interval = CHARGE_SW_CV_WORK_NORMAL_INTERVAL;

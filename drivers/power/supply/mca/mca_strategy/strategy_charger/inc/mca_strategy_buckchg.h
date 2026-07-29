@@ -179,6 +179,7 @@ struct strategy_buckchg_dev {
 	int buck_9v_ich;
 	int hvdcp_allow_flag;
 	int vbat_ov_count;
+	int sw_cv_fcc_step;
 	/* proc */
 	struct mca_smartchg_data smartchg_data;
 	struct strategy_buckchg_proc_data proc_data;
