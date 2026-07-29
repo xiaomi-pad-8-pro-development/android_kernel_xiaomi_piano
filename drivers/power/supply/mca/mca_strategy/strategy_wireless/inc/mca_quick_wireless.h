@@ -325,6 +325,7 @@ struct mca_wireless_quick_charge_info {
 	struct mca_votable *single_chg_cur_voter;
 	struct mca_votable *multi_chg_cur_voter;
 	struct mca_votable *thermal_flip_voter;
+	struct mca_votable *chg_enable_voter;
 	struct mca_votable *flip_charge_curr_voter;
 	int thermal_flip_current;
 	struct delayed_work monitor_work;

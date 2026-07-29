@@ -511,9 +511,9 @@ static void mca_wireless_quick_charge_stop_charging(
 	    (chgr_stat == MCA_BATT_CHGR_STATUS_TERMINATION ||
 	     chgr_stat == MCA_BATT_CHGR_STATUS_CHARGING_DISABLED)) {
 		mca_log_info("chgr_stat: %d, disable/enable pmic\n", chgr_stat);
-		(void)mca_vote(info->input_limit_voter, "quickchg", true, 0);
+		(void)mca_vote(info->chg_enable_voter, "quickchg", true, 0);
 		msleep(200);
-		(void)mca_vote(info->input_limit_voter, "quickchg", true, 1);
+		(void)mca_vote(info->chg_enable_voter, "quickchg", true, 1);
 	}
 	if (info->proc_data.charge_flag_pre == MCA_QUICK_CHG_STS_CHARGE_DONE) {
 		info->proc_data.charge_flag = info->proc_data.charge_flag_pre;
@@ -2886,6 +2886,9 @@ static int mca_wireless_quick_charge_create_voter(
 
 	info->input_limit_voter = mca_find_votable("wireless_buck_input");
 	if (!info->input_limit_voter)
+		goto error;
+	info->chg_enable_voter = mca_find_votable("chg_enable");
+	if (!info->chg_enable_voter)
 		goto error;
 	info->charge_limit_voter = mca_find_votable("buck_charge_curr");
 	if (!info->charge_limit_voter)
