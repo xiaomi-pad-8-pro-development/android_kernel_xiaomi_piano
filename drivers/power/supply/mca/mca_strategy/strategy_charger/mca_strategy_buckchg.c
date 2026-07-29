@@ -65,6 +65,7 @@
 #define CHECK_VBUS_5V_LOW_TH 6000
 #define DEFAULT_PD_CURRENT_MA 500
 #define SW_CV_FCC_STEP_DEFAULT 50
+#define SW_CV_FV_STEP_DEFAULT 5
 
 static void strategy_buckchg_set_charge_volt(struct strategy_buckchg_dev *info,
 					     int target_volt);
@@ -197,6 +198,8 @@ static void strategy_buckchg_parse_dt(struct strategy_buckchg_dev *info)
 			  &info->ffc_temp_high, ALLOW_FFC_TEMP_HIGH_THR);
 	mca_parse_dts_u32(info->dev->of_node, "sw_cv_fcc_step",
 			  &info->sw_cv_fcc_step, SW_CV_FCC_STEP_DEFAULT);
+	mca_parse_dts_u32(info->dev->of_node, "sw_cv_fv_step",
+			  &info->sw_cv_fv_step, SW_CV_FV_STEP_DEFAULT);
 	mca_parse_dts_u32(info->dev->of_node, "pmic_fv_compensation",
 			  &info->pmic_fv_compensation, 0);
 	mca_parse_dts_u32(info->dev->of_node, "pmic_fv_compensation_cold",
@@ -2299,7 +2302,6 @@ static void strategy_buckchg_sw_cv_stop(struct strategy_buckchg_dev *info)
 	info->vbat_ov_count = 0;
 }
 
-#define FV_STEP 5
 static void strategy_buckchg_sw_cv_workfunc(struct work_struct *work)
 {
 	struct strategy_buckchg_dev *info = container_of(
@@ -2348,17 +2350,19 @@ static void strategy_buckchg_sw_cv_workfunc(struct work_struct *work)
 	}
 
 	if (vbat >= (vterm - 1)) {
-		mca_log_err("WARNING: batt ov, reduce fv\n");
+		mca_log_err("WARNING: batt ov, reduce fv, count: %d\n",
+			    info->vbat_ov_count);
 		++info->vbat_ov_count;
 		if (info->vbat_ov_count == 1)
 			platform_class_buckchg_ops_set_term_volt(
 				MAIN_BUCK_CHARGER,
-				vterm + info->pmic_fv_compensation - FV_STEP);
+				vterm + info->pmic_fv_compensation -
+					info->sw_cv_fv_step);
 		else if (info->vbat_ov_count >= 2)
 			platform_class_buckchg_ops_set_term_volt(
 				MAIN_BUCK_CHARGER,
 				vterm + info->pmic_fv_compensation -
-					2 * FV_STEP);
+					2 * info->sw_cv_fv_step);
 	}
 
 	mca_queue_delayed_work(&info->sw_cv_work, msecs_to_jiffies(interval));
