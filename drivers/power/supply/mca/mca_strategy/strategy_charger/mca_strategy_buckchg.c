@@ -880,6 +880,7 @@ static void strategy_buckchg_stop_charging(struct strategy_buckchg_dev *info)
 		info, STATEGY_CHARGE_AICL_TH_4P4V);
 
 	strategy_buckchg_clear_pmic_temp_term(info);
+	info->pmic_temp_term_cleared = false;
 
 	info->aicl_thd = 0;
 	info->pdo_nums = 0;
@@ -2513,6 +2514,11 @@ static void strategy_buckchg_monitor_workfunc(struct work_struct *work)
 	strategy_buckchg_update_aicl_restart(info);
 	strategy_buckchg_cp_to_pmic_decrease_vterm(info);
 	if (info->proc_data.chg_status == MCA_BUCK_CHG_STS_CHARGING) {
+		if (info->support_pmic_vterm_dynamics_adjust &&
+		    !info->pmic_temp_term_cleared) {
+			strategy_buckchg_clear_pmic_temp_term(info);
+			info->pmic_temp_term_cleared = true;
+		}
 		if (info->proc_data.charge_done_force_5v) {
 			info->proc_data.charge_done_force_5v = false;
 			mca_vote(info->input_voltage_voter, "eoc_5v", false, 0);
