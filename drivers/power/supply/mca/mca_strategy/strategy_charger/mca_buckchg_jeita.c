@@ -48,6 +48,7 @@
 
 #define MCA_DTPT_MOLECULE_SCALE 8
 #define MCA_DTPT_DENOM_SCALE 10
+#define MCA_BASE_OVER_CURR_COUNT_MAX 4
 
 static int mca_buckchg_jeita_get_curr(struct mca_buckchg_jeita_data *jeita_data,
 				      int *vbat_index)
@@ -94,6 +95,7 @@ static void mca_buckchg_base_jeita_update(struct mca_buckchg_jeita_dev *info)
 	static int last_fastcharge_mode;
 	static int last_chg_curr;
 	static bool runswocp;
+	static int base_over_curr_count;
 	int vbat_index = -1;
 	int vbat = 0;
 
@@ -218,22 +220,29 @@ static void mca_buckchg_base_jeita_update(struct mca_buckchg_jeita_dev *info)
 		}
 	}
 
-	mca_log_err(
-		"cur index %d/%d max_chg_curr %d hys_affect %d, now_curr %d, effective_curr %d\n",
-		i, info->base_proc_data.cur_jeita_index,
-		info->base_proc_data.max_chg_curr, hys_affect, now_curr,
-		effective_curr);
-
 	chg_curr = info->base_proc_data.max_chg_curr;
+	mca_log_info(
+		"cur index %d/%d max_chg_curr %d chg_curr %d hys_affect %d, now_curr %d, effective_curr %d\n",
+		i, info->base_proc_data.cur_jeita_index,
+		info->base_proc_data.max_chg_curr, chg_curr, hys_affect,
+		now_curr, effective_curr);
 	if (data_change && !hys_affect)
 		info->base_proc_data.cur_jeita_index = i;
 
-	if (now_curr / 1000 < -chg_curr && effective_curr != 0) {
-		mca_vote(info->fcc_voter, "swocp", true, effective_curr - 100);
+	if (effective_curr != 0 && now_curr / 1000 < -chg_curr)
+		base_over_curr_count++;
+	else
+		base_over_curr_count = 0;
+
+	if (base_over_curr_count >= MCA_BASE_OVER_CURR_COUNT_MAX &&
+	    effective_curr != 0) {
+		effective_curr -= 100;
+		base_over_curr_count = 0;
+		mca_vote(info->fcc_voter, "swocp", true, effective_curr);
 		runswocp = true;
-		mca_log_err("reduce fcc %d by swocp\n", effective_curr - 100);
+		mca_log_err("reduce fcc %d by swocp\n", effective_curr);
 	}
-	if (chg_curr / 1000 > -chg_curr + 500 && runswocp) {
+	if (now_curr / 1000 > -chg_curr + 500 && runswocp) {
 		runswocp = false;
 		mca_vote(info->fcc_voter, "swocp", false, 0);
 		mca_log_err("disable swocp\n");
