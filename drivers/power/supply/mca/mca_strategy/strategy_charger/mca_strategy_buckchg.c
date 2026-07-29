@@ -924,6 +924,7 @@ strategy_buckchg_process_online_change(int value,
 		strategy_buckchg_stop_charging(info);
 		info->proc_data.charge_done_force_5v = false;
 		info->verify_process_end = 0;
+		info->cold_hot_zone_cnt = 0;
 		if (info->base_flip_same) {
 			bool cp_enabled = false;
 
@@ -2316,11 +2317,11 @@ static int strategy_buckchg_charge_abnormal_cold_or_hot_zone(
 	int chg_en = 0;
 	int temp = 0;
 	int vterm = 0;
-	static int count = 0;
 
 	strategy_class_fg_ops_get_temperature(&temp);
 	if (!IS_BETWEEN(temp, COLD_ZONE_LOW, COLD_ZONE_HIGH) &&
 	    !IS_BETWEEN(temp, HOT_ZONE_LOW, HOT_ZONE_HIGH)) {
+		info->cold_hot_zone_cnt = 0;
 		mca_log_info("temp: %d, not in cold or hot zone\n", temp);
 		return 0;
 	}
@@ -2329,6 +2330,7 @@ static int strategy_buckchg_charge_abnormal_cold_or_hot_zone(
 	chg_en = mca_get_effective_result(info->chg_enable_voter);
 	vterm = mca_get_effective_result(info->vterm_voter);
 	if (!icl || !chg_en || info->proc_data.vbat >= vterm) {
+		info->cold_hot_zone_cnt = 0;
 		mca_log_info(
 			"user can stop charging icl: %d, chg_en: %d, vterm: %d, vbat: %d, temp:%d\n",
 			icl, chg_en, vterm, info->proc_data.vbat, temp);
@@ -2338,27 +2340,27 @@ static int strategy_buckchg_charge_abnormal_cold_or_hot_zone(
 	if (info->proc_data.chg_status == MCA_BUCK_CHG_NO_CHARGING) {
 		/* temp ranges aren't overlaping, so using the same count variable is safe */
 		if (IS_BETWEEN(temp, COLD_ZONE_LOW, COLD_ZONE_HIGH)) {
-			count++;
-			if (count > 3) {
-				count = 0;
+			info->cold_hot_zone_cnt++;
+			if (info->cold_hot_zone_cnt > 3) {
+				info->cold_hot_zone_cnt = 0;
 				mca_charge_mievent_report(
 					CHARGE_DFX_LOW_TEMP_DISCHARGING, &temp,
 					1);
 			}
 		} else if (IS_BETWEEN(temp, HOT_ZONE_LOW, HOT_ZONE_HIGH)) {
-			count++;
-			if (count > 3) {
-				count = 0;
+			info->cold_hot_zone_cnt++;
+			if (info->cold_hot_zone_cnt > 3) {
+				info->cold_hot_zone_cnt = 0;
 				mca_charge_mievent_report(
 					CHARGE_DFX_HIGH_TEMP_DISCHARGING, &temp,
 					1);
 			}
 		} else {
-			count = 0;
+			info->cold_hot_zone_cnt = 0;
 		}
-		mca_log_info("count: %d\n", count);
+		mca_log_info("count: %d\n", info->cold_hot_zone_cnt);
 	} else {
-		count = 0;
+		info->cold_hot_zone_cnt = 0;
 	}
 
 	return 0;
@@ -2555,8 +2557,10 @@ qc_status:
 	(void)mca_strategy_func_get_status(STRATEGY_FUNC_TYPE_QUICK_CHARGE,
 					   STRATEGY_STATUS_TYPE_QC_CHARGE_STS,
 					   &quick_charge_status);
-	if (quick_charge_status == MCA_QUICK_CHG_STS_CHARGING)
+	if (quick_charge_status == MCA_QUICK_CHG_STS_CHARGING) {
+		info->cold_hot_zone_cnt = 0;
 		goto out;
+	}
 
 	strategy_buckchg_check_charge_volt(info);
 	strategy_buckchg_select_charg_para(info);
