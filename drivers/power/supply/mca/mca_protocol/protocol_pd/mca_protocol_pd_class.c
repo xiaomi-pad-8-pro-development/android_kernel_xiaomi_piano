@@ -678,7 +678,7 @@ static int protocol_class_pd_get_pwr_cap(void *data, struct adapter_power_cap_in
 		return -1;
 
 	pwr_cap->nums = 0;
-	for (i = 0; i < ADAPTER_CAP_MAX_NR; i++) {
+	for (i = 0; i < PROTOCOL_PD_MAX_PDO_NUMS; i++) {
 		if (pdos[i].max_volt != 0 && pdos[i].max_volt == pdos[i].min_volt) {
 			pwr_cap->cap[pwr_cap->nums].max_voltage = pdos[i].max_volt;
 			pwr_cap->cap[pwr_cap->nums].min_voltage = pdos[i].min_volt;
@@ -810,7 +810,7 @@ static int protocol_class_pps_get_pwr_cap(void *data, struct adapter_power_cap_i
 		return -1;
 
 	pwr_cap->nums = 0;
-	for (i = 0; i < ADAPTER_CAP_MAX_NR; i++) {
+	for (i = 0; i < PROTOCOL_PD_MAX_PDO_NUMS; i++) {
 		if (pdos[i].max_volt == pdos[i].min_volt)
 			continue;
 
