@@ -2459,6 +2459,8 @@ static int mca_wireless_quick_charge_parse_temp_para(
 			break;
 		case MCA_WLS_QUICK_CHG_VOLT_FFC_PARA_NAME: {
 			const char *ffc_name = tmp_string;
+			struct device_node *ffc_node = node;
+			struct device_node *cc_node;
 			char cc_name[BATT_PARA_CC_NAME_LEN] = { 0 };
 			if (info->support_base_flip &&
 			    (temp_info[row].temp_para.temp_low ==
@@ -2474,10 +2476,15 @@ static int mca_wireless_quick_charge_parse_temp_para(
 					 info->batt_para_cc_thr[batt_role]);
 				mca_log_err("base/flip FFC cc cv para:%s\n",
 					    cc_name);
-				ffc_name = cc_name;
+				cc_node = of_find_node_by_name(
+					NULL, "mca_parallel_cyclecount_para");
+				if (cc_node) {
+					ffc_name = cc_name;
+					ffc_node = cc_node;
+				}
 			}
 			if (mca_wireless_quick_charge_parse_volt_para(
-				    node, ffc_name,
+				    ffc_node, ffc_name,
 				    &temp_info[row].volt_ffc_info))
 				goto error;
 			break;
