@@ -1631,7 +1631,8 @@ static int strategy_fg_check_parallel_termination(struct strategy_fg *fg)
 	ret = mca_strategy_parallel_first_termination(fg);
 
 	//adjust vterm after first_termination
-	if (last_first_termination != fg->first_termination) {
+	if (fg->cfg.support_base_flip &&
+	    last_first_termination != fg->first_termination) {
 		last_first_termination = fg->first_termination;
 		if (last_first_termination == true) {
 			int offset = 0;
@@ -1665,6 +1666,8 @@ static int strategy_fg_check_parallel_termination(struct strategy_fg *fg)
 					       vterm;
 			mca_log_err("last_first_termination:vterm_target:%d",
 				    vterm_target);
+			if (vterm_target == vterm)
+				goto term_curr;
 			mca_vote_override(fg->vterm_voter, "para_term", true,
 					  vterm_target);
 		} else {
@@ -1674,6 +1677,7 @@ static int strategy_fg_check_parallel_termination(struct strategy_fg *fg)
 		}
 	}
 
+term_curr:
 	//setting dual batetry term current
 	for (int i = 0; i < 2; i++) {
 		fg->dual_iterm[i] = strategy_fg_get_term_current_new(fg, i);

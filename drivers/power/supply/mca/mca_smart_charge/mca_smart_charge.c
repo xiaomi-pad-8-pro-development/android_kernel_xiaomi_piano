@@ -689,6 +689,7 @@ static void smartcharging_handle_controlmessage(void)
 		smartcharging_handle_power_boost(
 			info, SMART_CHG_TRAVELWAIT_PWR_BOOST);
 	} else if (info->smart_chg_control.smart_bypass) {
+		info->bypass_reserved = 0;
 		info->bypass_enable = info->smart_chg_control.enable & 1;
 	}
 }

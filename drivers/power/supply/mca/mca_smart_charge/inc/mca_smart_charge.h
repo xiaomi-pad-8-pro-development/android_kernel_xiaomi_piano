@@ -221,6 +221,7 @@ struct smart_charge_info {
 	int bypass_entry_soc;
 	int bypass_exit_soc;
 	uint16_t bypass_enable;
+	uint16_t bypass_reserved;
 	uint16_t last_bypass_state;
 	int bypass_active;
 	int bypass_temp_index;
