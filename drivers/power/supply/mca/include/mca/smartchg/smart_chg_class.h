@@ -68,6 +68,7 @@ struct mca_smartchg_if_ops {
 	void *data;
 	int (*set_delta_fv)(void *data, int val);
 	int (*set_delta_ichg)(void *data, int val);
+	int (*set_fcc)(void *data, int val);
 	int (*set_pwr_boost_sts)(void *data, int en);
 	int (*set_soc_limit_sts)(void *data, int en);
 	int (*set_wls_quiet_sts)(void *data, int en);

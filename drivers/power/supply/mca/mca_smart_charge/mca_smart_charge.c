@@ -47,6 +47,8 @@
 #include "inc/mca_smart_charge.h"
 #include <mca/common/mca_charge_mievent.h>
 #include <mca/common/mca_hwid.h>
+#include <mca/shared_memory/charger_partition_class.h>
+#include <linux/ktime.h>
 #include "hwid.h"
 
 #ifndef MCA_LOG_TAG
@@ -825,6 +827,184 @@ static void smart_charge_csd_send_pulse(struct smart_charge_info *info)
 		batt_temp, info->cycle_count, smart_night, info->pulse_mode);
 }
 
+static int smart_charge_thermal_notifier_cb(struct notifier_block *nb,
+					    unsigned long event, void *val)
+{
+	struct smart_charge_info *info =
+		container_of(nb, struct smart_charge_info, thermal_nb);
+
+	switch (event) {
+	case MCA_EVENT_THERMAL_BOARD_TEMP_CHANGE:
+		info->board_temp = *(int *)val / SMART_CHG_BOARD_TEMP_SCALE;
+		break;
+	default:
+		break;
+	}
+	return NOTIFY_DONE;
+}
+
+static void
+update_smart_bypass_temp_section(struct smart_charge_info *info,
+				 struct smart_bypass_temp_section *sections,
+				 unsigned int count)
+{
+	int board_temp = info->board_temp;
+	int cur = info->bypass_temp_index;
+	int report_index;
+	int i;
+
+	for (i = 0; i < (int)count; i++) {
+		if (board_temp >= sections[i].temp_high ||
+		    sections[i].temp_low > board_temp)
+			continue;
+
+		report_index = cur;
+		if (cur < i) {
+			if (board_temp >= sections[cur].temp_high +
+						  sections[cur].hyst_high) {
+				report_index = i;
+				info->bypass_temp_index = i;
+			}
+		} else if (cur > i &&
+			   sections[cur].temp_low - sections[cur].hyst_low >
+				   board_temp) {
+			report_index = i;
+			info->bypass_temp_index = i;
+		}
+
+		mca_log_err("for_bypass board_temp:%d, cur_temp_index:%d\n",
+			    board_temp, report_index);
+		return;
+	}
+
+	mca_log_err("temp over range invalid, current:%d\n", -1);
+}
+
+static void smart_charge_check_bypass_status(struct smart_charge_info *info)
+{
+	static bool once_flag;
+	bool prev = once_flag;
+
+	if (info->bypass_exit_flag) {
+		once_flag = false;
+		return;
+	}
+
+	if (!once_flag) {
+		mca_log_err("for_bypass start time\n");
+		info->bypass_start_time = ktime_get_boottime();
+	} else {
+		if (ktime_get_boottime() >
+		    info->bypass_start_time + SMART_BYPASS_DEBOUNCE_NS) {
+			mca_log_err("for_bypass exit bypass\n");
+			mca_vote(info->smartchg_set_fcc_voter, "smart_bypass",
+				 false, 0);
+			info->bypass_exit_flag = true;
+		} else {
+			goto debounce;
+		}
+	}
+	once_flag = prev ^ 1;
+debounce:
+	mca_log_err("for_bypass Debounce: %lld s\n",
+		    (ktime_get_boottime() - info->bypass_start_time) /
+			    NSEC_PER_SEC);
+}
+
+static const int smart_bypass_med_adapters[] = { 0x08, 0x0b, 0x1c,
+						 0x3a, 0x3d, 0x4e };
+static const int smart_bypass_high_adapters[] = { 0x12, 0x13, 0x14, 0x19,
+						  0x4b, 0x1f5, 0x2be, 0x2bc };
+
+static bool smart_bypass_adapter_in_set(int adapter, const int *set, int n)
+{
+	for (int i = 0; i < n; i++)
+		if (set[i] == adapter)
+			return true;
+	return false;
+}
+
+static void smart_charge_handle_bypass_chg(struct smart_charge_info *info)
+{
+	int fcc = 0;
+	uint16_t state;
+	int soc;
+
+	if (!info->support_bypass)
+		return;
+
+	state = info->bypass_enable;
+	if (info->bypass_enable == 0)
+		goto report;
+
+	soc = strategy_class_fg_ops_get_soc();
+	if (soc < info->bypass_entry_soc || soc > info->bypass_exit_soc) {
+		mca_log_err("for_bypass soc not in range, quit bypass mode\n");
+		state = 0;
+		goto report;
+	}
+	if (info->wls_online) {
+		mca_log_err("for_bypass wlschg online, quit bypass mode\n");
+		state = 0;
+		goto report;
+	}
+
+	if (smart_bypass_adapter_in_set(info->adapter_type,
+					smart_bypass_med_adapters,
+					ARRAY_SIZE(smart_bypass_med_adapters))) {
+		update_smart_bypass_temp_section(info, info->bypass_med_lmt,
+						 info->bypass_med_num);
+		info->bypass_active = 1;
+		fcc = info->bypass_med_lmt[info->bypass_temp_index].fcc;
+	} else if (smart_bypass_adapter_in_set(
+			   info->adapter_type, smart_bypass_high_adapters,
+			   ARRAY_SIZE(smart_bypass_high_adapters))) {
+		update_smart_bypass_temp_section(info, info->bypass_high_lmt,
+						 info->bypass_high_num);
+		info->bypass_active = 1;
+		fcc = info->bypass_high_lmt[info->bypass_temp_index].fcc;
+	} else {
+		info->bypass_active = 0;
+		smart_charge_check_bypass_status(info);
+	}
+
+	if (fcc != 0 && fcc != info->last_bypass_fcc) {
+		mca_vote(info->smartchg_set_fcc_voter, "smart_bypass", true,
+			 fcc);
+		info->bypass_exit_flag = false;
+	}
+
+report:
+	mca_log_err("for_bypass [%d->%d] fcc[%d %d]\n", info->last_bypass_state,
+		    state, fcc, info->last_bypass_fcc);
+	if (info->last_bypass_state != state) {
+		info->last_bypass_state = state;
+		if (state == 0)
+			mca_vote(info->smartchg_set_fcc_voter, "smart_bypass",
+				 false, 0);
+	}
+	if (fcc != info->last_bypass_fcc)
+		info->last_bypass_fcc = fcc;
+}
+
+static void smart_charge_handle_mishow_config(struct smart_charge_info *info)
+{
+	const struct mca_hwid *hwid = mca_get_hwid_info();
+	bool mishow = false;
+
+	if (!hwid || mca_log_get_charge_boot_mode() == 0)
+		return;
+	if (hwid->platform_version != HARDWARE_PROJECT_O8 &&
+	    hwid->platform_version != HARDWARE_PROJECT_O9)
+		return;
+
+	charger_partition_get_mishow(&mishow);
+	info->mishow_config = mishow;
+	mca_log_info("mishow config is %d\n", info->mishow_config);
+	if (info->mishow_config)
+		smartcharging_handle_algorithm_conflict(info);
+}
+
 static void smart_charge_workfunc(struct work_struct *work)
 {
 	struct smart_charge_info *info = container_of(
@@ -858,6 +1038,10 @@ static void smart_charge_workfunc(struct work_struct *work)
 	if (hwid && hwid->country_version == CountryCN && info->support_csd)
 		smart_charge_csd_send_pulse(info);
 
+	//smart bypass fcc limiter (mishow)
+	smart_charge_handle_bypass_chg(info);
+	smart_charge_handle_mishow_config(info);
+
 	schedule_delayed_work(&info->smart_charge_work, msecs_to_jiffies(5000));
 }
 
@@ -881,8 +1065,10 @@ static int mca_smart_charge_process_event(int event, int value, void *data)
 
 	mca_log_info("receive event %d, value %d\n", event, value);
 	switch (event) {
-	case MCA_EVENT_USB_CONNECT:
 	case MCA_EVENT_WIRELESS_CONNECT:
+		info->wls_online = 1;
+		fallthrough;
+	case MCA_EVENT_USB_CONNECT:
 		info->online = 1;
 		strategy_class_fg_ops_get_rsoc(&info->plugin_rsoc);
 		smart_charge_plugin_or_plugout_reset(info);
@@ -891,8 +1077,10 @@ static int mca_smart_charge_process_event(int event, int value, void *data)
 		cancel_delayed_work_sync(&info->smart_soc_limit_work);
 		schedule_delayed_work(&info->smart_soc_limit_work, 0);
 		break;
-	case MCA_EVENT_USB_DISCONNECT:
 	case MCA_EVENT_WIRELESS_DISCONNECT:
+		info->wls_online = 0;
+		fallthrough;
+	case MCA_EVENT_USB_DISCONNECT:
 		info->online = 0;
 		smart_charge_plugin_or_plugout_reset(info);
 		cancel_delayed_work_sync(&info->smart_charge_work);
@@ -969,6 +1157,27 @@ static int smart_charge_ichg_control(struct mca_votable *votable, void *data,
 	return 0;
 }
 
+static int smart_charge_set_fcc_control(struct mca_votable *votable, void *data,
+					int effective_result,
+					const char *effective_client)
+{
+	static struct mca_smartchg_if_ops *if_ops;
+
+	if (!data)
+		return -1;
+
+	mca_log_err("smartchg_set_fcc %d\n", effective_result);
+
+	for (int i = 0; i < MCA_SMARTCHG_IF_CHG_TYPE_END; i++) {
+		if_ops = mca_smartchg_if_get_ops(i);
+		if (!if_ops || !if_ops->set_fcc)
+			continue;
+		if_ops->set_fcc(if_ops->data, effective_result);
+	}
+
+	return 0;
+}
+
 static int smart_charge_init_voter(struct smart_charge_info *info)
 {
 	info->smartchg_delta_fv_voter = mca_create_votable(
@@ -984,6 +1193,14 @@ static int smart_charge_init_voter(struct smart_charge_info *info)
 		SMART_CHARGE_DELTA_ICHG_DEFAULT_VALUE, info);
 	if (IS_ERR(info->smartchg_delta_ichg_voter)) {
 		mca_log_err("smartchg_delta_ichg voteable failed\n");
+		return -1;
+	}
+
+	info->smartchg_set_fcc_voter = mca_create_votable(
+		"smartchg_set_fcc", MCA_VOTE_MIN, smart_charge_set_fcc_control, 0,
+		info);
+	if (IS_ERR(info->smartchg_set_fcc_voter)) {
+		mca_log_err("smartchg_fcc_voter voteable failed\n");
 		return -1;
 	}
 
@@ -1484,6 +1701,57 @@ static int smart_charge_parse_dt(struct smart_charge_info *info)
 		}
 	}
 
+	mca_parse_dts_u32(node, "smart_bypass_support", &info->support_bypass,
+			  0);
+	if (info->support_bypass) {
+		const int elems =
+			sizeof(struct smart_bypass_temp_section) / sizeof(u32);
+
+		mca_parse_dts_u32(node, "smart_bypass_entry_soc",
+				  &info->bypass_entry_soc, 0);
+		mca_parse_dts_u32(node, "smart_bypass_exit_soc",
+				  &info->bypass_exit_soc, 0);
+
+		len = mca_parse_dts_u32_count(node, "smart_bypass_high_lmt_cfg",
+					      SMART_BYPASS_TEMP_SECTION_MAX,
+					      elems);
+		if (len < 0) {
+			mca_log_err("parse smart_bypass_high_lmt_cfg failed\n");
+			return -1;
+		}
+		info->bypass_high_num = len / elems;
+		ret = mca_parse_dts_u32_array(node, "smart_bypass_high_lmt_cfg",
+					      (u32 *)info->bypass_high_lmt, len);
+		if (ret < 0)
+			return -1;
+
+		len = mca_parse_dts_u32_count(node, "smart_bypass_med_lmt_cfg",
+					      SMART_BYPASS_TEMP_SECTION_MAX,
+					      elems);
+		if (len < 0) {
+			mca_log_err("parse smart_bypass_med_lmt_cfg failed\n");
+			return -1;
+		}
+		info->bypass_med_num = len / elems;
+		ret = mca_parse_dts_u32_array(node, "smart_bypass_med_lmt_cfg",
+					      (u32 *)info->bypass_med_lmt, len);
+		if (ret < 0)
+			return -1;
+
+		len = mca_parse_dts_u32_count(node, "smart_bypass_low_lmt_cfg",
+					      SMART_BYPASS_TEMP_SECTION_MAX,
+					      elems);
+		if (len < 0) {
+			mca_log_err("parse smart_bypass_low_lmt_cfg failed\n");
+			return -1;
+		}
+		info->bypass_low_num = len / elems;
+		ret = mca_parse_dts_u32_array(node, "smart_bypass_low_lmt_cfg",
+					      (u32 *)info->bypass_low_lmt, len);
+		if (ret < 0)
+			return -1;
+	}
+
 	return 0;
 }
 
@@ -1521,6 +1789,10 @@ static int smart_charge_probe(struct platform_device *pdev)
 
 	info->panel_nb.notifier_call = smart_charge_panel_notifier_cb;
 	mca_event_block_notify_register(MCA_EVENT_TYPE_PANEL, &info->panel_nb);
+
+	info->thermal_nb.notifier_call = smart_charge_thermal_notifier_cb;
+	mca_event_block_notify_register(MCA_EVENT_TYPE_THERMAL_TEMP,
+					&info->thermal_nb);
 
 	INIT_DELAYED_WORK(&info->smart_charge_work, smart_charge_workfunc);
 	INIT_DELAYED_WORK(&info->smart_sense_chg_work,

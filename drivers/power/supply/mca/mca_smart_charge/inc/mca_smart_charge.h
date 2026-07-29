@@ -155,6 +155,18 @@ struct ICHG_CC_CFG {
 
 #define CC_ICHG_MAX_GROUP 2
 
+#define SMART_BYPASS_TEMP_SECTION_MAX 10
+#define SMART_BYPASS_DEBOUNCE_NS (10 * NSEC_PER_SEC)
+#define SMART_CHG_BOARD_TEMP_SCALE 100
+
+struct smart_bypass_temp_section {
+	int temp_low;
+	int temp_high;
+	int hyst_low;
+	int hyst_high;
+	int fcc;
+};
+
 struct smart_charge_info {
 	struct class *smart_charge_class;
 	struct cdev pri_dev;
@@ -201,6 +213,30 @@ struct smart_charge_info {
 	int night_enable_rsoc;
 	union SMART_CHG_MIEVENT ignore_upload;
 	size_t mmap_size;
+	struct mca_votable *smartchg_set_fcc_voter;
+	struct notifier_block thermal_nb;
+	int wls_online;
+	int adapter_type;
+	int support_bypass;
+	int bypass_entry_soc;
+	int bypass_exit_soc;
+	uint16_t bypass_enable;
+	uint16_t last_bypass_state;
+	int bypass_active;
+	int bypass_temp_index;
+	int last_bypass_fcc;
+	ktime_t bypass_start_time;
+	bool bypass_exit_flag;
+	int bypass_high_num;
+	int bypass_med_num;
+	int bypass_low_num;
+	struct smart_bypass_temp_section
+		bypass_high_lmt[SMART_BYPASS_TEMP_SECTION_MAX];
+	struct smart_bypass_temp_section
+		bypass_med_lmt[SMART_BYPASS_TEMP_SECTION_MAX];
+	struct smart_bypass_temp_section
+		bypass_low_lmt[SMART_BYPASS_TEMP_SECTION_MAX];
+	int mishow_config;
 };
 
 enum smartchg_attr_list {
