@@ -52,6 +52,8 @@
 #define MCA_LOG_TAG "mca_wireless_revchg"
 #endif
 
+#define WLS_PEN_CHARGE_TYPE 4
+
 static int mca_wireless_rev_charge_config(int enable);
 static void mca_wireless_rev_set_reverse_src(int boost_src);
 
@@ -574,6 +576,8 @@ static int mca_wireless_rev_charger_boost_config(int enable)
 		if (power_good)
 			return -1;
 
+		ret |= platform_class_wireless_set_hboost_enable(
+			WIRELESS_ROLE_MASTER, true);
 		msleep(20);
 		while (retry_cnt < 3) {
 			ret = platform_class_wireless_check_i2c_is_ok(
@@ -590,6 +594,8 @@ static int mca_wireless_rev_charger_boost_config(int enable)
 	} else {
 		src_voltage = (info->rev_boost_src << 16) | otg_boost_vol;
 		mca_log_err("close boost!!!");
+		ret |= platform_class_wireless_set_hboost_enable(
+			WIRELESS_ROLE_MASTER, false);
 		ret |= platform_class_buckchg_ops_set_boost_voltage(
 			MAIN_BUCK_CHARGER, src_voltage);
 		ret |= platform_class_buckchg_ops_set_boost_enable(
@@ -693,6 +699,8 @@ static int mca_wireless_rev_firmware_update_boost_config(int enable)
 			}
 		}
 
+		ret |= platform_class_wireless_set_hboost_enable(
+			WIRELESS_ROLE_MASTER, true);
 		msleep(20);
 		while (retry_cnt < 3) {
 			ret = platform_class_wireless_check_i2c_is_ok(
@@ -705,6 +713,8 @@ static int mca_wireless_rev_firmware_update_boost_config(int enable)
 		}
 	} else {
 		src_voltage = (info->rev_boost_src << 16) | otg_boost_vol;
+		ret |= platform_class_wireless_set_hboost_enable(
+			WIRELESS_ROLE_MASTER, false);
 		ret |= platform_class_buckchg_ops_set_boost_voltage(
 			MAIN_BUCK_CHARGER, src_voltage);
 		ret |= platform_class_buckchg_ops_set_boost_enable(
@@ -1091,6 +1101,12 @@ static void mca_wireless_rev_charge_config_work(struct work_struct *work)
 	ret = platform_class_wireless_enable_reverse_chg(WIRELESS_ROLE_MASTER,
 							 true);
 	mca_log_err("reverse charge success = %d!!!", ret);
+
+	if (info->support_tx_only) {
+		ret = platform_class_wireless_set_charge_type(
+			WIRELESS_ROLE_MASTER, WLS_PEN_CHARGE_TYPE);
+		mca_log_err("set wls pen charge type, ret = %d", ret);
+	}
 }
 
 static void mca_wireless_rev_tx_ping_timeout_work(struct work_struct *work)
@@ -1325,6 +1341,7 @@ static void mca_wireless_rev_pen_data_handle_work(struct work_struct *work)
 		work, struct mca_wireless_revchg, pen_data_handle_work.work);
 	int pen_soc = 255, tx_vout = 0, tx_iout = 0, tx_tdie = 0;
 	bool pen_full_flag = 0;
+	bool reverse_chg_en = false;
 	static int full_soc_count = 0;
 	u64 pen_mac = 0;
 	int len;
@@ -1344,6 +1361,10 @@ static void mca_wireless_rev_pen_data_handle_work(struct work_struct *work)
 							&pen_full_flag);
 	(void)platform_class_wireless_get_pen_mac(WIRELESS_ROLE_MASTER,
 						  (u8 *)&pen_mac);
+	(void)platform_class_wireless_get_reverse_chg_en(WIRELESS_ROLE_MASTER,
+							 &reverse_chg_en);
+	if (!reverse_chg_en)
+		return;
 
 	len = snprintf(event, MCA_EVENT_NOTIFY_SIZE,
 		       "POWER_SUPPLY_PEN_PLACE_ERR=%d", 0);
@@ -1417,6 +1438,27 @@ static void mca_wireless_rev_monitor_work(struct work_struct *work)
 	platform_class_wireless_get_trx_isense(WIRELESS_ROLE_MASTER, &isense);
 	platform_class_wireless_get_trx_vrect(WIRELESS_ROLE_MASTER, &vrect);
 
+	if (info->support_tx_only) {
+		int hall3 = 0, hall3_s = 0, hall4 = 0, hall4_s = 0;
+		int hall_ppe_n = 0, hall_ppe_s = 0;
+
+		platform_class_wireless_get_pen_hall3(WIRELESS_ROLE_MASTER,
+						      &hall3);
+		platform_class_wireless_get_pen_hall3_s(WIRELESS_ROLE_MASTER,
+							&hall3_s);
+		platform_class_wireless_get_pen_hall4(WIRELESS_ROLE_MASTER,
+						      &hall4);
+		platform_class_wireless_get_pen_hall4_s(WIRELESS_ROLE_MASTER,
+							&hall4_s);
+		platform_class_wireless_get_pen_hall_ppe_n(WIRELESS_ROLE_MASTER,
+							   &hall_ppe_n);
+		platform_class_wireless_get_pen_hall_ppe_s(WIRELESS_ROLE_MASTER,
+							   &hall_ppe_s);
+		mca_log_info(
+			"wireless revchg: [hall3:%d], [hall4:%d], [hall3_s:%d], [hall4_s:%d], [hall_ppe_n:%d], [hall_ppe_s:%d]\n",
+			hall3, hall4, hall3_s, hall4_s, hall_ppe_n, hall_ppe_s);
+	}
+
 	mca_log_info("wireless revchg: [isense:%d], [vrect:%d]\n", isense,
 		     vrect);
 	(void)platform_class_wireless_is_present(WIRELESS_ROLE_MASTER,
@@ -1485,6 +1527,7 @@ static void mca_wireless_reverse_chg_handler(struct mca_wireless_revchg *info)
 	int ss = 0;
 	int pen_soc = 255;
 	u64 pen_mac = 0;
+	bool reverse_chg_en = false;
 
 	mca_log_info("reverse chg handler, int_index = %d\n",
 		     info->proc_data.int_flag);
@@ -1715,6 +1758,11 @@ static void mca_wireless_reverse_chg_handler(struct mca_wireless_revchg *info)
 							  &pen_soc);
 		(void)platform_class_wireless_get_pen_mac(WIRELESS_ROLE_MASTER,
 							  (u8 *)&pen_mac);
+		(void)platform_class_wireless_get_reverse_chg_en(
+			WIRELESS_ROLE_MASTER, &reverse_chg_en);
+		if (!reverse_chg_en)
+			break;
+
 		len = snprintf(event, MCA_EVENT_NOTIFY_SIZE,
 			       "POWER_SUPPLY_REVERSE_PEN_SOC=%d", pen_soc);
 		event_data.event = event;
@@ -1733,6 +1781,11 @@ static void mca_wireless_reverse_chg_handler(struct mca_wireless_revchg *info)
 							  &pen_soc);
 		(void)platform_class_wireless_get_pen_mac(WIRELESS_ROLE_MASTER,
 							  (u8 *)&pen_mac);
+		(void)platform_class_wireless_get_reverse_chg_en(
+			WIRELESS_ROLE_MASTER, &reverse_chg_en);
+		if (!reverse_chg_en)
+			break;
+
 		len = snprintf(event, MCA_EVENT_NOTIFY_SIZE,
 			       "POWER_SUPPLY_REVERSE_PEN_SOC=%d", pen_soc);
 		event_data.event = event;
