@@ -1072,6 +1072,36 @@ mca_strategy_buckchg_jeita_get_ffc_iterm(struct mca_buckchg_jeita_dev *info)
 	return cur_ffc_itrem;
 }
 
+static int
+mca_strategy_buckchg_jeita_get_ffc_vterm(struct mca_buckchg_jeita_dev *info)
+{
+	int cur_ffc_vterm = 0, temp = 0;
+	int ret, i;
+	struct mca_buckchg_jeita_data *cur_jeita_data;
+
+	ret = strategy_class_fg_ops_get_temperature(&temp);
+	if (ret) {
+		mca_log_err("get battery temp failed\n");
+		return 0;
+	}
+	temp /= 10;
+
+	for (i = 0; i < info->jeita_para.fcc_size; i++) {
+		cur_jeita_data = info->jeita_para.jeita_ffc_data + i;
+		if (temp < cur_jeita_data->temp_high &&
+		    temp >= cur_jeita_data->temp_low)
+			break;
+	}
+	if (i == info->jeita_para.fcc_size) {
+		mca_log_err("can not find jeita fcc para\n");
+		return 0;
+	}
+
+	cur_ffc_vterm = cur_jeita_data->vterm;
+
+	return cur_ffc_vterm;
+}
+
 static int mca_strategy_buckchg_jeita_get_status(int status, void *value,
 						 void *data)
 {
@@ -1091,6 +1121,9 @@ static int mca_strategy_buckchg_jeita_get_status(int status, void *value,
 		break;
 	case STRATEGY_STATUS_TYPE_JEITA_FFC_SIZE:
 		*cur_val = info->jeita_para.fcc_size;
+		break;
+	case STRATEGY_STATUS_TYPE_JEITA_FFC_VTERM:
+		*cur_val = mca_strategy_buckchg_jeita_get_ffc_vterm(info);
 		break;
 	case STRATEGY_STATUS_TYPE_JEITA_COLD_ZONE:
 		*cur_val = info->cold_zone;
