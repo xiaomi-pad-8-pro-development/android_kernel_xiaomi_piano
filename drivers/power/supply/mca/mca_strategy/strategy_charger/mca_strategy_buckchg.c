@@ -2789,7 +2789,10 @@ strategy_buckchg_wireless_revchg_msleep(int ms,
 	count = ms / 10;
 
 	for (i = 0; i < count; i++) {
-		if (!info->proc_data.online || !info->wls_revchg_en)
+		bool user_reverse_chg = false;
+		(void)mca_wireless_rev_get_user_reverse_chg(&user_reverse_chg);
+		if (!info->proc_data.online || !info->wls_revchg_en ||
+		    !user_reverse_chg)
 			return -1;
 		usleep_range(9900, 11000);
 	}

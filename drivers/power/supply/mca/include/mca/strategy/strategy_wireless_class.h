@@ -48,6 +48,7 @@ int mca_wireless_rev_set_firmware_state(int state);
 int mca_wireless_rev_get_rev_boost_default(int *rev_boost_default);
 int mca_wireless_rev_get_reverse_chg(bool *reverse_chg_en);
 int mca_wireless_rev_get_reverse_chg_state(int *state);
+int mca_wireless_rev_get_user_reverse_chg(bool *user_reverse_chg);
 int mca_wireless_rev_set_user_reverse_chg(bool user_reverse_chg);
 int mca_wireless_rev_update_fw_version(int cmd);
 int mca_wireless_rev_set_usb_plugin(bool wls_sleep_usb_insert);
