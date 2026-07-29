@@ -489,6 +489,62 @@ strategy_buckchg_process_multi_iterm(struct strategy_buckchg_dev *info,
 	return 0;
 }
 
+#define BASE_FLIP_PACK_ITERM_HIGH 1046
+#define BASE_FLIP_PACK_ITERM_MID 598
+#define BASE_FLIP_PACK_ITERM_LOW 187
+#define BASE_FLIP_ITERM_TEMP_WARM_LOW 180
+#define BASE_FLIP_ITERM_TEMP_WARM_HIGH 300
+#define BASE_FLIP_ITERM_TEMP_HOT_HIGH 400
+#define BASE_FLIP_ITERM_COMP_HOT 104
+#define BASE_FLIP_ITERM_COMP_WARM 82
+#define BASE_FLIP_ITERM_COMP_FFC 50
+#define BASE_FLIP_ITERM_COMP_LOW_PACK 20
+#define BASE_FLIP_ITERM_COMP_OTHER_PACK 14
+
+static int
+strategy_buckchg_base_flip_iterm_comp(struct strategy_buckchg_dev *info)
+{
+	int temp = 0;
+
+	if (!strategy_class_fg_get_fastcharge())
+		return info->parallel_iterm == BASE_FLIP_PACK_ITERM_LOW ?
+			       BASE_FLIP_ITERM_COMP_LOW_PACK :
+			       BASE_FLIP_ITERM_COMP_OTHER_PACK;
+
+	(void)strategy_class_fg_ops_get_temperature(&temp);
+
+	if (temp >= BASE_FLIP_ITERM_TEMP_WARM_HIGH &&
+	    temp < BASE_FLIP_ITERM_TEMP_HOT_HIGH &&
+	    info->parallel_iterm == BASE_FLIP_PACK_ITERM_HIGH)
+		return BASE_FLIP_ITERM_COMP_HOT;
+
+	if (temp >= BASE_FLIP_ITERM_TEMP_WARM_LOW &&
+	    temp < BASE_FLIP_ITERM_TEMP_WARM_HIGH &&
+	    info->parallel_iterm == BASE_FLIP_PACK_ITERM_MID)
+		return BASE_FLIP_ITERM_COMP_WARM;
+
+	return BASE_FLIP_ITERM_COMP_FFC;
+}
+
+#define BASE_FLIP_SAME_ITERM_TEMP_HIGH 349
+#define BASE_FLIP_SAME_ITERM_COMP_NO_FFC 20
+#define BASE_FLIP_SAME_ITERM_COMP_HOT 68
+#define BASE_FLIP_SAME_ITERM_COMP_WARM 75
+
+static int strategy_buckchg_base_flip_same_iterm_comp(void)
+{
+	int temp = 0;
+
+	if (!strategy_class_fg_get_fastcharge())
+		return BASE_FLIP_SAME_ITERM_COMP_NO_FFC;
+
+	(void)strategy_class_fg_ops_get_temperature(&temp);
+
+	return temp > BASE_FLIP_SAME_ITERM_TEMP_HIGH ?
+		       BASE_FLIP_SAME_ITERM_COMP_HOT :
+		       BASE_FLIP_SAME_ITERM_COMP_WARM;
+}
+
 static int strategy_buckchg_set_iterm(struct mca_votable *votable, void *data,
 				      int effective_result,
 				      const char *effective_client)
@@ -500,7 +556,11 @@ static int strategy_buckchg_set_iterm(struct mca_votable *votable, void *data,
 
 	if (info->support_base_flip)
 		info->pmic_iterm_compensation =
-			strategy_class_fg_get_fastcharge() ? 40 : 0;
+			strategy_buckchg_base_flip_iterm_comp(info);
+
+	if (info->base_flip_same)
+		info->pmic_iterm_compensation =
+			strategy_buckchg_base_flip_same_iterm_comp();
 
 	effective_result = info->pmic_iterm_compensation + effective_result;
 
