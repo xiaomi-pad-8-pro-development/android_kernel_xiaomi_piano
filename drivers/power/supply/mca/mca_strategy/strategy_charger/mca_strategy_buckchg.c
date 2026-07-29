@@ -211,6 +211,8 @@ static void strategy_buckchg_parse_dt(struct strategy_buckchg_dev *info)
 			  ALLOW_START_FFC_BATT_SOC_THR);
 	mca_parse_dts_u32(info->dev->of_node, "curr_terminate_compensation",
 			  &info->curr_terminate_compensation, 0);
+	mca_parse_dts_u32(info->dev->of_node, "ffc_terminated_by_cp",
+			  &info->ffc_terminated_by_cp, 0);
 	mca_parse_dts_u32(info->dev->of_node, "pmic_fv_compensation",
 			  &info->pmic_fv_compensation, 0);
 	mca_parse_dts_u32(info->dev->of_node, "pmic_fv_compensation_cold",
@@ -1933,6 +1935,11 @@ strategy_buckchg_enable_fast_charge_mode(struct strategy_buckchg_dev *info,
 		(void)mca_strategy_func_get_status(
 			STRATEGY_FUNC_TYPE_QUICK_CHARGE,
 			STRATEGY_STATUS_TYPE_CHARGING, &quick_charge_status);
+		if (info->ffc_terminated_by_cp)
+			(void)mca_strategy_func_get_status(
+				STRATEGY_FUNC_TYPE_QUICK_CHARGE,
+				STRATEGY_STATUS_TYPE_MODE, &fcc);
+
 		(void)strategy_class_fg_ops_get_temperature(&batt_temp);
 		batt_temp /= 10;
 
