@@ -76,6 +76,9 @@
 #define PPS_FFC_IBUS_BOOST 500
 #define SOC_LIMIT_ICL_DEFAULT 500
 #define SOC_LIMIT_ICL_BATT_TYPE 1000
+#define CP_CHIP_VENDOR_SC8541 0
+#define CP_CHIP_VENDOR_BQ25960 4
+#define CP_REVCHG_EXIT_TIMEOUT 40
 #define BASE_FLIP_SW_CV_FV_STEP_FAST 10
 #define BASE_FLIP_SW_CV_FV_STEP_SLOW 5
 #define BASE_FLIP_SW_CV_VBAT_DELTA_FAST 5
@@ -1041,6 +1044,7 @@ strategy_buckchg_cp_revert_handler(int auth_pos,
 {
 	static int last_otg_present = 0;
 	static int last_pos = 1;
+	static int bq_revchg_switch_flag;
 	bool otg_present = false;
 	int otg_boost_disable;
 	int otg_enable;
@@ -1118,18 +1122,38 @@ strategy_buckchg_cp_revert_handler(int auth_pos,
 		} else if (pos == 2) {
 			mca_log_err("start revert 1_2 cp");
 
-			// enable revert cp boost
-			platform_class_cp_enable_acdrv_manual(CP_ROLE_MASTER,
-							      true);
-			platform_class_cp_set_adjustadble_timeout(CP_ROLE_MASTER,
-								  0);
-			platform_class_cp_set_mode(CP_ROLE_MASTER,
-						   CP_MODE_REVERSE_1_2);
-			platform_class_cp_enable_wpcgate(CP_ROLE_MASTER, false);
-			platform_class_cp_enable_ovpgate(CP_ROLE_MASTER, true);
-			platform_class_cp_set_qb(CP_ROLE_MASTER, true);
-			platform_class_cp_set_charging_enable(CP_ROLE_MASTER,
-							      true);
+			(void)platform_class_cp_get_chip_vendor(
+				CP_ROLE_MASTER, &info->cp_chip_vendor);
+
+			if (info->cp_chip_vendor == CP_CHIP_VENDOR_BQ25960 &&
+			    !bq_revchg_switch_flag) {
+				mca_log_err("entry bq25960 1_2 cp reverse mode");
+				platform_class_cp_set_cp_reverse_mode(
+					CP_ROLE_MASTER, true);
+				bq_revchg_switch_flag = 1;
+			} else {
+				// enable revert cp boost
+				platform_class_cp_enable_acdrv_manual(
+					CP_ROLE_MASTER, true);
+				platform_class_cp_set_adjustadble_timeout(
+					CP_ROLE_MASTER, 0);
+				platform_class_cp_set_mode(CP_ROLE_MASTER,
+							   CP_MODE_REVERSE_1_2);
+				platform_class_cp_enable_wpcgate(CP_ROLE_MASTER,
+								 false);
+				platform_class_cp_enable_ovpgate(CP_ROLE_MASTER,
+								 true);
+				platform_class_cp_set_qb(CP_ROLE_MASTER, true);
+				if (info->cp_chip_vendor ==
+				    CP_CHIP_VENDOR_SC8541) {
+					mca_log_err(
+						"entry sc8541 1_2 cp manual mode");
+					platform_class_cp_set_manual_revchg_mode(
+						CP_ROLE_MASTER, true);
+				}
+				platform_class_cp_set_charging_enable(
+					CP_ROLE_MASTER, true);
+			}
 
 			// close external boost
 			msleep(400);
@@ -1141,11 +1165,30 @@ strategy_buckchg_cp_revert_handler(int auth_pos,
 	} else {
 		mca_log_err("end revert 1_2 cp");
 
-		platform_class_cp_set_charging_enable(CP_ROLE_MASTER, false);
-		platform_class_cp_enable_ovpgate(CP_ROLE_MASTER, true);
-		platform_class_cp_enable_wpcgate(CP_ROLE_MASTER, false);
-		platform_class_cp_set_qb(CP_ROLE_MASTER, false);
-		platform_class_cp_set_mode(CP_ROLE_MASTER, CP_MODE_FORWARD_2_1);
+		if (info->otg_boost_src == 0) {
+			platform_class_cp_set_adjustadble_timeout(
+				CP_ROLE_MASTER, CP_REVCHG_EXIT_TIMEOUT);
+			if (info->cp_chip_vendor == CP_CHIP_VENDOR_SC8541) {
+				mca_log_err("exit sc8541 1_2 cp manual mode");
+				platform_class_cp_set_manual_revchg_mode(
+					CP_ROLE_MASTER, false);
+			}
+			if (info->cp_chip_vendor == CP_CHIP_VENDOR_BQ25960 &&
+			    bq_revchg_switch_flag == 1) {
+				mca_log_err("exit bq25960 1_2 cp reverse mode");
+				platform_class_cp_set_cp_reverse_mode(
+					CP_ROLE_MASTER, false);
+				bq_revchg_switch_flag = 0;
+			}
+		} else {
+			platform_class_cp_set_charging_enable(CP_ROLE_MASTER,
+							      false);
+			platform_class_cp_enable_ovpgate(CP_ROLE_MASTER, true);
+			platform_class_cp_enable_wpcgate(CP_ROLE_MASTER, false);
+			platform_class_cp_set_qb(CP_ROLE_MASTER, false);
+			platform_class_cp_set_mode(CP_ROLE_MASTER,
+						   CP_MODE_FORWARD_2_1);
+		}
 
 		// close otg
 		msleep(400);

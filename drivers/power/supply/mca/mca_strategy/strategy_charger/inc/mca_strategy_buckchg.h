@@ -235,6 +235,7 @@ struct strategy_buckchg_dev {
 	int soc_limit_more_enable;
 	bool reverse_auth;
 	int otg_boost_src;
+	int cp_chip_vendor;
 	bool reverse_qc_gate0;
 	bool reverse_qc_gate1;
 	bool support_revchg_screenon;
