@@ -284,7 +284,7 @@ struct strategy_fg {
 	bool switch_pmic_term;
 	bool co_ctrl_support;
 	bool co_ctrl_active;
-	int base_flip_diff;
+	int cold_zone;
 	bool support_battery_date;
 	bool temp_offset_force;
 	int temp_offset_flag_val;

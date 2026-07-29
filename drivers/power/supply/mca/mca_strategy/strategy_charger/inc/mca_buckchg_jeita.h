@@ -118,6 +118,7 @@ struct mca_buckchg_jeita_dev {
 	bool baacfg_update;
 	int vterm;
 	int jeita_hot_termination_hyst;
+	int cold_zone;
 };
 
 #endif /* __MCA_BUCKCHG_JEITA_H__ */

@@ -50,6 +50,8 @@
 #define MCA_DTPT_DENOM_SCALE 10
 #define MCA_BASE_OVER_CURR_COUNT_MAX 4
 
+#define JEITA_COLD_ZONE_INDEX 1
+
 static int mca_buckchg_jeita_get_curr(struct mca_buckchg_jeita_data *jeita_data,
 				      int *vbat_index)
 {
@@ -585,6 +587,15 @@ static void mca_buckchg_jeita_update(struct mca_buckchg_jeita_dev *info)
 			mca_vote(info->iterm_voter, "jeita", true,
 				 jeita_data->iterm);
 	}
+
+	if (!fastcharge_mode && info->base_flip_same) {
+		info->cold_zone =
+			(info->proc_data.cur_jeita_index == JEITA_COLD_ZONE_INDEX);
+		mca_log_info(
+			"cur index %d/%d last_chg_curr %d cold_zone %d\n", i,
+			info->proc_data.cur_jeita_index, last_chg_curr,
+			info->cold_zone);
+	}
 }
 
 static int mca_buckchg_jeita_flip_charge_limit(struct mca_votable *votable,
@@ -1081,6 +1092,9 @@ static int mca_strategy_buckchg_jeita_get_status(int status, void *value,
 		break;
 	case STRATEGY_STATUS_TYPE_JEITA_FFC_SIZE:
 		*cur_val = info->jeita_para.fcc_size;
+		break;
+	case STRATEGY_STATUS_TYPE_JEITA_COLD_ZONE:
+		*cur_val = info->cold_zone;
 		break;
 	default:
 		return -1;

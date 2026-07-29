@@ -1745,7 +1745,7 @@ static void mca_strategy_parallel_force_fw_report_full(struct strategy_fg *fg,
 	batt_info = fg_index ? fg->slave_batt_info : fg->master_batt_info;
 
 	if (fg->cfg.base_flip_same)
-		count = fg->base_flip_diff ? 3 :
+		count = fg->cold_zone ? 3 :
 			(fg->lossless_recharge ? 2 : 6);
 	else if (fg->lossless_recharge && fg->cfg.support_base_flip)
 		count = 2;
@@ -2421,6 +2421,14 @@ static void strategy_fg_monitor_workfunc(struct work_struct *work)
 
 	ret = fg_update_status(fg, prohibit_jump);
 	mca_strategy_check_termination(fg);
+	if (fg->cfg.base_flip_same) {
+		int cold_zone = 0;
+
+		(void)mca_strategy_func_get_status(
+			STRATEGY_FUNC_TYPE_JEITA,
+			STRATEGY_STATUS_TYPE_JEITA_COLD_ZONE, &cold_zone);
+		fg->cold_zone = cold_zone;
+	}
 	mca_strategy_force_fw_report_full(fg);
 	mca_strategy_check_recharge(fg);
 	if (hwid && hwid->country_version == CountryCN && fg->cfg.support_fl4p0)
