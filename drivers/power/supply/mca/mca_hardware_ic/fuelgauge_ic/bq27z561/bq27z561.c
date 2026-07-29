@@ -21,6 +21,7 @@
 #include <linux/of_gpio.h>
 #include <linux/gpio.h>
 #include <linux/gpio/consumer.h>
+#include <linux/ctype.h>
 #include <linux/slab.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
@@ -2405,15 +2406,19 @@ static void fg_write_first_usage_date(struct bq_fg_chip *bq, const char *buf, si
 	unsigned char data_temp[32] = { 0 };
 	char *tmp_buf = NULL;
 	int retry = 0;
+	size_t i, j;
 
 	tmp_buf = kzalloc(size + 1, GFP_KERNEL);
 	if (!tmp_buf)
 		return;
 
-	len = strlen(tmp_buf);
-
-	strscpy(tmp_buf, buf, size + 1);
-	mca_log_info("write first_usage_date=%s,len=%d\n", tmp_buf,len);
+	for (i = 0, j = 0; i < size && buf[i]; i++) {
+		if (!isspace(buf[i]))
+			tmp_buf[j++] = buf[i];
+	}
+	tmp_buf[j] = '\0';
+	len = strnlen(tmp_buf, size);
+	mca_log_info("write first_usage_date=%s,len=%d\n", tmp_buf, len);
 
 	ret = fg_mac_read_block(bq, FG_MAC_CMD_UI_SOH, data, 32);
 	if (ret < 0) {
