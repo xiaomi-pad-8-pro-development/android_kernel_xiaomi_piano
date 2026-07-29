@@ -913,6 +913,8 @@ mca_get_cpmode_unrelated_fcc(struct mca_quick_charge_info *info)
 		cur_max, proc_data->secure_info.secure_cur,
 		proc_data->temp_max_cur[FG_IC_MASTER], thermal_cur);
 
+	proc_data->cur_max_ibat = fcc;
+
 	return fcc;
 }
 
@@ -3422,6 +3424,9 @@ static int mca_quick_charge_get_status(int status, void *value, void *data)
 		*cur_val = info->proc_data.cur_volt_para[FG_IC_MASTER]
 				   ->volt_para[last_volt_stage]
 				   .current_min;
+		break;
+	case STRATEGY_STATUS_TYPE_QC_IBAT_MAX:
+		*cur_val = info->proc_data.cur_max_ibat;
 		break;
 	case STRATEGY_STATUS_TYPE_QC_TERM_CURR:
 		last_volt_stage = info->proc_data.cur_volt_para[FG_IC_MASTER]
