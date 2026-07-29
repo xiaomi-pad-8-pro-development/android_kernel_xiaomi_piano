@@ -40,8 +40,8 @@ const struct mca_hwid *mca_get_hwid_info(void)
 		phwid->major_version = get_hw_version_major();
 		phwid->minor_version = get_hw_version_minor();
 		phwid->build_version = get_hw_version_build();
-		//phwid->product_adc = get_hw_project_adc();
-		//phwid->build_adc = get_hw_build_adc();
+		phwid->product_adc = get_hw_project_adc();
+		phwid->build_adc = get_hw_build_adc();
 		phwid->hwid_value = get_hw_id_value();
 		phwid->product_name = product_name_get();
 		mca_log_err(

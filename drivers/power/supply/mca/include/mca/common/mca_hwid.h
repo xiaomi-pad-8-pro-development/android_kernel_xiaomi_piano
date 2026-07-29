@@ -9,6 +9,8 @@ struct mca_hwid {
 	u32 major_version;
 	u32 minor_version;
 	u32 build_version;
+	u32 product_adc;
+	u32 build_adc;
 	u32 hwid_value;
 	const char *product_name;
 };
