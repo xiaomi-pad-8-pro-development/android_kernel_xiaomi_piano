@@ -983,12 +983,13 @@ static void mca_cp_check_initial_mode(struct mca_quick_charge_info *info)
 #define BASE_FCC_MA_HYS 100
 #define BASE_BELOW_FCC_MA_HYS 500
 static int mca_quick_get_parallel_volt_para(struct mca_quick_charge_info *info,
-					    int fg_index)
+					    int fg_index, bool init)
 {
+	struct mca_quick_charge_process_data *proc_data = &info->proc_data;
 	struct mca_quick_charge_batt_para_info *base_flip_para =
 		&(info->base_flip_para[fg_index]);
 	struct mca_quick_charge_temp_para *temp_para;
-	int i = 0;
+	int i, old_index;
 	int ret = 0, temp = 0;
 
 	ret = platform_fg_ops_get_temp(fg_index, &temp);
@@ -997,35 +998,119 @@ static int mca_quick_get_parallel_volt_para(struct mca_quick_charge_info *info,
 	}
 	temp /= 10;
 	mca_log_info("fg[%d]_temp = %d\n", fg_index, temp);
+
 	for (i = 0; i < base_flip_para->temp_para_size; i++) {
 		temp_para = &base_flip_para->temp_info[i].temp_para;
-		if (temp >= temp_para->temp_low &&
-		    temp < temp_para->temp_high) {
-			break;
-		}
-	}
+		if (temp < temp_para->temp_low || temp >= temp_para->temp_high)
+			continue;
 
-	if (base_flip_para->temp_info[i].volt_ffc_info.volt_para_size) {
-		mca_log_info("select ffc volt para\n");
-		info->proc_data.cur_volt_paraller[fg_index] =
-			&base_flip_para->temp_info[i].volt_ffc_info;
-	} else if (base_flip_para->temp_info[i].volt_info.volt_para_size) {
-		mca_log_info("select normal volt para\n");
-		info->proc_data.cur_volt_paraller[fg_index] =
-			&base_flip_para->temp_info[i].volt_info;
-	} else {
-		mca_log_info("no volt para\n");
+		mca_log_info("fg_index %d, temp_para_index new %d, old %d\n",
+			     fg_index, i,
+			     proc_data->parall_temp_para_index[fg_index]);
+
+		if (!temp_para->max_current) {
+			mca_log_info("%d temp is out of range\n", fg_index);
+			if (!init) {
+				if (proc_data->parall_temp_para_index[fg_index] <
+				    i)
+					proc_data->parall_temp_hys_en[fg_index] =
+						MCA_QUICK_TEMP_HYS_HIGH;
+				if (i < proc_data->parall_temp_para_index
+						[fg_index])
+					proc_data->parall_temp_hys_en[fg_index] =
+						MCA_QUICK_TEMP_HYS_LOW;
+			}
+			return -1;
+		}
+
+		if (!init) {
+			if (proc_data->parall_temp_para_index[fg_index] == i)
+				return 0;
+
+			old_index = proc_data->temp_para_index[fg_index];
+			if (old_index < i) {
+				if (temp <= temp_para->temp_low +
+						    temp_para->low_temp_hysteresis) {
+					mca_log_info(
+						"temperature not low enough, zone not change\n");
+					return 0;
+				}
+			} else if (i < old_index &&
+				   temp_para->temp_high -
+						   temp_para->high_temp_hysteresis <=
+					   temp) {
+				mca_log_info(
+					"temperature not high enough, zone not change\n");
+				return 0;
+			}
+		} else {
+			if (proc_data->parall_temp_hys_en[fg_index] ==
+			    MCA_QUICK_TEMP_HYS_LOW) {
+				if (temp <= temp_para->temp_low +
+						    temp_para->low_temp_hysteresis) {
+					mca_log_info("hys high not satisfied\n");
+					return -1;
+				}
+			} else if (proc_data->parall_temp_hys_en[fg_index] ==
+					   MCA_QUICK_TEMP_HYS_HIGH &&
+				   temp_para->temp_high -
+						   temp_para->high_temp_hysteresis <=
+					   temp) {
+				mca_log_info("hys high not satisfied\n");
+				return -1;
+			}
+			proc_data->parall_temp_hys_en[fg_index] =
+				MCA_QUICK_TEMP_HYS_DIS;
+		}
+
+		proc_data->parall_temp_para_index[fg_index] = i;
+		proc_data->parall_zone_changed[fg_index] = 1;
+
+		if (proc_data->adp_type == XM_CHARGER_TYPE_PPS &&
+		    base_flip_para->temp_info[i].volt_ffc_info.volt_para_size &&
+		    !info->parall_force_normal_volt_para[fg_index]) {
+			mca_log_info("select ffc volt para\n");
+			proc_data->cur_volt_paraller[fg_index] =
+				&base_flip_para->temp_info[i].volt_ffc_info;
+			return 0;
+		}
+		if (base_flip_para->temp_info[i].volt_info.volt_para_size) {
+			mca_log_info("select normal volt para\n");
+			proc_data->cur_volt_paraller[fg_index] =
+				&base_flip_para->temp_info[i].volt_info;
+			info->parall_force_normal_volt_para[fg_index] = false;
+			return 0;
+		}
+		mca_log_err("no volt para\n");
+		info->parall_force_normal_volt_para[fg_index] = false;
 		return -1;
 	}
-	return ret;
+
+	mca_log_err("%d can not find temp_para\n", fg_index);
+	return -1;
+}
+
+static int
+mca_quick_charge_select_parallel_volt_para(struct mca_quick_charge_info *info)
+{
+	bool init = info->parall_init_volt_para;
+	int flip = mca_quick_get_parallel_volt_para(info, FG_IC_FLIP, init);
+	int base = mca_quick_get_parallel_volt_para(info, FG_IC_BASE, init);
+
+	if (init && info->proc_data.adp_type == XM_CHARGER_TYPE_PPS) {
+		info->parall_init_volt_para = false;
+		mca_log_info("PD VERIFY SUCCESS\n");
+	}
+
+	return flip | base;
 }
 
 static int mca_quick_charge_parallel_judge_temp(struct mca_quick_charge_info *info)
 {
-	int base = mca_quick_get_parallel_volt_para(info, FG_IC_BASE);
-	int flip = mca_quick_get_parallel_volt_para(info, FG_IC_FLIP);
+	int flip = mca_quick_get_parallel_volt_para(info, FG_IC_FLIP, true);
+	int base = mca_quick_get_parallel_volt_para(info, FG_IC_BASE, true);
 
-	return base | flip;
+	return flip | base;
 }
 
 static int
@@ -1095,6 +1180,11 @@ static int mca_quick_charge_can_tbat_do_charge(
 	int temp = 0;
 	int ret, i, flag = 0;
 	//const struct mca_hwid *hwid = mca_get_hwid_info();
+
+	if (init && info->proc_data.adp_type == XM_CHARGER_TYPE_PPS) {
+		info->init_volt_para = false;
+		mca_log_info("PD VERIFY SUCCESS\n");
+	}
 
 	ret = strategy_class_fg_ops_get_temperature(&temp);
 	if (ret) {
@@ -1791,8 +1881,6 @@ static void mca_quick_charge_select_stage(struct mca_quick_charge_info *info)
 		mca_log_info("get base and flip stage for ocp");
 		for (j = 0; j < FG_SITE_MAX; j++) {
 			base_flip_para = &info->base_flip_para[j];
-			mca_quick_get_parallel_volt_para(info, j);
-
 			volt_para =
 				info->proc_data.cur_volt_paraller[j]->volt_para;
 			for (k = info->proc_data.cur_volt_paraller[j]
@@ -1835,8 +1923,11 @@ static void mca_quick_charge_select_stage(struct mca_quick_charge_info *info)
 				stage, info->proc_data.cur_volt_paraller[j]);
 			ffc_flag = strategy_class_fg_get_fastcharge();
 			if (stage > info->proc_data.parall_cur_stage[j] ||
-			    (ffc_flag != info->proc_data.ffc_flag))
+			    (ffc_flag != info->proc_data.ffc_flag) ||
+			    info->proc_data.parall_zone_changed[j]) {
 				info->proc_data.parall_cur_stage[j] = stage;
+				info->proc_data.parall_zone_changed[j] = 0;
+			}
 			mca_log_info("parall_cur_stage[%d] %d", j,
 				     info->proc_data.parall_cur_stage[j]);
 		}
@@ -1996,6 +2087,21 @@ mca_quick_charge_pre_charge_check(struct mca_quick_charge_info *info)
 		return;
 	}
 
+	if (info->proc_data.adp_type == XM_CHARGER_TYPE_UNKNOW) {
+		protocol_class_get_adapter_type(
+			ADAPTER_PROTOCOL_BC12,
+			(unsigned int *)&info->proc_data.adp_type);
+		mca_log_info("Update adp_type: %d\n", info->proc_data.adp_type);
+
+		if (info->proc_data.adp_type == XM_CHARGER_TYPE_PPS) {
+			info->init_volt_para = true;
+			info->parall_init_volt_para = true;
+		}
+		if (info->proc_data.adp_type == XM_CHARGER_TYPE_PPS ||
+		    info->proc_data.adp_type == XM_CHARGER_TYPE_PD_VERIFY)
+			info->proc_data.cur_protocol = ADAPTER_PROTOCOL_PD;
+	}
+
 	switch (info->proc_data.adp_type) {
 	case XM_CHARGER_TYPE_PPS:
 	case XM_CHARGER_TYPE_PD_VERIFY:
@@ -2036,9 +2142,18 @@ static int mca_quick_charge_select_volt_para(struct mca_quick_charge_info *info)
 {
 	int ret;
 
-	ret = mca_quick_charge_can_tbat_do_charge(FG_IC_MASTER, info, false);
+	ret = mca_quick_charge_can_tbat_do_charge(FG_IC_MASTER, info,
+						  info->init_volt_para);
 	if (ret)
 		return ret;
+
+	if (info->support_base_flip) {
+		ret = mca_quick_charge_select_parallel_volt_para(info);
+		if (ret) {
+			mca_log_err("get_parallel_volt_para fail\n");
+			return ret;
+		}
+	}
 
 	return 0;
 }
@@ -2300,8 +2415,6 @@ static int mca_quick_charge_select_max_ibat(struct mca_quick_charge_info *info)
 	}
 	mca_log_info("support_base_flip:[]: %d\n", info->support_base_flip);
 	if (info->support_base_flip) {
-		mca_quick_get_parallel_volt_para(info, FG_IC_BASE);
-		mca_quick_get_parallel_volt_para(info, FG_IC_FLIP);
 		base_limit_curr =
 			mca_quick_charger_get_base_limit_cur(info, cur_max);
 		if (base_limit_curr)
@@ -3222,8 +3335,11 @@ static int mca_quick_charge_process_event(int event, int value, void *data)
 		info->force_normal_volt_para = true;
 		update_ret = mca_quick_charge_can_tbat_do_charge(FG_IC_MASTER,
 								 info, true);
-		if (info->support_base_flip)
+		if (info->support_base_flip) {
+			info->parall_force_normal_volt_para[FG_IC_FLIP] = true;
+			info->parall_force_normal_volt_para[FG_IC_BASE] = true;
 			update_ret = mca_quick_charge_parallel_judge_temp(info);
+		}
 		if (update_ret)
 			mca_log_info("temp range invalid, update fail!\n");
 		break;
@@ -3245,9 +3361,11 @@ static int mca_quick_charge_process_event(int event, int value, void *data)
 		if (value == info->proc_data.adp_type)
 			return 0;
 		info->proc_data.adp_type = value;
+		info->init_volt_para = true;
+		info->parall_init_volt_para = true;
 		if (value == XM_CHARGER_TYPE_PD_VERIFY ||
 		    value == XM_CHARGER_TYPE_PPS) {
-			info->proc_data.cur_protocol = ADAPTER_PROTOCOL_PPS;
+			info->proc_data.cur_protocol = ADAPTER_PROTOCOL_PD;
 		} else if (value == XM_CHARGER_TYPE_HVDCP3_B ||
 			   value == XM_CHARGER_TYPE_HVDCP3P5) {
 			info->proc_data.adp_type = value;

@@ -365,6 +365,7 @@ struct mca_quick_charge_process_data {
 	int charge_flag;
 	int type_chg;
 	int temp_hys_en;
+	int parall_temp_hys_en[FG_SITE_MAX];
 	int total_err;
 	int error_num[MCA_QUICK_CHG_CP_MODE_MAX];
 	int cur_protocol;
@@ -410,9 +411,11 @@ struct mca_quick_charge_process_data {
 	int *thermal_cur;
 	int *cp_path_enable;
 	int temp_para_index[FG_IC_MAX];
+	int parall_temp_para_index[FG_SITE_MAX];
 	int cur_stage[FG_IC_MAX];
 	int parall_cur_stage[FG_SITE_MAX];
 	int ffc_flag;
+	int parall_zone_changed[FG_SITE_MAX];
 	int zone_changed;
 	int vfc_iout;
 	int ibus_compensation;
@@ -540,6 +543,9 @@ struct mca_quick_charge_info {
 	bool boost_done;
 	bool check_vbat_ov;
 	bool force_normal_volt_para;
+	bool parall_force_normal_volt_para[FG_SITE_MAX];
+	bool init_volt_para;
+	bool parall_init_volt_para;
 	int support_base_flip;
 	/* cp work mode switch by current */
 	bool support_mode_switch;
