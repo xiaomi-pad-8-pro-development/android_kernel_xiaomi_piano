@@ -267,6 +267,9 @@ static bool mca_qc_check_if_goto_taper(struct mca_quick_charge_info *info)
 	return false;
 }
 
+#define PPS_TAPER_TEMP_THR 34
+#define PPS_TAPER_TEMP_OFFSET_THR 32
+
 static bool mca_check_if_goto_hw_taper(struct mca_quick_charge_info *info)
 {
 	int vbat_now_mv, ibat_now_ma;
@@ -283,8 +286,16 @@ static bool mca_check_if_goto_hw_taper(struct mca_quick_charge_info *info)
 	if (!info->hardware_cv)
 		return false;
 
-	if (info->support_base_flip) {
-		strategy_class_fg_ops_get_temperature(&temp);
+	strategy_class_fg_ops_get_temperature(&temp);
+	if (info->cp_switch_pmic_th) {
+		int temp_offset_flag = 0;
+		(void)strategy_class_fg_get_temp_offset_flag(&temp_offset_flag);
+		if ((temp / 10 > PPS_TAPER_TEMP_THR ||
+		     (temp / 10 > PPS_TAPER_TEMP_OFFSET_THR &&
+		      temp_offset_flag)) &&
+		    strategy_class_fg_get_fastcharge())
+			ibat_th = info->pps_high_taper_fcc_ma;
+	} else {
 		if (temp >= 300 && temp < 400)
 			ibat_th = info->pps_middle_taper_fcc_ma;
 		else if (temp >= 400)
