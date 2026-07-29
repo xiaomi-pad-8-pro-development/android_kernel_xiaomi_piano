@@ -526,6 +526,7 @@ struct mca_quick_charge_info {
 	struct mca_quick_charge_process_data proc_data;
 	struct mca_quick_charge_sysfs_data sysfs_data;
 	int batt_auth;
+	int batt_missing;
 	int force_stop;
 	int tune_vbus_retry;
 	int master_cp_enable_count;

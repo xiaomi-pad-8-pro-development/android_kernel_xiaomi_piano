@@ -2077,9 +2077,21 @@ mca_quick_charge_pre_charge_check(struct mca_quick_charge_info *info)
 		info->proc_data.charge_flag = MCA_QUICK_CHG_STS_CHARGE_FAILED;
 		return;
 	}
+	if (!info->batt_auth || info->batt_missing) {
+		(void)mca_strategy_func_get_status(
+			STRATEGY_FUNC_TYPE_FG,
+			STRATEGY_STATUS_TYPE_FG_BATT_MATCH, &info->batt_auth);
+		(void)mca_strategy_func_get_status(
+			STRATEGY_FUNC_TYPE_BMD,
+			STRATEGY_STATUS_TYPE_BMD_BATT_MISSING,
+			&info->batt_missing);
+		mca_log_err("check batt auth: %d, batt missing: %d\n",
+			    info->batt_auth, info->batt_missing);
+	}
+
 	if (info->force_stop || !info->cur_support_mode ||
 	    !info->sysfs_data.chg_enable || info->taper_done_no_retry ||
-	    !info->batt_auth)
+	    !info->batt_auth || info->batt_missing)
 		return;
 
 	if (mca_quick_charge_check_chg_done(info)) {
