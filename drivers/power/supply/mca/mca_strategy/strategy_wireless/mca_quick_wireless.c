@@ -403,6 +403,9 @@ static int mca_wireless_quick_charge_smartchg_update_baa_para(void *data,
 	return 0;
 }
 
+static void mca_wireless_quick_change_bridge(
+	struct mca_wireless_quick_charge_info *info, unsigned int mode);
+
 static void mca_wireless_quick_charge_stop_charging(
 	struct mca_wireless_quick_charge_info *info)
 {
@@ -455,6 +458,7 @@ static void mca_wireless_quick_charge_stop_charging(
 
 	(void)mca_vote(info->input_limit_voter, "wireless_qc", false, 0);
 	strategy_wireless_enable_cp_error_irq(false);
+	mca_wireless_quick_change_bridge(info, 0);
 	(void)platform_class_cp_enable_adc(CP_ROLE_MASTER, false);
 	(void)platform_class_cp_enable_adc(CP_ROLE_SLAVE, false);
 	memset(info->proc_data.cur_stage, 0, sizeof(info->proc_data.cur_stage));
@@ -976,6 +980,70 @@ mca_wireless_quick_charge_tune_vbus(struct mca_wireless_quick_charge_info *info)
 	return ret;
 }
 
+#define QC_SW_BRIDGE_HALF_VOUT_MV 6000
+#define QC_SW_BRIDGE_FULL_VOUT_MV 10000
+#define QC_SW_BRIDGE_FULL_VOUT_READY_MV 9499
+#define QC_SW_BRIDGE_HALF_VOUT_READY_MV 6501
+#define QC_SW_BRIDGE_IOUT_READY_MA 401
+#define QC_SW_BRIDGE_ICL_MA 300
+#define QC_SW_BRIDGE_RETRY 15
+
+static void mca_wireless_quick_charge_switch_bridge_icl_setting(
+	struct mca_wireless_quick_charge_info *info, bool en, unsigned int ma)
+{
+	mca_log_info("en: %d, ma: %u\n", en, ma);
+	mca_vote(info->input_limit_voter, "qc_sw_bridge", en, ma);
+}
+
+static void mca_wireless_quick_change_bridge(
+	struct mca_wireless_quick_charge_info *info, unsigned int mode)
+{
+	const struct mca_hwid *hwid = mca_get_hwid_info();
+	int brg_status = 0;
+	int rx_vout = 0, rx_iout = 0;
+	int retry = QC_SW_BRIDGE_RETRY;
+
+	mca_log_err("bridge_sw mode %d\n", mode);
+	if (!hwid || hwid->platform_version != 5 /* HARDWARE_PROJECT_O8 */)
+		return;
+
+	platform_class_wireless_get_rx_brg_status(WIRELESS_ROLE_MASTER,
+						  &brg_status);
+	if (brg_status != mode) {
+		mca_log_err("bridge_sw no need switch, mode %d,  brg_status %d\n",
+			    mode, brg_status);
+		return;
+	}
+
+	mca_log_err("bridge_sw brg_status %d\n", mode);
+	mca_wireless_quick_charge_vout_setting(info,
+					       mode == 0 ?
+						       QC_SW_BRIDGE_HALF_VOUT_MV :
+						       QC_SW_BRIDGE_FULL_VOUT_MV);
+	mca_wireless_quick_charge_switch_bridge_icl_setting(info, true,
+							    QC_SW_BRIDGE_ICL_MA);
+	while (retry--) {
+		msleep(200);
+		platform_class_wireless_get_vout(WIRELESS_ROLE_MASTER, &rx_vout);
+		platform_class_wireless_get_iout(WIRELESS_ROLE_MASTER, &rx_iout);
+		mca_log_err("bridge_sw wait, rx_vout %d, rx_iout %d \n", rx_vout,
+			    rx_iout);
+		if ((mode != 0 && rx_vout > QC_SW_BRIDGE_FULL_VOUT_READY_MV &&
+		     rx_iout < QC_SW_BRIDGE_IOUT_READY_MA) ||
+		    (mode == 0 && rx_vout < QC_SW_BRIDGE_HALF_VOUT_READY_MV &&
+		     rx_iout < QC_SW_BRIDGE_IOUT_READY_MA)) {
+			platform_class_wireless_switch_bridge(
+				WIRELESS_ROLE_MASTER, mode);
+			msleep(20);
+			platform_class_wireless_get_rx_brg_status(
+				WIRELESS_ROLE_MASTER, &brg_status);
+			break;
+		}
+	}
+	mca_wireless_quick_charge_switch_bridge_icl_setting(info, false, 0);
+	mca_log_err("bridge_sw switch_bridge over, brg_status %d\n", brg_status);
+}
+
 static int
 mca_wireless_quick_charge_open_path(struct mca_wireless_quick_charge_info *info)
 {
@@ -1072,6 +1140,8 @@ mca_wireless_quick_charge_open_path(struct mca_wireless_quick_charge_info *info)
 
 out:
 	platform_class_cp_enable_busucp(info->proc_data.cur_work_cp, true);
+	if (!ret)
+		mca_wireless_quick_change_bridge(info, 1);
 	return ret;
 }
 
@@ -1559,6 +1629,7 @@ mca_wireless_quick_charge_startup(struct mca_wireless_quick_charge_info *info)
 	if (info->proc_data.soc > MCA_WLS_QUICK_CHG_ENABLE_CP_SOC_TH) {
 		mca_log_info("soc = %d, exit quick charge\n",
 			     info->proc_data.soc);
+		mca_wireless_quick_change_bridge(info, 0);
 		return;
 	}
 
