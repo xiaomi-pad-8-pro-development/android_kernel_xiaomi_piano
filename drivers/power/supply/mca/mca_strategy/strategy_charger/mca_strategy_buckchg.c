@@ -452,6 +452,8 @@ strategy_buckchg_process_multi_vterm(struct strategy_buckchg_dev *info,
 #define BASE_FLIP_VTERM_COMP_HOT 30
 #define BASE_FLIP_VTERM_COMP_FFC 40
 #define BASE_FLIP_VTERM_COMP_FFC_HOT 45
+#define BASE_FLIP_VTERM_COMP_IDLE 10
+#define BASE_FLIP_VTERM_COMP_BASE 20
 #define VTERM_DYN_TEMP_WARM 180
 #define VTERM_DYN_TEMP_MIDDLE 300
 #define VTERM_DYN_TEMP_HIGH 400
@@ -470,8 +472,15 @@ static int strategy_buckchg_set_vterm(struct mca_votable *votable, void *data,
 
 	info = data;
 
-	if (info->support_base_flip)
-		strategy_class_fg_get_fastcharge();
+	if (info->support_base_flip) {
+		if (!strategy_class_fg_get_fastcharge())
+			info->pmic_fv_compensation = BASE_FLIP_VTERM_COMP_IDLE;
+		else if (!info->quit_qc)
+			info->pmic_fv_compensation = BASE_FLIP_VTERM_COMP_BASE;
+		else
+			info->pmic_fv_compensation =
+				info->pmic_wls_fv_compensation;
+	}
 
 	strategy_class_fg_ops_get_temperature(&batt_temp);
 	batt_temp = batt_temp / 10;
@@ -842,6 +851,16 @@ strategy_buckchg_reset_charge_para(struct strategy_buckchg_dev *info)
 	info->csd_flag = false;
 }
 
+static void
+strategy_buckchg_clear_pmic_temp_term(struct strategy_buckchg_dev *info)
+{
+	if (!info->support_pmic_vterm_dynamics_adjust)
+		return;
+
+	mca_vote_override(info->vterm_voter, "pmic_temp_term", false, 0);
+	mca_vote_override(info->input_limit_voter, "pmic_temp_term", false, 0);
+}
+
 static void strategy_buckchg_stop_charging(struct strategy_buckchg_dev *info)
 {
 	mca_log_info("stop charging\n");
@@ -859,6 +878,8 @@ static void strategy_buckchg_stop_charging(struct strategy_buckchg_dev *info)
 					       STATEGY_CHARGE_FWS_DEFAULT);
 	strategy_class_buckchg_ops_set_usb_aicl_cont_thd(
 		info, STATEGY_CHARGE_AICL_TH_4P4V);
+
+	strategy_buckchg_clear_pmic_temp_term(info);
 
 	info->aicl_thd = 0;
 	info->pdo_nums = 0;
@@ -1374,6 +1395,10 @@ static int strategy_buckchg_process_event(int event, int value, void *data)
 			mca_vote(info->input_voltage_voter, "lpd", true, 0);
 		else
 			mca_vote(info->input_voltage_voter, "lpd", false, 0);
+		break;
+	case MCA_EVENT_WIRELESS_MAGNETIC_QUIT_QC:
+	case MCA_EVENT_WIRELESS_AUDIO_PHONE_STS:
+		info->quit_qc = !!value;
 		break;
 	case MCA_EVENT_WIRELESS_REVCHG:
 		mca_log_info("wireless revchg event %d\n", value);
@@ -3140,10 +3165,11 @@ static int strategy_buckchg_if_set_chg_en(const char *user, unsigned int value,
 	if (!user || !data)
 		return -1;
 
-	if (value)
+	if (value) {
+		strategy_buckchg_clear_pmic_temp_term(info);
 		(void)mca_vote(info->chg_enable_voter, user, true,
 			       STATEGY_CHARGE_ENABLE);
-	else
+	} else
 		(void)mca_vote(info->chg_enable_voter, user, true,
 			       STATEGY_CHARGE_DISENABLE);
 
@@ -3207,6 +3233,8 @@ static int strategy_buckchg_if_set_input_suspend(const char *user, char *value,
 		(void)mca_vote(info->input_suppend_voter, user, true, 1);
 	else
 		(void)mca_vote(info->input_suppend_voter, user, true, 0);
+
+	strategy_buckchg_clear_pmic_temp_term(info);
 
 	return 0;
 }
