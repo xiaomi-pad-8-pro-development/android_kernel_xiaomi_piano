@@ -70,6 +70,7 @@ static void
 strategy_quickchg_enable_buck_charging(struct mca_quick_charge_info *info,
 				       int buck_icl_val, int buck_fcc_val,
 				       bool enable);
+static void update_batt_para(struct mca_quick_charge_info *info);
 
 static int mca_quick_charge_msleep(int ms, struct mca_quick_charge_info *info)
 {
@@ -3510,6 +3511,7 @@ static int mca_quick_charge_process_event(int event, int value, void *data)
 	}
 	case MCA_EVENT_USB_CONNECT:
 		info->online = 1;
+		update_batt_para(info);
 		break;
 	case MCA_EVENT_USB_DISCONNECT:
 		mca_quick_charge_reset_charge_para(info);
@@ -4086,6 +4088,42 @@ static int mca_quick_charge_parse_batt_info(struct mca_quick_charge_info *info,
 	// 	return -1;
 	// }
 	return 0;
+}
+
+static const int batt_para_cc_thr_list[] = { 0, 50, 100, 150, 300, 800 };
+
+static void update_batt_para(struct mca_quick_charge_info *info)
+{
+	static int curr_batt_index[FG_SITE_MAX];
+	static int last_batt_index[FG_SITE_MAX];
+	int cc[FG_SITE_MAX] = { 0 };
+	int i, j;
+
+	(void)platform_fg_ops_get_cyclecount(FG_IC_SLAVE, &cc[FG_IC_SLAVE]);
+	(void)platform_fg_ops_get_cyclecount(FG_IC_MASTER, &cc[FG_IC_MASTER]);
+	mca_log_err("base_flip_cc, update_batt_para, master:%d, slave:%d\n",
+		    cc[FG_IC_MASTER], cc[FG_IC_SLAVE]);
+
+	for (i = 0; i < FG_SITE_MAX; i++) {
+		for (j = 0; j < ARRAY_SIZE(batt_para_cc_thr_list); j++) {
+			if (cc[i] > batt_para_cc_thr_list[j]) {
+				curr_batt_index[i] = j;
+				info->batt_para_cc_thr[i] =
+					batt_para_cc_thr_list[j];
+			}
+		}
+	}
+
+	if (last_batt_index[FG_IC_MASTER] != curr_batt_index[FG_IC_MASTER] ||
+	    last_batt_index[FG_IC_SLAVE] != curr_batt_index[FG_IC_SLAVE]) {
+		(void)mca_quick_charge_parse_batt_info(info, info->batt_type);
+		mca_log_err("base_flip_cc, update cc data\n");
+		last_batt_index[FG_IC_MASTER] = curr_batt_index[FG_IC_MASTER];
+		last_batt_index[FG_IC_SLAVE] = curr_batt_index[FG_IC_SLAVE];
+	}
+	mca_log_err(
+		"base_flip_cc, curr_batt_index_master:%d, curr_batt_index_slave:%d\n",
+		curr_batt_index[FG_IC_MASTER], curr_batt_index[FG_IC_SLAVE]);
 }
 
 static void

@@ -562,6 +562,7 @@ struct mca_quick_charge_info {
 	bool init_volt_para;
 	bool parall_init_volt_para;
 	int support_base_flip;
+	int batt_para_cc_thr[FG_SITE_MAX];
 	/* cp work mode switch by current */
 	bool support_mode_switch;
 	int cur_cp_work_mode;
