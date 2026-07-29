@@ -44,10 +44,15 @@
 #include <mca/common/mca_sysfs.h>
 #include <mca/strategy/strategy_class.h>
 #include <mca/common/mca_event.h>
+#include <mca/common/mca_hwid.h>
 #include "inc/charger_partition.h"
 #include <mca/shared_memory/charger_partition_class.h>
 #include "hwid.h"
 #include "sd.h"
+
+#define CHARGER_PART_PLATFORM_V9 9
+#define CHARGER_PART_NUMBER_V9 25
+#define CHARGER_PART_NUMBER_DEFAULT 22
 
 #ifndef MCA_LOG_TAG
 #define MCA_LOG_TAG "charger_partition"
@@ -1186,11 +1191,15 @@ static void charger_partition_prepare(void)
 
 static void charger_partition_work(struct work_struct *work)
 {
+	const struct mca_hwid *hwid = mca_get_hwid_info();
 	int lun = 0;
 	static int retry;
 
 	mca_log_err("get hw_country_ver: %u\n", get_hw_country_version());
-	charger_partition->part_info_part_number = 22;
+	charger_partition->part_info_part_number =
+		(hwid && hwid->platform_version == CHARGER_PART_PLATFORM_V9) ?
+			CHARGER_PART_NUMBER_V9 :
+			CHARGER_PART_NUMBER_DEFAULT;
 
 	// 1. find charger partition
 	for (lun = 0; lun < 6; lun++) {
