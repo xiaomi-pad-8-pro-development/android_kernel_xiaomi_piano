@@ -64,6 +64,9 @@ struct sc8541_device {
 	int bus_ocp[2];
 	int usb_ovp[2];
 	int work_mode;
+	bool support_multiple_cp;
+	int bus_ucp_fall_deglitch;
+	struct wakeup_source *quick_revchg_ws;
 };
 
 static const u32 sc8541_mode_table[] = { 0, 0, 1 };
@@ -708,6 +711,171 @@ static int ops_cp_enable_busucp(bool en, void *data)
 	return ret;
 }
 
+static int sc8541_check_adc_enabled(struct sc8541_device *sc, bool *en)
+{
+	u8 val = 0;
+	int ret;
+
+	ret = sc8541_read_reg_locked(sc, SC8541_REG_23, &val);
+	mca_log_info("%s >>>reg [0x23] = 0x%02x\n", sc->log_tag, val);
+	if (ret)
+		return ret;
+	*en = !!(val & SC8541_ADC_EN_MASK);
+	return 0;
+}
+
+static int sc8541_check_charge_enabled(struct sc8541_device *sc, bool *en)
+{
+	u8 val = 0;
+	int ret;
+
+	ret = sc8541_read_reg_locked(sc, SC8541_REG_0F, &val);
+	mca_log_info("%s >>>reg [0x0F] = 0x%02x\n", sc->log_tag, val);
+	if (ret)
+		return ret;
+	*en = !!(val & SC8541_CHG_EN_MASK);
+	return 0;
+}
+
+static int sc8541_get_ovpgate_status(struct sc8541_device *sc, bool *en)
+{
+	u8 val = 0;
+	int ret;
+
+	ret = sc8541_read_reg_locked(sc, SC8541_REG_40, &val);
+	mca_log_info("%s ovpgate_status SC8541_REG_40=0x%x\n", sc->log_tag, val);
+	if (ret) {
+		mca_log_info("%s get ovpgate status fail\n", sc->log_tag);
+		return ret;
+	}
+	*en = !!(val & SC8541_OVPGATE_EN_MASK);
+	return 0;
+}
+
+static int ops_cp_get_adc_enable(bool *en, void *data)
+{
+	struct sc8541_device *sc = data;
+	int ret;
+
+	ret = sc8541_check_adc_enabled(sc, en);
+	if (ret)
+		mca_log_err("%s failed get enable cp adc status ret =%d\n",
+			    sc->log_tag, ret);
+	return ret;
+}
+
+static int ops_cp_get_vout(u32 *val, void *data)
+{
+	struct sc8541_device *sc = data;
+
+	return sc8541_get_adc_data(sc, SC8541_ADC_VOUT, val);
+}
+
+static int ops_cp_enable_vbus_errorhi(bool en, void *data)
+{
+	struct sc8541_device *sc = data;
+
+	return sc8541_update_bits(sc, SC8541_REG_21, SC8541_VBUS_ERRORHI_EN_MASK,
+				  en ? 0 : SC8541_VBUS_ERRORHI_EN_MASK);
+}
+
+static int ops_cp_enable_vbus_errorlo(bool en, void *data)
+{
+	struct sc8541_device *sc = data;
+
+	return sc8541_update_bits(sc, SC8541_REG_21, SC8541_VBUS_ERRORLO_EN_MASK,
+				  en ? 0 : SC8541_VBUS_ERRORLO_EN_MASK);
+}
+
+static int ops_cp_set_busovp(int mv, void *data)
+{
+	struct sc8541_device *sc = data;
+	int ret;
+
+	if (mv <= SC8541_BUSOVP_BASE_MV)
+		mv = SC8541_BUSOVP_BASE_MV;
+	ret = sc8541_update_bits(sc, SC8541_REG_06, 0xff,
+				 (mv - SC8541_BUSOVP_BASE_MV) / SC8541_BUSOVP_STEP_MV);
+	if (ret)
+		mca_log_err("%s failed set cp busovp\n", sc->log_tag);
+	return ret;
+}
+
+static int ops_cp_set_manual_revchg_mode(bool en, void *data)
+{
+	struct sc8541_device *sc = data;
+	int ret;
+
+	ret  = sc8541_update_bits(sc, SC8541_REG_05, 0x80, en ? 0x80 : 0);
+	ret |= sc8541_update_bits(sc, SC8541_REG_05, 0x04, en ? 0x04 : 0);
+	ret |= sc8541_update_bits(sc, SC8541_REG_41, 0x80, en ? 0x80 : 0);
+	ret |= sc8541_update_bits(sc, SC8541_REG_41, 0x10, en ? 0x10 : 0);
+	if (ret)
+		mca_log_err("%s set revchg fail %d, ret %d\n", sc->log_tag, en,
+			    ret);
+
+	if (en) {
+		if (!sc->quick_revchg_ws->active) {
+			mca_log_info("%s awake quick revchg lock\n", sc->log_tag);
+			__pm_stay_awake(sc->quick_revchg_ws);
+		} else {
+			mca_log_info("%s quick revchg Locked, ignore...\n",
+				     sc->log_tag);
+		}
+	} else {
+		if (sc->quick_revchg_ws->active) {
+			mca_log_info("%s Release quick revchg lock\n",
+				     sc->log_tag);
+			__pm_relax(sc->quick_revchg_ws);
+		} else {
+			mca_log_info("%s quick revchg released, ignore...\n",
+				     sc->log_tag);
+		}
+	}
+	return ret;
+}
+
+static int ops_cp_set_revchg(bool en, void *data)
+{
+	struct sc8541_device *sc = data;
+	bool ovpgate_en = 0, chg_en = 0;
+	u8 val = 0;
+	int cp_mode, retry;
+
+	for (retry = 0; retry < 10; retry++) {
+		ovpgate_en = 0;
+		chg_en = 0;
+		if (en) {
+			sc8541_update_bits(sc, SC8541_REG_40, 0x40, 0x40);
+			sc8541_enable_ovpgate(sc, true);
+			sc8541_get_ovpgate_status(sc, &ovpgate_en);
+			mca_log_info("%s ovpgate_enable status: %d\n",
+				     sc->log_tag, ovpgate_en);
+			if (ovpgate_en)
+				return 0;
+		} else {
+			sc8541_update_bits(sc, SC8541_REG_0F,
+					   SC8541_CHG_EN_MASK, 0);
+			sc8541_set_operation_mode(sc, 1);
+			sc8541_get_ovpgate_status(sc, &ovpgate_en);
+			cp_mode = 0;
+			if (!sc->i2c_disabled) {
+				sc8541_read_reg_locked(sc, SC8541_REG_0F, &val);
+				cp_mode = !!(val & SC8541_CP_MODE_MASK);
+			}
+			sc8541_check_charge_enabled(sc, &chg_en);
+			mca_log_info("%s cp mode: %d, charging_enable: %d\n",
+				     sc->log_tag, cp_mode, chg_en);
+			if (!cp_mode && !chg_en)
+				return 0;
+		}
+		mca_log_info("%s failed set revchg: retry:%d\n", sc->log_tag,
+			     retry);
+		msleep(20);
+	}
+	return -1;
+}
+
 static struct platform_class_cp_ops sc8541_chg_ops = {
 	.cp_set_enable = ops_cp_enable_charge,
 	.cp_get_enabled = ops_cp_get_charge_enable,
@@ -734,6 +902,13 @@ static struct platform_class_cp_ops sc8541_chg_ops = {
 	.cp_get_int_stat = ops_cp_get_int_stat,
 	.cp_get_errorhl_stat = ops_cp_get_errorhl_stat,
 	.cp_enable_busucp = ops_cp_enable_busucp,
+	.cp_get_battery_vout = ops_cp_get_vout,
+	.cp_get_adc_enabled = ops_cp_get_adc_enable,
+	.cp_enable_vbus_errorhi = ops_cp_enable_vbus_errorhi,
+	.cp_enable_vbus_errorlo = ops_cp_enable_vbus_errorlo,
+	.cp_set_busovp = ops_cp_set_busovp,
+	.cp_set_manual_revchg_mode = ops_cp_set_manual_revchg_mode,
+	.cp_set_cp_reverse_mode = ops_cp_set_revchg,
 };
 
 /* ---- debugfs ---- */
@@ -861,6 +1036,10 @@ static int sc8541_parse_dt(struct sc8541_device *sc)
 	mca_parse_dts_u32_array(node, "bus-ovp-threshold", sc->bus_ovp, 2);
 	mca_parse_dts_u32_array(node, "bus-ocp-threshold", sc->bus_ocp, 2);
 	mca_parse_dts_u32_array(node, "usb-ovp-threshold", sc->usb_ovp, 2);
+	sc->support_multiple_cp =
+		of_find_property(node, "support-multiple-cp", NULL);
+	mca_parse_dts_u32(node, "bus-ucp-fall-deglitch",
+			  &sc->bus_ucp_fall_deglitch, 0);
 	sc->support_wls = of_find_property(node, "support-wls", NULL);
 	mca_log_info("%s support-wls %d\n", sc->log_tag, sc->support_wls);
 
@@ -977,6 +1156,10 @@ static int sc8541_probe(struct i2c_client *client)
 				 cp_debugfs_field_tbl, CP_DEBUGFS_ATTRS_SIZE,
 				 sc);
 #endif
+	sc->quick_revchg_ws = wakeup_source_register(
+		sc->dev,
+		sc->cp_role ? "sc8541_quick_revchg_slave" :
+			      "sc8541_quick_revchg");
 
 	sc->probe_done = 1;
 	mca_log_err("%s probe success %d\n", sc->log_tag, 0);
