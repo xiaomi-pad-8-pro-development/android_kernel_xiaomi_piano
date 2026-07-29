@@ -981,6 +981,31 @@ static int fg_convert_bytes_to_volt(struct bq_fg_chip *fg, u8 *bytes)
 	return fg->batt_volt;
 }
 
+#define FG_PACK_VOLT_HIGH_TH 5000
+static void fg_read_packvolt(struct bq_fg_chip *bq, int *packvolt)
+{
+	u16 raw = 0;
+	int volt;
+
+	if (bq->fg_error)
+		return;
+
+	if (fg_read_word(bq, bq->regs[BQ_FG_REG_ORIGINAL_TEMP], &raw) < 0) {
+		mca_log_err("could not read volt\n");
+		return;
+	}
+
+	volt = raw;
+	if (volt > FG_PACK_VOLT_HIGH_TH || bq->fg_error)
+		volt = bq->batt_volt;
+	if (!volt)
+		volt = bq->batt_volt > 0 ? bq->batt_volt : 0;
+
+	bq->batt_volt = volt;
+	mca_log_debug("volt: %d\n", bq->batt_volt);
+	*packvolt = bq->batt_volt;
+}
+
 static int fg_convert_bytes_to_curr(struct bq_fg_chip *fg, u8 *bytes)
 {
 	u16 temp_curr = BYTES_TO_U16(bytes);
@@ -2436,6 +2461,31 @@ static void fg_write_first_usage_date(struct bq_fg_chip *bq, const char *buf, si
 			fg_mac_write_block(bq, FG_MAC_CMD_UI_SOH, data, 32);
 		}
 	}
+}
+
+static int fg_get_one_first_usage_date(void *data)
+{
+	struct bq_fg_chip *bq = (struct bq_fg_chip *)data;
+	u8 buf[9] = { 0 };
+
+	return fg_read_first_usage_date(bq, buf);
+}
+
+static int fg_get_one_manufacturing_date(void *data)
+{
+	struct bq_fg_chip *bq = (struct bq_fg_chip *)data;
+	u8 buf[9] = { 0 };
+
+	return fg_read_manufacturing_date(bq, buf);
+}
+
+static int fg_set_one_first_usage_date(void *data, int date)
+{
+	struct bq_fg_chip *bq = (struct bq_fg_chip *)data;
+	const char *str = (const char *)(uintptr_t)date;
+
+	fg_write_first_usage_date(bq, str, strlen(str));
+	return 0;
 }
 
 static int fg_read_tte(struct bq_fg_chip *bq, int *tte)
@@ -5335,6 +5385,7 @@ static ssize_t fg_sysfs_store(struct device *dev,
 struct mca_sysfs_attr_info fg_sysfs_field_tbl[] = {
 	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_CHIP_OK, chip_ok),
 	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_VOL, vbatt),
+	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_PACK_VOL, pack_vbatt),
 	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_CURRENT, ibatt),
 	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_RSOC, rsoc),
 	mca_sysfs_attr_ro(fg_sysfs, 0440, FG_IC_PROP_TEMP, temp),
@@ -5472,6 +5523,10 @@ static ssize_t fg_sysfs_show(struct device *dev,
 		break;
 	case FG_IC_PROP_VOL:
 		fg_read_volt(info, &val);
+		count = scnprintf(buf, PAGE_SIZE, "%d\n", val);
+		break;
+	case FG_IC_PROP_PACK_VOL:
+		fg_read_packvolt(info, &val);
 		count = scnprintf(buf, PAGE_SIZE, "%d\n", val);
 		break;
 	case FG_IC_PROP_CURRENT:
@@ -6108,6 +6163,9 @@ static struct fuelguage_ic_ops g_bq_fg_ops = {
 	.fg_ic_get_ui_soh = fg_get_ui_soh,
 	.fg_ic_get_calc_rvalue = fg_get_one_calc_rvalue,
 	.fg_ic_get_batt_abnormal_info = fg_get_batt_abnormal_info,
+	.fg_ic_get_first_usage_date = fg_get_one_first_usage_date,
+	.fg_ic_get_manufacturing_date = fg_get_one_manufacturing_date,
+	.fg_ic_set_first_usage_date = fg_set_one_first_usage_date,
 };
 
 static int bq27z561_dump_log_head(void *data, char *buf, int size)
@@ -6155,6 +6213,53 @@ static struct mca_log_charge_log_ops g_bq27z516_log_ops = {
 	.dump_log_head = bq27z561_dump_log_head,
 	.dump_log_context = bq27z561_dump_log_context,
 };
+
+static void fg_set_force_sim_soh(struct bq_fg_chip *bq)
+{
+	u8 wbuf[2] = { 0 };
+	u16 flag;
+	int ret, i;
+
+	for (i = 3; i > 0; i--) {
+		ret = fg_mac_write_block(bq, FG_MAC_CMD_FORCE_SIM_SOH, wbuf, 0);
+		if (ret < 0) {
+			mca_log_info("could not write 0x56 to 0x3E %d\n", ret);
+			return;
+		}
+		msleep(30);
+		flag = 0;
+		if (fg_diag_mac_read(bq, FG_MAC_CMD_MIXDATARECORD1,
+				     (u8 *)&flag, 2) < 0) {
+			mca_log_info("failed to get 0x2001 data\n");
+			return;
+		}
+		mca_log_info("flag = %d, try_conut = %d\n", flag & 4, i - 1);
+		if ((flag >> 2) & 1)
+			return;
+	}
+}
+
+static void fg_force_sim_soh_if_needed(struct bq_fg_chip *bq)
+{
+	const struct mca_hwid *hwid = mca_get_hwid_info();
+	u8 name[8] = { 0 };
+	char dev5[6] = { 0 };
+
+	if (!hwid || hwid->platform_version != 3 ||
+	    hwid->country_version != 0) {
+		mca_log_err("not miro CN device, none to do!\n");
+		return;
+	}
+	if (fg_diag_mac_read(bq, FG_MAC_CMD_DEVICE_NAME, name, 8) < 0) {
+		mca_log_err("could not read device_name\n");
+		return;
+	}
+	memcpy(dev5, name, 5);
+	if (!strcmp("3XM31", dev5))
+		fg_set_force_sim_soh(bq);
+	else
+		mca_log_err("not CN NVT device, none to do!\n");
+}
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 9))
 static int bq_fg_probe(struct i2c_client *client)
@@ -6218,6 +6323,8 @@ static int bq_fg_probe(struct i2c_client *client, const struct i2c_device_id *id
 	}
 
 	mca_log_err("FuelGaugw probe successfully, role = %u\n", bq->dev_role);
+
+	fg_force_sim_soh_if_needed(bq);
 out:
 	fg_sysfs_create_group(bq);
 	i2c_set_clientdata(client, bq);
