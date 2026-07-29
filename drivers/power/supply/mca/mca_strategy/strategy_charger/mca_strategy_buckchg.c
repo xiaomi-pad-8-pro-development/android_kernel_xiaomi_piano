@@ -209,6 +209,8 @@ static void strategy_buckchg_parse_dt(struct strategy_buckchg_dev *info)
 	mca_parse_dts_u32(info->dev->of_node, "allow_start_ffc_batt_soc_thr",
 			  &info->allow_start_ffc_batt_soc_thr,
 			  ALLOW_START_FFC_BATT_SOC_THR);
+	mca_parse_dts_u32(info->dev->of_node, "curr_terminate_compensation",
+			  &info->curr_terminate_compensation, 0);
 	mca_parse_dts_u32(info->dev->of_node, "pmic_fv_compensation",
 			  &info->pmic_fv_compensation, 0);
 	mca_parse_dts_u32(info->dev->of_node, "pmic_fv_compensation_cold",
@@ -1957,7 +1959,7 @@ strategy_buckchg_enable_fast_charge_mode(struct strategy_buckchg_dev *info,
 			mca_log_info("buck charger disable fast charge mode\n");
 		} else if (fastcharge_mode &&
 			   soc >= info->allow_start_ffc_batt_soc_thr &&
-			   fcc <= iterm &&
+			   fcc <= iterm + info->curr_terminate_compensation &&
 			   quick_charge_status != MCA_QUICK_CHG_STS_CHARGING) {
 			strategy_class_fg_set_fastcharge(false);
 			mca_log_info(
