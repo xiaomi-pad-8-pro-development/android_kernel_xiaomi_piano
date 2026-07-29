@@ -250,6 +250,7 @@ struct strategy_fg {
 	int vcutoff_sw;
 	bool vbatt_empty;
 	bool support_cc_vcutoff;
+	bool is_nvt_unique_scheme;
 	bool support_dod_vcutoff;
 	bool support_vpack_low_shutdown;
 	bool support_full_design_gl;

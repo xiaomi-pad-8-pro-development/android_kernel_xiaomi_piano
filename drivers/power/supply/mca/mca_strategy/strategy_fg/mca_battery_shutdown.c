@@ -33,9 +33,17 @@
 #include <linux/platform_device.h>
 #include <mca/common/mca_log.h>
 #include <mca/common/mca_event.h>
+#include <mca/common/mca_hwid.h>
+#include "hwid.h"
 #include <mca/common/mca_parse_dts.h>
+
 #include <mca/strategy/strategy_fg_class.h>
+#include <mca/platform/platform_fg_ic_ops.h>
 #include "inc/strategy_fg.h"
+
+#define BATT_SHUTDOWN_NAME_RETRY 20
+#define BATT_SHUTDOWN_NAME_RETRY_MS 100
+#define BATT_SHUTDOWN_NVT_NAME "3XM31"
 
 #ifndef MCA_LOG_TAG
 #define MCA_LOG_TAG "mca_battery_shutdown"
@@ -136,6 +144,10 @@ int mca_battery_shutdown_parse_dt(void *data)
 	int array_len, row, col;
 	const char *tmp_string = NULL;
 	struct mca_battery_shutdown_temp_para_info *temp_info;
+	const struct mca_hwid *hwid = mca_get_hwid_info();
+	const char *dev_name = NULL;
+	bool use_gl;
+	int retry;
 
 	rc = mca_parse_dts_u32(node, "vcutoff_shutdown_delay",
 			       &fg->vcutoff_shutdown_delay,
@@ -149,11 +161,30 @@ int mca_battery_shutdown_parse_dt(void *data)
 		return rc;
 	}
 
+	use_gl = hwid && hwid->country_version != CountryCN;
+
+	for (retry = 1; retry <= BATT_SHUTDOWN_NAME_RETRY; retry++) {
+		(void)platform_fg_ops_get_device_name(FG_IC_MASTER, &dev_name);
+		msleep(BATT_SHUTDOWN_NAME_RETRY_MS);
+		mca_log_err("retry get device name:%d\n", retry);
+		if (dev_name)
+			break;
+	}
+	if (dev_name) {
+		mca_log_err("CN device name: %s\n", dev_name);
+		fg->is_nvt_unique_scheme =
+			!strcmp(dev_name, BATT_SHUTDOWN_NVT_NAME);
+	} else {
+		fg->is_nvt_unique_scheme = false;
+	}
+	mca_log_err("is nvt unique scheme %d\n", fg->is_nvt_unique_scheme);
+
 	fg->support_cc_vcutoff =
 		of_property_read_bool(node, "support-cc-vcutoff");
 	if (fg->support_cc_vcutoff) {
 		array_len = mca_parse_dts_count_strings(
-			node, "cc_vcutoff_cfg", VCUTOFF_PARA_MAX_GROUP,
+			node, use_gl ? "cc_vcutoff_cfg_gl" : "cc_vcutoff_cfg",
+			VCUTOFF_PARA_MAX_GROUP,
 			MCA_BATTERY_SHUTDOWN_TEMP_PARA_MAX);
 		if (array_len < 0) {
 			mca_log_err("parse cc_vcutoff_cfg failed\n");
@@ -172,8 +203,11 @@ int mca_battery_shutdown_parse_dt(void *data)
 
 		temp_info = batt_health_para_info->temp_info;
 		for (int i = 0; i < array_len; i++) {
-			if (mca_parse_dts_string_index(node, "cc_vcutoff_cfg",
-						       i, &tmp_string))
+			if (mca_parse_dts_string_index(
+				    node,
+				    use_gl ? "cc_vcutoff_cfg_gl" :
+					     "cc_vcutoff_cfg",
+				    i, &tmp_string))
 				return -1;
 			row = i / MCA_BATTERY_SHUTDOWN_TEMP_PARA_MAX;
 			col = i % MCA_BATTERY_SHUTDOWN_TEMP_PARA_MAX;
@@ -220,7 +254,8 @@ int mca_battery_shutdown_parse_dt(void *data)
 		of_property_read_bool(node, "support-dod-vcutoff");
 	if (fg->support_dod_vcutoff) {
 		array_len = mca_parse_dts_count_strings(
-			node, "dod_vcutoff_cfg", BATTERY_TEMP_PARA_MAX_GROUP,
+			node, use_gl ? "dod_vcutoff_cfg_gl" : "dod_vcutoff_cfg",
+			BATTERY_TEMP_PARA_MAX_GROUP,
 			MCA_BATTERY_SHUTDOWN_TEMP_PARA_MAX);
 		if (array_len < 0) {
 			mca_log_err("parse dod_vcutoff_cfg failed\n");
@@ -238,8 +273,11 @@ int mca_battery_shutdown_parse_dt(void *data)
 
 		temp_info = batt_spec_para_info->temp_info;
 		for (int i = 0; i < array_len; i++) {
-			if (mca_parse_dts_string_index(node, "dod_vcutoff_cfg",
-						       i, &tmp_string))
+			if (mca_parse_dts_string_index(
+				    node,
+				    use_gl ? "dod_vcutoff_cfg_gl" :
+					     "dod_vcutoff_cfg",
+				    i, &tmp_string))
 				return -1;
 
 			row = i / MCA_BATTERY_SHUTDOWN_TEMP_PARA_MAX;
