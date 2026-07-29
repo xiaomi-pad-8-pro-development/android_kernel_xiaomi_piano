@@ -736,49 +736,6 @@ static struct platform_class_cp_ops sc8541_chg_ops = {
 	.cp_enable_busucp = ops_cp_enable_busucp,
 };
 
-static int sc8541_dump_log_head(void *data, char *buf, int size)
-{
-	struct sc8541_device *sc = data;
-
-	if (!sc)
-		return 0;
-
-	return snprintf(
-		buf, size,
-		sc->cp_role ?
-			"cp_vusb1 cp_vbus1 cp_ibus1 cp_ibat1 cp_vbat1 cp_vout1 " :
-			"cp_vusb cp_vbus cp_ibus cp_ibat cp_vbat cp_vout ");
-}
-
-static int sc8541_dump_log_context(void *data, char *buf, int size)
-{
-	struct sc8541_device *sc = data;
-	u32 vbus = 0, vusb = 0, ibus = 0, ibat = 0, vbat = 0, vout = 0,
-	    tdie = 0;
-
-	if (!sc)
-		return snprintf(buf, size, "%-8d%-8d%-8d%-8d%-8d%-8d", -1, -1,
-				-1, -1, -1, -1);
-
-	sc8541_get_adc_data(sc, SC8541_ADC_VBUS, &vbus);
-	sc8541_get_adc_data(sc, SC8541_ADC_VUSB, &vusb);
-	sc8541_get_adc_data(sc, SC8541_ADC_IBUS, &ibus);
-	sc8541_get_adc_data(sc, SC8541_ADC_IBAT, &ibat);
-	sc8541_get_adc_data(sc, SC8541_ADC_VBAT, &vbat);
-	sc8541_get_adc_data(sc, SC8541_ADC_VOUT, &vout);
-	sc8541_get_adc_data(sc, SC8541_ADC_TDIE, &tdie);
-
-	return snprintf(buf, size,
-			sc->cp_role ? "%-9u%-9u%-9u%-9u%-9u%-9u%-9u" :
-				      "%-8u%-8u%-8u%-8u%-8u%-8u%-8u",
-			vusb, vbus, ibus, ibat, vbat, vout, tdie);
-}
-
-static struct mca_log_charge_log_ops g_sc8541_log_ops = {
-	.dump_log_head = sc8541_dump_log_head,
-	.dump_log_context = sc8541_dump_log_context,
-};
-
 /* ---- debugfs ---- */
 
 #ifdef CONFIG_DEBUG_FS
@@ -1020,10 +977,6 @@ static int sc8541_probe(struct i2c_client *client)
 				 cp_debugfs_field_tbl, CP_DEBUGFS_ATTRS_SIZE,
 				 sc);
 #endif
-	mca_log_charge_log_register(sc->cp_role ?
-					    MCA_CHARGE_LOG_ID_CP_SLAVE_IC :
-					    MCA_CHARGE_LOG_ID_CP_MASTER_IC,
-				    &g_sc8541_log_ops, sc);
 
 	sc->probe_done = 1;
 	mca_log_err("%s probe success %d\n", sc->log_tag, 0);
