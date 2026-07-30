@@ -59,7 +59,6 @@
 #define MCA_DTPT_MOLECULE_SCALE 8
 #define MCA_DTPT_DENOM_SCALE 10
 #define MCA_PPS_MAXFCC_PEAK_TIME_S 120
-#define MCA_PPS_FCC_LIMIT 6000
 
 static void
 strategy_quickchg_map_ibus_to_fsw(struct mca_quick_charge_info *info,
@@ -2458,8 +2457,6 @@ static int mca_quick_charge_select_max_ibat(struct mca_quick_charge_info *info)
 		cur_max -= 200;
 		if (cur_max > MCA_QUICK_CHG_PPS_BOOST_FCC_CURR_TH)
 			cur_max = MCA_QUICK_CHG_PPS_BOOST_FCC_CURR_TH;
-		else if (cur_max > MCA_PPS_FCC_LIMIT)
-			cur_max = MCA_PPS_FCC_LIMIT;
 	}
 	mca_log_info("support_base_flip:[]: %d\n", info->support_base_flip);
 	if (info->support_base_flip) {
