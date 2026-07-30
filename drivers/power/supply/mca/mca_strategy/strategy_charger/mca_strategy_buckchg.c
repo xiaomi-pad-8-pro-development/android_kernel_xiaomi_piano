@@ -1252,7 +1252,10 @@ strategy_buckchg_cp_revert_handler(int auth_pos,
 	last_pos = pos;
 
 	if (otg_present) {
-		if (pos == 1) {
+		(void)platform_class_cp_get_chip_vendor(CP_ROLE_MASTER,
+							&info->cp_chip_vendor);
+
+		if (pos == 1 && info->otg_boost_src) {
 			mca_log_err("start external boost");
 
 			// enable external boost
@@ -1262,7 +1265,7 @@ strategy_buckchg_cp_revert_handler(int auth_pos,
 				MAIN_BUCK_CHARGER, otg_enable);
 
 			// close revert cp boost
-			msleep(300);
+			msleep(400);
 			platform_class_cp_set_charging_enable(CP_ROLE_MASTER,
 							      false);
 			platform_class_cp_enable_ovpgate(CP_ROLE_MASTER, false);
@@ -1272,9 +1275,6 @@ strategy_buckchg_cp_revert_handler(int auth_pos,
 						   CP_MODE_FORWARD_2_1);
 		} else if (pos == 2) {
 			mca_log_err("start revert 1_2 cp");
-
-			(void)platform_class_cp_get_chip_vendor(
-				CP_ROLE_MASTER, &info->cp_chip_vendor);
 
 			if (info->cp_chip_vendor == CP_CHIP_VENDOR_BQ25960 &&
 			    !bq_revchg_switch_flag) {
