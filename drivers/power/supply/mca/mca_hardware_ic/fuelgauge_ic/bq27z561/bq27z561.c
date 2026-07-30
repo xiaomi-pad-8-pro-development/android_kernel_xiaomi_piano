@@ -59,7 +59,7 @@
 #define FG_CURR_LOW_TH -25000
 #define FG_CURR_HIGH_TH 6000
 #define FG_RM_FCC_LOW_TH 0
-#define FG_RM_FCC_HIGH_TH 7500
+#define FG_RM_FCC_HIGH_TH 9000
 #define FG_RM_FCC_DEFAULT_TH 2500
 
 #define BYTES_TO_U16(bytes) \
