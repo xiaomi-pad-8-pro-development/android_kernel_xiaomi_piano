@@ -1199,7 +1199,7 @@ static int mca_quick_charge_can_tbat_do_charge(
 	struct mca_quick_charge_temp_para *temp_para;
 	int temp = 0;
 	int ret, i, flag = 0;
-	//const struct mca_hwid *hwid = mca_get_hwid_info();
+	const struct mca_hwid *hwid = mca_get_hwid_info();
 
 	if (init && info->proc_data.adp_type == XM_CHARGER_TYPE_PPS) {
 		info->init_volt_para = false;
@@ -1308,20 +1308,16 @@ static int mca_quick_charge_can_tbat_do_charge(
 		return -1;
 	}
 
-	/*if (hwid && hwid->country_version == CountryCN) {
-		if (info->support_curr_monitor && info->curr_monitor_time_s && temp_para->max_current == MCA_QUICK_CHG_MAX_CURR_MA) {
+	if (hwid && (hwid->platform_version == HARDWARE_PROJECT_O1 ||
+		     hwid->platform_version == 11 ||
+		     hwid->country_version == CountryCN)) {
+		if (info->support_curr_monitor && info->curr_monitor_time_s &&
+		    temp_para->max_current >= MCA_QUICK_CHG_MAX_CURR_MA) {
 			info->fastchg_temp_flag = true;
 			mca_log_info("enter fast charging temp range\n");
 		} else {
 			info->fastchg_temp_flag = false;
 		}
-	} else {
-		info->fastchg_temp_flag = false;
-	}*/
-	if (info->support_curr_monitor && info->curr_monitor_time_s &&
-	    temp_para->max_current == MCA_QUICK_CHG_MAX_CURR_MA) {
-		info->fastchg_temp_flag = true;
-		mca_log_info("enter fast charging temp range\n");
 	} else {
 		info->fastchg_temp_flag = false;
 	}
