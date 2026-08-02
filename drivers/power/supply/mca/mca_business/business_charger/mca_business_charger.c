@@ -493,6 +493,9 @@ static void business_charger_update_wired_quick_charge_type(
 	case XM_CHARGER_TYPE_PPS:
 	case XM_CHARGER_TYPE_PD_VERIFY:
 		icon_type = ADP_ICON_TYPE_FAST;
+		protocol_class_get_adapter_max_power(
+			ADAPTER_PROTOCOL_PPS,
+			(unsigned int *)&charger->wired_power_max);
 		break;
 	default:
 		break;
@@ -514,7 +517,7 @@ business_charger_process_type_change(struct business_charger *charger,
 				  charger->real_type);
 	mca_strategy_func_process(STRATEGY_FUNC_TYPE_THERMAL, event,
 				  charger->real_type);
-	if (charger->real_type != XM_CHARGER_TYPE_PD_VERIFY)
+	if (charger->real_type != XM_CHARGER_TYPE_PPS)
 		business_charger_update_wired_quick_charge_type(charger);
 }
 
@@ -795,7 +798,7 @@ business_charger_process_handle_logic(struct business_charger *charger)
 				n_data.event_len = 32;
 				mca_event_report_uevent(&n_data);
 			}
-		} else if (charger->real_type != XM_CHARGER_TYPE_PD_VERIFY) {
+		} else if (charger->real_type != XM_CHARGER_TYPE_PPS) {
 			business_charger_update_wired_quick_charge_type(
 				charger);
 		}
@@ -959,7 +962,7 @@ business_charger_process_csd_pulse_change(struct business_charger *charger,
 {
 	int csd_pulse = *((int *)data);
 
-	if (charger->real_type == XM_CHARGER_TYPE_PD_VERIFY) {
+	if (charger->real_type == XM_CHARGER_TYPE_PPS) {
 		mca_log_info("receive csd pulse request: %d\n", csd_pulse);
 		mca_strategy_func_process(STRATEGY_FUNC_TYPE_QUICK_CHARGE,
 					  event, csd_pulse);
@@ -1020,7 +1023,7 @@ business_charger_process_batt_health_change(struct business_charger *charger,
 					    unsigned int event)
 {
 	business_charger_update_wired_quick_charge_type(charger);
-	if (charger->real_type == XM_CHARGER_TYPE_PD_VERIFY)
+	if (charger->real_type == XM_CHARGER_TYPE_PPS)
 		schedule_delayed_work(&charger->report_quick_charge_type_work,
 				      0);
 	mca_strategy_func_process(STRATEGY_FUNC_TYPE_BASIC_WIRELESS, event, 0);

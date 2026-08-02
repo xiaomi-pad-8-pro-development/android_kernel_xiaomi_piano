@@ -486,8 +486,8 @@ static void mca_quick_charge_stop_charging(struct mca_quick_charge_info *info)
 		info->proc_data.cur_adp_volt = MCA_QUICK_CHG_ADP_DEFAULT_VOLT;
 	info->proc_data.cur_adp_cur = MCA_QUICK_CHG_ADP_DEFAULT_CURR;
 	info->pd_switch_to_pmic = true;
-	if ((info->proc_data.adp_type == XM_CHARGER_TYPE_PD ||
-	     info->proc_data.adp_type == XM_CHARGER_TYPE_PD_VERIFY) &&
+	if ((info->proc_data.adp_type == XM_CHARGER_TYPE_PD_VERIFY ||
+	     info->proc_data.adp_type == XM_CHARGER_TYPE_PPS) &&
 	    info->pmic_chg_need_fixed_volt) {
 		protocol_class_pd_set_fixed_volt(TYPEC_PORT_0,
 						 MCA_QUICK_CHG_ADP_DEFAULT_VOLT);
@@ -585,8 +585,7 @@ mca_quick_charge_adjust_adapter_mode(struct mca_quick_charge_info *info)
 			    MCA_QUICK_CHG_DIV4_VOLT_TH_HIGH * ratio &&
 		    cap_info.cap[i].min_voltage <=
 			    MCA_QUICK_CHG_DIV4_VOLT_TH_LOW * ratio) {
-			if (info->proc_data.adp_type ==
-				    XM_CHARGER_TYPE_PD_VERIFY ||
+			if (info->proc_data.adp_type == XM_CHARGER_TYPE_PPS ||
 			    info->is_eu_model) {
 				info->proc_data.adp_info[i].adp_mode |=
 					MCA_QUICK_CHG_MODE_DIV_4;
@@ -790,6 +789,9 @@ mca_quick_charge_select_cur_work_mode(struct mca_quick_charge_info *info)
 		info->proc_data.adp_info[adp_index].cap_info.max_voltage;
 	info->proc_data.max_adp_curr =
 		info->proc_data.adp_info[adp_index].cap_info.max_current;
+	info->proc_data.max_power = (info->proc_data.max_adp_volt *
+				     info->proc_data.max_adp_curr) /
+				    1000000;
 
 	(void)protocol_class_pd_get_zimi_cypress_flag(TYPEC_PORT_0,
 						      &zimi_cypress_flag);
@@ -797,7 +799,7 @@ mca_quick_charge_select_cur_work_mode(struct mca_quick_charge_info *info)
 	    info->proc_data.min_adp_volt != info->proc_data.max_adp_volt)
 		info->proc_data.max_adp_volt -= MCA_ZIMI_CYPRESS_HYS_MV;
 
-	if (info->proc_data.adp_type == XM_CHARGER_TYPE_PPS &&
+	if (info->proc_data.adp_type == XM_CHARGER_TYPE_PD_VERIFY &&
 	    !zimi_cypress_flag &&
 	    info->proc_data.min_adp_volt != info->proc_data.max_adp_volt &&
 	    info->proc_data.max_adp_volt > MCA_PPS_MAX_VOLT)
@@ -1998,7 +2000,10 @@ static void mca_quick_charge_start_charging(struct mca_quick_charge_info *info)
 		}
 	}
 
-	mca_cp_check_initial_mode(info);
+	if (info->proc_data.adp_type == XM_CHARGER_TYPE_PPS &&
+	    info->proc_data.max_power >= 65 &&
+	    !(info->cur_support_mode & ~info->proc_data.adp_mode))
+		mca_cp_check_initial_mode(info);
 
 	platform_class_cp_enable_busucp(info->proc_data.cur_work_cp, false);
 	if (!info->is_platform_qc)
@@ -2348,7 +2353,7 @@ mca_eu_pps_anti_disconnection_strategy(struct mca_quick_charge_info *info)
 		return;
 	}
 
-	if (info->proc_data.adp_type != XM_CHARGER_TYPE_PPS)
+	if (info->proc_data.adp_type != XM_CHARGER_TYPE_PD_VERIFY)
 		return;
 
 	if (info->proc_data.ibus >= info->proc_data.max_adp_curr - 200) {
@@ -2448,15 +2453,12 @@ static int mca_quick_charge_select_max_ibat(struct mca_quick_charge_info *info)
 	if (!info->hardware_cv)
 		cur_max = max(cur_max, cur_min);
 
-	if (info->proc_data.adp_type == XM_CHARGER_TYPE_PPS &&
+	if (info->proc_data.adp_type == XM_CHARGER_TYPE_PD_VERIFY &&
 	    !info->is_eu_model) {
-		/* for third party pps, beside set ibus compensation to 0, also reduce 100mA max target current */
 		cur_max -= 200;
-		if (info->smartchg_data.pwr_boost_state &&
-		    cur_max > MCA_QUICK_CHG_PPS_BOOST_FCC_CURR_TH)
+		if (cur_max > MCA_QUICK_CHG_PPS_BOOST_FCC_CURR_TH)
 			cur_max = MCA_QUICK_CHG_PPS_BOOST_FCC_CURR_TH;
-		else if (!info->smartchg_data.pwr_boost_state &&
-			 cur_max > MCA_PPS_FCC_LIMIT)
+		else if (cur_max > MCA_PPS_FCC_LIMIT)
 			cur_max = MCA_PPS_FCC_LIMIT;
 	}
 	mca_log_info("support_base_flip:[]: %d\n", info->support_base_flip);
@@ -2875,7 +2877,7 @@ static int mca_quick_charge_regulation(struct mca_quick_charge_info *info)
 	vbat_th = mca_quick_charge_select_min_vbatt_th(info);
 	vstep = mca_quick_charge_get_vstep(cur_max - ibat, info);
 
-	if (info->proc_data.adp_type != XM_CHARGER_TYPE_PD_VERIFY) {
+	if (info->proc_data.adp_type != XM_CHARGER_TYPE_PPS) {
 		info->proc_data.ibus_compensation = 0;
 	} else {
 		if (cur_stage == (2 * volt_para_size - 1))
@@ -3340,7 +3342,7 @@ static void mca_quick_charge_pps_ptf_work(struct work_struct *work)
 		work, struct mca_quick_charge_info, pps_ptf_work.work);
 	static int check_mum;
 
-	if ((info->proc_data.adp_type == XM_CHARGER_TYPE_PPS &&
+	if ((info->proc_data.adp_type == XM_CHARGER_TYPE_PD_VERIFY &&
 	     info->is_eu_model) ||
 	    info->fake_pps_ptf) {
 		protocol_class_get_adapter_pps_ptf(info->proc_data.cur_protocol,

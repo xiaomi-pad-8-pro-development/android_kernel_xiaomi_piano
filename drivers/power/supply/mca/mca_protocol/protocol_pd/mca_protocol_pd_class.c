@@ -746,7 +746,7 @@ static int protocol_class_pps_adapter_get_max_power(void *data, unsigned int *ma
 	mca_log_info("is_eu_model: %d,device_max_power: %d, max_power: %d, adv_curr: %d\n",
 		is_eu_model, device_max_power, power, adv_curr);
 
-	if (is_eu_model && type == XM_CHARGER_TYPE_PPS) {
+	if (is_eu_model && type == XM_CHARGER_TYPE_PD_VERIFY) {
 		*max_power = min(power, device_max_power);
 		mca_log_info("caulate max_power %d\n", *max_power);
 		return 0;

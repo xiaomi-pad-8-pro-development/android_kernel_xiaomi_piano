@@ -1001,7 +1001,7 @@ strategy_buckchg_process_type_change(int value,
 	}
 
 	if (info->is_eu_model &&
-	    info->proc_data.real_type == XM_CHARGER_TYPE_PPS) {
+	    info->proc_data.real_type == XM_CHARGER_TYPE_PD_VERIFY) {
 		info->proc_data.eu_start_time = ktime_get_boottime();
 		mca_log_info("is_eu_model for PPS eu_start_time = %lld\n",
 			     info->proc_data.eu_start_time);
