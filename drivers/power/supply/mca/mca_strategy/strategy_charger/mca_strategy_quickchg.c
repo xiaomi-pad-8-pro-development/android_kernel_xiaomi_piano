@@ -2977,6 +2977,9 @@ static int mca_quick_charge_regulation(struct mca_quick_charge_info *info)
 			ibus_buck, aicl_status, master_ibus, slave_ibus);
 	}
 
+	/*
+	 * TODO: Implement buck parallel charging logic
+	 */
 	if (info->en_buck_parallel_chg && cur_max > 16000) {
 		if (0 /*mca_quick_charge_is_en_buck_hwid()*/) {
 			strategy_quickchg_enable_buck_charging(
@@ -2991,6 +2994,9 @@ static int mca_quick_charge_regulation(struct mca_quick_charge_info *info)
 		strategy_quickchg_enable_buck_charging(info, 0, 0, false);
 	}
 
+	/*
+	 * TODO: Implement buck parallel charging logic
+	 */
 	if (info->pmic_single_cp_chg)
 		strategy_quickchg_pmic_single_cp_charging(info, cur_max);
 
@@ -4297,6 +4303,9 @@ mca_quick_charge_parse_chg_mode_info(struct device_node *node,
 	} else {
 		memcpy(info->div_single_curr, idata, sizeof(idata));
 		if (info->en_buck_parallel_chg) {
+			/*
+			* TODO: Implement buck parallel charging logic
+			*/
 			if (0 /*!mca_quick_charge_is_en_buck_hwid()*/) {
 				info->div_single_curr[CHG_MODE_DIV4] = 19000;
 			}
