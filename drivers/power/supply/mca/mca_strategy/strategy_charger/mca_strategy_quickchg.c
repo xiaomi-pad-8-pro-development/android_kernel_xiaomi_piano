@@ -511,10 +511,10 @@ static void mca_quick_charge_stop_charging(struct mca_quick_charge_info *info)
 	}
 
 	if (info->proc_data.cp_iic_ok) {
-		platform_class_cp_set_mode(CP_ROLE_MASTER, CP_MODE_FORWARD_1_1);
+		platform_class_cp_set_mode(CP_ROLE_MASTER, CP_MODE_FORWARD_2_1);
 		if (info->cp_type == MCA_CP_TYPE_PARALLEL)
 			platform_class_cp_set_mode(CP_ROLE_SLAVE,
-						   CP_MODE_FORWARD_1_1);
+						   CP_MODE_FORWARD_2_1);
 	}
 	if (info->en_buck_parallel_chg && info->proc_data.cp_iic_ok) {
 		strategy_quickchg_enable_buck_charging(info, 0, 0, false);
@@ -3276,11 +3276,11 @@ static void mca_check_cp_work_mode(struct mca_quick_charge_info *info)
 	}
 
 	if (proc_data->cur_work_cp == MCA_QUICK_CHG_CP_DUAL) {
-		platform_class_cp_set_mode(CP_ROLE_MASTER, CP_MODE_FORWARD_1_1);
-		platform_class_cp_set_mode(CP_ROLE_SLAVE, CP_MODE_FORWARD_1_1);
+		platform_class_cp_set_mode(CP_ROLE_MASTER, CP_MODE_FORWARD_2_1);
+		platform_class_cp_set_mode(CP_ROLE_SLAVE, CP_MODE_FORWARD_2_1);
 	} else {
 		platform_class_cp_set_mode(proc_data->cur_work_cp,
-					   CP_MODE_FORWARD_1_1);
+					   CP_MODE_FORWARD_2_1);
 	}
 	platform_class_cp_enable_adc(CP_ROLE_MASTER, false);
 	platform_class_cp_enable_adc(CP_ROLE_SLAVE, false);
