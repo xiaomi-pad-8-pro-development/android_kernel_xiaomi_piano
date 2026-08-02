@@ -146,7 +146,7 @@ int mca_battery_shutdown_parse_dt(void *data)
 	struct mca_battery_shutdown_temp_para_info *temp_info;
 	const struct mca_hwid *hwid = mca_get_hwid_info();
 	const char *dev_name = NULL;
-	bool use_gl;
+	bool is_gl_unit, use_cc_gl, use_dod_gl, notsupport_dod_gl;
 	int retry;
 
 	rc = mca_parse_dts_u32(node, "vcutoff_shutdown_delay",
@@ -161,7 +161,13 @@ int mca_battery_shutdown_parse_dt(void *data)
 		return rc;
 	}
 
-	use_gl = hwid && hwid->country_version != CountryCN;
+	is_gl_unit = hwid && hwid->country_version != CountryCN;
+	use_cc_gl = is_gl_unit &&
+		    of_property_read_bool(node, "support-cc-vcutoff-global");
+	use_dod_gl = is_gl_unit &&
+		     of_property_read_bool(node, "support-dod-vcutoff-global");
+	notsupport_dod_gl =
+		of_property_read_bool(node, "notsupport-dod-vcutoff-global");
 
 	for (retry = 1; retry <= BATT_SHUTDOWN_NAME_RETRY; retry++) {
 		(void)platform_fg_ops_get_device_name(FG_IC_MASTER, &dev_name);
@@ -181,9 +187,12 @@ int mca_battery_shutdown_parse_dt(void *data)
 
 	fg->support_cc_vcutoff =
 		of_property_read_bool(node, "support-cc-vcutoff");
+	if (is_gl_unit && notsupport_dod_gl)
+		fg->support_cc_vcutoff = false;
 	if (fg->support_cc_vcutoff) {
 		array_len = mca_parse_dts_count_strings(
-			node, use_gl ? "cc_vcutoff_cfg_gl" : "cc_vcutoff_cfg",
+			node,
+			use_cc_gl ? "cc_vcutoff_cfg_gl" : "cc_vcutoff_cfg",
 			VCUTOFF_PARA_MAX_GROUP,
 			MCA_BATTERY_SHUTDOWN_TEMP_PARA_MAX);
 		if (array_len < 0) {
@@ -205,7 +214,7 @@ int mca_battery_shutdown_parse_dt(void *data)
 		for (int i = 0; i < array_len; i++) {
 			if (mca_parse_dts_string_index(
 				    node,
-				    use_gl ? "cc_vcutoff_cfg_gl" :
+				    use_cc_gl ? "cc_vcutoff_cfg_gl" :
 					     "cc_vcutoff_cfg",
 				    i, &tmp_string))
 				return -1;
@@ -252,9 +261,11 @@ int mca_battery_shutdown_parse_dt(void *data)
 
 	fg->support_dod_vcutoff =
 		of_property_read_bool(node, "support-dod-vcutoff");
+	if (is_gl_unit && notsupport_dod_gl)
+		fg->support_dod_vcutoff = false;
 	if (fg->support_dod_vcutoff) {
 		array_len = mca_parse_dts_count_strings(
-			node, use_gl ? "dod_vcutoff_cfg_gl" : "dod_vcutoff_cfg",
+			node, use_dod_gl ? "dod_vcutoff_cfg_gl" : "dod_vcutoff_cfg",
 			BATTERY_TEMP_PARA_MAX_GROUP,
 			MCA_BATTERY_SHUTDOWN_TEMP_PARA_MAX);
 		if (array_len < 0) {
@@ -275,7 +286,7 @@ int mca_battery_shutdown_parse_dt(void *data)
 		for (int i = 0; i < array_len; i++) {
 			if (mca_parse_dts_string_index(
 				    node,
-				    use_gl ? "dod_vcutoff_cfg_gl" :
+				    use_dod_gl ? "dod_vcutoff_cfg_gl" :
 					     "dod_vcutoff_cfg",
 				    i, &tmp_string))
 				return -1;
