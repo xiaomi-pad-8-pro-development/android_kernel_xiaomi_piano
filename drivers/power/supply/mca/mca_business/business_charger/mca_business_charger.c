@@ -369,7 +369,7 @@ static void
 business_charger_process_cap_change(struct business_charger *charger,
 				    unsigned int event)
 {
-	if (charger->real_type == XM_CHARGER_TYPE_PD_VERIFY) {
+	if (charger->real_type == XM_CHARGER_TYPE_PPS) {
 		cancel_delayed_work_sync(
 			&charger->report_quick_charge_type_work);
 		schedule_delayed_work(&charger->report_quick_charge_type_work,
@@ -428,7 +428,7 @@ business_charger_report_quick_charge_type_work(struct work_struct *work)
 	int power_max;
 	int icon_type;
 
-	if (charger->real_type != XM_CHARGER_TYPE_PD_VERIFY)
+	if (charger->real_type != XM_CHARGER_TYPE_PPS)
 		return;
 
 	protocol_class_get_adapter_max_power(ADAPTER_PROTOCOL_PPS,
