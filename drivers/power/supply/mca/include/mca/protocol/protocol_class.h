@@ -68,12 +68,13 @@ enum typec_attach_mode {
 	TYPEC_DEBUG_ACCESS_MODE,
 };
 
-#define ADAPTER_CAP_MAX_NR	10
+#define ADAPTER_CAP_MAX_NR	7
 
 struct adapter_power_cap {
+	int unknown_0;
+	int max_current;
 	int max_voltage;
 	int min_voltage;
-	int max_current;
 	int max_power;
 };
 
