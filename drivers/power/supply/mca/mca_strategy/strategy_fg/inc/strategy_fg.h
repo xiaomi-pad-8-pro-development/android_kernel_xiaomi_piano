@@ -237,6 +237,7 @@ struct strategy_fg {
 	bool keep_full_flag;
 
 	time64_t slow_chg_start_time;
+	time64_t online_time;
 	int slow_chg_initial_rm;
 	int slow_chg_initial_soc;
 	bool non_std_charger_reported;

@@ -2047,14 +2047,14 @@ static void charge_slowly_monitor_func(struct strategy_fg *fg)
 	mca_log_err("realtype:%d, soc:%d, rm:%d\n", fg->real_type,
 		    fg->batt_ui_soc, now_rm);
 	mca_log_err("time:%d, timeplugin:%d plugin:%d\n", (int)nowtime,
-		    (int)nowplugintime, (int)fg->plugin_time);
+		    (int)nowplugintime, (int)fg->online_time);
 	nowplugintime = ktime_get_boottime_seconds();
 
 	if (fg->real_type != XM_CHARGER_TYPE_PPS) {
 		if (fg->real_type >= XM_CHARGER_TYPE_SDP &&
 		    fg->real_type <= XM_CHARGER_TYPE_PD_VERIFY &&
 		    !fg->non_std_charger_reported &&
-		    nowplugintime - fg->plugin_time >
+		    nowplugintime - fg->online_time >
 			    NON_STD_CHARGER_PLUGIN_TIME_S) {
 			dfx_data[0] = fg->real_type;
 			mca_charge_mievent_report(CHARGE_DFX_NON_STANDARD_CHARGER,
@@ -2068,7 +2068,7 @@ static void charge_slowly_monitor_func(struct strategy_fg *fg)
 	if (fg->batt_ui_soc > CHARGE_SLOWLY_SOC_MAX)
 		goto reset;
 
-	fg->plugin_time = ktime_get_boottime_seconds();
+	fg->online_time = ktime_get_boottime_seconds();
 	(void)protocol_class_get_adapter_max_power(ADAPTER_PROTOCOL_PPS,
 						   &powermax);
 	batt_rm_thr = charge_get_batt_rm_threshold();
@@ -3906,6 +3906,7 @@ static int strategy_fg_process_event(int event, int value, void *data)
 	case MCA_EVENT_WIRELESS_CONNECT:
 		info->power_present = true;
 		info->plugin_time = ktime_get_boottime_seconds();
+		info->online_time = info->plugin_time;
 		info->non_std_charger_reported = false;
 		info->co_ctrl_support = true;
 		info->co_ctrl_active = true;
