@@ -97,10 +97,10 @@ static int strategy_pd_auth_get_vdm_cmd(char *buf, int active_port)
 	case USBPD_UVDM_REVERSE_AUTHEN:
 		return snprintf(buf, PAGE_SIZE, "%d,%d", cmd, vdm_data.reauth);
 	case USBPD_UVDM_AUTHENTICATION:
-		for (i = 0; i < USBPD_UVDM_SS_LEN; i++) {
+		for (i = 0; i < USBPD_UVDM_AUTH_WORDS; i++) {
 			memset(data, 0, sizeof(data));
 			snprintf(data, sizeof(data), "%08lx",
-				 vdm_data.digest[i]);
+				 vdm_data.s_secert[USBPD_UVDM_AUTH_FIRST + i]);
 			strlcat(str_buf, data, sizeof(str_buf));
 		}
 		return snprintf(buf, PAGE_SIZE, "%d,%s\n", cmd, str_buf);
