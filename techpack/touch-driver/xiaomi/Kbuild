@@ -31,7 +31,3 @@ endif
 obj-m += xiaomi_touch.o
 
 xiaomi_touch-m := xiaomi_touch_knock_data.o xiaomi_touch_core.o xiaomi_touch_proc.o xiaomi_touch_operations.o xiaomi_touch_sys.o xiaomi_touch_mode.o xiaomi_touch_evdev.o xiaomi_touch_device.o
-
-
-CDEFINES += -DBUILD_TIMESTAMP=\"$(shell date -u +'%Y-%m-%dT%H:%M:%SZ')\"
-

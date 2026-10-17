@@ -114,6 +114,3 @@ sia91xx_dlkm-y := $(SIA91XX_OBJS)
 
 obj-$(CONFIG_SND_SOC_SIA91XX) += sia91xx_tuning_dlkm.o
 sia91xx_tuning_dlkm-y := $(SIA91XX_TUNING_OBJS)
-
-# inject some build related information
-DEFINES += -DBUILD_TIMESTAMP=\"$(shell date -u +'%Y-%m-%dT%H:%M:%SZ')\"
