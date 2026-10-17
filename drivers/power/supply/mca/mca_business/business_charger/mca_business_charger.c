@@ -1185,9 +1185,9 @@ business_charger_process_sbu_lpd_status_change(struct business_charger *charger,
 
 	mca_log_info("handle sbu lpd changed: %#x\n", value);
 	if (value == 1)
-		sbu_event = FSA_USBC_SBU_LPD_SENSE;
+		sbu_event = FSA_USBC_LPD_STATUS_CC1;
 	else if (value == 2)
-		sbu_event = FSA_USBC_SBU_LPD_ISOLATE;
+		sbu_event = FSA_USBC_LPD_STATUS_CC2;
 	else
 		sbu_event = FSA_USBC_DISPLAYPORT_DISCONNECTED;
 
