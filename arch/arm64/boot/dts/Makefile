@@ -39,3 +39,8 @@ vendor  := $(dtstree)/vendor
 ifneq "$(wildcard $(vendor)/Makefile)" ""
 	subdir-y += vendor
 endif
+
+techpack := $(dtstree)/techpack
+ifneq "$(wildcard $(techpack)/Makefile)" ""
+	subdir-y += techpack
+endif
