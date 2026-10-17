@@ -17,6 +17,7 @@
 #define HARDWARE_PROJECT_O3   2 //dada
 #define HARDWARE_PROJECT_O8   5 //bixi
 #define HARDWARE_PROJECT_O9   8 //luming
+#define HARDWARE_PROJECT_P82  10 //yupei
 
 typedef enum {
 	CountryCN = 0x00,
