@@ -67,6 +67,12 @@ ifdef CONFIG_SND_SOC_FS19XX
 	FS19XX_OBJS += fsm_core.o
 	FS19XX_OBJS += fs1958.o
 	FS19XX_OBJS += fsm_i2c.o
+	FS19XX_OBJS += fsm_firmware.o
+	FS19XX_OBJS += fsm_class.o
+	FS19XX_OBJS += fsm_misc.o
+	FS19XX_OBJS += fsm_q6afe.o
+	FS19XX_OBJS += fsm_mtk_ipi.o
+	FS19XX_OBJS += fsm_codec.o
 endif
 
 LINUX_INC +=	-Iinclude/linux
