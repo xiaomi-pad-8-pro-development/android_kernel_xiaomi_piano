@@ -1620,7 +1620,7 @@ static void strategy_fg_update_qbg_chg_data(struct strategy_fg *fg)
 	fg->qbg_chg_data.chg_status = fg->chg_status;
 	fg->qbg_chg_data.charging =
 		quick_charge_status == MCA_QUICK_CHG_STS_CHARGING;
-	platform_fg_ops_qbg_send_chg_data(FG_IC_MASTER);
+	platform_fg_ops_qbg_send_chg_data(FG_IC_MASTER, &fg->qbg_chg_data);
 }
 
 static int strategy_fg_check_parallel_termination(struct strategy_fg *fg)

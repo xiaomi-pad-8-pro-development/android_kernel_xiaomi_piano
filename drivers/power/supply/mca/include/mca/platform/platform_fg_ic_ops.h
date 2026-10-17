@@ -119,6 +119,15 @@ enum mca_fg_ic_role {
 };
 #define FG_SITE_MAX FG_IC_MAX
 
+/* charging state handed to gauges that track charge termination themselves */
+struct mca_qbg_chg_data {
+	bool charging;
+	int ibat_max;
+	int term_curr;
+	int term_volt;
+	int chg_status;
+};
+
 struct fuelguage_ic_ops {
 	int (*fg_ic_probe_ok)(void *data, bool *);
 	int (*fg_ic_get_batt_info)(void *data, void *);
@@ -185,7 +194,7 @@ struct fuelguage_ic_ops {
 	int (*fg_ic_get_first_usage_date)(void *data, u8 *buf);
 	int (*fg_ic_get_manufacturing_date)(void *data, u8 *buf);
 	int (*fg_ic_set_first_usage_date)(void *data, const char *date);
-	int (*fg_ic_qbg_send_chg_data)(void *data);
+	int (*fg_ic_qbg_send_chg_data)(void *data, struct mca_qbg_chg_data *chg_data);
 };
 int platform_fg_ic_ops_register(unsigned int ic_role, void *data,
 				struct fuelguage_ic_ops *platform_fg_ops);
@@ -257,5 +266,6 @@ int platform_fg_ops_get_first_usage_date(unsigned int ic_role, u8 *buf);
 int platform_fg_ops_get_manufacturing_date(unsigned int ic_role, u8 *buf);
 void platform_fg_ops_set_first_usage_date(unsigned int ic_role,
 					  const char *date);
-void platform_fg_ops_qbg_send_chg_data(unsigned int ic_role);
+void platform_fg_ops_qbg_send_chg_data(unsigned int ic_role,
+				      struct mca_qbg_chg_data *chg_data);
 #endif /* _MCA_PLATFORM_PLATFORM_FG_IC_OPS_H_ */

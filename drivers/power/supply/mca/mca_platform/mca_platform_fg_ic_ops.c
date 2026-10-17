@@ -782,14 +782,15 @@ void platform_fg_ops_set_first_usage_date(unsigned int ic_role,
 }
 EXPORT_SYMBOL(platform_fg_ops_set_first_usage_date);
 
-void platform_fg_ops_qbg_send_chg_data(unsigned int ic_role)
+void platform_fg_ops_qbg_send_chg_data(unsigned int ic_role,
+				      struct mca_qbg_chg_data *chg_data)
 {
 	struct fuelguage_info *temp_info = platform_get_fg_ic_ops(ic_role);
 
 	if (platform_fg_ops_invalid(temp_info, fg_ic_qbg_send_chg_data))
 		return;
 
-	temp_info->ops->fg_ic_qbg_send_chg_data(temp_info->data);
+	temp_info->ops->fg_ic_qbg_send_chg_data(temp_info->data, chg_data);
 }
 EXPORT_SYMBOL(platform_fg_ops_qbg_send_chg_data);
 
