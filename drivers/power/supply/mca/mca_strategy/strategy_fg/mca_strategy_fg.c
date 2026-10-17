@@ -2044,10 +2044,10 @@ static void charge_slowly_monitor_func(struct strategy_fg *fg)
 	int batt_rm_thr, usable_capacity, expect_soc;
 	int dfx_data[CHARGE_SLOWLY_DFX_PARA_NUM];
 
-	mca_log_err("realtype:%d, soc:%d, rm:%d\n", fg->real_type,
-		    fg->batt_ui_soc, now_rm);
-	mca_log_err("time:%d, timeplugin:%d plugin:%d\n", (int)nowtime,
-		    (int)nowplugintime, (int)fg->online_time);
+	mca_log_info("realtype:%d, soc:%d, rm:%d\n", fg->real_type,
+		     fg->batt_ui_soc, now_rm);
+	mca_log_info("time:%d, timeplugin:%d plugin:%d\n", (int)nowtime,
+		     (int)nowplugintime, (int)fg->online_time);
 	nowplugintime = ktime_get_boottime_seconds();
 
 	if (fg->real_type != XM_CHARGER_TYPE_PPS) {
@@ -2072,8 +2072,8 @@ static void charge_slowly_monitor_func(struct strategy_fg *fg)
 	(void)protocol_class_get_adapter_max_power(ADAPTER_PROTOCOL_PPS,
 						   &powermax);
 	batt_rm_thr = charge_get_batt_rm_threshold();
-	mca_log_err("powermax:%d designcapacity:%d curr_batt_rm_thr:%d\n",
-		    powermax, fg->batt_dc, batt_rm_thr);
+	mca_log_info("powermax:%d designcapacity:%d curr_batt_rm_thr:%d\n",
+		     powermax, fg->batt_dc, batt_rm_thr);
 
 	if ((int)powermax <= CHARGE_SLOWLY_POWER_MIN_W ||
 	    batt_rm_thr * 1000 > fg->batt_dc)
@@ -2490,7 +2490,7 @@ static int fg_update_status(struct strategy_fg *fg, bool prohibit_jump)
 
 	fg_abnormal_temp_notify_mievent(fg);
 
-	mca_log_err(
+	mca_log_info(
 		"UISOC:%d CURRENT:%d RSOC:%d VOLTAGE:%d TEMP:%d PVBAT:%d PIBAT:%d PTBAT:%d HEALTH:%d\n",
 		fg->batt_ui_soc, fg->batt_current, fg->batt_rsoc,
 		fg->batt_voltage, fg->batt_temperature, fg->pack_vbat,
