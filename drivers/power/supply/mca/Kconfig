@@ -16,6 +16,13 @@ config MCA_PROTOCOL_QC
 config MCA_EXTERNAL_FG
 	tristate "MCA external fuel gauge IC support"
 
+config MCA_PLATFORM_FG
+	tristate "MCA Qualcomm battery gauge support"
+	depends on MCA_QCOM_ADSP
+	help
+	  Fuel gauge driver for the Qualcomm battery gauge (QBG), which runs
+	  on the ADSP and is reached over the MCA glink channel.
+
 config MCA_EXTERNAL_CP
 	tristate "MCA external charge pump IC support"
 
