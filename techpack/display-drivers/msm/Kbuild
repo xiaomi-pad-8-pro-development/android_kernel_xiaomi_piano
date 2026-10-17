@@ -310,20 +310,7 @@ msm_drm-$(CONFIG_DRM_MSM) += mi_disp/mi_disp_core.o \
 			     mi_disp/mi_disp_parser.o \
 			     mi_disp/mi_dsi_display.o \
 			     mi_disp/mi_dsi_panel.o \
-			     mi_disp/mi_sde_crtc.o \
 			     mi_disp/mi_sde_encoder.o \
 			     mi_disp/mi_sde_connector.o \
 			     mi_disp/mi_backlight_ktz8866.o
 
-# nova asic driver
-msm_drm-$(CONFIG_DRM_MSM) += driver_novatek/vis_display/vis_display_spi.o \
-			     driver_novatek/vis_display/vis_display_pq.o \
-			     driver_novatek/vis_display/vis_display_boot.o \
-			     driver_novatek/vis_display/vis_display_power.o \
-			     driver_novatek/vis_display/vis_display_ops.o \
-			     driver_novatek/vis_display/vis_display_gpio.o \
-			     driver_novatek/vis_display/vis_display_factory.o \
-			     driver_novatek/vis_display/vis_display_dsi.o \
-			     driver_novatek/vis_display/vis_display_notify.o \
-			     driver_novatek/vis_display/vis_display_test.o  \
-			     driver_novatek/vis_display/vis_display_common.o
