@@ -176,7 +176,7 @@ int ktz8866_backlight_update_status(unsigned int level)
 	if (brightness < 0 || brightness > BL_LEVEL_MAX)
 		return ret;
 
-	pr_info("ktz8866 backlight 0x%02x ,exponential brightness %d \n", brightness, exponential_bl);
+	pr_debug("ktz8866 backlight 0x%02x ,exponential brightness %d \n", brightness, exponential_bl);
 
 	mutex_lock(&ktz8866_dev_list_mutex);
 	list_for_each_entry(ktz, &ktz8866_dev_list, entry) {

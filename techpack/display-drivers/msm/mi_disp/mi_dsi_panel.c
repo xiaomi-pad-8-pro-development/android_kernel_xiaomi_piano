@@ -2652,7 +2652,7 @@ int mi_dsi_panel_set_disp_param(struct dsi_panel *panel, struct disp_feature_ctl
 		dsi_panel_update_backlight(panel, panel->mi_cfg.last_bl_level);
 #else
 		panel->mi_cfg.last_bl_level = ctl->feature_val;
-		DISP_INFO("last_bl_level:%d\n", panel->mi_cfg.last_bl_level);
+		DISP_DEBUG("last_bl_level:%d\n", panel->mi_cfg.last_bl_level);
 #endif
 		break;
 	case DISP_FEATURE_FULLSCREEN_AOD_STATUS:
