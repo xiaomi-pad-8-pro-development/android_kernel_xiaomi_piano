@@ -2173,7 +2173,7 @@ strategy_buckchg_update_charge_status(struct strategy_buckchg_dev *info)
 	if (charging_done)
 		info->proc_data.chg_status = MCA_BUCK_CHG_STS_CHARGE_DONE;
 
-	mca_log_err(
+	mca_log_info(
 		"pmic_chg_status: %d, chg_status: %d, chg_en: [%d][%s], chg_type: %d, vbat: %d, ibat: %d, vbus: %d, ibus: %d\n",
 		main_chg_status, info->proc_data.chg_status,
 		mca_get_effective_result(info->chg_enable_voter),
@@ -2181,7 +2181,7 @@ strategy_buckchg_update_charge_status(struct strategy_buckchg_dev *info)
 		info->proc_data.real_type, info->proc_data.vbat,
 		info->proc_data.ibat, info->proc_data.vbus,
 		info->proc_data.ibus);
-	mca_log_err(
+	mca_log_info(
 		"ap_icl:[%s][%d], adsp_icl[%d], ichg:[%s][%d], input_suspend:[%s][%d]\n",
 		mca_get_effective_client(info->input_limit_voter), icl,
 		adsp_icl, mca_get_effective_client(info->charge_limit_voter),
