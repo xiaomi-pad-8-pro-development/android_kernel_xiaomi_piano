@@ -36,6 +36,7 @@ export WLAN_PLATFORM_ROOT := $(techpack)/wlan/platform
 export WLAN_ROOT := $(techpack)/wlan/qcacld-3.0
 
 $(obj)/audio-kernel: export MODNAME := audio_dlkm
+$(obj)/audio-kernel: export CONFIG_TARGET_PRODUCT_YUPEI := y
 
 $(obj)/datarmnet/core: export MODNAME := rmnet_core
 $(obj)/datarmnet-ext/aps: export CONFIG_RMNET_APS := m
