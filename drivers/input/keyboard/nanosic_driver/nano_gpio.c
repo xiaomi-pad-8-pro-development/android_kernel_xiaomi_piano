@@ -74,7 +74,7 @@ int Nanosic_GPIO_register(int vdd_pin, int reset_pin, int status_pin,
 {
 	int err;
 
-	if (vdd_pin < 0 || reset_pin < 0 || status_pin < 0 || irq_pin < 0) {
+	if (reset_pin < 0 || status_pin < 0 || irq_pin < 0) {
 		dbgprint(ERROR_LEVEL, "invalid pin value\n");
 		return -EFAULT;
 	}
@@ -105,21 +105,14 @@ int Nanosic_GPIO_register(int vdd_pin, int reset_pin, int status_pin,
 		dbgprint(ERROR_LEVEL, "request status gpio fail\n");
 		goto _err1;
 	}
-	err = gpio_request(gpio_vdd_pin, NULL);
-	if (err) {
-		dbgprint(ERROR_LEVEL, "request vdd gpio fail\n");
-		goto _err2;
+	/* boards powering the controller from regulators have no vdd gpio */
+	if (gpio_is_valid(gpio_vdd_pin)) {
+		err = gpio_request(gpio_vdd_pin, NULL);
+		if (err) {
+			dbgprint(ERROR_LEVEL, "request vdd gpio fail\n");
+			goto _err2;
+		}
 	}
-
-	err = gpio_export(gpio_reset_pin, true);
-	if (err)
-		dbgprint(ERROR_LEVEL, "export reset gpio fail\n");
-	err = gpio_export(gpio_status_pin, true);
-	if (err)
-		dbgprint(ERROR_LEVEL, "export status gpio fail\n");
-	err = gpio_export(gpio_vdd_pin, true);
-	if (err)
-		dbgprint(ERROR_LEVEL, "export vdd gpio fail\n");
 
 #ifdef SUPPORT_GPIO_SLEEP_FUNCTION
 	err = gpio_request(gpio_sleep_pin, NULL);
@@ -154,12 +147,16 @@ int Nanosic_GPIO_register(int vdd_pin, int reset_pin, int status_pin,
 	gpio_direction_input(gpio_status_pin); /*input mode for status pin*/
 	gpio_direction_input(gpio_irq_pin); /*input mode for irq pin*/
 
-	gpio_direction_output(gpio_vdd_pin, 1); /*output 1 from vdd pin*/
+	if (gpio_is_valid(gpio_vdd_pin))
+		gpio_direction_output(gpio_vdd_pin, 1); /*output 1 from vdd pin*/
 
 	msleep(2);
 
 	gpio_set_value(gpio_reset_pin, 1); /*output 1 from reset pin*/
+	/* let the 803x come out of reset before waking it up */
+	msleep(500);
 	gpio_set_value(gpio_sleep_pin, 1); /*output 1 from reset pin*/
+	msleep(50);
 
 	if (gpio_is_valid(gpio_status_pin)) {
 		g_wakeup_irqno = gpio_to_irq(gpio_status_pin);
@@ -191,7 +188,8 @@ _err4:
 	gpio_free(gpio_sleep_pin);
 #endif
 _err3:
-	gpio_free(gpio_vdd_pin);
+	if (gpio_is_valid(gpio_vdd_pin))
+		gpio_free(gpio_vdd_pin);
 _err2:
 	gpio_free(gpio_status_pin);
 _err1:
@@ -389,10 +387,9 @@ int Nanosic_Hall_notify(int hall_n_pin, int hall_s_pin)
 		0x24, 0x20, 0x80, 0x80, 0xE1, 0x01, 0x00
 	};
 
-	if (hall_n_pin < 0 || hall_s_pin < 0) {
-		dbgprint(ERROR_LEVEL, "invalid pin value\n");
-		return -EFAULT;
-	}
+	/* not every board wires the hall sensors to the controller driver */
+	if (hall_n_pin < 0 || hall_s_pin < 0)
+		return 0;
 	/*
     err = gpio_export(hall_n_pin,true);
     if(err)
@@ -484,7 +481,8 @@ void Nanosic_GPIO_release(void)
 		}
 		gpio_free(gpio_status_pin);
 		gpio_free(gpio_reset_pin);
-		gpio_free(gpio_vdd_pin);
+		if (gpio_is_valid(gpio_vdd_pin))
+			gpio_free(gpio_vdd_pin);
 		registered = false;
 	}
 }
