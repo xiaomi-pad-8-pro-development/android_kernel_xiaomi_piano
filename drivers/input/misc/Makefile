@@ -96,3 +96,4 @@ obj-$(CONFIG_INPUT_CS40L26)             += cs40l26_haptic/
 obj-$(CONFIG_SIH_VIBRATOR)  			+= si_haptic/
 obj-$(CONFIG_INPUT_AW86927_HAPTIC)      += aw86927_haptic/
 
+obj-$(CONFIG_INPUT_XIAOMI_HALL)		+= xiaomi_hall.o

@@ -960,6 +960,16 @@ config INPUT_STPMIC1_ONKEY
 	  module will be called stpmic1_onkey.
 source "drivers/input/misc/cs40l26_haptic/Kconfig"
 source "drivers/input/misc/si_haptic/Kconfig"
+config INPUT_XIAOMI_HALL
+	tristate "Xiaomi hall sensor switches"
+	depends on OF && GPIOLIB
+	help
+	  Say Y here to report the hall sensors of Xiaomi keyboard covers,
+	  like the lid and the stand of a folio, as input switches.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called xiaomi_hall.
+
 source "drivers/input/misc/aw86927_haptic/Kconfig"
 
 endif
