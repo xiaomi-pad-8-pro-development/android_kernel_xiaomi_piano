@@ -167,6 +167,9 @@ sc8581.ko
 sc8541.ko
 bq27z561.ko
 mca_qcom_battery_gauge.ko
+mca_onewire_auth_core.ko
+maxim_ds28e30.ko
+acl16_slg2.ko
 sc7601.ko
 hl7603.ko
 mca_qcom_sysfs.ko
