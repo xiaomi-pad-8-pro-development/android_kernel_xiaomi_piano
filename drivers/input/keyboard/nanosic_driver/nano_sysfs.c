@@ -303,10 +303,11 @@ static ssize_t gpio_set_show(struct device *dev, struct device_attribute *attr,
 static ssize_t gpio_set_store(struct device *dev, struct device_attribute *attr,
 			      const char *buf, size_t count)
 {
-	int gpio_pin;
-	int gpio_value;
+	unsigned int gpio_pin = 0;
+	unsigned int gpio_value = 0;
 	char delim[] = " ";
-	char *str = kstrdup(buf, GFP_KERNEL);
+	char *buf_copy = kstrdup(buf, GFP_KERNEL);
+	char *str = buf_copy;
 	char *token = NULL;
 
 	if (!str)
@@ -315,20 +316,19 @@ static ssize_t gpio_set_store(struct device *dev, struct device_attribute *attr,
 	dbgprint(DEBUG_LEVEL, "gpio set %s\n", str);
 
 	token = strsep(&str, delim);
-	if (token != NULL)
-		kstrtouint(token, 10, &gpio_pin);
+	if (!token || kstrtouint(token, 10, &gpio_pin))
+		goto out;
 
 	token = strsep(&str, delim);
-	if (token != NULL)
-		kstrtouint(token, 10, &gpio_value);
+	if (!token || kstrtouint(token, 10, &gpio_value))
+		goto out;
 
 	dbgprint(DEBUG_LEVEL, "gpio set %d %d\n", gpio_pin, gpio_value);
 
-	if (str)
-		kfree(str);
-
 	Nanosic_GPIO_set(gpio_pin, gpio_value > 0 ? true : false);
 
+out:
+	kfree(buf_copy);
 	return count;
 }
 
