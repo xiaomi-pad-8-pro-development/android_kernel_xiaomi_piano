@@ -115,8 +115,7 @@ static int keyboard_check_panel(struct device_node *np)
 	return PTR_ERR(panel);
 }
 
-static int nanosic_803_probe(struct i2c_client *client,
-			     const struct i2c_device_id *id)
+static int nanosic_803_probe(struct i2c_client *client)
 {
 	int ret = 0;
 	struct device_node *of_node;
@@ -163,7 +162,7 @@ static int nanosic_803_probe(struct i2c_client *client,
 		return ret;
 	}
 
-	irq_pin = of_get_named_gpio_flags(of_node, "irq_pin", 0, &irq_flags);
+	irq_pin = of_get_named_gpio(of_node, "irq_pin", 0);
 	dbgprint(ALERT_LEVEL, "irq_pin=%d,irq_flags=%d ret=%d\n", irq_pin,
 		 irq_flags, ret);
 	reset_pin = of_get_named_gpio(of_node, "reset_pin", 0);
@@ -240,13 +239,13 @@ _err1:
 	return -1;
 }
 
-static int nanosic_803_remove(struct i2c_client *client)
+static void nanosic_803_remove(struct i2c_client *client)
 {
 	struct nano_i2c_client *I2client = NULL;
 
 	dbgprint(ALERT_LEVEL, "remove\n");
 	if (initial == false)
-		return 0;
+		return;
 
 	I2client = i2c_get_clientdata(client);
 
@@ -271,8 +270,6 @@ static int nanosic_803_remove(struct i2c_client *client)
 	initial = false;
 
 	dbgprint(ALERT_LEVEL, "remove nanosic driver\n");
-
-	return 0;
 }
 
 static const struct of_device_id nanosic_803_of_match[] = {
