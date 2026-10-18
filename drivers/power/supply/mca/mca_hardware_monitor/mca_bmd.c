@@ -144,6 +144,22 @@ static int mca_bmd_get_status(int type, void *value, void *data)
 	return 0;
 }
 
+/*
+ * A battery read over i2c is only known once the fuel gauge strategy is
+ * up. Asking before that reads as both connectors open, which would flag
+ * the battery as missing and fake.
+ */
+static bool mca_bmd_fg_pending(struct mca_bmd_dev *info)
+{
+	int i;
+
+	for (i = 0; i < MAX_BTB; i++)
+		if (info->bmd_scheme[i].scheme == IIC_SCHEME)
+			return strategy_class_fg_ops_is_init_ok() <= 0;
+
+	return false;
+}
+
 static void mca_bmd_monitor_workfunc(struct work_struct *work)
 {
 	struct mca_bmd_dev *info =
@@ -151,6 +167,12 @@ static void mca_bmd_monitor_workfunc(struct work_struct *work)
 	bool batt_missing = true;
 	int fake_batt;
 	int report;
+
+	if (mca_bmd_fg_pending(info)) {
+		schedule_delayed_work(&info->monitor_bmd_work,
+				      msecs_to_jiffies(MONITOR_HEARTBEAT_TIMER_MS));
+		return;
+	}
 
 	info->btb_online[MASTER_BTB] = mca_bmd_get_btb_status(info, MASTER_BTB);
 	info->btb_online[SLAVE_BTB] = mca_bmd_get_btb_status(info, SLAVE_BTB);
@@ -216,6 +238,12 @@ static void mca_bmd_delay_report_bmd_sts_work(struct work_struct *work)
 						delay_report_bmd_sts_work.work);
 	bool batt_missing = true;
 	int fake_batt;
+
+	if (mca_bmd_fg_pending(info)) {
+		schedule_delayed_work(&info->delay_report_bmd_sts_work,
+				      msecs_to_jiffies(MONITOR_HEARTBEAT_TIMER_MS));
+		return;
+	}
 
 	info->btb_online[MASTER_BTB] = mca_bmd_get_btb_status(info, MASTER_BTB);
 	info->btb_online[SLAVE_BTB] = mca_bmd_get_btb_status(info, SLAVE_BTB);
