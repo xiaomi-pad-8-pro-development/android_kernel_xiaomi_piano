@@ -165,6 +165,7 @@ mca_qcom_subpmic_proxy.ko
 nuvolta_1652.ko
 sc8581.ko
 sc8541.ko
+bq25960.ko
 bq27z561.ko
 mca_qcom_battery_gauge.ko
 mca_onewire_auth_core.ko
