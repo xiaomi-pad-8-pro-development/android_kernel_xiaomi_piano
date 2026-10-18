@@ -73,9 +73,27 @@ static bool Nanosic_i2c_specified_packets_detect(char *data)
 		   object == FIELD_HOST) {
 		data += 4;
 		STREAM_TO_UINT8(gHallStatus, data);
+		Nanosic_input_hall_changed();
 	}
 
 	return false;
+}
+
+/** **************************************************************************
+ * @brief ask for the keypad hall status, the 803x answers with an 0xA2 packet
+ ** */
+void Nanosic_i2c_request_hall_status(struct nano_i2c_client *i2c_client)
+{
+	char read_keypad_status[I2C_DATA_LENGTH_WRITE] = {
+		0x32,	    0x00, 0x4E, 0x31, FIELD_HOST,
+		FIELD_176X, 0xA1, 0x01, 0x01, 0x00
+	};
+	int i;
+
+	for (i = 2; i < 9; i++)
+		read_keypad_status[9] += read_keypad_status[i]; /*cal sum*/
+	Nanosic_i2c_write(i2c_client, read_keypad_status,
+			  sizeof(read_keypad_status));
 }
 
 /** **************************************************************************

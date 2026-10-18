@@ -263,6 +263,8 @@ extern int Nanosic_i2c_read_version(struct i2c_client *client);
 extern irqreturn_t Nanosic_i2c_irq(int irq, void *dev_id);
 extern int Nanosic_input_register(void);
 extern int Nanosic_input_release(void);
+extern void Nanosic_input_hall_changed(void);
+extern void Nanosic_i2c_request_hall_status(struct nano_i2c_client *i2c_client);
 extern int Nanosic_input_write(EM_PacketType type, void *buf, size_t len);
 extern int Nanosic_GPIO_recovery(struct nano_i2c_client *client, char *data,
 				 int datalen);

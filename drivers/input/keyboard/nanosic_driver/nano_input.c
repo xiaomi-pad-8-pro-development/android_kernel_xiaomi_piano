@@ -30,6 +30,10 @@ static struct hid_device *gVirtualConsumerDev;
 static struct hid_device *gVirtualKeyboardDev;
 static struct hid_device *gVirtualTouchDev;
 static struct hid_device *gVirtualMouseDev;
+/* guards the device pointers against a detach while a report is injected */
+static DEFINE_SPINLOCK(gVirtualDevLock);
+static struct work_struct gVirtualDevWork;
+static bool gVirtualDevAttached;
 
 /*定义虚拟化的键盘,鼠标,触摸设备*/
 static struct nano_input_create_dev gConsumerDevice = {
@@ -74,10 +78,15 @@ static struct nano_input_create_dev gTouchDevice = {
  ** */
 int Nanosic_input_write(EM_PacketType type, void *buf, size_t len)
 {
+	unsigned long flags;
 	int ret = -1;
+
+	spin_lock_irqsave(&gVirtualDevLock, flags);
 	switch (type) {
 	case EM_PACKET_KEYBOARD:
 		//dbgprint(DEBUG_LEVEL,"report keyboard event\n");
+		if (!gVirtualKeyboardDev)
+			break;
 		ret = hid_input_report(gVirtualKeyboardDev, HID_INPUT_REPORT,
 				       buf, min_t(size_t, len, 100), 0);
 		if (ret)
@@ -88,6 +97,8 @@ int Nanosic_input_write(EM_PacketType type, void *buf, size_t len)
 		break;
 
 	case EM_PACKET_CONSUMER:
+		if (!gVirtualConsumerDev)
+			break;
 		ret = hid_input_report(gVirtualConsumerDev, HID_INPUT_REPORT,
 				       buf, min_t(size_t, len, 100), 0);
 		if (ret)
@@ -99,12 +110,16 @@ int Nanosic_input_write(EM_PacketType type, void *buf, size_t len)
 
 	case EM_PACKET_MOUSE:
 		//dbgprint(DEBUG_LEVEL,"report mouse event \n");
+		if (!gVirtualMouseDev)
+			break;
 		hid_input_report(gVirtualMouseDev, HID_INPUT_REPORT, buf,
 				 min_t(size_t, len, 100), 0);
 		break;
 
 	case EM_PACKET_TOUCH:
 		//dbgprint(DEBUG_LEVEL,"report touch event\n");
+		if (!gVirtualTouchDev)
+			break;
 		hid_input_report(gVirtualTouchDev, HID_INPUT_REPORT, buf,
 				 min_t(size_t, len, 100), 0);
 		break;
@@ -112,6 +127,7 @@ int Nanosic_input_write(EM_PacketType type, void *buf, size_t len)
 	default:
 		break;
 	}
+	spin_unlock_irqrestore(&gVirtualDevLock, flags);
 
 	return 0;
 }
@@ -284,61 +300,129 @@ err_hid:
 }
 
 /** ************************************************************************/ /**
- *  @func Nanosic_input_register
- *  
- *  @brief register hid virtual device { 注册对应的input 虚拟设备 }
+ *  @func Nanosic_input_attach
+ *
+ *  @brief create the hid devices of the keyboard once it is attached
  *
  ** */
-int Nanosic_input_register(void)
+static int Nanosic_input_attach(void)
 {
-	gVirtualKeyboardDev = Nanosic_input_create(&gKeyboardDevice);
-	if (IS_ERR_OR_NULL(gVirtualKeyboardDev))
+	struct hid_device *keyboard, *mouse, *touch, *consumer;
+	unsigned long flags;
+
+	keyboard = Nanosic_input_create(&gKeyboardDevice);
+	if (IS_ERR_OR_NULL(keyboard))
 		goto _err1;
 
-	gVirtualMouseDev = Nanosic_input_create(&gMouseDevice);
-	if (IS_ERR_OR_NULL(gVirtualMouseDev))
+	mouse = Nanosic_input_create(&gMouseDevice);
+	if (IS_ERR_OR_NULL(mouse))
 		goto _err2;
 
-	gVirtualTouchDev = Nanosic_input_create(&gTouchDevice);
-	if (IS_ERR_OR_NULL(gVirtualTouchDev))
+	touch = Nanosic_input_create(&gTouchDevice);
+	if (IS_ERR_OR_NULL(touch))
 		goto _err3;
 
-	gVirtualConsumerDev = Nanosic_input_create(&gConsumerDevice);
-	if (IS_ERR_OR_NULL(gVirtualConsumerDev))
+	consumer = Nanosic_input_create(&gConsumerDevice);
+	if (IS_ERR_OR_NULL(consumer))
 		goto _err4;
+
+	spin_lock_irqsave(&gVirtualDevLock, flags);
+	gVirtualKeyboardDev = keyboard;
+	gVirtualMouseDev = mouse;
+	gVirtualTouchDev = touch;
+	gVirtualConsumerDev = consumer;
+	spin_unlock_irqrestore(&gVirtualDevLock, flags);
 	dbgprint(DEBUG_LEVEL, "input create ok\n");
 
 	return 0;
 _err4:
-	hid_destroy_device(gVirtualTouchDev);
+	hid_destroy_device(touch);
 _err3:
-	hid_destroy_device(gVirtualMouseDev);
+	hid_destroy_device(mouse);
 _err2:
-	hid_destroy_device(gVirtualKeyboardDev);
+	hid_destroy_device(keyboard);
 _err1:
 	dbgprint(ERROR_LEVEL, "input create err\n");
 	return -1;
 }
 
 /** ************************************************************************/ /**
+ *  @func Nanosic_input_detach
+ *
+ *  @brief destroy the hid devices once the keyboard is gone
+ *
+ ** */
+static void Nanosic_input_detach(void)
+{
+	struct hid_device *devs[4];
+	unsigned long flags;
+	int i;
+
+	spin_lock_irqsave(&gVirtualDevLock, flags);
+	devs[0] = gVirtualKeyboardDev;
+	devs[1] = gVirtualMouseDev;
+	devs[2] = gVirtualTouchDev;
+	devs[3] = gVirtualConsumerDev;
+	gVirtualKeyboardDev = NULL;
+	gVirtualMouseDev = NULL;
+	gVirtualTouchDev = NULL;
+	gVirtualConsumerDev = NULL;
+	spin_unlock_irqrestore(&gVirtualDevLock, flags);
+
+	for (i = 0; i < ARRAY_SIZE(devs); i++)
+		if (devs[i])
+			hid_destroy_device(devs[i]);
+}
+
+static void Nanosic_input_hall_work(struct work_struct *work)
+{
+	bool connected = gHallStatus & 0x1;
+
+	if (connected && !gVirtualDevAttached) {
+		gVirtualDevAttached = !Nanosic_input_attach();
+	} else if (!connected && gVirtualDevAttached) {
+		Nanosic_input_detach();
+		gVirtualDevAttached = false;
+	}
+}
+
+/** ************************************************************************/ /**
+ *  @func Nanosic_input_hall_changed
+ *
+ *  @brief follow the keypad hall status reported by the 803x
+ *
+ ** */
+void Nanosic_input_hall_changed(void)
+{
+	schedule_work(&gVirtualDevWork);
+}
+
+/** ************************************************************************/ /**
+ *  @func Nanosic_input_register
+ *
+ *  @brief the hid devices only exist while the keyboard is attached, so
+ *         that Android does not see a keyboard and touchpad without one
+ *
+ ** */
+int Nanosic_input_register(void)
+{
+	INIT_WORK(&gVirtualDevWork, Nanosic_input_hall_work);
+	return 0;
+}
+
+/** ************************************************************************/ /**
  *  @func Nanosic_input_release
- *  
+ *
  *  @brief
  *
  ** */
 int Nanosic_input_release(void)
 {
-	if (!IS_ERR_OR_NULL(gVirtualKeyboardDev))
-		hid_destroy_device(gVirtualKeyboardDev);
-
-	if (!IS_ERR_OR_NULL(gVirtualMouseDev))
-		hid_destroy_device(gVirtualMouseDev);
-
-	if (!IS_ERR_OR_NULL(gVirtualTouchDev))
-		hid_destroy_device(gVirtualTouchDev);
-
-	if (!IS_ERR_OR_NULL(gVirtualConsumerDev))
-		hid_destroy_device(gVirtualConsumerDev);
+	cancel_work_sync(&gVirtualDevWork);
+	if (gVirtualDevAttached) {
+		Nanosic_input_detach();
+		gVirtualDevAttached = false;
+	}
 
 	dbgprint(DEBUG_LEVEL, "input release ok\n");
 

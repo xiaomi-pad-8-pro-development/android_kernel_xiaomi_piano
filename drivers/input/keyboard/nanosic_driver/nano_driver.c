@@ -224,6 +224,8 @@ static int nanosic_803_probe(struct i2c_client *client)
 	}
 
 	initial = true;
+	/* create the input devices if the keyboard is already attached */
+	Nanosic_i2c_request_hall_status(I2client);
 	dbgprint(ALERT_LEVEL, "probe nanosic driver\n");
 
 	return 0;
