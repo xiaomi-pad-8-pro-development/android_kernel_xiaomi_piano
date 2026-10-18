@@ -519,7 +519,7 @@ static int qbg_get_manufacturing_date(void *data, u8 *buf)
 {
 	static const char year_codes[] = "FGHJKLMNPRSTVWXY";
 	static const char day_codes[] = "ABCDEFGHJKLMNPRSTVWXY";
-	u8 raw[16] = { 0 };
+	u8 raw[ONEWIRE_PAGE_SIZE] = { 0 };
 	char year[2], month[2], day[2];
 	const char *p;
 	int ret, y, d;
@@ -830,7 +830,7 @@ static ssize_t qbg_sysfs_show(struct device *dev, struct device_attribute *attr,
 {
 	struct qbg_info *info = dev_get_drvdata(dev);
 	struct mca_sysfs_attr_info *attr_info;
-	u8 str[32] = { 0 };
+	u8 str[ONEWIRE_PAGE_SIZE + 1] = { 0 };
 	const char *name;
 	bool ok = false;
 	int val = 0;
