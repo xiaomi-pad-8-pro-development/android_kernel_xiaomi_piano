@@ -483,7 +483,7 @@ static long Nanosic_chardev_fops_ioctl(struct file *file, unsigned int cmd,
  * @returns NULL; Usually we'd return a modified name, but we like the name
  * that we gave it during class creation.
  ** */
-static char *Nanosic_chardev_devnode(struct device *dev, umode_t *mode)
+static char *Nanosic_chardev_devnode(const struct device *dev, umode_t *mode)
 {
 	dbgprint(ALERT_LEVEL, "change devnode\n");
 
@@ -579,7 +579,7 @@ int Nanosic_chardev_register(void)
 
 	/* Step 1.2: Create the class */
 	if (NULL !=
-	    (nanosic_cdev_class = class_create(THIS_MODULE, DRV_TOKEN))) {
+	    (nanosic_cdev_class = class_create(DRV_TOKEN))) {
 		nanosic_cdev_class->devnode = Nanosic_chardev_devnode;
 	}
 
