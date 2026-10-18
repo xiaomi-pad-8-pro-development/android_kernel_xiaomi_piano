@@ -17,6 +17,7 @@
 #include <linux/timer.h>
 #include <linux/timex.h>
 #include <linux/rtc.h>
+#include <linux/soc/qcom/panel_event_notifier.h>
 
 /*SDK版本号*/
 #define DRV_VERSION "1.3.2"
@@ -305,7 +306,7 @@ extern void Nanosic_GPIO_set(bool status);
 extern void Nanosic_GPIO_sleep(bool sleep);
 
 struct xiaomi_keyboard_data {
-	struct notifier_block drm_notif;
+	void *notifier_cookie;
 	bool dev_pm_suspend;
 	int irq;
 	struct workqueue_struct *event_wq;
@@ -327,8 +328,9 @@ __attribute__((unused)) static int
 xiaomi_keyboard_pm_resume(struct device *dev);
 __attribute__((unused)) static int xiaomi_keyboard_remove(void);
 __attribute__((unused)) static const struct dev_pm_ops xiaomi_keyboard_pm_ops;
-__attribute__((unused)) static int
-keyboard_drm_notifier_callback(struct notifier_block *self, unsigned long event,
-			       void *data);
+__attribute__((unused)) static void
+keyboard_panel_notifier_callback(enum panel_event_notifier_tag tag,
+				 struct panel_event_notification *notification,
+				 void *data);
 
 #endif /* _ALBRX_H_ */

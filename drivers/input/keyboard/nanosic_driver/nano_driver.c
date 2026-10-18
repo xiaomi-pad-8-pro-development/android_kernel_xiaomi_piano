@@ -29,13 +29,38 @@
 #include <linux/platform_device.h>
 #include <linux/of_gpio.h>
 //#include <linux/regulator/consumer.h>
-#include <drm/drm_notifier_mi.h>
+#include <drm/drm_panel.h>
 #include <linux/notifier.h>
 #include <linux/interrupt.h>
 #include "nano_macro.h"
 
 static bool initial = false;
 struct nano_i2c_client *gI2c_client = NULL;
+static struct drm_panel *active_panel;
+
+/* the keyboard follows the state of the panel it is attached to */
+static int keyboard_check_panel(struct device_node *np)
+{
+	struct device_node *node;
+	struct drm_panel *panel;
+	int i, count;
+
+	count = of_count_phandle_with_args(np, "panel", NULL);
+	if (count <= 0)
+		return -ENODEV;
+
+	for (i = 0; i < count; i++) {
+		node = of_parse_phandle(np, "panel", i);
+		panel = of_drm_find_panel(node);
+		of_node_put(node);
+		if (!IS_ERR(panel)) {
+			active_panel = panel;
+			return 0;
+		}
+	}
+
+	return PTR_ERR(panel);
+}
 
 static int nanosic_803_probe(struct i2c_client *client,
 			     const struct i2c_device_id *id)
@@ -65,6 +90,12 @@ static int nanosic_803_probe(struct i2c_client *client,
 	if (!of_node) {
 		dbgprint(ERROR_LEVEL, "nanosic_803_probe of_node == 0\n");
 		return -1;
+	}
+
+	ret = keyboard_check_panel(of_node);
+	if (ret) {
+		dbgprint(ERROR_LEVEL, "no active panel: %d\n", ret);
+		return ret == -EPROBE_DEFER ? ret : -ENODEV;
 	}
 
 	irq_pin = of_get_named_gpio_flags(of_node, "irq_pin", 0, &irq_flags);
@@ -236,13 +267,17 @@ static int xiaomi_keyboard_init(struct nano_i2c_client *i2c_client)
 	INIT_WORK(&mdata->resume_work, keyboard_resume_work);
 	INIT_WORK(&mdata->suspend_work, keyboard_suspend_work);
 
-	mdata->drm_notif.notifier_call = keyboard_drm_notifier_callback;
-	ret = mi_drm_register_client(&mdata->drm_notif);
-	if (ret) {
+	mdata->notifier_cookie = panel_event_notifier_register(
+		PANEL_EVENT_NOTIFICATION_PRIMARY,
+		PANEL_EVENT_NOTIFIER_CLIENT_KEYBOARD, active_panel,
+		keyboard_panel_notifier_callback, mdata);
+	if (IS_ERR_OR_NULL(mdata->notifier_cookie)) {
+		ret = mdata->notifier_cookie ? PTR_ERR(mdata->notifier_cookie) : -ENOMEM;
 		dbgprint(
 			ALERT_LEVEL,
-			"xiaomi_keyboard_init:register drm_notifier failed. ret=%d\n",
+			"xiaomi_keyboard_init:register panel notifier failed. ret=%d\n",
 			ret);
+		mdata->notifier_cookie = NULL;
 		goto err_register_drm_notif_failed;
 	}
 	dbgprint(ALERT_LEVEL, "xiaomi_keyboard_init: success. \n");
@@ -332,7 +367,8 @@ static const struct dev_pm_ops xiaomi_keyboard_pm_ops = {
 static int xiaomi_keyboard_remove(void)
 {
 	dbgprint(ALERT_LEVEL, "xiaomi_keyboard_remove: enter\n");
-	mi_drm_unregister_client(&mdata->drm_notif);
+	if (mdata->notifier_cookie)
+		panel_event_notifier_unregister(mdata->notifier_cookie);
 	destroy_workqueue(mdata->event_wq);
 	if (mdata) {
 		kfree(mdata);
@@ -341,41 +377,34 @@ static int xiaomi_keyboard_remove(void)
 	return 0;
 }
 
-static int keyboard_drm_notifier_callback(struct notifier_block *self,
-					  unsigned long event, void *data)
+static void keyboard_panel_notifier_callback(enum panel_event_notifier_tag tag,
+					     struct panel_event_notification *notification,
+					     void *data)
 {
-	struct mi_drm_notifier *evdata = data;
-	int *blank;
-	struct xiaomi_keyboard_data *mdata =
-		container_of(self, struct xiaomi_keyboard_data, drm_notif);
+	struct xiaomi_keyboard_data *mdata = data;
 
-	if (!evdata || (evdata->id != 0))
-		return 0;
+	if (!notification || !mdata)
+		return;
 
-	if (evdata->data && mdata) {
-		blank = evdata->data;
-		flush_workqueue(mdata->event_wq);
-		if (event == MI_DRM_EARLY_EVENT_BLANK) {
-			if (*blank == MI_DRM_BLANK_POWERDOWN) {
-				dbgprint(
-					ALERT_LEVEL,
-					"keyboard_drm_notifier_callback keyboard suspend");
-				queue_work(mdata->event_wq,
-					   &mdata->suspend_work);
-			}
-		} else if (event == MI_DRM_EVENT_BLANK) {
-			if (*blank == MI_DRM_BLANK_UNBLANK) {
-				dbgprint(
-					ALERT_LEVEL,
-					"keyboard_drm_notifier_callback keyboard resume");
-				flush_workqueue(mdata->event_wq);
-				queue_work(mdata->event_wq,
-					   &mdata->resume_work);
-			}
+	switch (notification->notif_type) {
+	case DRM_PANEL_EVENT_BLANK:
+	case DRM_PANEL_EVENT_BLANK_LP:
+		if (notification->notif_data.early_trigger) {
+			dbgprint(ALERT_LEVEL, "keyboard suspend\n");
+			flush_workqueue(mdata->event_wq);
+			queue_work(mdata->event_wq, &mdata->suspend_work);
 		}
+		break;
+	case DRM_PANEL_EVENT_UNBLANK:
+		if (!notification->notif_data.early_trigger) {
+			dbgprint(ALERT_LEVEL, "keyboard resume\n");
+			flush_workqueue(mdata->event_wq);
+			queue_work(mdata->event_wq, &mdata->resume_work);
+		}
+		break;
+	default:
+		break;
 	}
-
-	return 0;
 }
 
 late_initcall(nanosic_driver_init);
