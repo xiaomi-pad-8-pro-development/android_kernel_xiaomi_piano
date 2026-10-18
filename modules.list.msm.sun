@@ -120,7 +120,6 @@ bcl_pmic5.ko
 qcom-cpufreq-hw.ko
 nvmem_qfprom.ko
 qfprom-sys.ko
-sched-penalty.ko
 hwid.ko
 mi_power.ko
 miev.ko

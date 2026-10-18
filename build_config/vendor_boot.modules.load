@@ -1,6 +1,5 @@
 gh_arm_drv.ko
 sched-walt.ko
-sched-penalty.ko
 qcom_ipc_logging.ko
 zsmalloc.ko
 cpq.ko
