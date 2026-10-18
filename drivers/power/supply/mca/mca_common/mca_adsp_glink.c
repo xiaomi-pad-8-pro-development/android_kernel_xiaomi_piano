@@ -51,6 +51,7 @@ struct mca_adsp_glink_notify_msg {
 struct mca_adsp_glink_dev {
 	struct device *dev;
 	struct pmic_glink_client *client;
+	struct pmic_glink_client *qbg_client;
 	struct mutex rw_lock;
 	struct completion ack;
 	int glink_state;
@@ -411,6 +412,24 @@ static int mca_adsp_glink_probe(struct platform_device *pdev)
 		if (ret == -EPROBE_DEFER)
 			return ret;
 		mca_log_err("Error in registering with pmic_glink %d\n", ret);
+		return ret;
+	}
+
+	/*
+	 * pmic_glink hands each message to the client whose id matches its
+	 * owner, so the QBG replies need a client of their own even though
+	 * the requests go out on the one above.
+	 */
+	client_data.name = "mca_adap_qbg_glink";
+	client_data.id = MCA_ADSP_GLINK_QBG_OWNER;
+
+	mca->qbg_client = pmic_glink_register_client(&pdev->dev, &client_data);
+	if (IS_ERR(mca->qbg_client)) {
+		ret = PTR_ERR(mca->qbg_client);
+		pmic_glink_unregister_client(mca->client);
+		if (ret == -EPROBE_DEFER)
+			return ret;
+		mca_log_err("Error in registering with qbg_glink %d\n", ret);
 		return ret;
 	}
 
