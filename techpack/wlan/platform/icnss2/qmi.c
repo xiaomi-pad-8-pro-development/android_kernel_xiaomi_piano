@@ -33,6 +33,9 @@
 #include "qmi.h"
 #include "debug.h"
 #include "genl.h"
+#if IS_ENABLED(CONFIG_MI_HARDWARE_ID)
+#include "hwid.h"
+#endif
 
 #define WLFW_SERVICE_WCN_INS_ID_V01	3
 #define WLFW_SERVICE_INS_ID_V01		0
@@ -1085,18 +1088,67 @@ void icnss_dms_deinit(struct icnss_priv *priv)
 	qmi_handle_release(&priv->qmi_dms);
 }
 
+#if IS_ENABLED(CONFIG_MI_HARDWARE_ID)
+/*
+ * Xiaomi boards leave the board id unprogrammed and ship a board file per
+ * project and region next to the generic one, so pick it from the hwid.
+ */
+static const char *icnss_get_xiaomi_bdf_name(void)
+{
+	u32 country = get_hw_country_version();
+	u32 hw_id = get_hw_id_value();
+	u32 rev = ((hw_id >> 16) & 0xf) * 10 + (hw_id & 0xf);
+
+	switch (get_hw_version_platform()) {
+	case HARDWARE_PROJECT_P82:
+		if (rev == 10) {
+			if (country == CountryIndia)
+				return "bd_p82_p1_in.elf";
+			if (country == CountryGlobal)
+				return "bd_p82_p1_gl.elf";
+			return "bd_p82_p1.elf";
+		}
+		if (country == CountryIndia)
+			return "bd_p82in.elf";
+		if (country == CountryGlobal)
+			return "bd_p82gl.elf";
+		return "bd_p82.elf";
+	case HARDWARE_PROJECT_O9:
+		if (country == CountryIndia)
+			return "bd_o9in.elf";
+		return "bd_o9.elf";
+	case HARDWARE_PROJECT_O10U:
+		if (country == CountryIndia)
+			return "bd_o10uin.elf";
+		if (country == CountryGlobal)
+			return "bd_o10ugl.elf";
+		return "bd_o10u.elf";
+	default:
+		return NULL;
+	}
+}
+#else
+static const char *icnss_get_xiaomi_bdf_name(void)
+{
+	return NULL;
+}
+#endif
+
 static int icnss_get_bdf_file_name(struct icnss_priv *priv,
 				   u32 bdf_type, char *filename,
 				   u32 filename_len)
 {
 	char filename_tmp[ICNSS_MAX_FILE_NAME];
 	char foundry_specific_filename[ICNSS_MAX_FILE_NAME];
+	const char *xiaomi_bdf;
 	int ret = 0;
 
 	switch (bdf_type) {
 	case ICNSS_BDF_ELF:
 		if (priv->board_id == 0xFF) {
-				snprintf(filename_tmp, filename_len, ELF_BDF_FILE_NAME);
+			xiaomi_bdf = icnss_get_xiaomi_bdf_name();
+			snprintf(filename_tmp, filename_len, "%s",
+				 xiaomi_bdf ?: ELF_BDF_FILE_NAME);
 		}
 		else if (priv->board_id < 0xFF)
 			snprintf(filename_tmp, filename_len,
@@ -1130,7 +1182,10 @@ static int icnss_get_bdf_file_name(struct icnss_priv *priv,
 		}
 		break;
 	case ICNSS_BDF_REGDB:
-		snprintf(filename_tmp, filename_len, REGDB_FILE_NAME);
+		/* the Xiaomi board files go with the Xiaomi regulatory db */
+		snprintf(filename_tmp, filename_len, "%s",
+			 icnss_get_xiaomi_bdf_name() ?
+			 "regdb_xiaomi.bin" : REGDB_FILE_NAME);
 		break;
 	default:
 		icnss_pr_err("Invalid BDF type: %d\n",

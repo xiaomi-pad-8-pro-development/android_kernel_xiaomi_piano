@@ -3,6 +3,9 @@
 include $(WLAN_PLATFORM_ROOT)/icnss2/sun_gki_defconfig
 
 ccflags-y += -Wmissing-prototypes
+ifneq ($(CONFIG_MI_HARDWARE_ID),)
+ccflags-y += -I$(srctree)/drivers/misc/hwid
+endif
 
 ifeq ($(CONFIG_CNSS_OUT_OF_TREE),y)
 ccflags-y += -I$(WLAN_PLATFORM_ROOT)/cnss_utils
