@@ -231,6 +231,12 @@ static int nanosic_803_probe(struct i2c_client *client)
 _err4:
 	Nanosic_cache_release();
 _err3:
+	/* the wakeup interrupt uses gI2c_client, so free it first */
+	Nanosic_GPIO_release();
+	if (gI2c_client) {
+		gI2c_client = NULL;
+		Nanosic_i2c_release(I2client);
+	}
 	Nanosic_input_release();
 _err2:
 	Nanosic_chardev_release();
