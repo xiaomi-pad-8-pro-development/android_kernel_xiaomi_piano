@@ -50,6 +50,12 @@ config MCA_EXTERNAL_CP
 config MCA_EXTERNAL_CP_SC8541
 	tristate "MCA SC8541 charge pump IC support"
 
+config MCA_EXTERNAL_CP_BQ25960
+	tristate "MCA TI BQ25960 charge pump IC support"
+	help
+	  Charge pump driver for the TI BQ25960, which some boards carry in
+	  place of the SC8541, including its reverse charging page.
+
 config MCA_EXTERNAL_WIRELESS
 	tristate "MCA external wireless charging IC support"
 
