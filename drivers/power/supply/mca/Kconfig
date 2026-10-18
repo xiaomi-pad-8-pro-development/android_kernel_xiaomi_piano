@@ -19,9 +19,22 @@ config MCA_EXTERNAL_FG
 config MCA_PLATFORM_FG
 	tristate "MCA Qualcomm battery gauge support"
 	depends on MCA_QCOM_ADSP
+	depends on MCA_ONEWIRE_AUTH || !MCA_ONEWIRE_AUTH
 	help
 	  Fuel gauge driver for the Qualcomm battery gauge (QBG), which runs
 	  on the ADSP and is reached over the MCA glink channel.
+
+config MCA_ONEWIRE_AUTH
+	tristate "MCA onewire battery authentication support"
+	depends on MCA_QCOM_SMEM
+	select CRC16
+	select CRYPTO_ECC
+	select CRYPTO_LIB_SHA256
+	help
+	  Core of the onewire authentication chip in the battery pack. It
+	  checks that the pack is genuine, which the charging strategy needs
+	  before it allows fast charging, and keeps the serial number, dates,
+	  cycle count and UI state of health of the pack in the chip.
 
 config MCA_EXTERNAL_CP
 	tristate "MCA external charge pump IC support"
