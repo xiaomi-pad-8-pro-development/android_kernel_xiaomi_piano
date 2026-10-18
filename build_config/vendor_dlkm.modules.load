@@ -367,3 +367,4 @@ ipclite_test.ko
 msm_video.ko
 msm_kgsl.ko
 nanosic_driver.ko
+xiaomi_hall.ko
