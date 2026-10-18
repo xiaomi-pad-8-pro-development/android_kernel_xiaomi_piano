@@ -62,6 +62,13 @@ config MCA_EXTERNAL_WIRELESS
 config MCA_EXTERNAL_WIRELESS_SC96281
 	tristate "MCA SC96281 wireless charging IC support"
 
+config MCA_EXTERNAL_WIRELESS_SC96231
+	tristate "MCA SC96231 pen charger support"
+	help
+	  Driver for the Southchip SC96231 wireless transmitter that charges
+	  the stylus docked on the side of the tablet, with the hall sensors
+	  that see the pen.
+
 config MCA_EXTERNAL_LOADSWITCH
 	tristate "MCA external load switch IC support"
 
