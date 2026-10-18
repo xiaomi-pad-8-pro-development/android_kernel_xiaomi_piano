@@ -163,6 +163,7 @@ mca_wireless_revchg.ko
 mca_strategy_class.ko
 mca_qcom_subpmic_proxy.ko
 nuvolta_1652.ko
+sc96231_tx.ko
 sc8581.ko
 sc8541.ko
 bq25960.ko
