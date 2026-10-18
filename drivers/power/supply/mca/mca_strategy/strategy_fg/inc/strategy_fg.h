@@ -184,6 +184,7 @@ struct strategy_fg {
 	struct strategy_fg_cfg cfg;
 	struct strategy_fg_smooth smooth;
 	bool fg_init_flag;
+	bool onewire_chip_ok;
 	int chg_status;
 	struct mca_qbg_chg_data qbg_chg_data;
 	ktime_t suspend_time;
@@ -326,9 +327,5 @@ enum fg_auth_attr_list {
 };
 
 void strategy_fg_record_volt_mean(struct strategy_fg *fg);
-void onewire_check_auth_pass(bool *auth_pass);
-void onewire_check_chip_ok(bool *chip_ok);
-int onewire_get_shutdown_uisoc(int *uisoc);
-int onewire_set_shutdown_uisoc(int uisoc);
 
 #endif /* __STRATEGY_FG_H__ */

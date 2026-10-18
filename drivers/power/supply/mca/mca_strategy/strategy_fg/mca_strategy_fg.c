@@ -55,6 +55,7 @@
 #include "inc/mca_soc_smooth.h"
 #include "inc/xm_battery_auth.h"
 #include <mca/common/mca_hwid.h>
+#include <mca/hardware/onewire_auth.h>
 #include "hwid.h"
 #include <mca/shared_memory/charger_partition_class.h>
 
@@ -110,27 +111,6 @@
 #define DEFAULT_DESIGN_CAPACITY 5000
 #define FG_FORCE_REPORT_FULL_TIMES 2
 #define STRATEGY_FG_ABNORMAL_DFX_DELAY 17500
-
-void onewire_check_auth_pass(bool *auth_pass)
-{
-	*auth_pass = false;
-}
-
-void onewire_check_chip_ok(bool *chip_ok)
-{
-	*chip_ok = false;
-}
-
-int onewire_get_shutdown_uisoc(int *uisoc)
-{
-	*uisoc = STRATEGY_FG_ERROR_FAKE_SOC;
-	return -1;
-}
-
-int onewire_set_shutdown_uisoc(int uisoc)
-{
-	return -1;
-}
 
 static void strategy_fg_init_voter(struct strategy_fg *fg);
 static int strategy_fg_ops_get_curr(void *data, int *curr);
@@ -2576,6 +2556,36 @@ void strategy_fg_update_batt_info(struct strategy_fg *fg)
 	strategy_fg_update_rm(fg);
 }
 
+/* the QBG keeps no digest, the battery chip vouches for the pack instead */
+static void strategy_fg_check_onewire_auth(struct strategy_fg *fg)
+{
+	bool pass = false;
+
+	if (!fg->cfg.support_qbg)
+		return;
+
+	if (!fg->onewire_chip_ok) {
+		onewire_check_chip_ok(&fg->onewire_chip_ok);
+		if (fg->onewire_chip_ok)
+			mca_event_block_notify(MCA_EVENT_TYPE_BATTERY_INFO,
+					       MCA_EVENT_BATTERY_STS_CHANGE,
+					       NULL);
+	}
+
+	if (fg->batt_auth)
+		return;
+
+	onewire_check_auth_pass(&pass);
+	if (!pass)
+		return;
+
+	mca_log_err("onewire battery authentication passed\n");
+	platform_fg_ops_set_authentic(FG_IC_MASTER, 1);
+	fg->batt_auth = 1;
+	mca_event_block_notify(MCA_EVENT_TYPE_HW_INFO, MCA_EVENT_BATT_AUTH_PASS,
+			       NULL);
+}
+
 static void strategy_fg_monitor_workfunc(struct work_struct *work)
 {
 	struct strategy_fg *fg =
@@ -2622,6 +2632,7 @@ static void strategy_fg_monitor_workfunc(struct work_struct *work)
 		strategy_fg_init_voter(fg);
 
 	ret = fg_update_status(fg, prohibit_jump);
+	strategy_fg_check_onewire_auth(fg);
 	strategy_fg_update_qbg_chg_data(fg);
 	mca_strategy_check_termination(fg);
 	if (fg->cfg.base_flip_same) {
@@ -2886,8 +2897,15 @@ static int strategy_fg_ops_get_soc(void *data)
 	if (fg->fake_soc != STRATEGY_FG_FAKE_SOC_NONE)
 		return fg->fake_soc;
 
-	if (!fg->fg_init_flag)
+	if (!fg->fg_init_flag) {
+		int uisoc = 0;
+
+		/* until the QBG is up, show what the battery had at shutdown */
+		if (fg->cfg.support_qbg && !onewire_get_shutdown_uisoc(&uisoc) &&
+		    uisoc > 0 && uisoc <= 100)
+			return uisoc;
 		return STRATEGY_FG_ERROR_FAKE_SOC;
+	}
 
 	return fg->batt_ui_soc;
 }
@@ -3790,9 +3808,11 @@ static int mca_strategy_fg_shutdown_cb(struct notifier_block *nb,
 	struct strategy_fg *fg =
 		container_of(nb, struct strategy_fg, reboot_nb);
 
-	if (fg->cfg.support_qbg)
+	if (fg->cfg.support_qbg) {
 		mca_log_err("store uisoc: %d to onewire dev\n",
 			    fg->batt_ui_soc);
+		onewire_set_shutdown_uisoc(fg->batt_ui_soc);
+	}
 
 	return NOTIFY_DONE;
 }
