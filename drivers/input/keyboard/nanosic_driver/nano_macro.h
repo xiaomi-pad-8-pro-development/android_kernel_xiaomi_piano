@@ -134,11 +134,11 @@ extern int debuglevel;
 #define dbgprint(__level, __format, __args...)                                 \
 	do {                                                                   \
 		if ((int)debuglevel >= (int)__level) {                         \
-			struct timex txc;                                      \
+			struct timespec64 ts;                                  \
 			struct rtc_time tm;                                    \
-			do_gettimeofday(&(txc.time));                          \
-			txc.time.tv_sec -= sys_tz.tz_minuteswest * 60;         \
-			rtc_time_to_tm(txc.time.tv_sec, &tm);                  \
+			ktime_get_real_ts64(&ts);                              \
+			ts.tv_sec -= sys_tz.tz_minuteswest * 60;               \
+			rtc_time64_to_tm(ts.tv_sec, &tm);                      \
 			switch ((int)debuglevel) {                             \
 			case 0:                                                \
 			case 1:                                                \
@@ -146,37 +146,37 @@ extern int debuglevel;
 				printk("[%02d:%02d:%02d.%03zu] <2>" DRV_TOKEN  \
 				       ": " __format,                          \
 				       tm.tm_hour, tm.tm_min, tm.tm_sec,       \
-				       txc.time.tv_usec / 1000, ##__args);     \
+				       (size_t)(ts.tv_nsec / NSEC_PER_MSEC), ##__args);     \
 				break;                                         \
 			case 3:                                                \
 				printk("[%02d:%02d:%02d.%03zu] <3>" DRV_TOKEN  \
 				       ": " __format,                          \
 				       tm.tm_hour, tm.tm_min, tm.tm_sec,       \
-				       txc.time.tv_usec / 1000, ##__args);     \
+				       (size_t)(ts.tv_nsec / NSEC_PER_MSEC), ##__args);     \
 				break;                                         \
 			case 4:                                                \
 				printk("[%02d:%02d:%02d.%03zu] <4>" DRV_TOKEN  \
 				       ": " __format,                          \
 				       tm.tm_hour, tm.tm_min, tm.tm_sec,       \
-				       txc.time.tv_usec / 1000, ##__args);     \
+				       (size_t)(ts.tv_nsec / NSEC_PER_MSEC), ##__args);     \
 				break;                                         \
 			case 5:                                                \
 				printk("[%02d:%02d:%02d.%03zu] <5>" DRV_TOKEN  \
 				       ": " __format,                          \
 				       tm.tm_hour, tm.tm_min, tm.tm_sec,       \
-				       txc.time.tv_usec / 1000, ##__args);     \
+				       (size_t)(ts.tv_nsec / NSEC_PER_MSEC), ##__args);     \
 				break;                                         \
 			case 6:                                                \
 				printk("[%02d:%02d:%02d.%03zu] <6>" DRV_TOKEN  \
 				       ": " __format,                          \
 				       tm.tm_hour, tm.tm_min, tm.tm_sec,       \
-				       txc.time.tv_usec / 1000, ##__args);     \
+				       (size_t)(ts.tv_nsec / NSEC_PER_MSEC), ##__args);     \
 				break;                                         \
 			default:                                               \
 				printk("[%02d:%02d:%02d.%03zu] <7>" DRV_TOKEN  \
 				       ": " __format,                          \
 				       tm.tm_hour, tm.tm_min, tm.tm_sec,       \
-				       txc.time.tv_usec / 1000, ##__args);     \
+				       (size_t)(ts.tv_nsec / NSEC_PER_MSEC), ##__args);     \
 				break;                                         \
 			}                                                      \
 		}                                                              \
