@@ -28,7 +28,7 @@
 #include <linux/i2c.h>
 #include <linux/platform_device.h>
 #include <linux/of_gpio.h>
-//#include <linux/regulator/consumer.h>
+#include <linux/regulator/consumer.h>
 #include <drm/drm_panel.h>
 #include <linux/notifier.h>
 #include <linux/interrupt.h>
@@ -37,6 +37,59 @@
 static bool initial = false;
 struct nano_i2c_client *gI2c_client = NULL;
 static struct drm_panel *active_panel;
+static struct regulator *vdd_reg;
+static struct regulator *dvdd_reg;
+
+/* the 803x runs from a 3.3 V and a 1.8 V supply where the board has them */
+static int Nanosic_regulator_init(struct device *dev)
+{
+	const char *name;
+	int ret;
+
+	if (of_property_read_string(dev->of_node, "nanosic,vdd-name", &name))
+		return 0;
+
+	vdd_reg = devm_regulator_get(dev, name);
+	if (IS_ERR(vdd_reg))
+		return PTR_ERR(vdd_reg);
+
+	ret = of_property_read_string(dev->of_node, "nanosic,dvdd-name", &name);
+	if (ret)
+		return ret;
+
+	dvdd_reg = devm_regulator_get(dev, name);
+	if (IS_ERR(dvdd_reg))
+		return PTR_ERR(dvdd_reg);
+
+	ret = regulator_set_voltage(vdd_reg, 3300000, 3300000);
+	if (ret)
+		return ret;
+
+	return regulator_set_voltage(dvdd_reg, 1800000, 1800000);
+}
+
+static int Nanosic_switch_regulator(bool on)
+{
+	int ret;
+
+	if (IS_ERR_OR_NULL(vdd_reg) || IS_ERR_OR_NULL(dvdd_reg))
+		return 0;
+
+	if (!on) {
+		regulator_disable(dvdd_reg);
+		return regulator_disable(vdd_reg);
+	}
+
+	ret = regulator_enable(vdd_reg);
+	if (ret)
+		return ret;
+
+	ret = regulator_enable(dvdd_reg);
+	if (ret)
+		regulator_disable(vdd_reg);
+
+	return ret;
+}
 
 /* the keyboard follows the state of the panel it is attached to */
 static int keyboard_check_panel(struct device_node *np)
@@ -96,6 +149,18 @@ static int nanosic_803_probe(struct i2c_client *client,
 	if (ret) {
 		dbgprint(ERROR_LEVEL, "no active panel: %d\n", ret);
 		return ret == -EPROBE_DEFER ? ret : -ENODEV;
+	}
+
+	ret = Nanosic_regulator_init(&client->dev);
+	if (ret) {
+		dbgprint(ERROR_LEVEL, "failed to get the regulators: %d\n", ret);
+		return ret;
+	}
+
+	ret = Nanosic_switch_regulator(true);
+	if (ret) {
+		dbgprint(ERROR_LEVEL, "failed to enable the regulators: %d\n", ret);
+		return ret;
 	}
 
 	irq_pin = of_get_named_gpio_flags(of_node, "irq_pin", 0, &irq_flags);
@@ -171,6 +236,7 @@ _err3:
 _err2:
 	Nanosic_chardev_release();
 _err1:
+	Nanosic_switch_regulator(false);
 	return -1;
 }
 
@@ -197,6 +263,8 @@ static int nanosic_803_remove(struct i2c_client *client)
 	//Nanosic_timer_release();//apply timer module instead of interrupt
 
 	Nanosic_GPIO_release();
+
+	Nanosic_switch_regulator(false);
 
 	Nanosic_cache_release();
 
