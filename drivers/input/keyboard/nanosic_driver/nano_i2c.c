@@ -536,7 +536,8 @@ struct nano_i2c_client *Nanosic_i2c_register(int irqno, u32 irq_flags,
 	if (i2c_client->irqno > 0) {
 		//ret = request_irq(i2c_client->irqno, Nanosic_i2c_irq, irq_flags/*IRQF_TRIGGER_FALLING*/, "8030_io_irq", i2c_client);
 		ret = request_threaded_irq(i2c_client->irqno, NULL,
-					   Nanosic_i2c_irq, irq_flags,
+					   Nanosic_i2c_irq,
+					   IRQF_TRIGGER_RISING | IRQF_ONESHOT,
 					   "8030_io_irq", i2c_client);
 		if (ret < 0) {
 			dbgprint(
