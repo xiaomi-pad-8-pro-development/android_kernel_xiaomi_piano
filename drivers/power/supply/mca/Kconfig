@@ -36,6 +36,10 @@ config MCA_ONEWIRE_AUTH
 	  before it allows fast charging, and keeps the serial number, dates,
 	  cycle count and UI state of health of the pack in the chip.
 
+config MCA_ONEWIRE_AUTH_ACL16_SLG2
+	tristate "ACL16 SLG2 battery authentication chip"
+	depends on MCA_ONEWIRE_AUTH
+
 config MCA_EXTERNAL_CP
 	tristate "MCA external charge pump IC support"
 
