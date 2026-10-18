@@ -8,6 +8,9 @@
 
 techpack := $(srctree)/$(src)
 
+# the in-tree build has no Android tree for the techpacks to resolve against
+export ANDROID_BUILD_TOP :=
+
 export KERNEL_SRC := $(srctree)
 export KERNEL_ROOT := $(srctree)
 
