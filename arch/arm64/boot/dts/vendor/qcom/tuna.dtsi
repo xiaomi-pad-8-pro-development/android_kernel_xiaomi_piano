@@ -312,8 +312,8 @@
 			compatible = "arm,idle-state";
 			idle-state-name = "pc";
 			entry-latency-us = <400>;
-			exit-latency-us = <1100>;
-			min-residency-us = <4011>;
+			exit-latency-us = <700>;
+			min-residency-us = <2500>;
 			arm,psci-suspend-param = <0x40000003>;
 			local-timer-stop;
 		};
@@ -332,8 +332,8 @@
 			compatible = "arm,idle-state";
 			idle-state-name = "pc";
 			entry-latency-us = <400>;
-			exit-latency-us = <1100>;
-			min-residency-us = <4011>;
+			exit-latency-us = <700>;
+			min-residency-us = <2500>;
 			arm,psci-suspend-param = <0x40000003>;
 			local-timer-stop;
 		};
@@ -352,8 +352,8 @@
 			compatible = "arm,idle-state";
 			idle-state-name = "pc";
 			entry-latency-us = <400>;
-			exit-latency-us = <1100>;
-			min-residency-us = <4011>;
+			exit-latency-us = <700>;
+			min-residency-us = <2500>;
 			arm,psci-suspend-param = <0x40000003>;
 			local-timer-stop;
 		};
