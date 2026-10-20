@@ -38,7 +38,7 @@ void walt_config(void)
 	sysctl_sched_min_task_util_for_uclamp = 35;
 	sysctl_sched_min_task_util_for_colocation = 25;
 	sysctl_sched_many_wakeup_threshold = WALT_MANY_WAKEUP_DEFAULT;
-	sysctl_walt_rtg_cfs_boost_prio = 99; /* disabled by default */
+	sysctl_walt_rtg_cfs_boost_prio = 119;
 	sysctl_sched_sync_hint_enable = 1;
 	sysctl_panic_on_walt_bug = walt_debug_initial_values();
 	sysctl_sched_skip_sp_newly_idle_lb = 1;
