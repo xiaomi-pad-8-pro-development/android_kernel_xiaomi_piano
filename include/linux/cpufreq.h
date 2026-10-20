@@ -575,7 +575,7 @@ static inline unsigned long cpufreq_scale(unsigned long old, u_int div,
  * ondemand governor will work on any processor with transition latency <= 10ms,
  * using appropriate sampling rate.
  */
-#define LATENCY_MULTIPLIER		(1000)
+#define LATENCY_MULTIPLIER		(500)
 
 struct cpufreq_governor {
 	char	name[CPUFREQ_NAME_LEN];
