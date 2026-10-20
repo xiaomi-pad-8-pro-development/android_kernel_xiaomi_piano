@@ -70,7 +70,7 @@ struct irq_work walt_cpufreq_irq_work;
 struct irq_work walt_migration_irq_work;
 unsigned int walt_rotation_enabled;
 
-unsigned int __read_mostly sched_ravg_window = 20000000;
+unsigned int __read_mostly sched_ravg_window = DEFAULT_SCHED_RAVG_WINDOW;
 int min_possible_cluster_id;
 int max_possible_cluster_id;
 /* Initial task load. Newly created tasks are assigned this load. */
