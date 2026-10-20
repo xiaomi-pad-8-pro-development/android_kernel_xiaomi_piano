@@ -27,7 +27,7 @@
 #include <dsp/audio_notifier.h>
 
 #define APM_EVENT_MODULE_TO_CLIENT	0x03001000
-#define WAKELOCK_TIMEOUT 200
+#define WAKELOCK_TIMEOUT 100
 
 struct gpr {
 	struct rpmsg_endpoint *ch;
