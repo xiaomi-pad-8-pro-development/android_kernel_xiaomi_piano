@@ -1027,12 +1027,12 @@ static int configure_hwmon_node(struct bw_hwmon *hwmon)
 		return -ENOMEM;
 	hwmon->node = node;
 
-	node->guard_band_mbps = 100;
+	node->guard_band_mbps = 250;
 	node->decay_rate = 90;
 	node->io_percent = 16;
 	node->bw_step = 190;
-	node->sample_ms = 50;
-	node->window_ms = 50;
+	node->sample_ms = 20;
+	node->window_ms = 20;
 	node->up_scale = 0;
 	node->up_thres = 10;
 	node->down_thres = 0;
