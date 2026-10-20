@@ -400,7 +400,7 @@ void input_handle_event(struct input_dev *dev,
 
 	disposition = input_get_disposition(dev, type, code, &value);
 	if (disposition != INPUT_IGNORE_EVENT) {
-		if (type != EV_SYN)
+		if (type != EV_SYN && type != EV_ABS)
 			add_input_randomness(type, code, value);
 
 		input_event_dispose(dev, disposition, type, code, value);
