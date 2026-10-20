@@ -3,6 +3,10 @@ ifeq ($(CONFIG_ARCH_SUN), y)
 	export INCS += -include $(AUDIO_ROOT)/config/sunautoconf.h
 endif
 
+ifeq ($(CONFIG_TARGET_PRODUCT_PIANO), y)
+	export INCS += -DCONFIG_TARGET_PRODUCT_PIANO
+endif
+
 ifeq ($(CONFIG_TARGET_PRODUCT_YUPEI), y)
 	export INCS += -DCONFIG_TARGET_PRODUCT_YUPEI
 endif

@@ -33,13 +33,19 @@ export SSG_MODULE_ROOT := $(techpack)/securemsm-kernel
 export SYNC_FENCE_ROOT := $(techpack)/mm-drivers/
 export SYNX_ROOT := $(techpack)/synx-kernel
 export TOUCHFEATURE_ROOT := $(techpack)/touch-driver/xiaomi
-export TOUCH_ROOT := $(techpack)/touch-driver/p82
+ifeq ($(CONFIG_MACH_XIAOMI_PIANO),y)
+touch_variant := p81
+$(obj)/audio-kernel: export CONFIG_TARGET_PRODUCT_PIANO := y
+else
+touch_variant := p82
+$(obj)/audio-kernel: export CONFIG_TARGET_PRODUCT_YUPEI := y
+endif
+export TOUCH_ROOT := $(techpack)/touch-driver/$(touch_variant)
 export VIDEO_ROOT := $(techpack)/video-driver
 export WLAN_PLATFORM_ROOT := $(techpack)/wlan/platform
 export WLAN_ROOT := $(techpack)/wlan/qcacld-3.0
 
 $(obj)/audio-kernel: export MODNAME := audio_dlkm
-$(obj)/audio-kernel: export CONFIG_TARGET_PRODUCT_YUPEI := y
 
 $(obj)/datarmnet/core: export MODNAME := rmnet_core
 $(obj)/datarmnet-ext/aps: export CONFIG_RMNET_APS := m
@@ -51,10 +57,10 @@ $(obj)/datarmnet-ext/sch: export CONFIG_RMNET_SCH := m
 $(obj)/datarmnet-ext/shs: export MODNAME := rmnet_shs
 $(obj)/datarmnet-ext/wlan: export CONFIG_RMNET_WLAN := m
 
-$(obj)/touch-driver/p82: export CONFIG_DISABLE_POWER_STATUS := 1
-$(obj)/touch-driver/p82: export CONFIG_TOUCH_STYLUS_SUPPORT := 1
-$(obj)/touch-driver/p82: export CONFIG_TOUCH_TDDI_SUPPORT := 1
-$(obj)/touch-driver/p82: export CONFIG_TOUCH_THP_SUPPORT := 1
+$(obj)/touch-driver/$(touch_variant): export CONFIG_DISABLE_POWER_STATUS := 1
+$(obj)/touch-driver/$(touch_variant): export CONFIG_TOUCH_STYLUS_SUPPORT := 1
+$(obj)/touch-driver/$(touch_variant): export CONFIG_TOUCH_TDDI_SUPPORT := 1
+$(obj)/touch-driver/$(touch_variant): export CONFIG_TOUCH_THP_SUPPORT := 1
 
 $(obj)/wlan/platform: export CONFIG_CNSS_OUT_OF_TREE := y
 $(obj)/wlan/qcacld-3.0: export CONFIG_IPA_OUT_OF_TREE := y
@@ -92,4 +98,4 @@ obj-y += video-driver/msm_video/
 obj-y += wlan/platform/
 obj-y += wlan/qcacld-3.0/
 obj-y += bt-kernel/
-obj-y += touch-driver/p82/
+obj-y += touch-driver/$(touch_variant)/

@@ -1,6 +1,12 @@
 # SPDX-License-Identifier: GPL-2.0-only
 menu "Platform selection"
 
+config MACH_XIAOMI_PIANO
+	bool "Xiaomi Pad 8 Pro (piano)"
+	depends on ARCH_SUN
+	help
+	  Select the piano audio and touch variants for the in-tree techpacks.
+
 config ARCH_ACTIONS
 	bool "Actions Semi Platforms"
 	select OWL_TIMER
