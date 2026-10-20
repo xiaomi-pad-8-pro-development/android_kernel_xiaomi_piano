@@ -34,9 +34,9 @@ void walt_config(void)
 	sysctl_sched_coloc_busy_hyst_max_ms = 5000;
 	sched_ravg_window = DEFAULT_SCHED_RAVG_WINDOW;
 	sysctl_input_boost_ms = 40;
-	sysctl_sched_min_task_util_for_boost = 51;
-	sysctl_sched_min_task_util_for_uclamp = 51;
-	sysctl_sched_min_task_util_for_colocation = 35;
+	sysctl_sched_min_task_util_for_boost = 35;
+	sysctl_sched_min_task_util_for_uclamp = 35;
+	sysctl_sched_min_task_util_for_colocation = 25;
 	sysctl_sched_many_wakeup_threshold = WALT_MANY_WAKEUP_DEFAULT;
 	sysctl_walt_rtg_cfs_boost_prio = 99; /* disabled by default */
 	sysctl_sched_sync_hint_enable = 1;
@@ -65,8 +65,8 @@ void walt_config(void)
 	for (i = 0; i < MAX_MARGIN_LEVELS; i++) {
 		sysctl_sched_capacity_margin_up_pct[i] = 95; /* ~5% margin */
 		sysctl_sched_capacity_margin_dn_pct[i] = 85; /* ~15% margin */
-		sysctl_sched_early_up[i] = 1077;
-		sysctl_sched_early_down[i] = 1204;
+		sysctl_sched_early_up[i] = 1054;
+		sysctl_sched_early_down[i] = 1165;
 	}
 
 	for (i = 0; i < WALT_NR_CPUS; i++) {
