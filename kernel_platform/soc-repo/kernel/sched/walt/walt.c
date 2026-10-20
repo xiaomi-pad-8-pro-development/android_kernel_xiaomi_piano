@@ -81,7 +81,7 @@ bool plenty_giant_tasks;
 struct cgroup *apps_cgroup;
 struct cgroup *apps_topapp_cgroup;
 
-unsigned int __read_mostly sched_ravg_window = 20000000;
+unsigned int __read_mostly sched_ravg_window = DEFAULT_SCHED_RAVG_WINDOW;
 int min_possible_cluster_id;
 int max_possible_cluster_id;
 /* Initial task load. Newly created tasks are assigned this load. */
