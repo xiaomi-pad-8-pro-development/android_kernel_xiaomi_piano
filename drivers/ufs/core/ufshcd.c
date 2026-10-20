@@ -10711,9 +10711,9 @@ int ufshcd_init(struct ufs_hba *hba, void __iomem *mmio_base, unsigned int irq)
 	INIT_DELAYED_WORK(&hba->rpm_dev_flush_recheck_work,
 			  ufshcd_rpm_dev_flush_recheck_work);
 
-	/* Set the default auto-hiberate idle timer value to 150 ms */
+	/* Set the default auto-hiberate idle timer value to 50 ms */
 	if (ufshcd_is_auto_hibern8_supported(hba) && !hba->ahit) {
-		hba->ahit = FIELD_PREP(UFSHCI_AHIBERN8_TIMER_MASK, 150) |
+		hba->ahit = FIELD_PREP(UFSHCI_AHIBERN8_TIMER_MASK, 50) |
 			    FIELD_PREP(UFSHCI_AHIBERN8_SCALE_MASK, 3);
 	}
 
