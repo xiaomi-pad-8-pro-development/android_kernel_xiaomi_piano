@@ -1096,7 +1096,7 @@ int walt_find_energy_efficient_cpu(struct task_struct *p, int prev_cpu,
 	if (!(available_idle_cpu(best_energy_cpu) &&
 	    walt_get_idle_exit_latency(cpu_rq(best_energy_cpu)) <= 1) &&
 	    (prev_energy != ULONG_MAX) && (best_energy_cpu != prev_cpu) &&
-	    ((prev_energy - best_energy) <= prev_energy >> 5) &&
+	    ((prev_energy - best_energy) <= (prev_energy >> 4)) &&
 	    !check_for_higher_capacity(prev_cpu, start_cpu))
 		best_energy_cpu = prev_cpu;
 
