@@ -1825,6 +1825,10 @@ select_task_rq_dl(struct task_struct *p, int cpu, int flags)
 	if (!(flags & WF_TTWU))
 		goto out;
 
+	if ((p->dl.flags & SCHED_FLAG_SUGOV) &&
+	    cpumask_test_cpu(smp_processor_id(), p->cpus_ptr))
+		return smp_processor_id();
+
 	rq = cpu_rq(cpu);
 
 	rcu_read_lock();
