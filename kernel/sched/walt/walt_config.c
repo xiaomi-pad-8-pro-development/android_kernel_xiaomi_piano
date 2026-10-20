@@ -238,6 +238,15 @@ void walt_config(void)
 		trailblazer_floor_freq[2] = 1000000;
 		debugfs_walt_features |= WALT_FEAT_TRAILBLAZER_BIT;
 
+		for_each_cpu(cpu, &cpu_array[0][num_sched_clusters - 1]) {
+			for (i = 1; i < LEGACY_SMART_FREQ; i++)
+				smart_freq_legacy_reason_hyst_ms[i][cpu] = 2;
+		}
+		for_each_possible_cpu(cpu) {
+			smart_freq_legacy_reason_hyst_ms[PIPELINE_60FPS_OR_LESSER_SMART_FREQ][cpu] =
+				1;
+		}
+
 		/*
 		 * Do not put the whole cluster at Fmin during thermal halt condition.
 		 */
