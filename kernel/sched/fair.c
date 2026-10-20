@@ -75,7 +75,7 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(sched_stat_runtime);
  *
  * (default: 6ms * (1 + ilog(ncpus)), units: nanoseconds)
  */
-unsigned int sysctl_sched_latency			= 6000000ULL;
+unsigned int sysctl_sched_latency			= 4000000ULL;
 EXPORT_SYMBOL_GPL(sysctl_sched_latency);
 
 /*
@@ -96,9 +96,9 @@ unsigned int sysctl_sched_tunable_scaling = SCHED_TUNABLESCALING_LOG;
  *
  * (default: 0.70 msec * (1 + ilog(ncpus)), units: nanoseconds)
  */
-unsigned int sysctl_sched_base_slice			= 700000ULL;
+unsigned int sysctl_sched_base_slice			= 500000ULL;
 EXPORT_SYMBOL_GPL(sysctl_sched_base_slice);
-static unsigned int normalized_sysctl_sched_base_slice	= 700000ULL;
+static unsigned int normalized_sysctl_sched_base_slice	= 500000ULL;
 
 /*
  * After fork, child runs first. If set to 0 (default) then
@@ -106,7 +106,7 @@ static unsigned int normalized_sysctl_sched_base_slice	= 700000ULL;
  */
 unsigned int sysctl_sched_child_runs_first __read_mostly;
 
-const_debug unsigned int sysctl_sched_migration_cost	= 500000UL;
+const_debug unsigned int sysctl_sched_migration_cost	= 250000UL;
 
 int sched_thermal_decay_shift;
 static int __init setup_sched_thermal_decay_shift(char *str)
