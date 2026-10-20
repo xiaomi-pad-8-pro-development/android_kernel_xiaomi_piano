@@ -228,7 +228,7 @@ void walt_config(void)
 			cpumask_or(&pipeline_sync_cpus,
 				&pipeline_sync_cpus, &cpu_array[0][3]);
 		}
-		pipeline_swap_util_th = 100;
+		pipeline_swap_util_th = 75;
 
 		/*
 		 * Trailblazer settings
