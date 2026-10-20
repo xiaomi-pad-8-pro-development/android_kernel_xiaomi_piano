@@ -83,6 +83,6 @@ extern bool local_rt_runnable(void);
  * default timeslice is 100 msecs (used only for SCHED_RR tasks).
  * Timeslices get refilled after they expire.
  */
-#define RR_TIMESLICE		(100 * HZ / 1000)
+#define RR_TIMESLICE		(20 * HZ / 1000)
 
 #endif /* _LINUX_SCHED_RT_H */
