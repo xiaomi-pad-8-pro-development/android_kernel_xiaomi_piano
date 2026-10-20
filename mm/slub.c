@@ -4436,13 +4436,13 @@ static void set_cpu_partial(struct kmem_cache *s)
 	if (!kmem_cache_has_cpu_partial(s))
 		nr_objects = 0;
 	else if (s->size >= PAGE_SIZE)
-		nr_objects = 6;
+		nr_objects = 12;
 	else if (s->size >= 1024)
-		nr_objects = 24;
+		nr_objects = 32;
 	else if (s->size >= 256)
-		nr_objects = 52;
+		nr_objects = 64;
 	else
-		nr_objects = 120;
+		nr_objects = 160;
 
 	slub_set_cpu_partial(s, nr_objects);
 #endif
