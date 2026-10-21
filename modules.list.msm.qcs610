@@ -65,3 +65,4 @@ icc-debug.ko
 spi-msm-geni.ko
 qnoc-qos.ko
 qnoc-sm6150.ko
+phy-msm-qusb.ko
