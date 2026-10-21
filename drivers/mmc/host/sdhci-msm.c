@@ -617,7 +617,8 @@ static unsigned int msm_get_clock_mult_for_bus_mode(struct sdhci_host *host)
 	 */
 	if (ios.timing == MMC_TIMING_UHS_DDR50 ||
 	    ios.timing == MMC_TIMING_MMC_DDR52 ||
-	    ios.timing == MMC_TIMING_MMC_HS400 ||
+	    (ios.timing == MMC_TIMING_MMC_HS400 &&
+	    ios.clock == MMC_HS200_MAX_DTR) ||
 	    host->flags & SDHCI_HS400_TUNING)
 		return 2;
 	return 1;
@@ -3055,15 +3056,37 @@ static int sdhci_msm_ice_init(struct sdhci_msm_host *msm_host,
 
 static void sdhci_msm_ice_enable(struct sdhci_msm_host *msm_host)
 {
-	if (msm_host->mmc->caps2 & MMC_CAP2_CRYPTO)
-		qcom_ice_enable(msm_host->ice);
+	int err;
+
+	if (msm_host->mmc->caps2 & MMC_CAP2_CRYPTO) {
+		err = qcom_ice_enable(msm_host->ice);
+
+		if (err) {
+			dev_warn(
+				mmc_dev(msm_host->mmc),
+				"Could not enable ICE err=%d, Disabling inline encryption capability.\n",
+				err);
+			msm_host->mmc->caps2 &= ~MMC_CAP2_CRYPTO;
+		}
+	}
 }
 
 static __maybe_unused int sdhci_msm_ice_resume(struct sdhci_msm_host *msm_host)
 {
-	if (msm_host->mmc->caps2 & MMC_CAP2_CRYPTO)
-		return qcom_ice_resume(msm_host->ice);
+	int err;
 
+	if (msm_host->mmc->caps2 & MMC_CAP2_CRYPTO) {
+		err = qcom_ice_resume(msm_host->ice);
+
+		if (err) {
+			dev_warn(
+				mmc_dev(msm_host->mmc),
+				"Could not resume ICE err=%d, Disabling inline encryption capability.\n",
+				err);
+			msm_host->mmc->caps2 &= ~MMC_CAP2_CRYPTO;
+		}
+		return err;
+	}
 	return 0;
 }
 
