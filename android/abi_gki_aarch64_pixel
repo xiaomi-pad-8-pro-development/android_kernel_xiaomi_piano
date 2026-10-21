@@ -1348,6 +1348,7 @@
   __ipv6_addr_type
   __irq_alloc_descs
   __irq_apply_affinity_hint
+  irq_check_status_bit
   irq_create_mapping_affinity
   irq_create_of_mapping
   irq_dispose_mapping
@@ -1361,6 +1362,7 @@
   irq_force_affinity
   irq_get_irqchip_state
   irq_get_irq_data
+  irq_get_percpu_devid_partition
   irq_modify_status
   irq_of_parse_and_map
   __irq_resolve_mapping
@@ -1374,6 +1376,7 @@
   irq_set_irq_wake
   irq_to_desc
   irq_work_queue
+  irq_work_run
   irq_work_sync
   is_vmalloc_addr
   jiffies
@@ -1723,6 +1726,7 @@
   of_get_named_gpio
   of_get_next_available_child
   of_get_next_child
+  of_get_next_cpu_node
   of_get_next_parent
   of_get_parent
   of_get_property
@@ -1863,6 +1867,7 @@
   perf_aux_output_begin
   perf_aux_output_end
   perf_aux_output_flag
+  perf_aux_output_skip
   perf_event_addr_filters_sync
   perf_event_create_kernel_counter
   perf_event_disable
@@ -2114,6 +2119,7 @@
   regmap_async_complete
   regmap_bulk_read
   regmap_bulk_write
+  regmap_check_range_table
   regmap_field_read
   regmap_field_update_bits_base
   regmap_get_device
@@ -2164,6 +2170,7 @@
   remove_proc_subtree
   remove_resource
   remove_wait_queue
+  report_iommu_fault
   request_firmware
   request_firmware_direct
   request_firmware_nowait
@@ -2599,6 +2606,7 @@
   __thermal_zone_get_trip
   thermal_zone_get_trip
   thermal_zone_get_zone_by_name
+  this_cpu_has_cap
   thread_group_cputime_adjusted
   tick_nohz_get_idle_calls_cpu
   time64_to_tm
@@ -2612,6 +2620,7 @@
   touch_softlockup_watchdog
   trace_array_destroy
   trace_array_get_by_name
+  trace_array_get_by_name_ext
   trace_array_put
   trace_array_set_clr_event
   trace_event_buffer_commit
@@ -2656,6 +2665,7 @@
   __traceiter_android_rvh_set_cpus_allowed_by_task
   __traceiter_android_rvh_set_iowait
   __traceiter_android_rvh_setscheduler
+  __traceiter_android_rvh_setscheduler_prio
   __traceiter_android_rvh_set_task_cpu
   __traceiter_android_rvh_set_user_nice_locked
   __traceiter_android_rvh_tick_entry
@@ -2702,8 +2712,8 @@
   __traceiter_android_vh_setscheduler_uclamp
   __traceiter_android_vh_set_task_comm
   __traceiter_android_vh_si_meminfo_adjust
-  __traceiter_android_vh_swap_writepage
   __traceiter_android_vh_swap_readpage_bdev_sync
+  __traceiter_android_vh_swap_writepage
   __traceiter_android_vh_sysrq_crash
   __traceiter_android_vh_timerfd_create
   __traceiter_android_vh_tune_swappiness
@@ -2789,6 +2799,7 @@
   __tracepoint_android_rvh_set_cpus_allowed_by_task
   __tracepoint_android_rvh_set_iowait
   __tracepoint_android_rvh_setscheduler
+  __tracepoint_android_rvh_setscheduler_prio
   __tracepoint_android_rvh_set_task_cpu
   __tracepoint_android_rvh_set_user_nice_locked
   __tracepoint_android_rvh_tick_entry
@@ -2835,8 +2846,8 @@
   __tracepoint_android_vh_setscheduler_uclamp
   __tracepoint_android_vh_set_task_comm
   __tracepoint_android_vh_si_meminfo_adjust
-  __tracepoint_android_vh_swap_writepage
   __tracepoint_android_vh_swap_readpage_bdev_sync
+  __tracepoint_android_vh_swap_writepage
   __tracepoint_android_vh_sysrq_crash
   __tracepoint_android_vh_timerfd_create
   __tracepoint_android_vh_tune_swappiness
