@@ -109,10 +109,16 @@ typedef enum {
  * Touchpad report: ID, buttons, three contacts and the contact count. Piano
  * contacts carry tip pressure (8 bytes each), yupei ones do not (6 bytes).
  */
+struct device_node;
+
 #ifdef CONFIG_MACH_XIAOMI_PIANO
 #define NANOSIC_TOUCH_REPORT_LEN 27
+void Nanosic_edge_filter_init(struct device_node *node);
+void Nanosic_edge_filter(u8 *report, size_t len);
 #else
 #define NANOSIC_TOUCH_REPORT_LEN 21
+static inline void Nanosic_edge_filter_init(struct device_node *node) {}
+static inline void Nanosic_edge_filter(u8 *report, size_t len) {}
 #endif
 ;
 

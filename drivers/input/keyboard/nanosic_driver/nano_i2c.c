@@ -346,6 +346,7 @@ int Nanosic_i2c_parse(char *data, size_t datalen)
 			left -= 8;
 			break;
 		case 0x19:
+			Nanosic_edge_filter(p, NANOSIC_TOUCH_REPORT_LEN);
 			Nanosic_input_write(EM_PACKET_TOUCH, p,
 					    NANOSIC_TOUCH_REPORT_LEN);
 			p += NANOSIC_TOUCH_REPORT_LEN;

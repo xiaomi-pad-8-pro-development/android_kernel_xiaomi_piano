@@ -213,6 +213,7 @@ static int nanosic_803_probe(struct i2c_client *client)
 	i2c_set_clientdata(client, I2client);
 	gI2c_client = I2client;
 	gI2c_client->dev = &(client->dev);
+	Nanosic_edge_filter_init(of_node);
 
 	xiaomi_keyboard_init(I2client);
 	/*initialize timer for test*/
