@@ -1209,7 +1209,6 @@ static ssize_t wireless_sysfs_show(struct device *dev,
 		mca_log_err("%s dev_driverdata is null\n", __func__);
 		return -1;
 	}
-	mca_log_err("%s dev_driverdata is %d\n", __func__, *wireless_index);
 
 	switch (attr_info->sysfs_attr_name) {
 	case RX_SYSFS_RX_VOUT:
@@ -1296,7 +1295,6 @@ static ssize_t wireless_sysfs_store(struct device *dev,
 		mca_log_err("%s dev_driverdata is null\n", __func__);
 		return -1;
 	}
-	mca_log_err("%s dev_driverdata is %d\n", __func__, *wireless_index);
 
 	switch (attr_info->sysfs_attr_name) {
 	case RX_SYSFS_FW_VERSION:

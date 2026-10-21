@@ -850,7 +850,6 @@ static ssize_t cp_sysfs_show(struct device *dev, struct device_attribute *attr,
 		mca_log_err("%s dev_driverdata is null\n", __func__);
 		return -1;
 	}
-	mca_log_err("%s dev_driverdata is %d\n", __func__, *cp_index);
 
 	switch (attr_info->sysfs_attr_name) {
 	case CP_PROP_CHIP_OK:
@@ -923,8 +922,6 @@ static ssize_t cp_sysfs_store(struct device *dev, struct device_attribute *attr,
 		return -1;
 	}
 
-	mca_log_err("dev_driverdata is: %d, attr: %d, buf: %s\n", *cp_index,
-		    attr_info->sysfs_attr_name, buf);
 	switch (attr_info->sysfs_attr_name) {
 	case CP_PROP_OVPGATE:
 		if (kstrtoint(buf, 10, &val))
