@@ -26,6 +26,10 @@
  */
 
 /**
+ * hdd_data_stall_event_notify() - Notify data stall event to fwk
+ */
+void hdd_data_stall_event_notify(uint32_t reason);
+/**
  * hdd_register_data_stall_detect_cb() - register data stall callback
  *
  * Return: 0 for success or Error code for failure

@@ -2830,6 +2830,18 @@ bool mlme_get_bss_11be_allowed(struct wlan_objmgr_psoc *psoc,
  */
 QDF_STATUS wlan_mlme_get_oem_eht_mlo_config(struct wlan_objmgr_psoc *psoc,
 					    uint32_t *oem_eht_cfg);
+
+/**
+ * wlan_mlme_get_eht_mlo_crypto_config - Get eht crypto configuration.
+ * @psoc: PSOC object manager.
+ * @eht_open_crypto_cfg: Pointor to eht open crypto cfg
+ *
+ * Returns success of retrieving eht crypto cfg else failure.
+ *
+ * Return: QDF_STATUS.
+ */
+QDF_STATUS wlan_mlme_get_eht_mlo_crypto_config(struct wlan_objmgr_psoc *psoc,
+						uint32_t *eht_open_crypto_cfg);
 #else
 static inline
 bool mlme_get_bss_11be_allowed(struct wlan_objmgr_psoc *psoc,
@@ -2845,6 +2857,13 @@ wlan_mlme_get_oem_eht_mlo_config(struct wlan_objmgr_psoc *psoc,
 				 uint32_t *oem_eht_cfg)
 {
 	*oem_eht_cfg = 0x0;
+	return QDF_STATUS_SUCCESS;
+}
+
+static inline QDF_STATUS wlan_mlme_get_eht_mlo_crypto_config(struct wlan_objmgr_psoc *psoc,
+						uint32_t *eht_open_crypto_cfg)
+{
+	*eht_open_crypto_cfg = 0x0;
 	return QDF_STATUS_SUCCESS;
 }
 #endif
@@ -5338,4 +5357,39 @@ wlan_mlme_clear_peer_private_object_data(struct wlan_objmgr_peer *peer);
  * Return: beacon interval
  */
 uint32_t wlan_mlme_get_beacon_interval(struct wlan_objmgr_vdev *vdev);
+
+/**
+ * wlan_mlme_init_miracast_opt() - Init timer and wakelock for miracast
+ * optimization
+ * @mlme_obj: MLME ext psoc priv object
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+wlan_mlme_init_miracast_opt(struct wlan_mlme_psoc_ext_obj *mlme_obj);
+
+/**
+ * wlan_mlme_deinit_miracast_opt() - Deinit timer and wakelock for miracast
+ * optimization
+ * @mlme_obj: MLME ext psoc priv object
+ * Return: QDF_STATUS
+ */
+QDF_STATUS
+wlan_mlme_deinit_miracast_opt(struct wlan_mlme_psoc_ext_obj *mlme_obj);
+
+/**
+ * wlan_mlme_start_miracast_opt() - Start timer and wakelock for miracast
+ * optimization
+ * @psoc: psoc
+ * Return: QDF_STATUS
+ */
+QDF_STATUS wlan_mlme_start_miracast_opt(struct wlan_objmgr_psoc *psoc);
+
+/**
+ * wlan_mlme_stop_miracast_opt() - Stop timer and wakelock for miracast
+ * optimization
+ * @psoc: psoc
+ * Return: QDF_STATUS
+ */
+QDF_STATUS wlan_mlme_stop_miracast_opt(struct wlan_objmgr_psoc *psoc);
+
 #endif /* _WLAN_MLME_API_H_ */

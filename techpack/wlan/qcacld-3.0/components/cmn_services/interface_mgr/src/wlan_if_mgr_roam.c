@@ -1084,6 +1084,9 @@ QDF_STATUS if_mgr_validate_candidate(struct wlan_objmgr_vdev *vdev,
 		uint16_t ie_len;
 		bool is_dfs_owner = false, is_valid_ap_assist = false;
 
+		if (!wlan_p2p_is_vdev_wfd_r2_mode(vdev))
+			goto end;
+
 		ie = util_scan_entry_ie_data(candidate_info->scan_entry);
 		ie_len = util_scan_entry_ie_len(candidate_info->scan_entry);
 		wlan_p2p_extract_ap_assist_dfs_params(vdev, ie, ie_len,

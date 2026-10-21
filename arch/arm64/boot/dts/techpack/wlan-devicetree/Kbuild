@@ -4,11 +4,14 @@ dtbo-y += canoe-peach-cnss.dtbo
 endif
 
 ifeq ($(CONFIG_ARCH_SUN),y)
-dtbo-y += sun-kiwi-cnss.dtbo
-dtbo-y += sun-kiwi-cnss-v8.dtbo
-dtbo-y += sun-peach-cnss.dtbo
-dtbo-y += sun-peach-cnss-v8.dtbo
-dtbo-y += sunp-hdk-peach-cnss-v8.dtbo
+dtbo-y += haotian-peach-cnss-v8.dtbo
+dtbo-y += dada-peach-cnss-v8.dtbo
+dtbo-y += nirvana-peach-cnss-v8.dtbo
+dtbo-y += xuanyuan-peach-cnss-v8.dtbo
+dtbo-y += miro-peach-cnss-v8.dtbo
+dtbo-y += annibale-kiwi-cnss-v8.dtbo
+dtbo-y += bixi-peach-cnss-v8.dtbo
+dtbo-y += piano-peach-cnss-v8.dtbo
 endif
 
 ifeq ($(CONFIG_ARCH_PINEAPPLE),y)
@@ -51,6 +54,9 @@ dtbo-y += tuna-qrd-wcn7750.dtbo
 dtbo-y += tuna-mtp-kiwi.dtbo
 dtbo-y += tuna-rcm-kiwi.dtbo
 dtbo-y += tuna-atp-kiwi.dtbo
+dtbo-y += onyx-mtp-wcn7750.dtbo
+dtbo-y += luming-mtp-wcn7750.dtbo
+dtbo-y += yupei-mtp-wcn7750.dtbo
 endif
 
 ifeq ($(CONFIG_ARCH_KERA),y)

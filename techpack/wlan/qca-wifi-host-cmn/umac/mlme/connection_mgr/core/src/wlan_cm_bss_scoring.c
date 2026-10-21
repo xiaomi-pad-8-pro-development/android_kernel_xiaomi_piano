@@ -1528,6 +1528,7 @@ bool wlan_cm_is_eht_allowed_for_current_security(struct wlan_objmgr_psoc *psoc,
 	QDF_STATUS status;
 	struct security_info *neg_sec_info;
 	uint32_t oem_eht_cfg = 0x0;
+	uint32_t eht_open_crypto_cfg = 0x0;
 	bool mlie_present;
 
 	status = wlan_mlme_is_rf_test_mode_enabled(psoc, &rf_test_mode);
@@ -1540,9 +1541,20 @@ bool wlan_cm_is_eht_allowed_for_current_security(struct wlan_objmgr_psoc *psoc,
 		return true;
 	}
 
+	status = wlan_mlme_get_eht_mlo_crypto_config(psoc, &eht_open_crypto_cfg);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		mlme_rl_nofl_err("EHT mlo crypto cfg get failed");
+		return false;
+	}
+	neg_sec_info = &entry->neg_sec_info;
 	if (!entry->ie_list.rsn) {
 		mlme_debug(QDF_MAC_ADDR_FMT ": RSN IE not present",
 			   QDF_MAC_ADDR_REF(entry->bssid.bytes));
+		if (WLAN_CRYPTO_IS_OPEN(neg_sec_info->authmodeset) && eht_open_crypto_cfg) {
+			mlme_debug("AP crypto allow %d, ini config %d",
+					neg_sec_info->authmodeset, eht_open_crypto_cfg);
+			return true;
+		}
 		return false;
 	}
 

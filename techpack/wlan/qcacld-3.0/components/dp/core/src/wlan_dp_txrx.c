@@ -50,6 +50,7 @@
 #include <hif_napi.h>
 #endif
 
+
 uint32_t wlan_dp_intf_get_pkt_type_bitmap_value(void *link_ctx)
 {
 	struct wlan_dp_link *dp_link = (struct wlan_dp_link *)link_ctx;
@@ -719,6 +720,7 @@ dp_start_xmit(struct wlan_dp_link *dp_link, qdf_nbuf_t nbuf)
 	}
 
 	dp_fix_broadcast_eapol(dp_link, nbuf);
+
 
 	if (dp_intf->txrx_ops.tx.tx(soc, dp_link->link_id, nbuf)) {
 		dp_debug_rl("Failed to send packet from adapter %u",

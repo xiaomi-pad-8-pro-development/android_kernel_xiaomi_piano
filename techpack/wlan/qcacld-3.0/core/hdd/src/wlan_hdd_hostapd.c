@@ -6099,12 +6099,12 @@ static int wlan_hdd_sap_p2p_11ac_overrides(struct hdd_adapter *ap_adapter)
 			sap_cfg->SapHw_mode = eCSR_DOT11_MODE_11ac;
 
 		if (!WLAN_REG_IS_24GHZ_CH_FREQ(sap_cfg->chan_freq)) {
-			status =
-			    ucfg_mlme_get_vht_channel_width(hdd_ctx->psoc,
-							    &ch_width);
-			if (!QDF_IS_STATUS_SUCCESS(status))
-				hdd_err("Failed to set channel_width");
-			sap_cfg->ch_width_orig = ch_width;
+				status =
+				    ucfg_mlme_get_vht_channel_width(hdd_ctx->psoc,
+								    &ch_width);
+				if (!QDF_IS_STATUS_SUCCESS(status))
+					hdd_err("Failed to set channel_width");
+				sap_cfg->ch_width_orig = ch_width;
 		} else {
 			/*
 			 * Allow 40 Mhz in 2.4 Ghz only if indicated by
@@ -7928,6 +7928,11 @@ hdd_check_ap_assist_dfs_group_start_req(struct wlan_hdd_link_info *link_info,
 	}
 
 	psoc = wlan_pdev_get_psoc(pdev);
+
+	if (!ucfg_p2p_is_vdev_wfd_r2_mode(vdev)) {
+		status = QDF_STATUS_SUCCESS;
+		goto vdev_ref;
+	}
 
 	ucfg_mlme_get_dfs_master_capability(psoc, &is_dfs_master);
 	if (is_dfs_master) {

@@ -1544,6 +1544,9 @@ struct hdd_adapter {
 #ifdef WLAN_FEATURE_11BE_MLO
 	qdf_time_t link_state_cached_timestamp;
 #endif
+#ifdef CFG_SUPPORT_SCAN_EXT_FLAG
+	uint8_t scan_ext_flag;
+#endif
 	uint16_t keep_alive_interval;
 	struct get_station_client_info sta_client_info[GET_STA_MAX_HOST_CLIENT];
 	bool wlm_ll_conn_flag;

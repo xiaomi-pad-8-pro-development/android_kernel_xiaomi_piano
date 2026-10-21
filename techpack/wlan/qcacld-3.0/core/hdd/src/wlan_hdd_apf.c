@@ -116,6 +116,7 @@ hdd_post_get_apf_capabilities_rsp(struct hdd_context *hdd_ctx,
 {
 	struct sk_buff *skb;
 	uint32_t nl_buf_len;
+	uint32_t apf_version;
 
 	hdd_enter();
 
@@ -135,9 +136,15 @@ hdd_post_get_apf_capabilities_rsp(struct hdd_context *hdd_ctx,
 		  apf_get_offload->apf_version,
 		  apf_get_offload->max_bytes_for_apf_inst);
 
+	apf_version = apf_get_offload->apf_version;
+	if (apf_version > 6000) {
+		apf_version = 4;
+		hdd_err("APF Version ret: %u -> 4", apf_get_offload->apf_version);
+	}
+
 	if (nla_put_u32(skb, APF_PACKET_SIZE,
 			apf_get_offload->max_bytes_for_apf_inst) ||
-	    nla_put_u32(skb, APF_VERSION, apf_get_offload->apf_version)) {
+	    nla_put_u32(skb, APF_VERSION, apf_version)) {
 		hdd_err("nla put failure");
 		goto nla_put_failure;
 	}

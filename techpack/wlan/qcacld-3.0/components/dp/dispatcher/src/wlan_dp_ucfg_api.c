@@ -54,47 +54,6 @@
 #include "wlan_dp_load_balance.h"
 #include "wlan_dp_flow_balance.h"
 
-#ifdef FEATURE_DIRECT_LINK
-/**
- * wlan_dp_set_vdev_direct_link_cfg() - Set direct link config in DP vdev
- * @psoc: objmgr psoc handle
- * @dp_intf: pointer to DP component interface handle
- *
- * Return: direct link configuration
- */
-static inline
-QDF_STATUS wlan_dp_set_vdev_direct_link_cfg(struct wlan_objmgr_psoc *psoc,
-					    struct wlan_dp_intf *dp_intf)
-{
-	struct wlan_dp_link *dp_link, *dp_link_next;
-	cdp_config_param_type vdev_param = {0};
-	QDF_STATUS status;
-
-	if (dp_intf->device_mode != QDF_SAP_MODE ||
-	    !dp_intf->dp_ctx->dp_direct_link_ctx)
-		return QDF_STATUS_SUCCESS;
-
-	dp_for_each_link_held_safe(dp_intf, dp_link, dp_link_next) {
-		vdev_param.cdp_vdev_tx_to_fw =
-					dp_intf->direct_link_config.config_set;
-		status = cdp_txrx_set_vdev_param(wlan_psoc_get_dp_handle(psoc),
-						 dp_link->link_id,
-						 CDP_VDEV_TX_TO_FW, vdev_param);
-		if (QDF_IS_STATUS_ERROR(status))
-			break;
-	}
-
-	return status;
-}
-#else
-static inline
-QDF_STATUS wlan_dp_set_vdev_direct_link_cfg(struct wlan_objmgr_psoc *psoc,
-					    struct wlan_dp_intf *dp_intf)
-{
-	return QDF_STATUS_SUCCESS;
-}
-#endif
-
 #ifdef WLAN_FEATURE_11BE_MLO
 static inline
 QDF_STATUS wlan_dp_update_vdev_mac_addr(struct wlan_dp_psoc_context *dp_ctx,
@@ -216,8 +175,6 @@ void ucfg_dp_update_intf_mac(struct wlan_objmgr_psoc *psoc,
 		dp_link ? dp_link->link_id : 255);
 	if (dp_link && dp_link->dp_intf == dp_intf)
 		dp_intf->def_link = dp_link;
-
-	wlan_dp_set_vdev_direct_link_cfg(psoc, dp_intf);
 }
 
 static inline uint8_t
@@ -1740,6 +1697,32 @@ ucfg_dp_is_disconect_after_roam_fail(struct wlan_objmgr_psoc *psoc)
 
 	if (dp_cfg->enable_nud_tracking == DP_DISCONNECT_AFTER_ROAM_FAIL)
 		return true;
+
+	return false;
+}
+
+bool
+ucfg_dp_is_nud_failure_event_notify(struct wlan_objmgr_psoc *psoc)
+{
+	struct wlan_dp_psoc_context *dp_ctx;
+	struct wlan_dp_psoc_cfg *dp_cfg;
+
+	dp_ctx = dp_psoc_get_priv(psoc);
+	if (!dp_ctx) {
+		dp_err("Unable to get DP context");
+		return false;
+	}
+
+	dp_cfg = &dp_ctx->dp_cfg;
+	if (!dp_cfg) {
+		dp_err("Unable to get DP config");
+		return false;
+	}
+
+	if (dp_cfg->enable_nud_failure_event_notify ==
+			DP_NOFITY_EVENT_AFTER_ROAM_FAIL) {
+		return true;
+	}
 
 	return false;
 }
@@ -3310,6 +3293,33 @@ bool ucfg_dp_ipa_ctrl_debug_supported(struct wlan_objmgr_psoc *psoc)
 
 	if (is_ipa_ctrl_debug_supported ==
 		       IPA_DEBUG_OPT_DP_CTRL)
+		return true;
+
+	return false;
+}
+
+#define DP_NOTIFY_BMISS_EVENT_TO_FWK_ENABLED 1
+bool ucfg_dp_bmiss_event_notify(struct wlan_objmgr_psoc *psoc)
+{
+	struct wlan_dp_psoc_context *dp_ctx;
+	struct wlan_dp_psoc_cfg *dp_cfg;
+
+	dp_ctx = dp_psoc_get_priv(psoc);
+	if (!dp_ctx)
+	{
+		dp_err("DP context is NULL");
+		return false;
+	}
+
+	dp_cfg = &dp_ctx->dp_cfg;
+	if (!dp_cfg)
+	{
+		dp_err("DP config is NULL");
+		return false;
+	}
+
+	if (dp_cfg->enable_bmiss_event_notify ==
+			DP_NOTIFY_BMISS_EVENT_TO_FWK_ENABLED)
 		return true;
 
 	return false;

@@ -128,6 +128,47 @@ struct cnss_driver_event {
 	void *data;
 };
 
+enum cnss_pci_state {
+	CNSS_PCI_STATE_NORMAL,
+	CNSS_PCI_STATE_LINKDOWN_VDDAON,
+	CNSS_PCI_STATE_LINKDOWN_CLKAON,
+};
+
+static int cnss_pci_link_down_state = CNSS_PCI_STATE_NORMAL;
+static int cnss_pci_link_down_cnt = 0;
+
+bool cnss_pci_state_is_normal(void)
+{
+	cnss_pr_dbg("cur pci link state %d", cnss_pci_link_down_state);
+	return cnss_pci_link_down_state == CNSS_PCI_STATE_NORMAL;
+}
+bool cnss_pci_state_need_vddaon(void)
+{
+	cnss_pr_dbg("cur pci link state %d", cnss_pci_link_down_state);
+	return cnss_pci_link_down_state >= CNSS_PCI_STATE_LINKDOWN_VDDAON;
+}
+bool cnss_pci_state_need_clkaon(void)
+{
+	cnss_pr_dbg("cur pci link state %d", cnss_pci_link_down_state);
+	return cnss_pci_link_down_state >= CNSS_PCI_STATE_LINKDOWN_CLKAON;
+}
+void cnss_pci_state_set_normal(void)
+{
+	cnss_pr_dbg("Set cnss pci state to normal");
+	cnss_pci_link_down_state = CNSS_PCI_STATE_NORMAL;
+}
+void cnss_pci_state_update(void)
+{
+	if (cnss_pci_link_down_state == CNSS_PCI_STATE_NORMAL) {
+		cnss_pci_link_down_state = CNSS_PCI_STATE_LINKDOWN_VDDAON;
+	} else if (cnss_pci_link_down_state == CNSS_PCI_STATE_LINKDOWN_VDDAON) {
+		cnss_pci_link_down_state = CNSS_PCI_STATE_LINKDOWN_CLKAON;
+	}
+	cnss_pci_link_down_cnt++;
+	cnss_pr_warn("update pci link state to %d, link down cnt %d",
+		    cnss_pci_link_down_state, cnss_pci_link_down_cnt);
+}
+
 bool cnss_check_driver_loading_allowed(void)
 {
 	return cnss_allow_driver_loading;

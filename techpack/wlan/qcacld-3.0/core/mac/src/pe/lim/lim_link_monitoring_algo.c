@@ -47,7 +47,11 @@
 #include "lim_ser_des_utils.h"
 #include "wlan_dlm_api.h"
 #include <lim_mlo.h>
+#include "wlan_dp_ucfg_api.h"
+#include "wlan_hdd_data_stall_detection.h"
+#include "wlan_cm_ucfg_api.h"
 #include "wlan_tdls_api.h"
+#include "wlan_policy_mgr_i.h"
 
 /**
  * lim_delete_sta_util - utility function for deleting station context
@@ -530,6 +534,31 @@ void lim_handle_heart_beat_failure(struct mac_context *mac_ctx,
 		/* Beacon frame not received within heartbeat timeout. */
 		pe_warn("Heartbeat Failure");
 		mac_ctx->lim.gLimHBfailureCntInLinkEstState++;
+
+		/**
+		 * In the following scenario, firstly do not disconnect
+		 * and try to recover the BMISS;
+		 * 1.BTC scenarion;
+		 * 2.no-mlo connection;
+		 */
+		struct policy_mgr_psoc_priv_obj *pm_ctx;
+		uint8_t sta_active_link_nums;
+		pm_ctx = policy_mgr_get_context(mac_ctx->psoc);
+		if (!pm_ctx) {
+			pe_err("Policy manager context is NULL");
+			sta_active_link_nums = 0;
+		} else {
+			sta_active_link_nums = pm_ctx->no_of_active_sessions[QDF_STA_MODE];
+		}
+		if (ucfg_dp_bmiss_event_notify(mac_ctx->psoc) &&
+				(ucfg_cm_get_connected_band(session->vdev) == BAND_2G) &&
+				!wlan_vdev_mlme_is_mlo_vdev(session->vdev) &&
+				sta_active_link_nums == 1) {
+			pe_debug("Ignore Heartbeat failure as BTC scenario");
+			session->pmmOffloadInfo.bcnmiss = false;
+			hdd_data_stall_event_notify(WLAN_DBG_DATA_STALL_CONSECUTICE_BMISS);
+			goto hb_handler_fail;
+		}
 
 		/*
 		 * Before host received beacon miss, firmware has checked link

@@ -1887,6 +1887,8 @@ void cnss_pci_handle_linkdown(struct cnss_pci_data *pci_priv)
 	cnss_pci_update_link_event(pci_priv, BUS_EVENT_PCI_LINK_DOWN, NULL);
 
 	cnss_fatal_err("PCI link down, schedule recovery\n");
+	/** update cnss pcie state */
+	cnss_pci_state_update();
 	reinit_completion(&pci_priv->wake_event_complete);
 	cnss_schedule_recovery(&pci_dev->dev, CNSS_REASON_LINK_DOWN);
 }

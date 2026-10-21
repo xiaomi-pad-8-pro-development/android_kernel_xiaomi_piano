@@ -778,5 +778,12 @@ size_t cnss_get_platform_name(struct cnss_plat_data *plat_priv,
 			      char *buf, const size_t buf_len);
 int cnss_iommu_map(struct iommu_domain *domain, unsigned long iova,
 		   phys_addr_t paddr, size_t size, int prot);
+
+bool cnss_pci_state_is_normal(void);
+bool cnss_pci_state_need_vddaon(void);
+bool cnss_pci_state_need_clkaon(void);
+bool cnss_pci_state_need_nortpm(void);
+void cnss_pci_state_set_normal(void);
+void cnss_pci_state_update(void);
 int cnss_init_sol_gpio(struct cnss_plat_data *plat_priv);
 #endif /* _CNSS_MAIN_H */

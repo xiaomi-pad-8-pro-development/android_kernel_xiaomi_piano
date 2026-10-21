@@ -40,6 +40,7 @@
 #include "reg_build_chan_list.h"
 #include <wlan_objmgr_pdev_obj.h>
 #include <target_if.h>
+#include "wlan_policy_mgr_api.h"
 #ifdef WLAN_FEATURE_GET_USABLE_CHAN_LIST
 #include "wlan_mlme_ucfg_api.h"
 #include "wlan_nan_api.h"
@@ -3964,10 +3965,13 @@ reg_skip_invalid_chan_freq(struct wlan_objmgr_pdev *pdev,
 			   uint32_t iface_mode_mask)
 {
 	uint32_t chan_enum, iface_mode = 0;
+	uint32_t max_num_of_conc_connections = 0;
 	QDF_STATUS status = QDF_STATUS_SUCCESS;
 	bool include_indoor_channel, dfs_master_capable;
 	uint8_t enable_srd_chan, srd_mask = 0;
 	struct wlan_objmgr_psoc *psoc;
+	struct policy_mgr_conc_connection_info *pm_conc_connection_list = NULL;
+	uint32_t freq = 0;
 	enum reg_6g_ap_type ap_pwr_type;
 	enum supported_6g_pwr_types ap_pwr_mode;
 	enum channel_state chan_state;
@@ -3998,6 +4002,11 @@ reg_skip_invalid_chan_freq(struct wlan_objmgr_pdev *pdev,
 		return status;
 	}
 
+	pm_conc_connection_list = policy_mgr_get_conn_info(&max_num_of_conc_connections);
+	if (policy_mgr_get_connection_count(psoc) == 1) {
+		freq = pm_conc_connection_list[0].freq;
+		reg_debug("allow sap/go to use freq %u", freq);
+	}
 	wlan_reg_get_cur_6g_ap_pwr_type(pdev, &ap_pwr_type);
 
 	if (ap_pwr_type == REG_INDOOR_AP)
@@ -4038,7 +4047,8 @@ reg_skip_invalid_chan_freq(struct wlan_objmgr_pdev *pdev,
 				if (!reg_is_state_allowed(chan_state) ||
 				    (wlan_reg_is_freq_indoor(
 					pdev, res_msg[chan_enum].freq) &&
-					!include_indoor_channel)) {
+					(freq != res_msg[chan_enum].freq ||
+					!include_indoor_channel))) {
 					res_msg[chan_enum].iface_mode_mask &=
 							~(iface_mode);
 					if (!res_msg[chan_enum].iface_mode_mask)

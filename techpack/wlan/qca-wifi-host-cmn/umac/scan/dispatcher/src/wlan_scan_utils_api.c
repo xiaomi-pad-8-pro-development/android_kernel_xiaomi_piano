@@ -4335,7 +4335,6 @@ util_scan_entry_renew_timestamp(struct wlan_objmgr_pdev *pdev,
 	if (scan_obj->cb.inform_beacon)
 		scan_obj->cb.inform_beacon(pdev, scan_entry);
 }
-
 uint8_t*
 util_scan_entry_rsn_by_gen(struct scan_cache_entry *scan_entry,
 			   uint8_t rsno_gen)

@@ -982,6 +982,18 @@ static inline bool wma_is_epm_supported_fw(WMA_HANDLE handle)
 }
 #endif
 
+/**
+ * wma_is_both_psd_eirp_support_present_for_sp() - FW can handle
+ * PSD and EIRP together or not
+ *
+ * @param: reg tpc power
+ * @value: true if FW can handle PSD and EIRP together or not
+ *
+ * Return: None
+ */
+void
+wma_is_both_psd_eirp_support_present_for_sp(struct reg_tpc_power_info *param,
+					    bool *value);
 #ifdef FEATURE_WLAN_APF
 /**
  * wma_get_fw_active_apf_mode() - convert active_apf_mode to WMI

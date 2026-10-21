@@ -5730,8 +5730,10 @@ static int hdd_open(struct net_device *net_dev)
 	struct osif_vdev_sync *vdev_sync;
 
 	errno = osif_vdev_sync_trans_start(net_dev, &vdev_sync);
-	if (errno)
+	if (errno) {
+		hdd_err("VDEV SYNC TRANS start fails %d", errno);
 		return errno;
+	}
 
 	errno = __hdd_open(net_dev);
 	if (!errno)
@@ -18647,6 +18649,7 @@ static QDF_STATUS hdd_open_p2p_interface(struct hdd_context *hdd_ctx)
 
 	return QDF_STATUS_SUCCESS;
 }
+
 #else
 static inline QDF_STATUS hdd_open_p2p_interface(struct hdd_context *hdd_ctx)
 {
@@ -23067,8 +23070,6 @@ void wlan_hdd_del_monitor(struct hdd_context *hdd_ctx,
 	wlan_hdd_release_intf_addr(hdd_ctx, adapter->mac_addr.bytes);
 	hdd_stop_adapter(hdd_ctx, adapter);
 	hdd_close_adapter(hdd_ctx, adapter, true);
-
-	hdd_open_p2p_interface(hdd_ctx);
 }
 
 void
@@ -23174,7 +23175,6 @@ wlan_hdd_add_monitor_check(struct hdd_context *hdd_ctx,
 		hdd_err("hdd_open_adapter failed");
 		if (ucfg_pkt_capture_get_mode(hdd_ctx->psoc) !=
 						PACKET_CAPTURE_MODE_DISABLE)
-			hdd_open_p2p_interface(hdd_ctx);
 		return -EINVAL;
 	}
 

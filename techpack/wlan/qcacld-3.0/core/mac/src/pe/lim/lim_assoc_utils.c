@@ -3289,7 +3289,8 @@ lim_check_and_announce_join_success(struct mac_context *mac_ctx,
 		return;
 	}
 
-	pe_debug("Received Beacon/PR with BSSID:"QDF_MAC_ADDR_FMT" pe session %d vdev %d",
+	pe_debug("Received %s with BSSID:"QDF_MAC_ADDR_FMT" pe session %d vdev %d",
+		 (SIR_MAC_MGMT_BEACON == header->fc.subType) ? "Beacon" : "PR",
 		 QDF_MAC_ADDR_REF(session_entry->bssId),
 		 session_entry->peSessionId,
 		 session_entry->vdev_id);

@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -332,8 +332,7 @@ QDF_STATUS
 wlan_scan_process_bcn_probe_rx_sync(struct wlan_objmgr_psoc *psoc,
 				    qdf_nbuf_t buf,
 				    struct mgmt_rx_event_params *rx_param,
-				    enum mgmt_frame_type frm_type,
-				    bool is_gen_entry)
+				    enum mgmt_frame_type frm_type)
 {
 	struct scan_bcn_probe_event *bcn = NULL;
 	QDF_STATUS status;
@@ -380,7 +379,6 @@ wlan_scan_process_bcn_probe_rx_sync(struct wlan_objmgr_psoc *psoc,
 	 * is a non-tx profile.
 	 */
 	bcn->save_rnr_info = true;
-	bcn->is_gen_entry = is_gen_entry;
 	qdf_mem_copy(bcn->rx_data, rx_param, sizeof(*rx_param));
 
 	return __scm_handle_bcn_probe(bcn);
@@ -900,27 +898,6 @@ wlan_scan_get_entry_by_bssid(struct wlan_objmgr_pdev *pdev,
 			     struct qdf_mac_addr *bssid)
 {
 	return scm_scan_get_entry_by_bssid(pdev, bssid);
-}
-
-bool wlan_scan_flush_locally_generated_entry(struct wlan_objmgr_pdev *pdev,
-					     struct qdf_mac_addr *bssid)
-{
-	struct scan_cache_entry *entry = NULL;
-	bool status = true;
-
-	/* check if scan entry locally generated */
-	entry = wlan_scan_get_entry_by_bssid(pdev, bssid);
-	if (!entry)
-		return false;
-
-	if (!entry->is_gen_entry)
-		status = false;
-	else
-		scm_debug(QDF_MAC_ADDR_FMT ": Flushing the candidate scan entry",
-			  QDF_MAC_ADDR_REF(bssid->bytes));
-	util_scan_free_cache_entry(entry);
-
-	return status;
 }
 
 QDF_STATUS

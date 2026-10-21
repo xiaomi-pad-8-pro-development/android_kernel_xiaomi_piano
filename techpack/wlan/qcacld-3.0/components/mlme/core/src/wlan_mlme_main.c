@@ -1159,9 +1159,19 @@ static inline void mlme_init_oem_eht_mlo_cfg(struct wlan_objmgr_psoc *psoc,
 	gen->oem_eht_mlo_crypto_bitmap =
 				cfg_get(psoc, CFG_OEM_EHT_MLO_CRYPTO_BITMAP);
 }
+static inline void mlme_init_eht_open_crypto_allow_cfg(struct wlan_objmgr_psoc *psoc,
+						 struct wlan_mlme_generic *gen)
+{
+	gen->eht_mlo_crypto_open_allow =
+				cfg_get(psoc, CFG_EHT_MLO_CRYPTO_OPEN_ALLOW);
+}
 #else
 static inline void mlme_init_oem_eht_mlo_cfg(struct wlan_objmgr_psoc *psoc,
 					     struct wlan_mlme_generic *gen)
+{
+}
+static inline void mlme_init_eht_open_crypto_allow_cfg(struct wlan_objmgr_psoc *psoc,
+						 struct wlan_mlme_generic *gen)
 {
 }
 #endif /* WLAN_FEATURE_11BE */
@@ -1391,6 +1401,7 @@ static void mlme_init_generic_cfg(struct wlan_objmgr_psoc *psoc,
 	gen->wls_6ghz_capable = cfg_get(psoc, CFG_WLS_6GHZ_CAPABLE);
 	mlme_init_pmf_cfg(psoc, gen);
 	mlme_init_oem_eht_mlo_cfg(psoc, gen);
+	mlme_init_eht_open_crypto_allow_cfg(psoc, gen);
 	mlme_init_lpass_support_cfg(psoc, gen);
 	gen->enabled_rf_test_mode = cfg_default(CFG_RF_TEST_MODE_SUPP_ENABLED);
 	gen->rf_mode_force_pwr_type = cfg_default(CFG_RF_MODE_FORCE_PWR_TYPE);
@@ -3533,7 +3544,6 @@ static void mlme_init_wifi_pos_cfg(struct wlan_objmgr_psoc *psoc,
 		cfg_get(psoc, CFG_FINE_TIME_MEAS_CAPABILITY);
 	wifi_pos_cfg->oem_6g_support_disable =
 		cfg_get(psoc, CFG_OEM_SIXG_SUPPORT_DISABLE);
-
 	mlme_init_wifi_pos_11az_config(psoc, wifi_pos_cfg);
 }
 

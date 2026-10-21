@@ -1158,6 +1158,12 @@ tgt_send_pdev_mc_cp_stats(struct wlan_objmgr_psoc *psoc,
 	if (!ev || !last_req)
 		return QDF_STATUS_E_NULL_VALUE;
 
+	if (policy_mgr_vdev_is_force_inactive(psoc, last_req->vdev_id)) {
+		cp_stats_debug("Ignore pdev stats on inactive link vdev %d",
+			       last_req->vdev_id);
+		return QDF_STATUS_SUCCESS;
+	}
+	
 	vdev = wlan_objmgr_get_vdev_by_id_from_psoc(psoc, last_req->vdev_id,
 						    WLAN_CP_STATS_ID);
 	if (!vdev) {

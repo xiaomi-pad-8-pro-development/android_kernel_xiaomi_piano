@@ -2879,6 +2879,29 @@ static int drv_cmd_get_country(struct wlan_hdd_link_info *link_info,
 	return ret;
 }
 
+/**
+ * set APF working status per WLAN chip's suspend monitor mode
+ * @adapter: pointer to adapter on which request is received
+ * Return: On success 0, negative value on error.
+ */
+static int drv_apf_enable(struct hdd_adapter *adapter, bool apf_enable)
+{
+/*
+	QDF_STATUS status;
+	hdd_prevent_suspend(WIFI_POWER_EVENT_WAKELOCK_WOW);
+	status = sme_set_apf_enable_disable(hdd_adapter_get_mac_handle(adapter),
+					    adapter->deflink->vdev_id, apf_enable);
+	if (!QDF_IS_STATUS_SUCCESS(status)) {
+		hdd_err("Unable to post sme apf enable/disable message (status-%d)",
+				status);
+		return -EINVAL;
+	}
+	adapter->apf_context.apf_enabled = apf_enable;
+	hdd_allow_suspend(WIFI_POWER_EVENT_WAKELOCK_WOW);
+*/
+	return 0;
+}
+
 static int drv_cmd_set_roam_trigger(struct wlan_hdd_link_info *link_info,
 				    struct hdd_context *hdd_ctx,
 				    uint8_t *command,
@@ -3302,6 +3325,9 @@ static int drv_cmd_set_suspend_mode(struct wlan_hdd_link_info *link_info,
 		hdd_err("Range validation failed");
 		return -EINVAL;
 	}
+
+	//idle_monitor: 0-screen on/monitor off/APF disable, 1: screen off/monitor on/APF enable.
+	drv_apf_enable(adapter, idle_monitor);
 
 	hdd_debug("idle_monitor:%d, configure apf per screen state = %d",
 		  idle_monitor,
@@ -4879,15 +4905,15 @@ static int drv_cmd_miracast(struct wlan_hdd_link_info *link_info,
 	case MIRACAST_SINK:
 		break;
 	case MIRACAST_CONN_OPT_ENABLED:
+		ucfg_mlme_start_miracast_opt(hdd_ctx->psoc);
+		wma_cli_set_command(0, wmi_pdev_param_power_collapse_enable, 0,
+				    PDEV_CMD);
+		return 0;
 	case MIRACAST_CONN_OPT_DISABLED:
-		{
-			wma_cli_set_command(
-				link_info->vdev_id,
-				wmi_pdev_param_power_collapse_enable,
-				(filter_type == MIRACAST_CONN_OPT_ENABLED ?
-				 0 : 1), PDEV_CMD);
-			return 0;
-		}
+		wma_cli_set_command(0, wmi_pdev_param_power_collapse_enable, 1,
+				    PDEV_CMD);
+		ucfg_mlme_stop_miracast_opt(hdd_ctx->psoc);
+		return 0;
 	default:
 		hdd_err("accepted Values: 0-Disabled, 1-Source, 2-Sink, 128,129");
 		ret = -EINVAL;
@@ -5540,6 +5566,41 @@ static int drv_cmd_set_app2_params(struct wlan_hdd_link_info *link_info,
 	return ret;
 }
 #endif /* WLAN_FEATURE_EXTWOW_SUPPORT */
+
+#ifdef CFG_SUPPORT_SCAN_EXT_FLAG
+/**
+ * argv: 1 means that force scan on gaming mode
+ */
+static int driver_cmd_set_scan_ext_flag(struct wlan_hdd_link_info *link_info,
+				   struct hdd_context *hdd_ctx,
+				   uint8_t *command,
+				   uint8_t command_len,
+				   struct hdd_priv_data *priv_data)
+{
+	int ret = 0;
+	uint8_t *value = command;
+	uint8_t external_flag = 0;
+
+	/* Move pointer to ahead of SetScanExtFlag */
+	value = value + command_len + 1;
+
+	/* Convert the value from ascii to integer */
+	ret = kstrtou8(value, 10, &external_flag);
+	if (ret < 0) {
+		/*
+		 * If the input value is greater than max value of datatype,
+		 * then also kstrtou8 fails
+		 */
+		hdd_err("kstrtou8 failed Input value may be out of range");
+		ret = -EINVAL;
+		return ret;
+	}
+
+	link_info->adapter->scan_ext_flag = external_flag;
+	hdd_debug("driver_cmd_set_scan_ext_flag: %d ", link_info->adapter->scan_ext_flag);
+	return ret;
+}
+#endif /* CFG_SUPPORT_SCAN_EXT_FLAG */
 
 #ifdef FEATURE_WLAN_TDLS
 /**
@@ -7519,6 +7580,9 @@ static const struct hdd_drv_cmd hdd_drv_cmds[] = {
 	{"GET_SOFTAP_LINK_SPEED",     drv_cmd_get_sap_go_linkspeed, true},
 #ifdef CONFIG_BAND_6GHZ
 	{"GET_WIFI6E_CHANNELS",       drv_cmd_get_wifi6e_channels, true},
+#endif
+#ifdef CFG_SUPPORT_SCAN_EXT_FLAG
+	{"SetScanExtFlag",            driver_cmd_set_scan_ext_flag, true},
 #endif
 };
 

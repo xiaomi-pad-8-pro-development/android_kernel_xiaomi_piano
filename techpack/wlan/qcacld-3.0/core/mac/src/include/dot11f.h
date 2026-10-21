@@ -13246,5 +13246,4 @@ uint32_t dot11f_get_packed_vendor_action_frameSize(tpAniSirGlobal pCtx,
 #ifdef __cplusplus
 } /* End extern "C". */
 #endif /* C++ */
-
 #endif /* DOT11F_H */

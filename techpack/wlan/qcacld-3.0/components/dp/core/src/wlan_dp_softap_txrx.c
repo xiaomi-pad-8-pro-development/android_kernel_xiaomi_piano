@@ -47,6 +47,7 @@
 #include <cdp_txrx_ctrl.h>
 #endif
 
+
 /* Preprocessor definitions and constants */
 #undef QCA_DP_SAP_DUMP_SK_BUFF
 
@@ -886,6 +887,7 @@ QDF_STATUS dp_softap_start_xmit(qdf_nbuf_t nbuf, struct wlan_dp_link *dp_link)
 		dp_debug_rl("nbuf %pK linearize failed. drop the pkt", nbuf);
 		goto drop_pkt_and_release_skb;
 	}
+
 
 	except = dp_softap_is_exception_path(dp_link, nbuf,
 					     &tx_exc_metadata);

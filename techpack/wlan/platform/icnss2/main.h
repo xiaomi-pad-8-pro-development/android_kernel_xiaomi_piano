@@ -51,6 +51,8 @@
 #define ICNSS_RAMDUMP_MAGIC		0x574C414E
 #define ICNSS_RAMDUMP_VERSION		0
 #define MSI_USERS                       2
+/* Consecutive SOC wake request failures to trigger recovery */
+#define ICNSS_SOC_WAKE_RECOVERY_COUNT 5
 
 extern uint64_t dynamic_feature_mask;
 
@@ -286,6 +288,7 @@ struct icnss_stats {
 	struct {
 		u32 posted;
 		u32 processed;
+		u32 recovery_count;
 	} soc_wake_events[ICNSS_SOC_WAKE_EVENT_MAX];
 
 	struct {
@@ -656,6 +659,7 @@ struct icnss_priv {
 		shared_mem[QMI_WLFW_SHARED_MAX_CLIENT_SUPPORT_V01];
 	u64 fw_caps;
 	u32 ddr_type;
+	uint32_t soc_wake_req_fail;
 };
 
 struct icnss_reg_info {

@@ -40,6 +40,10 @@
 #include "wlan_psoc_mlme_api.h"
 #include <wlan_cp_stats_chipset_stats.h>
 #include "wlan_dlm_api.h"
+#include <wlan_cfg80211.h>
+#include <net/cfg80211.h>
+#include <linux/nl80211.h>
+#include <wlan_osif_priv.h>
 #ifdef WLAN_FEATURE_11BE_MLO
 #include "wlan_mlo_link_force.h"
 #endif
@@ -3726,6 +3730,74 @@ cm_roam_stats_print_scan_info(struct wlan_objmgr_psoc *psoc,
 }
 
 /**
+ * roam_failure_result_info_report  - report the roam failed result info
+ * details
+ * @psoc:      psoc common object
+ * @scan:      Roam result structure pointer
+ * @vdev_id:   Vdev ID
+ *
+ * if roam failed, report roam failed reason to wpa_supplicant
+ *
+ * Return: report success or failure
+ */
+static int roam_failure_result_info_report(struct wlan_objmgr_psoc *psoc,
+				   struct wmi_roam_result *res,
+				   uint8_t vdev_id)
+{
+	struct wlan_objmgr_vdev *vdev;
+	struct sk_buff *roam_failure_skb = NULL;
+	struct vdev_osif_priv *osif_priv;
+	struct net_device *net_dev;
+	size_t interace_name_len = 0;
+	size_t fail_reason_len = 0;
+
+	vdev = wlan_objmgr_get_vdev_by_id_from_psoc(psoc, vdev_id,
+						    WLAN_MLME_SB_ID);
+	if (!vdev) {
+		mlme_err("vdev object is NULL");
+		return -1;
+	}
+
+	osif_priv = wlan_vdev_get_ospriv(vdev);
+	if (!osif_priv || !osif_priv->wdev || !osif_priv->wdev->netdev) {
+		mlme_err("OSIF priv is NULL");
+		goto rel_ref;
+	}
+
+	net_dev = osif_priv->wdev->netdev;
+	interace_name_len = sizeof(net_dev->name);
+	fail_reason_len = strlen(mlme_get_roam_fail_reason_str(res->fail_reason)) + 1;
+
+	roam_failure_skb = cfg80211_vendor_event_alloc(osif_priv->wdev->wiphy,
+				osif_priv->wdev,
+				interace_name_len + fail_reason_len,
+				QCA_NL80211_VENDOR_SUBCMD_ROAM_EVENTS_INDEX,
+				qdf_mem_malloc_flags());
+
+	if (!roam_failure_skb) {
+		mlme_err("cfg80211_vendor_event_alloc failed");
+		goto rel_ref;
+	}
+
+	if(nla_put(roam_failure_skb, QCA_WLAN_VENDOR_ATTR_ROAM_TNTERACE,
+                   interace_name_len, net_dev->name) ||
+	   nla_put(roam_failure_skb, QCA_WLAN_VENDOR_ATTR_ROAM_FAIL_REASON,
+		   fail_reason_len, mlme_get_roam_fail_reason_str(res->fail_reason))) {
+			mlme_err("roam reason send failure");
+			goto nla_put_failure;
+	}
+	cfg80211_vendor_event(roam_failure_skb, qdf_mem_malloc_flags());
+
+  rel_ref:
+	wlan_objmgr_vdev_release_ref(vdev, WLAN_MLME_SB_ID);
+	return 0;
+
+  nla_put_failure:
+	kfree_skb(roam_failure_skb);
+	return -1;
+}
+
+/**
  * cm_roam_stats_print_roam_result()  - Print roam result related info
  * @psoc: Pointer to psoc object
  * @trigger: roam trigger information
@@ -3747,6 +3819,7 @@ cm_roam_stats_print_roam_result(struct wlan_objmgr_psoc *psoc,
 	char *buf;
 	char time[TIME_STRING_LEN];
 	QDF_STATUS status;
+	int ret = 0;
 
 	/* Update roam result info to userspace */
 	cm_roam_result_info_event(psoc, trigger, res, scan_data, vdev_id);
@@ -3774,6 +3847,13 @@ cm_roam_stats_print_roam_result(struct wlan_objmgr_psoc *psoc,
 					    ROAM_FAIL_REASON);
 	if (QDF_IS_STATUS_ERROR(status))
 		mlme_err("failed to update rt stats roam fail reason");
+
+	if(res->status == 1) {
+		ret = roam_failure_result_info_report(psoc, res, vdev_id);
+		mlme_nofl_info("send roam result info");
+		if(ret)
+			mlme_err("send roam result info failed");
+	}
 }
 
 #define WLAN_ROAM_11KV_REQ_TYPE_BTM        1

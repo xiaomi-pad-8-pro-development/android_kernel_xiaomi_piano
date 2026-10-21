@@ -4238,8 +4238,6 @@ bool policy_mgr_allow_same_mac_diff_freq(struct wlan_objmgr_psoc *psoc,
 	} else if (policy_mgr_3_freq_always_on_same_mac(psoc, ch_freq,
 					pm_conc_connection_list[0].freq,
 					pm_conc_connection_list[1].freq)) {
-			policy_mgr_rl_debug("don't allow 3rd home channel on same MAC");
-			allow = false;
 	}
 
 	return allow;
@@ -4581,15 +4579,13 @@ policy_mgr_get_pref_force_scc_freq(struct wlan_objmgr_psoc *psoc,
 		 * indoor/DFS SCC INI are disabled.
 		 */
 		if (!is_dbs &&
-		    ((wlan_reg_is_dfs_for_freq(pm_ctx->pdev, pcl_freq) &&
-		      !policy_mgr_is_sap_allowed_on_dfs_freq(pm_ctx->pdev,
+			(!policy_mgr_is_sap_allowed_on_dfs_freq(pm_ctx->pdev,
 							     vdev_id,
-							     pcl_freq)) ||
-		     (wlan_reg_is_freq_indoor(pm_ctx->pdev, pcl_freq) &&
-		      !policy_mgr_is_sap_go_interface_allowed_on_indoor(
+								pcl_freq) ||
+			!policy_mgr_is_sap_go_interface_allowed_on_indoor(
 							pm_ctx->pdev,
 							vdev_id,
-							pcl_freq))))
+							pcl_freq)))
 			continue;
 
 		/* Skip LL LT SAP freq and for SAP skip same mac freq */
@@ -4886,6 +4882,11 @@ void policy_mgr_check_scc_channel(struct wlan_objmgr_psoc *psoc,
 	pm_ctx = policy_mgr_get_context(psoc);
 	if (!pm_ctx) {
 		policy_mgr_err("Invalid Context");
+		return;
+	}
+
+	/* Always do force SCC on non-DBS platforms */
+	if (!is_dbs) {
 		return;
 	}
 

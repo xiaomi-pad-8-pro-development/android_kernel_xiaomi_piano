@@ -1,6 +1,6 @@
 load("//build/bazel_common_rules/dist:dist.bzl", "copy_to_dist_dir")
 load("//build/kernel/kleaf:kernel.bzl", "ddk_module")
-load(":target_variants.bzl", "get_all_variants")
+load("//msm-kernel:target_variants.bzl", "get_all_variants", "get_arch_of_target")
 
 _target_chipset_map = {
     "anorak": [
@@ -2411,7 +2411,6 @@ def _define_module_for_target_variant_chipset(target, variant, chipset):
         cmd = "cat $(SRCS) > $@",
     )
 
-
     srcs = native.glob(iglobs) + _fixed_srcs
 
     out = "qca_cld3_{}.ko".format(chipset.replace("-", "_"))
@@ -2428,11 +2427,11 @@ def _define_module_for_target_variant_chipset(target, variant, chipset):
         ]
 
     deps = deps + [
-        "//vendor/qcom/opensource/wlan/platform:{}_cnss_prealloc".format(tv),
-        "//vendor/qcom/opensource/wlan/platform:{}_cnss_utils".format(tv),
-        "//vendor/qcom/opensource/wlan/platform:{}_cnss_nl".format(tv),
-        "//vendor/qcom/opensource/wlan/platform:wlan-platform-headers",
-    ]
+            "//vendor/qcom/opensource/wlan/platform:{}_cnss_prealloc".format(tv),
+            "//vendor/qcom/opensource/wlan/platform:{}_cnss_utils".format(tv),
+            "//vendor/qcom/opensource/wlan/platform:{}_cnss_nl".format(tv),
+            "//vendor/qcom/opensource/wlan/platform:wlan-platform-headers",
+        ]
 
     if target != "x1e80100" and target != "anorak":
         deps = deps + [
@@ -2493,7 +2492,12 @@ def define_dist(target, variant, chipsets):
     )
 
 def define_modules():
-    for (t, v) in get_all_variants():
+    pairs = []
+    for target, variant in get_all_variants():
+        arch = get_arch_of_target(target)
+        if arch == target:
+            pairs.append((target, variant))
+    for (t, v) in pairs:
         chipsets = _target_chipset_map.get(t)
         if chipsets:
             for c in chipsets:

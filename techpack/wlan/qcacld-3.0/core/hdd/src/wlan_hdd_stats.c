@@ -6568,6 +6568,7 @@ static void wlan_hdd_fill_station_info(struct wlan_objmgr_psoc *psoc,
 	sinfo->tx_failed = stats->tx_failed;
 	sinfo->filled |= HDD_INFO_TX_FAILED;
 	sinfo->tx_retries = stats->tx_retries;
+	sinfo->filled |= HDD_INFO_TX_RETRIES;
 
 	/* sta flags */
 	hdd_fill_sta_flags(sinfo, stainfo);
@@ -7649,12 +7650,16 @@ wlan_hdd_refill_actual_rate(struct station_info *sinfo,
 }
 #endif
 
+#define HDD_INACTIVE_LINK_RSSI -96
+#define HDD_INACTIVE_LINK_SNR 0
+
 static void wlan_hdd_update_rssi(struct wlan_hdd_link_info *link_info,
 				 struct station_info *sinfo)
 {
 	struct hdd_station_ctx *sta_ctx;
 	int8_t snr;
 	mac_handle_t mac_handle;
+        struct wlan_objmgr_psoc *psoc;
 
 	mac_handle = hdd_adapter_get_mac_handle(link_info->adapter);
 	if (!mac_handle) {
@@ -7669,9 +7674,17 @@ static void wlan_hdd_update_rssi(struct wlan_hdd_link_info *link_info,
 
 	/* for new connection there might be no valid previous RSSI */
 	if (!link_info->rssi) {
-		hdd_get_rssi_snr_by_bssid(mac_handle,
-					  sta_ctx->conn_info.bssid.bytes,
-					  &link_info->rssi, &snr);
+	    psoc = wlan_vdev_get_psoc(link_info->vdev);
+	    if (policy_mgr_vdev_is_force_inactive(psoc,
+			       link_info->vdev_id)) {
+		link_info->rssi = HDD_INACTIVE_LINK_RSSI;
+		snr = HDD_INACTIVE_LINK_SNR;
+        } else {
+	    hdd_get_rssi_snr_by_bssid(
+		    mac_handle,
+		    sta_ctx->conn_info.bssid.bytes,
+		    &link_info->rssi, &snr);
+	       }
 	}
 
 	/* If RSSi is reported as positive then it is invalid */

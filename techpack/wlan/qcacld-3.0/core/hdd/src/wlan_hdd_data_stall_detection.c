@@ -65,6 +65,16 @@ static inline void hdd_data_stall_send_event(uint32_t reason)
 #endif
 
 /**
+ * Customize API for reporting data stall event from driver to fwk
+ * @reason: data_stall_event_type - DP_NUD_FAILED/Bmiss
+ * DP_NUD_FAILED - NUD failed , value is 1000
+ * Bmiss - Bmiss , value is 1001
+ */
+void hdd_data_stall_event_notify(uint32_t reason) {
+	hdd_data_stall_send_event(reason);
+}
+
+/**
  * hdd_data_stall_process_event() - Process data stall event
  * @msg: data stall message
  *

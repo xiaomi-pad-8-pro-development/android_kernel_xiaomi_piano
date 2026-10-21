@@ -40,6 +40,10 @@
 #define DP_DISCONNECT_AFTER_NUD_FAIL            1
 #define DP_ROAM_AFTER_NUD_FAIL                  2
 #define DP_DISCONNECT_AFTER_ROAM_FAIL           3
+#define DP_NOFITY_EVENT_AFTER_ROAM_FAIL         4
+
+#define WLAN_DBG_DATA_STALL_CONSECUTIVE_NUD_FAILURE    1000
+#define WLAN_DBG_DATA_STALL_CONSECUTICE_BMISS	1001
 
 #ifdef WLAN_NUD_TRACKING
 bool
@@ -47,6 +51,9 @@ ucfg_dp_is_roam_after_nud_enabled(struct wlan_objmgr_psoc *psoc);
 
 bool
 ucfg_dp_is_disconect_after_roam_fail(struct wlan_objmgr_psoc *psoc);
+
+bool
+ucfg_dp_is_nud_failure_event_notify(struct wlan_objmgr_psoc *psoc);
 #else
 static inline bool
 ucfg_dp_is_roam_after_nud_enabled(struct wlan_objmgr_psoc *psoc)
@@ -56,6 +63,12 @@ ucfg_dp_is_roam_after_nud_enabled(struct wlan_objmgr_psoc *psoc)
 
 static inline bool
 ucfg_dp_is_disconect_after_roam_fail(struct wlan_objmgr_psoc *psoc)
+{
+	return false;
+}
+
+static inline bool
+ucfg_dp_is_nud_failure_event_notify(struct wlan_objmgr_psoc *psoc)
 {
 	return false;
 }
@@ -2084,6 +2097,9 @@ static inline void ucfg_dp_fim_update_metadata(qdf_nbuf_t nbuf,
 {
 }
 #endif
+
+bool
+ucfg_dp_bmiss_event_notify(struct wlan_objmgr_psoc *psoc);
 
 #ifdef IPA_WDI3_VLAN_SUPPORT
 /**

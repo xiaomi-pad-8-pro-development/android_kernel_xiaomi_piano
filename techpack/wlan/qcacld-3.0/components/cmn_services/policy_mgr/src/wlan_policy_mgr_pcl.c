@@ -688,13 +688,79 @@ void policy_mgr_update_with_safe_channel_list(struct wlan_objmgr_psoc *psoc,
 	return;
 }
 
+
+static QDF_STATUS
+policy_mgr_modify_go_pcl_based_on_indoor(struct wlan_objmgr_psoc *psoc,
+				      uint32_t *pcl_list_org,
+				      uint8_t *weight_list_org,
+				      uint32_t *pcl_len_org)
+{
+	uint32_t i, pcl_len = 0;
+	uint32_t pcl_list[NUM_CHANNELS];
+	uint8_t weight_list[NUM_CHANNELS];
+	struct policy_mgr_psoc_priv_obj *pm_ctx;
+	bool include_indoor_channel;
+	QDF_STATUS status;
+	uint32_t freq = 0;
+
+	pm_ctx = policy_mgr_get_context(psoc);
+	if (!pm_ctx) {
+		policy_mgr_err("Invalid Context");
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	if (*pcl_len_org > NUM_CHANNELS) {
+		policy_mgr_err("Invalid PCL List Length %d", *pcl_len_org);
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	status = ucfg_mlme_get_indoor_channel_support(psoc,
+						      &include_indoor_channel);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		policy_mgr_err("failed to get indoor channel skip info");
+		return status;
+	}
+
+	if (include_indoor_channel && policy_mgr_get_connection_count(psoc) == 1 &&
+		wlan_reg_is_freq_indoor_in_secondary_list(pm_ctx->pdev, pm_conc_connection_list[0].freq)) {
+
+		freq = pm_conc_connection_list[0].freq;
+		policy_mgr_debug("allow p2p go create on indoor freq %u", freq);
+
+		for (i = 0; i < *pcl_len_org; i++) {
+			if (wlan_reg_is_freq_indoor_in_secondary_list(pm_ctx->pdev,
+								pcl_list_org[i]) &&
+							  freq != pcl_list_org[i])
+				continue;
+			pcl_list[pcl_len] = pcl_list_org[i];
+			weight_list[pcl_len++] = weight_list_org[i];
+		}
+	} else {
+		for (i = 0; i < *pcl_len_org; i++) {
+			if (wlan_reg_is_freq_indoor_in_secondary_list(pm_ctx->pdev,
+								pcl_list_org[i]))
+				continue;
+			pcl_list[pcl_len] = pcl_list_org[i];
+			weight_list[pcl_len++] = weight_list_org[i];
+		}
+	}
+
+	qdf_mem_zero(pcl_list_org, *pcl_len_org * sizeof(*pcl_list_org));
+	qdf_mem_zero(weight_list_org, *pcl_len_org);
+	qdf_mem_copy(pcl_list_org, pcl_list, pcl_len * sizeof(*pcl_list_org));
+	qdf_mem_copy(weight_list_org, weight_list, pcl_len);
+	*pcl_len_org = pcl_len;
+
+	return QDF_STATUS_SUCCESS;
+}
+
 static QDF_STATUS policy_mgr_modify_pcl_based_on_enabled_channels(
 					struct wlan_objmgr_psoc *psoc,
 					uint32_t *pcl_list_org,
 					uint8_t *weight_list_org,
 					uint32_t *pcl_len_org)
 {
-	uint32_t i, pcl_len = 0;
+	uint32_t i, pcl_len = 0, freq = 0;
 	bool allow_go_scc_on_dfs_chn = false;
 	bool dfs_master_capable = false;
 	uint8_t sta_sap_scc_on_dfs_chnl = 0;
@@ -725,10 +791,18 @@ static QDF_STATUS policy_mgr_modify_pcl_based_on_enabled_channels(
 		allow_go_scc_on_dfs_chn = true;
 	}
 
+	if (policy_mgr_get_connection_count(psoc) == 1 &&
+		pm_conc_connection_list[0].ch_flagext &
+		(IEEE80211_CHAN_DFS | IEEE80211_CHAN_DFS_CFREQ2)) {
+		freq = pm_conc_connection_list[0].freq;
+		policy_mgr_debug("allow p2p go create on dfs freq=%u", freq);
+	}
+
 	for (i = 0; i < *pcl_len_org; i++) {
 		if ((!wlan_reg_is_passive_or_disable_for_pwrmode(
 			pm_ctx->pdev, pcl_list_org[i],
 			REG_CURRENT_PWR_MODE)) ||
+			freq == pcl_list_org[i] ||
 		    (allow_go_scc_on_dfs_chn &&
 		     wlan_reg_is_dfs_for_freq(pm_ctx->pdev, pcl_list_org[i]))) {
 			pcl_list_org[pcl_len] = pcl_list_org[i];
@@ -1575,6 +1649,13 @@ static QDF_STATUS policy_mgr_pcl_modification_for_p2p_go(
 		return status;
 	}
 
+	status = policy_mgr_modify_go_pcl_based_on_indoor(psoc, pcl_channels,
+						       pcl_weight, len);
+	if (QDF_IS_STATUS_ERROR(status)) {
+		policy_mgr_err("failed to get indoor modified pcl for P2P GO");
+		return status;
+	}
+
 	wlan_mlme_get_srd_master_mode_for_vdev(psoc, QDF_P2P_GO_MODE,
 					       &srd_chan_enabled);
 
@@ -1619,6 +1700,41 @@ static bool policy_mgr_is_6G_chan_valid_for_ll_sap(qdf_freq_t freq)
 
 	return false;
 }
+#ifdef WLAN_FEATURE_11BE_MLO
+static bool
+policy_mgr_inact_vdev_present_with_freq(struct wlan_objmgr_psoc *psoc,
+					qdf_freq_t freq, uint8_t vdev_id)
+{
+	struct policy_mgr_psoc_priv_obj *pm_ctx;
+	uint32_t i;
+
+	pm_ctx = policy_mgr_get_context(psoc);
+	if (!pm_ctx) {
+		policy_mgr_err("Invalid Context");
+		return false;
+	}
+
+	qdf_mutex_acquire(&pm_ctx->qdf_conc_list_lock);
+	for (i = 0; i < MAX_NUMBER_OF_DISABLE_LINK; i++) {
+		if (pm_disabled_ml_links[i].in_use &&
+		    (pm_disabled_ml_links[i].vdev_id != vdev_id) &&
+		    (pm_disabled_ml_links[i].freq == freq)) {
+			qdf_mutex_release(&pm_ctx->qdf_conc_list_lock);
+			return true;
+		}
+	}
+	qdf_mutex_release(&pm_ctx->qdf_conc_list_lock);
+
+	return false;
+}
+#else
+static inline bool
+policy_mgr_inact_vdev_present_with_freq(struct wlan_objmgr_psoc *psoc,
+					qdf_freq_t freq, uint8_t vdev_id)
+{
+	return false;
+}
+#endif
 
 static bool
 policy_mgr_vdev_present_with_freq(struct wlan_objmgr_psoc *psoc,
@@ -1635,8 +1751,8 @@ policy_mgr_vdev_present_with_freq(struct wlan_objmgr_psoc *psoc,
 
 	qdf_mutex_acquire(&pm_ctx->qdf_conc_list_lock);
 	for (i = 0; i < MAX_NUMBER_OF_CONC_CONNECTIONS; i++) {
-		if ((pm_conc_connection_list[i].vdev_id != vdev_id) &&
-		    (pm_conc_connection_list[i].in_use) &&
+		if (pm_conc_connection_list[i].in_use &&
+		    (pm_conc_connection_list[i].vdev_id != vdev_id) &&
 		    (pm_conc_connection_list[i].freq == freq)) {
 			qdf_mutex_release(&pm_ctx->qdf_conc_list_lock);
 			return true;
@@ -1670,6 +1786,7 @@ static QDF_STATUS policy_mgr_pcl_modification_for_ll_lt_sap(
 	bool modified_pcl_6_ghz = false;
 	bool avoid_list_modified_pcl = false;
 	bool skip_scc_modified_pcl = false;
+	bool skip_inactive_scc_modified_pcl = false;
 
 	pm_ctx = policy_mgr_get_context(psoc);
 	if (!pm_ctx) {
@@ -1709,6 +1826,12 @@ static QDF_STATUS policy_mgr_pcl_modification_for_ll_lt_sap(
 			continue;
 		}
 
+		if (policy_mgr_inact_vdev_present_with_freq(psoc,
+							    pcl_channels[i],
+							    vdev_id)) {
+			skip_inactive_scc_modified_pcl = true;
+			continue;
+		}
 		pcl_list[pcl_len] = pcl_channels[i];
 		weight_list[pcl_len++] = pcl_weight[i];
 	}
@@ -1722,9 +1845,9 @@ static QDF_STATUS policy_mgr_pcl_modification_for_ll_lt_sap(
 	qdf_mem_copy(pcl_weight, weight_list, pcl_len);
 	*len = pcl_len;
 
-	policy_mgr_debug("Modified PCL: 6Ghz %d avoid_list %d skip scc %d",
+	policy_mgr_debug("Modified PCL: 6Ghz %d avoid_list %d scc %d inact scc %d",
 			 modified_pcl_6_ghz, avoid_list_modified_pcl,
-			 skip_scc_modified_pcl);
+			 skip_scc_modified_pcl, skip_inactive_scc_modified_pcl);
 
 	return QDF_STATUS_SUCCESS;
 }
@@ -2018,6 +2141,8 @@ QDF_STATUS policy_mgr_get_pcl(struct wlan_objmgr_psoc *psoc,
 
 	status = policy_mgr_modify_pcl_based_on_dnbs(psoc, pcl_channels,
 						pcl_weight, len);
+
+	policy_mgr_dump_channel_list(*len, pcl_channels, pcl_weight);
 
 	if (QDF_IS_STATUS_ERROR(status)) {
 		policy_mgr_err("failed to get modified pcl based on DNBS");

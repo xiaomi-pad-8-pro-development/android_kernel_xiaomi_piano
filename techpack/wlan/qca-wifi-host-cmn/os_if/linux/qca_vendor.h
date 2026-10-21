@@ -6425,26 +6425,26 @@ enum qca_wlan_vendor_attr_config {
 	/* 8-bit unsigned value. Refer to Tx/Rx NSS and Chain interactions */
 	QCA_WLAN_VENDOR_ATTR_CONFIG_NUM_RX_CHAINS_5GHZ = 117,
 
-	/* 16-bit unsigned value. This attribute is used to dynamically
+	/* 16 bit unsigned value. This attribute is used to dynamically
 	 * configure the time duration of data stall detection. Unit is
-	 * milliseconds. Valid value range is 0 or 10 ms to 10000 ms. If the
-	 * value is 0, the previously configured value is cleared. The driver
-	 * rejects this configuration if the value is out of range. This
-	 * configuration is effective for all connections on the chip. If the
-	 * duration is greater than this configuration and consecutive TX no ack
-	 * count is greater than
+	 * milliseconds. Valid value range is 0 or 10 ms to 10000 ms. If value
+	 * is 0, the previous configured value is cleared. Driver rejects this
+	 * configuration if value is out of range. This configuration is
+	 * effective for all connections on the chip. If the duration is
+	 * greater than this configuration and consecutive tx no ack count is
+	 * greater than
 	 * QCA_WLAN_VENDOR_ATTR_CONFIG_CONSECUTIVE_TX_NO_ACK_THRESHOLD,
 	 * data stall event is sent to userspace.
 	 */
 	QCA_WLAN_VENDOR_ATTR_CONFIG_CONSECUTIVE_TX_NO_ACK_DURATION = 118,
 
-	/* 16-bit unsigned value. This attribute is used to dynamically
+	/* 16 bit unsigned value. This attribute is used to dynamically
 	 * configure the threshold of data stall detection. Valid value is 0 or
-	 * greater than 10. if the value is 0, the previously configured value
-	 * is cleared. The driver rejects this configuration if the value is out
-	 * of range. This configuration is effective for all connections on the
-	 * chip. If consecutive TX no ack count is greater than this
-	 * configuration and duration is greater than
+	 * greater than 10. if value is 0, the previous configured value is
+	 * cleared. Driver rejects this configuration if value is out of range.
+	 * This configuration is effective for all connections on the chip.
+	 * If consecutive tx no ack count is greater than this configuration
+	 * and duration is greater than
 	 * QCA_WLAN_VENDOR_ATTR_CONFIG_CONSECUTIVE_TX_NO_ACK_DURATION,
 	 * data stall event is sent to userspace.
 	 */
@@ -6461,18 +6461,10 @@ enum qca_wlan_vendor_attr_config {
 	 * 0 - STA uses internal scoring algorithm to select a roam candidate
 	 */
 	QCA_WLAN_VENDOR_ATTR_CONFIG_FOLLOW_AP_PREFERENCE_FOR_CNDS_SELECT = 121,
-
-	/* 8-bit unsigned value. Disable DFS owner capability
-	 * 1: disable DFS owner capability in the driver.
-	 * 0: reset DFS owner capability to the default DFS owner capability of
-	 * the driver.
-	 *
-	 * If DFS owner capability is disabled, the driver will not start AP
-	 * mode operations on DFS channels, and all the features depending on
-	 * DFS owner functionality will not be supported.
+	/* 8-bit unsigned value to set nss and ant mode.
+	 * 1-1x1, 2-2x2
 	 */
-	QCA_WLAN_VENDOR_ATTR_CONFIG_DFS_OWNER_DISABLE = 123,
-
+	QCA_WLAN_VENDOR_ATTR_CONFIG_SET_NSS_ANT = 200,
 	/* keep last */
 	QCA_WLAN_VENDOR_ATTR_CONFIG_AFTER_LAST,
 	QCA_WLAN_VENDOR_ATTR_CONFIG_MAX =
@@ -9649,6 +9641,9 @@ enum qca_wlan_vendor_attr_spectral_scan_status {
  * @QCA_WLAN_VENDOR_ATTR_CONFIG_LATENCY_LEVEL_ULTRALOW:
  *      Use ultra low latency level to benefit for gaming/voice
  *      application via constraint scan/roaming/adaptive PS.
+ * @QCA_WLAN_VENDOR_ATTR_CONFIG_LATENCY_LEVEL_ULTRALOW_ML_LINK_SWITCH:
+ * 	Use ultra low latecy level to control ml link switch but
+ * 	do not constraint scan/roaming/adaptive PS;
  */
 enum qca_wlan_vendor_attr_config_latency_level {
 	QCA_WLAN_VENDOR_ATTR_CONFIG_LATENCY_LEVEL_INVALID = 0,
@@ -9659,6 +9654,7 @@ enum qca_wlan_vendor_attr_config_latency_level {
 	QCA_WLAN_VENDOR_ATTR_CONFIG_LATENCY_LEVEL_XR,
 	QCA_WLAN_VENDOR_ATTR_CONFIG_LATENCY_LEVEL_LOW = 3,
 	QCA_WLAN_VENDOR_ATTR_CONFIG_LATENCY_LEVEL_ULTRALOW = 4,
+	QCA_WLAN_VENDOR_ATTR_CONFIG_LATENCY_LEVEL_ULTRALOW_ML_LINK_SWITCH = 5,
 
 	/* keep last */
 	QCA_WLAN_VENDOR_ATTR_CONFIG_LATENCY_LEVEL_AFTER_LAST,
@@ -18931,6 +18927,25 @@ enum qca_wlan_vendor_async_get_station_attr {
 };
 
 /**
+ * enum qca_wlan_vendor_fail_attr_roam - Defines the attributes used by the vendor
+ * command QCA_NL80211_VENDOR_SUBCMD_ROAM_EVENTS_INDEX.
+ *
+ * @QCA_WLAN_VENDOR_ATTR_ROAM_TNTERACE: Wlan interace vdev_id
+ *
+ * @QCA_WLAN_VENDOR_ATTR_ROAM_FAIL_REASON: No find ap failed reason
+ */
+enum qca_wlan_vendor_fail_attr_roam {
+	QCA_WLAN_VENDOR_ATTR_ROAM_INVALID = 0,
+	QCA_WLAN_VENDOR_ATTR_ROAM_TNTERACE = 1,
+	QCA_WLAN_VENDOR_ATTR_ROAM_FAIL_REASON = 2,
+
+	/* Keep last */
+	QCA_WLAN_VENDOR_ATTR_ROAM_LAST,
+	QCA_WLAN_VENDOR_ATTR_ROAM_MAX =
+	QCA_WLAN_VENDOR_ATTR_ROAM_LAST - 1,
+};
+
+/**
  * enum qca_wlan_vendor_attr_usd_op_type: Attribute values for
  * %QCA_WLAN_VENDOR_ATTR_USD_OP_TYPE to the vendor subcmd
  * %QCA_NL80211_VENDOR_SUBCMD_USD. This is a mandatory u8 attribute which
@@ -19389,5 +19404,5 @@ enum qca_wlan_vendor_attr_idle_shutdown {
 	QCA_WLAN_VENDOR_ATTR_IDLE_SHUTDOWN_MAX =
 	QCA_WLAN_VENDOR_ATTR_IDLE_SHUTDOWN_AFTER_LAST - 1,
 };
-
 #endif
+

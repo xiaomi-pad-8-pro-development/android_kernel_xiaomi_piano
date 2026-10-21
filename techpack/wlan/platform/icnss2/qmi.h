@@ -15,6 +15,9 @@
 #define M3_SEGMENTS_SIZE_MAX 10
 #define M3_SEGMENT_NAME_LEN_MAX 16
 
+#define HW_LEVEL_MASK 0XFF0F000F
+#define HW_LEVEL_P1 10
+
 struct icnss_mem_seg {
 	u64 addr;
 	u32 size;

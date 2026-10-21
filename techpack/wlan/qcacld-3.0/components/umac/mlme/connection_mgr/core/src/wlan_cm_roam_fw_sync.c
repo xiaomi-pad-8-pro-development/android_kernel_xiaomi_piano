@@ -52,7 +52,10 @@
 #include <wma.h>
 #include "wlan_objmgr_vdev_obj.h"
 #include "utils_mlo.h"
+#include "wlan_dp_ucfg_api.h"
+#include "wlan_hdd_data_stall_detection.h"
 #include "lim_utils.h"
+#include "wlan_policy_mgr_i.h"
 
 /*
  * cm_is_peer_preset_on_other_sta() - Check if peer exists on other STA
@@ -1577,6 +1580,31 @@ cm_disconnect_roam_invoke_fail(struct wlan_objmgr_vdev *vdev,
 		qdf_zero_macaddr(&rso_cfg->roam_invoke_bssid);
 		return status;
 	}
+
+	/**
+	 * If received nud_failed_event form kernel, and do not disconnect AP,
+	 * Send nud_failed_event to fwk, determine how to handle this event by fwk.
+	 */
+	struct policy_mgr_psoc_priv_obj *pm_ctx;
+	uint8_t sta_active_link_nums;
+	pm_ctx = policy_mgr_get_context(psoc);
+	if (!pm_ctx) {
+		pe_err("Policy manager context is NULL");
+		sta_active_link_nums = 0;
+	} else {
+		sta_active_link_nums = pm_ctx->no_of_active_sessions[QDF_STA_MODE];
+	}
+	if(ucfg_dp_is_nud_failure_event_notify(psoc) &&
+		sta_active_link_nums == 1 &&
+		(rso_cfg->roam_invoke_source == CM_ROAMING_NUD_FAILURE &&
+		(nud_disconnect || rso_cfg->is_forced_roaming))) {
+		rso_cfg->roam_invoke_source = CM_SOURCE_INVALID;
+		if (rso_cfg->is_forced_roaming)
+			rso_cfg->is_forced_roaming = false;
+		mlme_err("Occur nud failure and trigger roam fail, notify fail event but don't deauth");
+		hdd_data_stall_event_notify(WLAN_DBG_DATA_STALL_CONSECUTIVE_NUD_FAILURE);
+		return status;
+	 }
 
 	if (rso_cfg->roam_invoke_source == CM_ROAMING_HOST ||
 	    (rso_cfg->roam_invoke_source == CM_ROAMING_NUD_FAILURE &&

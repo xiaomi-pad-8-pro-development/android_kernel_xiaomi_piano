@@ -1095,8 +1095,9 @@ static int icnss_get_bdf_file_name(struct icnss_priv *priv,
 
 	switch (bdf_type) {
 	case ICNSS_BDF_ELF:
-		if (priv->board_id == 0xFF)
-			snprintf(filename_tmp, filename_len, ELF_BDF_FILE_NAME);
+		if (priv->board_id == 0xFF) {
+				snprintf(filename_tmp, filename_len, ELF_BDF_FILE_NAME);
+		}
 		else if (priv->board_id < 0xFF)
 			snprintf(filename_tmp, filename_len,
 				 ELF_BDF_FILE_NAME_PREFIX "%02x",

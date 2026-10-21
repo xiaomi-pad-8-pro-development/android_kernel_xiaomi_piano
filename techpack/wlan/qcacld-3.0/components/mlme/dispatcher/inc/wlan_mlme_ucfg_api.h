@@ -5731,4 +5731,28 @@ ucfg_mlme_get_beacon_interval(struct wlan_objmgr_vdev *vdev)
 {
 	return wlan_mlme_get_beacon_interval(vdev);
 }
+
+/**
+ * ucfg_mlme_start_miracast_opt() - Start timer and wakelock for miracast
+ * optimization
+ * @psoc: psoc
+ * Return: QDF_STATUS
+ */
+static inline
+QDF_STATUS ucfg_mlme_start_miracast_opt(struct wlan_objmgr_psoc *psoc)
+{
+	return wlan_mlme_start_miracast_opt(psoc);
+}
+
+/**
+ * ucfg_mlme_stop_miracast_opt() - Stop timer and wakelock for miracast
+ * optimization
+ * @psoc: psoc
+ * Return: QDF_STATUS
+ */
+static inline
+QDF_STATUS ucfg_mlme_stop_miracast_opt(struct wlan_objmgr_psoc *psoc)
+{
+	return wlan_mlme_stop_miracast_opt(psoc);
+}
 #endif /* _WLAN_MLME_UCFG_API_H_ */

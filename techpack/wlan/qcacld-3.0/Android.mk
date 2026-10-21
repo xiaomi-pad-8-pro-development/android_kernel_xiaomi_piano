@@ -1,5 +1,6 @@
 # Android makefile for the WLAN Module
 
+ifneq (, $(filter $(call get-component-name), miodm))
 # set WLAN_BUILD_DEBUG=y in your environment to enable debug logging
 define wlog
 $(if $(WLAN_BUILD_DEBUG),$(info $(1)))
@@ -396,3 +397,4 @@ endif # DLKM check
 endif # supported target check
 endif # WLAN enabled check
 endif # ENABLE_QCACLD
+endif

@@ -2115,7 +2115,6 @@ bool util_is_bssid_non_tx(struct wlan_objmgr_psoc *psoc,
 void
 util_scan_entry_renew_timestamp(struct wlan_objmgr_pdev *pdev,
 				struct scan_cache_entry *scan_entry);
-
 /*
  * util_scan_entry_rsn_by_gen() = Get the RSN(O) IE based on the generation
  * specified

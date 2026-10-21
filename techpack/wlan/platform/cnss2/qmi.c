@@ -734,9 +734,10 @@ static int cnss_get_bdf_file_name(struct cnss_plat_data *plat_priv,
 			if (plat_priv->chip_info.chip_id & CHIP_ID_GF_MASK)
 				snprintf(filename_tmp, filename_len,
 					 ELF_BDF_FILE_NAME_GF);
-			else
+			else {
 				snprintf(filename_tmp, filename_len,
-					 ELF_BDF_FILE_NAME);
+						ELF_BDF_FILE_NAME);
+			}
 		} else if (plat_priv->board_info.board_id < 0xFF) {
 			if (plat_priv->chip_info.chip_id & CHIP_ID_GF_MASK)
 				snprintf(filename_tmp, filename_len,
@@ -843,7 +844,7 @@ int cnss_wlfw_bdf_dnld_send_sync(struct cnss_plat_data *plat_priv,
 	temp = fw_entry->data;
 	remaining = fw_entry->size;
 
-	cnss_pr_dbg("Downloading %s: %s, size: %u\n",
+	cnss_pr_err("Downloading %s: %s, size: %u\n",
 		    cnss_bdf_type_to_str(bdf_type), filename, remaining);
 
 	while (remaining) {

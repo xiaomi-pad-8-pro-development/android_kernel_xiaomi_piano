@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -200,16 +200,6 @@ static void scm_add_rnr_channel_db(struct wlan_objmgr_pdev *pdev,
 			continue;
 		}
 		channel->bss_beacon_probe_count++;
-
-		/* Skip non Tx MBSSID profile */
-		if (QDF_GET_BITS(rnr_bss->bss_params, 2, 2) == 0x1) {
-			scm_debug("skip nontx freq %d: " QDF_MAC_ADDR_FMT " short ssid %x",
-				  chan_freq,
-				  QDF_MAC_ADDR_REF(rnr_bss->bssid.bytes),
-				  rnr_bss->short_ssid);
-			continue;
-		}
-
 		/* Don't add RNR entry if list is full */
 		if (qdf_list_size(&channel->rnr_list) >= WLAN_MAX_RNR_COUNT) {
 			scm_debug("List is full");
@@ -928,15 +918,6 @@ scm_copy_info_from_dup_entry(struct wlan_objmgr_pdev *pdev,
 
 	/* copy mlme info from scan_entry to scan_params*/
 	scm_update_mlme_info(scan_entry, scan_params);
-
-	/*
-	 * Do not inherit if the new entry is generated.
-	 * Inherit for all other cases, the flag would be
-	 * reset in scm_add_update_entry(), if the new
-	 * entry is not generated.
-	 */
-	if (!scan_params->is_gen_entry)
-		scan_params->is_gen_entry = scan_entry->is_gen_entry;
 }
 
 /**
@@ -1043,7 +1024,7 @@ static void scm_dump_scan_entry(struct wlan_objmgr_pdev *pdev,
 	/* Add ML info */
 	len += util_scan_get_ml_info(scan_params, log_str, str_len, len);
 
-	scm_nofl_debug("Rcvd %s(%d): " QDF_MAC_ADDR_FMT " \"" QDF_SSID_FMT "\" freq %d rssi %d tsf %u seq %d snr %d phy %d gen %d %s",
+	scm_nofl_debug("Rcvd %s(%d): " QDF_MAC_ADDR_FMT " \"" QDF_SSID_FMT "\" freq %d rssi %d tsf %u seq %d snr %d phy %d %s",
 		       (scan_params->frm_subtype == MGMT_SUBTYPE_PROBE_RESP) ?
 		       "prb rsp" : "bcn", scan_params->raw_frame.len,
 		       QDF_MAC_ADDR_REF(scan_params->bssid.bytes),
@@ -1051,8 +1032,7 @@ static void scm_dump_scan_entry(struct wlan_objmgr_pdev *pdev,
 				    scan_params->ssid.ssid),
 		       scan_params->channel.chan_freq, scan_params->rssi_raw,
 		       scan_params->tsf_delta, scan_params->seq_num,
-		       scan_params->snr, scan_params->phy_mode,
-		       scan_params->is_gen_entry, log_str);
+		       scan_params->snr, scan_params->phy_mode, log_str);
 }
 
 /**
@@ -1060,13 +1040,11 @@ static void scm_dump_scan_entry(struct wlan_objmgr_pdev *pdev,
  * @psoc: psoc ptr
  * @pdev: pdev pointer
  * @scan_params: new received entry
- * @is_gen_entry: Generated scan entry
  *
  * Return: QDF_STATUS
  */
 static QDF_STATUS scm_add_update_entry(struct wlan_objmgr_psoc *psoc,
-	struct wlan_objmgr_pdev *pdev, struct scan_cache_entry *scan_params,
-	bool is_gen_entry)
+	struct wlan_objmgr_pdev *pdev, struct scan_cache_entry *scan_params)
 {
 	struct scan_cache_node *dup_node = NULL;
 	struct scan_cache_node *scan_node = NULL;
@@ -1094,19 +1072,6 @@ static QDF_STATUS scm_add_update_entry(struct wlan_objmgr_psoc *psoc,
 
 	is_dup_found = scm_find_duplicate(pdev, scan_obj, scan_db, scan_params,
 					  &dup_node);
-
-	/*
-	 * Dupe entry is_gen |  New entry is_gen | Final
-	 *	0			0	    0
-	 *	0			1	    0
-	 *	1			0	    0
-	 *	1			1	    1
-	 *
-	 * For second case, mark the final entry as not generated
-	 * since atleast one actual scan entry was present.
-	 */
-	if (!is_gen_entry || !is_dup_found)
-		scan_params->is_gen_entry = is_gen_entry;
 
 	scm_dump_scan_entry(pdev, scan_params);
 
@@ -1215,7 +1180,6 @@ QDF_STATUS __scm_handle_bcn_probe(struct scan_bcn_probe_event *bcn)
 	struct scan_cache_node *scan_node;
 	struct wlan_frame_hdr *hdr = NULL;
 	struct wlan_crypto_params sec_params;
-	struct scan_mbssid_info *mbssid_info;
 
 	if (!bcn) {
 		scm_err("bcn is NULL");
@@ -1393,13 +1357,6 @@ QDF_STATUS __scm_handle_bcn_probe(struct scan_bcn_probe_event *bcn)
 			}
 		}
 
-		mbssid_info = &scan_entry->mbssid_info;
-		if (!qdf_is_macaddr_zero(
-			(struct qdf_mac_addr *)&mbssid_info->non_trans_bssid)) {
-			scan_entry->is_gen_entry = 1;
-			bcn->is_gen_entry = 1;
-		}
-
 		scan_entry->non_intersected_phymode = scan_entry->phy_mode;
 
 		if (scan_obj->cb.update_beacon)
@@ -1422,8 +1379,7 @@ QDF_STATUS __scm_handle_bcn_probe(struct scan_bcn_probe_event *bcn)
 			continue;
 		}
 
-		status = scm_add_update_entry(psoc, pdev, scan_entry,
-					      bcn->is_gen_entry);
+		status = scm_add_update_entry(psoc, pdev, scan_entry);
 		if (QDF_IS_STATUS_ERROR(status)) {
 			scm_debug(QDF_MAC_ADDR_FMT ": Failed to add entry for frame(%d) seq %d freq %d",
 				  QDF_MAC_ADDR_REF(scan_entry->bssid.bytes),

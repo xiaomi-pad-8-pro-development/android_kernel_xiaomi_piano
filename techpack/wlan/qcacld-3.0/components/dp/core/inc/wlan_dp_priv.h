@@ -111,6 +111,8 @@ struct dp_rtpm_tput_policy_context {
  * @enable_dp_trace: Enable/Disable DP trace
  * @dp_trace_config: DP trace configuration
  * @enable_nud_tracking: Enable/Disable nud tracking
+ * @enable_nud_failure_event_notify: Enable/Disable nud failure event notify
+ * @enable_bmiss_event_notify: Enable/Disable bmiss event notify
  * @pkt_bundle_threshold_high: tx bundle high threshold
  * @pkt_bundle_threshold_low: tx bundle low threshold
  * @pkt_bundle_timer_value: tx bundle timer value in ms
@@ -183,6 +185,8 @@ struct wlan_dp_psoc_cfg {
 	uint8_t dp_trace_config[DP_TRACE_CONFIG_STRING_LENGTH];
 #endif
 	uint8_t enable_nud_tracking;
+	uint8_t enable_nud_failure_event_notify;
+	uint8_t enable_bmiss_event_notify;
 
 #ifdef WLAN_SUPPORT_TXRX_HL_BUNDLE
 	uint32_t pkt_bundle_threshold_high;

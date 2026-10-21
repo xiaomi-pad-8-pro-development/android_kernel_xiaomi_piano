@@ -474,6 +474,10 @@ static const uint32_t pdev_param_tlv[] = {
 		  PDEV_PARAM_ENABLE_LARGE_MRU),
 	PARAM_MAP(pdev_param_pwr_reduction_in_quarter_db,
 		  PDEV_PARAM_PWR_REDUCTION_IN_QUARTER_DB),
+	PARAM_MAP(pdev_param_dstall_consecutive_tx_no_ack_interval,
+		  PDEV_PARAM_DSTALL_CONSECUTIVE_TX_NO_ACK_INTERVAL),
+	PARAM_MAP(pdev_param_dstall_consecutive_tx_no_ack_threshold,
+		  PDEV_PARAM_DSTALL_CONSECUTIVE_TX_NO_ACK_THRESHOLD),
 	PARAM_MAP(pdev_param_scan_mode,
 		  PDEV_PARAM_SCAN_MODE),
 	PARAM_MAP(pdev_param_dstall_consecutive_tx_no_ack_interval,
@@ -21966,14 +21970,14 @@ send_both_eirp_psd_for_set_tpc_tlv(wmi_unified_t wmi_handle,
 	return ret;
 }
 
-static inline
 bool is_both_psd_eirp_support_present_for_sp(wmi_unified_t wmi_handle,
 					     struct reg_tpc_power_info *param)
 {
 	return (is_service_enabled_tlv(wmi_handle,
 		    WMI_SERVICE_BOTH_PSD_EIRP_FOR_AP_SP_CLIENT_SP_SUPPORT) &&
 		(param->power_type_6g == REG_STANDARD_POWER_AP ||
-			param->is_power_type_client_sp));
+			param->is_power_type_client_sp) &&
+            		param->num_psd_pwr_levels && param->num_eirp_pwr_levels);
 }
 
 /**

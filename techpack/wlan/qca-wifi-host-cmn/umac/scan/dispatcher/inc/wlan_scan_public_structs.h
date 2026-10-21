@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -599,8 +599,6 @@ enum number_of_partner_link {
  * @is_hidden_ssid: is AP having hidden ssid.
  * @security_type: security supported
  * @seq_num: sequence number
- * @is_gen_entry: is locally generated scan entry
- * @reserved: reserved
  * @phy_mode: Phy mode of the AP
  * @avg_rssi: Average RSSI of the AP
  * @rssi_raw: The rssi of the last beacon/probe received
@@ -648,8 +646,6 @@ struct scan_cache_entry {
 	bool is_hidden_ssid;
 	uint8_t security_type;
 	uint16_t seq_num;
-	uint8_t is_gen_entry:1,
-		reserved:7;
 	enum wlan_phymode phy_mode;
 	int32_t avg_rssi;
 	int8_t rssi_raw;

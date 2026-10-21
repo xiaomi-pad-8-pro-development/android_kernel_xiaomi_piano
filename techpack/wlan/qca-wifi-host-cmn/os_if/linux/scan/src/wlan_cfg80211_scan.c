@@ -44,6 +44,7 @@
 #ifdef FEATURE_WLAN_DIAG_SUPPORT
 #include "host_diag_core_event.h"
 #endif
+#include "wlan_hdd_scan.h"
 #include "utils_mlo.h"
 
 #ifdef CONVERGED_P2P_ENABLE
@@ -1225,6 +1226,11 @@ static void wlan_cfg80211_scan_done_callback(
 	}
 	/* Link id is required to send vendor scan callback */
 	link_id = wlan_vdev_get_link_id(vdev);
+
+#ifdef CFG_SUPPORT_SCAN_EXT_FLAG
+	/* restore latency mode after scan */
+	hdd_scan_event_callback(netdev);
+#endif
 
 	/*
 	 * Scan can be triggred from NL or vendor scan

@@ -225,8 +225,11 @@
 #include "os_if_telemetry.h"
 #endif
 #include "wlan_p2p_ucfg_api.h"
+#include "wlan_twt_ucfg_ext_api.h"
+#include "wlan_ll_sap_api.h"
 #include "wlan_cfg80211_p2p.h"
 #include "wlan_ll_sap_api.h"
+
 
 /*
  * A value of 100 (milliseconds) can be sent to FW.
@@ -950,8 +953,13 @@ static struct ieee80211_iface_combination
 	/* STA + P2P + P2P */
 	{
 		.limits = wlan_hdd_sta_p2p_p2p_iface_limit,
+#ifdef WLAN_FEATURE_MULTI_P2P
+		.num_different_channels = 3,
+		.max_interfaces = 4,
+#else
 		.num_different_channels = 2,
 		.max_interfaces = 3,
+#endif
 		.n_limits = ARRAY_SIZE(wlan_hdd_sta_p2p_p2p_iface_limit),
 		.beacon_int_infra_match = true,
 	},
@@ -4415,7 +4423,6 @@ static int __wlan_hdd_cfg80211_do_acs(struct wiphy *wiphy,
 		hdd_err("get_external_acs_policy failed");
 
 	sap_config->acs_cfg.acs_mode = true;
-
 	if (wlan_reg_get_keep_6ghz_sta_cli_connection(hdd_ctx->pdev))
 		hdd_remove_6ghz_freq_from_acs_list(
 					sap_config->acs_cfg.freq_list,
@@ -8923,6 +8930,10 @@ const struct nla_policy wlan_hdd_wifi_config_policy[
 	[QCA_WLAN_VENDOR_ATTR_CONFIG_BTM_SUPPORT] = {.type = NLA_U8},
 	[QCA_WLAN_VENDOR_ATTR_CONFIG_MLO_LINK_ID] = {
 		.type = NLA_U8},
+	[QCA_WLAN_VENDOR_ATTR_CONFIG_CONSECUTIVE_TX_NO_ACK_DURATION] = {
+		.type = NLA_U16 },
+	[QCA_WLAN_VENDOR_ATTR_CONFIG_CONSECUTIVE_TX_NO_ACK_THRESHOLD] = {
+		.type = NLA_U16 },
 	[QCA_WLAN_VENDOR_ATTR_CONFIG_KEEP_ALIVE_INTERVAL] = {
 		.type = NLA_U16},
 	[QCA_WLAN_VENDOR_ATTR_CONFIG_TX_NSS_2GHZ] = {.type = NLA_U8},
@@ -8944,8 +8955,6 @@ const struct nla_policy wlan_hdd_wifi_config_policy[
 	[QCA_WLAN_VENDOR_ATTR_CONFIG_CONSECUTIVE_TX_NO_ACK_THRESHOLD] = {
 		.type = NLA_U16 },
 	[QCA_WLAN_VENDOR_ATTR_CONFIG_FOLLOW_AP_PREFERENCE_FOR_CNDS_SELECT] = {
-		.type = NLA_U8},
-	[QCA_WLAN_VENDOR_ATTR_CONFIG_DFS_OWNER_DISABLE] = {
 		.type = NLA_U8},
 };
 
@@ -10453,13 +10462,16 @@ hdd_config_data_stall_param(struct wlan_hdd_link_info *link_info,
 	struct dev_set_param setparam[MAX_PDEV_DATA_STALL_PARAMS] = {};
 	uint8_t index = 0;
 
-	if (!tx_no_ack_duration_attr || !tx_no_ack_threshold_attr)
+	hdd_err("Set data stall params from use space start");
+	if (!tx_no_ack_duration_attr || !tx_no_ack_threshold_attr) {
+		hdd_err("Set data stall params fail");
 		return 0;
+        }
 
 	tx_no_ack_duration = nla_get_u16(tx_no_ack_duration_attr);
 	tx_no_ack_threshold = nla_get_u16(tx_no_ack_threshold_attr);
 
-	hdd_debug("tx_no_ack_duration %d, tx_no_ack_threshold %d",
+	hdd_err("tx_no_ack_duration %d, tx_no_ack_threshold %d",
 		  tx_no_ack_duration, tx_no_ack_threshold);
 
 	if ((tx_no_ack_duration > TX_NO_ACK_DURATION_MAX ||
@@ -11607,11 +11619,24 @@ static int hdd_config_latency_level(struct wlan_hdd_link_info *link_info,
 	case QCA_WLAN_VENDOR_ATTR_CONFIG_LATENCY_LEVEL_XR:
 	case QCA_WLAN_VENDOR_ATTR_CONFIG_LATENCY_LEVEL_LOW:
 	case QCA_WLAN_VENDOR_ATTR_CONFIG_LATENCY_LEVEL_ULTRALOW:
+	case QCA_WLAN_VENDOR_ATTR_CONFIG_LATENCY_LEVEL_ULTRALOW_ML_LINK_SWITCH:
 		/* valid values */
 		break;
 	default:
 		hdd_err("Invalid value %u", latency_level);
 		return -EINVAL;
+	}
+
+	if (latency_level ==
+			QCA_WLAN_VENDOR_ATTR_CONFIG_LATENCY_LEVEL_ULTRALOW_ML_LINK_SWITCH) {
+		status = sme_set_wlm_latency_level(hdd_ctx->mac_handle,
+											link_info->vdev_id,
+											latency_level, 0, false);
+		if (QDF_IS_STATUS_ERROR(status)) {
+			hdd_err("Set latency level failed, %u", status);
+			goto error;
+		}
+		return 0;
 	}
 
 	host_latency_level = latency_level - 1;
@@ -12987,63 +13012,6 @@ static int hdd_reset_btm_abridge_flag(struct wlan_hdd_link_info *link_info,
 	return 0;
 }
 
-/**
- * hdd_set_dfs_owner_disable() - Set DFS owner disable
- * @link_info: Link info pointer in HDD adapter
- * @attr: pointer to nla attr
- *
- * Return: 0 on success, negative on failure
- */
-static int hdd_set_dfs_owner_disable(struct wlan_hdd_link_info *link_info,
-				     const struct nlattr *attr)
-{
-	uint8_t dfs_owner_disable;
-	struct hdd_context *hdd_ctx = WLAN_HDD_GET_CTX(link_info->adapter);
-
-	if (!hdd_ctx->wiphy || !hdd_ctx->wiphy->registered)
-		return -EINVAL;
-
-	dfs_owner_disable = nla_get_u8(attr);
-
-	hdd_debug("configure DFS owner disable %d", dfs_owner_disable);
-	ucfg_mlme_vendor_set_disable_dfs_master_capability(
-				hdd_ctx->psoc,
-				dfs_owner_disable);
-
-	hdd_send_wiphy_regd_sync_event(hdd_ctx, false);
-
-	return 0;
-}
-
-/**
- * hdd_get_dfs_owner_disable() - Get DFS owner disable
- * @link_info: Link info pointer in HDD adapter
- * @skb: skb buffer
- * @attr: pointer to nla attr
- *
- * Return: 0 on success, negative on failure
- */
-static int hdd_get_dfs_owner_disable(struct wlan_hdd_link_info *link_info,
-				     struct sk_buff *skb,
-				     const struct nlattr *attr)
-{
-	bool dfs_master_capability = true;
-	struct hdd_context *hdd_ctx = WLAN_HDD_GET_CTX(link_info->adapter);
-
-	ucfg_mlme_get_dfs_master_capability(
-				hdd_ctx->psoc,
-				&dfs_master_capability);
-	hdd_debug("current DFS owner capability %d", dfs_master_capability);
-
-	if (nla_put_u8(skb, QCA_WLAN_VENDOR_ATTR_CONFIG_DFS_OWNER_DISABLE,
-		       (uint8_t)!dfs_master_capability)) {
-		hdd_err("nla_put failure");
-		return -EINVAL;
-	}
-
-	return 0;
-}
-
 #ifdef WLAN_FEATURE_11BE
 /**
  * hdd_set_eht_emlsr_capability() - Set EMLSR capability for EHT STA
@@ -13569,8 +13537,6 @@ static const struct independent_setters independent_setters[] = {
 	 hdd_set_reduce_power_scan_mode},
 	{QCA_WLAN_VENDOR_ATTR_CONFIG_FOLLOW_AP_PREFERENCE_FOR_CNDS_SELECT,
 	 hdd_reset_btm_abridge_flag},
-	{QCA_WLAN_VENDOR_ATTR_CONFIG_DFS_OWNER_DISABLE,
-	 hdd_set_dfs_owner_disable},
 };
 
 #ifdef WLAN_FEATURE_ELNA
@@ -14424,9 +14390,6 @@ static const struct config_getters config_getters[] = {
 	 {QCA_WLAN_VENDOR_ATTR_CONFIG_KEEP_ALIVE_INTERVAL,
 	  sizeof(uint16_t),
 	  hdd_get_sta_keepalive_interval},
-	{QCA_WLAN_VENDOR_ATTR_CONFIG_DFS_OWNER_DISABLE,
-	 sizeof(uint8_t),
-	 hdd_get_dfs_owner_disable},
 };
 
 /**
@@ -14563,6 +14526,7 @@ static const interdependent_setter_fn interdependent_setters[] = {
 	hdd_set_channel_width,
 	hdd_config_peer_ampdu,
 	hdd_set_ul_mu_config,
+	hdd_config_data_stall_param,
 	hdd_config_tx_rx_nss_per_band,
 	hdd_config_vdev_chains_per_band,
 	hdd_config_data_stall_param,
@@ -17256,6 +17220,13 @@ static uint32_t wlan_hdd_populate_weigh_pcl(
 		else
 			w_pcl[i].flag = PCL_CHANNEL_SUPPORT_CLI;
 	}
+
+	/* Do not add MCC or unsupported ch in p2p prefer list */
+	if (intf_mode == PM_P2P_GO_MODE || intf_mode == PM_P2P_CLIENT_MODE) {
+		hdd_debug("Do not add MCC or unsupported ch in p2p prefer list");
+		return pcl_len;
+	}
+
 	chan_idx = pcl_len;
 	if (!conn_count || policy_mgr_is_hw_dbs_capable(psoc) ||
 	    policy_mgr_is_interband_mcc_supported(psoc)) {

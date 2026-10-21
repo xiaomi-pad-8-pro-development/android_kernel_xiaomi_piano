@@ -209,19 +209,6 @@ void wlan_hdd_set_mcc_latency(struct hdd_adapter *adapter, int set_value);
  */
 void wlan_hdd_cleanup_actionframe(struct wlan_hdd_link_info *link_info);
 
-/**
- * wlan_hdd_get_sta_vdev_for_p2p_dev() - Get STA vdev to use for P2P device
- * @psoc: pointer to psoc obj
- * @vdev_id: vdev id
- * @comp_id: Component id
- *
- * Return: STA vdev
- */
-struct wlan_objmgr_vdev *
-wlan_hdd_get_sta_vdev_for_p2p_dev(struct wlan_objmgr_psoc *psoc,
-				  uint8_t vdev_id,
-				  wlan_objmgr_ref_dbgid comp_id);
-
 #ifdef FEATURE_WLAN_SUPPORT_USD
 /**
  * wlan_hdd_cfg80211_p2p_parse_wfd_params - this function start VDEV sync and
@@ -246,7 +233,8 @@ p2p_wfdr2_attr_policy[QCA_WLAN_VENDOR_ATTR_SET_P2P_MODE_MAX + 1];
 	.info.subcmd =						\
 		QCA_NL80211_VENDOR_SUBCMD_SET_P2P_MODE,		\
 	.flags = WIPHY_VENDOR_CMD_NEED_WDEV |			\
-			WIPHY_VENDOR_CMD_NEED_NETDEV,		\
+			WIPHY_VENDOR_CMD_NEED_NETDEV |		\
+			WIPHY_VENDOR_CMD_NEED_RUNNING,		\
 	.doit = wlan_hdd_cfg80211_p2p_parse_wfd_params,	\
 	vendor_command_policy(p2p_wfdr2_attr_policy,		\
 			      QCA_WLAN_VENDOR_ATTR_SET_P2P_MODE_MAX)	\
@@ -254,4 +242,18 @@ p2p_wfdr2_attr_policy[QCA_WLAN_VENDOR_ATTR_SET_P2P_MODE_MAX + 1];
 #else
 #define FEATURE_P2P_SET_MODE_VENDOR_COMMANDS
 #endif /* FEATURE_WLAN_SUPPORT_USD */
+
+/**
+ * wlan_hdd_get_sta_vdev_for_p2p_dev() - Get STA vdev to use for P2P device
+ * @psoc: pointer to psoc obj
+ * @vdev_id: vdev id
+ * @comp_id: Component id
+ *
+ * Return: STA vdev
+ */
+struct wlan_objmgr_vdev *
+wlan_hdd_get_sta_vdev_for_p2p_dev(struct wlan_objmgr_psoc *psoc,
+				  uint8_t vdev_id,
+				  wlan_objmgr_ref_dbgid comp_id);
+
 #endif /* __P2P_H */

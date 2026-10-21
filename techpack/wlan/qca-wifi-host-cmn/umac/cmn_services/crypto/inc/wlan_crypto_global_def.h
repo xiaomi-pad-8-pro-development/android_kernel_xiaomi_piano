@@ -716,6 +716,12 @@ struct wlan_lmac_if_crypto_rx_ops {
 #define WLAN_CRYPTO_RX_OPS_GET_RXPN(crypto_rx_ops) \
 				((crypto_rx_ops)->get_rxpn)
 
+#define WLAN_CRYPTO_IS_OPEN(akm) \
+	(QDF_HAS_PARAM(akm, WLAN_CRYPTO_AUTH_NONE) || \
+	 QDF_HAS_PARAM(akm, WLAN_CRYPTO_AUTH_OPEN) || \
+	 QDF_HAS_PARAM(akm, WLAN_CRYPTO_AUTH_AUTO) || \
+	 QDF_HAS_PARAM(akm, WLAN_CRYPTO_AUTH_WPA))
+
 #define WLAN_CRYPTO_IS_WPA_WPA2(akm) \
 	(QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_IEEE8021X) || \
 	 QDF_HAS_PARAM(akm, WLAN_CRYPTO_KEY_MGMT_PSK) || \

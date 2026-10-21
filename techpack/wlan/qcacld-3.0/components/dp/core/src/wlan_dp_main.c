@@ -750,10 +750,31 @@ dp_nud_tracking_cfg_update(struct wlan_dp_psoc_cfg *config,
 {
 	config->enable_nud_tracking = cfg_get(psoc, CFG_DP_ENABLE_NUD_TRACKING);
 }
+
+/**
+ * dp_nud_failure_event_notify() - initialize config of nud_failure_event
+ * If enable_nud_failure_event_notify is true, after nud_failed roam fail,
+ * it will notify nud_failed event to fwk, but it won't disconncet;
+ * @config : Configuration parameters
+ * @psoc: psoc handle
+ */
+static void
+dp_nud_failure_event_notify(struct wlan_dp_psoc_cfg *config,
+				struct wlan_objmgr_psoc *psoc){
+	config->enable_nud_failure_event_notify = cfg_get(psoc,
+			CFG_DP_ENABLE_NUD_FAILURE_EVENT_NOTIFY);
+}
+
 #else
 static void
 dp_nud_tracking_cfg_update(struct wlan_dp_psoc_cfg *config,
 			   struct wlan_objmgr_psoc *psoc)
+{
+}
+
+static void
+dp_nud_failure_event_notify(struct wlan_dp_psoc_cfg *config,
+				struct wlan_objmgr_psoc *psoc)
 {
 }
 #endif
@@ -873,6 +894,19 @@ void dp_direct_link_cfg_init(struct wlan_dp_psoc_cfg *config,
 #endif
 
 /**
+ * dp_bmiss_event_notify() - initialize bmiss event notify config
+ * If enable_bmiss_event_notify is set to true, after recv bmiss event from fw,
+ * it will notify bmiss event to fwk, but it won't disconnect(BTC);
+ */
+static void
+dp_bmiss_event_notify(struct wlan_dp_psoc_cfg *config,
+						struct wlan_objmgr_psoc *psoc)
+{
+	config->enable_bmiss_event_notify = cfg_get(psoc,
+				CFG_DP_ENABLE_BMISS_EVENT_NOTIFY);
+}
+
+/**
  * dp_cfg_init() - initialize target specific configuration
  * @ctx: dp context handle
  */
@@ -926,6 +960,8 @@ static void dp_cfg_init(struct wlan_dp_psoc_context *ctx)
 
 	dp_trace_cfg_update(config, psoc);
 	dp_nud_tracking_cfg_update(config, psoc);
+	dp_nud_failure_event_notify(config, psoc);
+	dp_bmiss_event_notify(config, psoc);
 	dp_trace_cfg_update(config, psoc);
 	dp_fisa_cfg_init(config, psoc);
 	dp_direct_link_cfg_init(config, psoc);
@@ -2749,11 +2785,8 @@ QDF_STATUS dp_config_direct_link(struct wlan_dp_intf *dp_intf,
 {
 	struct wlan_dp_psoc_context *dp_ctx = dp_intf->dp_ctx;
 	struct direct_link_info *config = &dp_intf->direct_link_config;
-	struct wlan_dp_link *dp_link, *dp_link_next;
 	void *htc_handle;
 	bool prev_ll, update_ll;
-	cdp_config_param_type vdev_param = {0};
-	QDF_STATUS status;
 
 	if (!dp_ctx || !dp_ctx->psoc) {
 		dp_err("DP Handle is NULL");
@@ -2776,15 +2809,6 @@ QDF_STATUS dp_config_direct_link(struct wlan_dp_intf *dp_intf,
 	update_ll = config_direct_link ? enable_low_latency : prev_ll;
 	config->config_set = config_direct_link;
 	config->low_latency = enable_low_latency;
-	dp_for_each_link_held_safe(dp_intf, dp_link, dp_link_next) {
-		vdev_param.cdp_vdev_tx_to_fw = config_direct_link;
-		status = cdp_txrx_set_vdev_param(
-				wlan_psoc_get_dp_handle(dp_ctx->psoc),
-				dp_link->link_id, CDP_VDEV_TX_TO_FW,
-				vdev_param);
-		if (QDF_IS_STATUS_ERROR(status))
-			break;
-	}
 
 	if (config_direct_link) {
 		if (update_ll)
@@ -2803,7 +2827,7 @@ QDF_STATUS dp_config_direct_link(struct wlan_dp_intf *dp_intf,
 	}
 	qdf_mutex_release(&dp_ctx->dp_direct_link_lock);
 
-	return status;
+	return QDF_STATUS_SUCCESS;
 }
 
 QDF_STATUS

@@ -486,6 +486,95 @@ static struct dp_consistent_prealloc_unaligned
 	 + CE_DESC_RING_ALIGN), false, NULL, 0},
 };
 
+#define DP_PREALLOC_RETRY_CNT 5
+/* delay in unit ms */
+#define DP_PREALLOC_RETRY_DELAY 200
+
+/**
+ * dp_prealloc_mem_malloc() - malloc memory for dp prealloc
+ * @size: required memory size
+ * @retry_cnt: retry count if memory allocation failed
+ * @retry_delay: delay between each retry in unit ms
+ *
+ * Allow to retry memory allocation if failed for 1st time,
+ * set retry_cnt to 0 if no retry needed, set retry_delay to 0
+ * if no delay expected between each retry.
+ *
+ * Return: memory address allocated, failed if NULL
+ */
+static void *dp_prealloc_mem_malloc(size_t size,
+				    int retry_cnt,
+				    int retry_delay)
+{
+	void *addr = NULL;
+
+	do {
+		addr = qdf_mem_malloc(size);
+		if (addr)
+			break;
+
+		if (retry_cnt > 0)
+			retry_cnt--;
+		else
+			break;
+
+		if (retry_delay > 0) {
+			qdf_mdelay(retry_delay);
+			dp_warn("dp prealloc mem fail, retry_cnt: %d ,retry_delay: %d ms",
+							retry_cnt, retry_delay);
+		}
+	} while (true);
+
+	return addr;
+}
+
+/**
+ * dp_prealloc_aligned_mem_alloc_consistent() - malloc aligned consistent
+ *                                              memory for dp prealloc
+ * @qdf_ctx: OS device handle
+ * @p: pointer to DP pre-alloc element structure
+ * @retry_cnt: retry count if memory allocation failed
+ * @retry_delay: delay between each retry in unit ms
+ *
+ * Allow to retry consistent memory allocation if failed for 1st time,
+ * set retry_cnt to 0 if no retry needed, set retry_delay to 0
+ * if no delay expected between each retry.
+ *
+ * Return: memory address allocated, failed if NULL
+ */
+static void *dp_prealloc_aligned_mem_alloc_consistent(
+					qdf_device_t qdf_ctx,
+					struct dp_consistent_prealloc *p,
+					int retry_cnt,
+					int retry_delay)
+{
+	void *addr = NULL;
+
+	do {
+		addr = qdf_aligned_mem_alloc_consistent(qdf_ctx,
+							&p->size,
+							&p->va_unaligned,
+							&p->pa_unaligned,
+							&p->pa_aligned,
+							DP_RING_BASE_ALIGN);
+		if (addr)
+			break;
+
+		if (retry_cnt > 0)
+			retry_cnt--;
+		else
+			break;
+
+		if (retry_delay > 0) {
+			qdf_mdelay(retry_delay);
+			dp_warn("dp prealloc consistent mem fail, retry_cnt: %d ,retry_delay: %d ms",
+							retry_cnt, retry_delay);
+		}
+	} while (true);
+
+	return addr;
+}
+
 void dp_prealloc_deinit(void)
 {
 	int i;
@@ -747,17 +836,20 @@ dp_update_mem_size_by_ring_type(struct wlan_dp_prealloc_cfg *cfg,
  * @cfg: prealloc related cfg params
  * @desc_type: descriptor type
  * @num_elements: num of descriptor elements
+ * @elem_size: size of the descriptor element
  *
  * Return: None
  */
 static void
 dp_update_num_elements_by_desc_type(struct wlan_dp_prealloc_cfg *cfg,
 				    enum qdf_dp_desc_type desc_type,
-				    uint16_t *num_elements)
+				    uint16_t *num_elements,
+				    qdf_size_t *elem_size)
 {
 	switch (desc_type) {
 	case QDF_DP_TX_DESC_TYPE:
 		*num_elements = cfg->num_tx_desc;
+		*elem_size = qdf_get_pwr2(sizeof(struct dp_tx_desc_s));
 		return;
 	case QDF_DP_TX_EXT_DESC_TYPE:
 	case QDF_DP_TX_EXT_DESC_LINK_TYPE:
@@ -855,7 +947,9 @@ QDF_STATUS dp_prealloc_init(struct cdp_ctrl_objmgr_psoc *ctrl_psoc)
 		cp = &g_dp_context_allocs[i];
 		dp_update_mem_size_by_ctx_type(&cfg, cp->ctxt_type,
 					       &cp->size);
-		cp->addr = qdf_mem_malloc(cp->size);
+		cp->addr = dp_prealloc_mem_malloc(cp->size,
+						  DP_PREALLOC_RETRY_CNT,
+						  DP_PREALLOC_RETRY_DELAY);
 
 		if (qdf_unlikely(!cp->addr) && cp->is_critical) {
 			dp_warn("i %d: unable to preallocate %d bytes memory!",
@@ -873,13 +967,12 @@ QDF_STATUS dp_prealloc_init(struct cdp_ctrl_objmgr_psoc *ctrl_psoc)
 		p = &g_dp_consistent_allocs[i];
 		p->in_use = 0;
 		dp_update_mem_size_by_ring_type(&cfg, p->ring_type, &p->size);
-		p->va_aligned =
-			qdf_aligned_mem_alloc_consistent(qdf_ctx,
-							 &p->size,
-							 &p->va_unaligned,
-							 &p->pa_unaligned,
-							 &p->pa_aligned,
-							 DP_RING_BASE_ALIGN);
+		p->va_aligned = dp_prealloc_aligned_mem_alloc_consistent(
+						qdf_ctx,
+						p,
+						DP_PREALLOC_RETRY_CNT,
+						DP_PREALLOC_RETRY_DELAY);
+
 		if (qdf_unlikely(!p->va_unaligned)) {
 			dp_warn("i %d: unable to preallocate %d bytes memory!",
 				i, p->size);
@@ -898,7 +991,8 @@ QDF_STATUS dp_prealloc_init(struct cdp_ctrl_objmgr_psoc *ctrl_psoc)
 		mp = &g_dp_multi_page_allocs[i];
 		mp->in_use = false;
 		dp_update_num_elements_by_desc_type(&cfg, mp->desc_type,
-						    &mp->element_num);
+						    &mp->element_num,
+						    &mp->element_size);
 		if (mp->cacheable)
 			mp->pages.page_size = DP_BLOCKMEM_SIZE;
 

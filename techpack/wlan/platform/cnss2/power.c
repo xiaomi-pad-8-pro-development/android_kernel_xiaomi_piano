@@ -254,6 +254,11 @@ static int cnss_vreg_unvote_single(struct cnss_vreg_info *vreg)
 		return 0;
 	}
 
+	if (cnss_pci_state_need_vddaon()) {
+		cnss_pr_dbg("no need remove vote for Regulator %s\n", vreg->cfg.name);
+		return 0;
+	}
+
 	cnss_pr_dbg("Removing vote for Regulator %s\n", vreg->cfg.name);
 
 	if (vreg->cfg.load_ua) {
@@ -616,6 +621,11 @@ static int cnss_clk_on_single(struct cnss_clk_info *clk_info)
 	if (clk_info->enabled) {
 		cnss_pr_dbg("Clock %s is already enabled\n",
 			    clk_info->cfg.name);
+		return 0;
+	}
+
+	if (!cnss_pci_state_need_clkaon()) {
+		cnss_pr_dbg("no need enable clk:%s\n", clk_info->cfg.name);
 		return 0;
 	}
 

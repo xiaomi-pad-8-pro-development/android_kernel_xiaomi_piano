@@ -35,6 +35,7 @@
 #include "wlan_cfg80211.h"
 #include "wlan_cfg80211_p2p.h"
 #include "wlan_mlo_mgr_sta.h"
+#include "wlan_hdd_main.h"
 #include "wlan_mlme_api.h"
 #include "osif_vdev_mgr_util.h"
 #include "wlan_hdd_main.h"

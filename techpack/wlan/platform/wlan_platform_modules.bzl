@@ -1,6 +1,6 @@
 load("//build/bazel_common_rules/dist:dist.bzl", "copy_to_dist_dir")
 load("//build/kernel/kleaf:kernel.bzl", "ddk_module")
-load(":target_variants.bzl", "get_all_variants")
+load("//msm-kernel:target_variants.bzl", "get_all_variants", "get_arch_of_target")
 
 _default_module_enablement_list = [
     "cnss_nl",
@@ -365,7 +365,12 @@ def _define_modules_for_target_variant(target, variant):
     )
 
 def define_modules():
-    for (t, v) in get_all_variants():
+    pairs = []
+    for target, variant in get_all_variants():
+        arch = get_arch_of_target(target)
+        if arch == target:
+            pairs.append((target, variant))
+    for (t, v) in pairs:
         print("v=", v)
         if t in _cnss2_enabled_target or t in _icnss2_enabled_target:
             _define_modules_for_target_variant(t, v)

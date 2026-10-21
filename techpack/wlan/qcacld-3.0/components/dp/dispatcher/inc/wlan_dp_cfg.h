@@ -1134,8 +1134,36 @@
 
 #define CFG_DP_ENABLE_NUD_TRACKING_ALL \
 			CFG(CFG_DP_ENABLE_NUD_TRACKING)
+
+/*
+ * <ini>
+ * gEnableNUDFailureNotify - Will enable or disable notify NUD failure event to fwk
+ * @Min: 0
+ * @Max: 4
+ * @Default: 0
+ *
+ * 0: Driver will track the NUD failures, and follow gEnableNUDTracking.
+ * 4: Driver will track the NUD failures, and notify nud failed event to fwk and
+ * driver won't disconnect AP;
+ *
+ * Supported Feature: STA
+ *
+ * Usage: External
+ *
+ * <ini>
+ */
+#define CFG_DP_ENABLE_NUD_FAILURE_EVENT_NOTIFY \
+		CFG_INI_UINT("gEnableNUDFailureNotify", \
+		 0, \
+		 4, \
+		 0, \
+		 CFG_VALUE_OR_DEFAULT, "Driver NUD failure event notify")
+
+#define CFG_DP_ENABLE_NUD_FAILURE_EVENT_NOTIFY_ALL \
+			CFG(CFG_DP_ENABLE_NUD_FAILURE_EVENT_NOTIFY)
 #else
 #define CFG_DP_ENABLE_NUD_TRACKING_ALL
+#define CFG_DP_ENABLE_NUD_FAILURE_EVENT_NOTIFY_ALL
 #endif
 
 #ifdef WLAN_SUPPORT_TXRX_HL_BUNDLE
@@ -1498,6 +1526,31 @@
 #define CFG_DP_DYNAMIC_RESOURCE_MGMT
 #endif
 
+/**
+ * <ini>
+ * gEnableBmissNoity - will enable or disable notify BMISS event to fwk
+ * @Min: 0
+ * @Max: 1
+ * @Default: 0
+ * 0: After driver recv bmiss event, will disconnect connection
+ * 1: After driver recv bmiss event, will notify fwk to handle bmiss event and
+ * driver won't disconnect AP;
+ *
+ * Supported Feature: STA(BTC)
+ * Usage: External
+ *
+ * <ini>
+ */
+#define CFG_DP_ENABLE_BMISS_EVENT_NOTIFY \
+	CFG_INI_UINT("gEnableBmissNoity", \
+			 0, \
+			 1, \
+			 0, \
+			 CFG_VALUE_OR_DEFAULT, "Enable/Disable notify BMISS event notify to fwk")
+
+#define CFG_DP_ENABLE_BMISS_EVENT_NOTIFY_ALL \
+	CFG(CFG_DP_ENABLE_BMISS_EVENT_NOTIFY)
+
 /*
  * <ini>
  * dp_ipa_debug_enable - support IPA debugging
@@ -1544,6 +1597,8 @@
 	CFG_DP_BUS_BANDWIDTH \
 	CFG_DP_DRIVER_TCP_DELACK \
 	CFG_DP_ENABLE_NUD_TRACKING_ALL \
+	CFG_DP_ENABLE_NUD_FAILURE_EVENT_NOTIFY_ALL \
+	CFG_DP_ENABLE_BMISS_EVENT_NOTIFY_ALL \
 	CFG_DP_CONFIG_DP_TRACE_ALL \
 	CFG_DP_HL_BUNDLE \
 	CFG_DP_FISA \

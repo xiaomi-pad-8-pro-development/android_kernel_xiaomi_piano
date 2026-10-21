@@ -121,6 +121,8 @@ wlan_p2p_check_and_force_scc_go_plus_go(struct wlan_objmgr_psoc *psoc,
 const uint8_t *wlan_p2p_parse_assoc_ie_for_device_info(const uint8_t *assoc_ie,
 						       uint32_t assoc_ie_len);
 
+bool wlan_p2p_is_vdev_wfd_r2_mode(struct wlan_objmgr_vdev *vdev);
+
 /**
  * wlan_p2p_is_vdev_wfd_r2_mode() - Wrapper API to get VDEV WFD mode of
  * operation

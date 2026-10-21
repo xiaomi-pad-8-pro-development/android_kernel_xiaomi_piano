@@ -673,7 +673,6 @@ ll_lt_sap_high_ap_availability_ser_cmd_remove(
 					enum wlan_serialization_cmd_type type)
 {
 	struct wlan_serialization_queued_cmd_info cmd = {0};
-
 	cmd.cmd_type = type;
 	cmd.cmd_id = 0;
 	cmd.vdev = vdev;
@@ -766,6 +765,7 @@ ll_lt_sap_high_ap_availability_ser_cb(struct wlan_serialization_command *cmd,
 	struct ll_sap_oob_connect_request *req;
 	QDF_STATUS status = QDF_STATUS_SUCCESS;
 
+	ll_sap_debug("reason %d", reason);
 	if (!cmd || !cmd->umac_cmd) {
 		ll_sap_err("NULL ser cmd");
 		return QDF_STATUS_E_NULL_VALUE;
