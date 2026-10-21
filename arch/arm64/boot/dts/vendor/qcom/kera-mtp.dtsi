@@ -78,18 +78,6 @@
 	};
 };
 
-&pmxr2230_sys_therm_11 {
-	status = "disabled";
-};
-
-&sys_therm_11 {
-	status = "disabled";
-};
-
-&pm8550ve_f_die_temp {
-	status = "disabled";
-};
-
 &usb0 {
 	qcom,wcd_usbss = <&wcd_usbss>;
 };

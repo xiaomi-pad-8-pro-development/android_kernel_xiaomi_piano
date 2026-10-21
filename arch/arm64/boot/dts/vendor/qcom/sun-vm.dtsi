@@ -372,7 +372,7 @@
 		interrupt-controller;
 		#interrupt-cells = <2>;
 		/* Valid pins */
-		gpios = /bits/ 16 <86 87 98 97 48 49 50 51 161 162 100 28 29 30 31 88>;
+		gpios = /bits/ 16 <40 41 42 43 86 87 98 100 161 162>;
 	};
 
 	tlmm-vm-test {
@@ -380,9 +380,9 @@
 		pinctrl-names = "active", "sleep";
 		pinctrl-0 = <&qupv3_se1_7i2c_active>;
 		pinctrl-1 = <&qupv3_se1_7i2c_sleep>;
-		tlmm-vm-gpio-list = <&tlmm 86 0 &tlmm 87 0 &tlmm 98 0 &tlmm 97 0 &tlmm 48 0 &tlmm 49 0
-					&tlmm 50 0 &tlmm 51 0 &tlmm 161 0 &tlmm 162 0 &tlmm 100 0
-					 &tlmm 28 0 &tlmm 29 0 &tlmm 30 0 &tlmm 31 0 &tlmm 88 0>;
+		tlmm-vm-gpio-list = <&tlmm 40 0 &tlmm 41 0 &tlmm 42 0 &tlmm 43 0
+						&tlmm 86 0 &tlmm 87 0 &tlmm 98 0 &tlmm 100 0
+							&tlmm 161 0 &tlmm 162 0>;
 	};
 
 	pinctrl@f000000 {
@@ -416,9 +416,9 @@
 
 	tlmm-vm-mem-access {
 		compatible = "qcom,tlmm-vm-mem-access";
-		tlmm-vm-gpio-list = <&tlmm 86 0 &tlmm 87 0 &tlmm 98 0 &tlmm 97 0 &tlmm 48 0 &tlmm 49 0
-					&tlmm 50 0 &tlmm 51 0 &tlmm 161 0 &tlmm 162 0 &tlmm 100 0
-					 &tlmm 28 0 &tlmm 29 0 &tlmm 30 0 &tlmm 31 0 &tlmm 88 0>;
+		tlmm-vm-gpio-list = <&tlmm 40 0 &tlmm 41 0 &tlmm 42 0 &tlmm 43 0
+						&tlmm 86 0 &tlmm 87 0 &tlmm 98 0 &tlmm 100 0
+							&tlmm 161 0 &tlmm 162 0>;
 	};
 
 	psci {
@@ -551,33 +551,34 @@
 		status = "ok";
 
 		/* Touchscreen I2C Instance */
-		qupv3_se4_i2c: i2c@a90000 {
+		qupv3_se2_i2c: i2c@a88000 {
 			compatible = "qcom,i2c-geni";
-			reg = <0xa90000 0x4000>;
+			reg = <0xa88000 0x4000>;
 			#address-cells = <1>;
 			#size-cells = <0>;
-			dmas = <&gpi_dma1 0 4 3 64 0xc>,
-				<&gpi_dma1 1 4 3 64 0xc>;
+			dmas = <&gpi_dma1 0 2 3 64 0xc>,
+				<&gpi_dma1 1 2 3 64 0xc>;
 			dma-names = "tx", "rx";
 			qcom,le-vm;
 			status = "disabled";
 		};
 
 		/* Touchscreen SPI Instance */
-		qupv3_se4_spi: spi@a90000 {
+		qupv3_se2_spi: spi@a88000 {
 			compatible = "qcom,spi-geni";
-			reg = <0xa90000 0x4000>;
+			reg = <0xa88000 0x4000>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 			reg-names = "se_phys";
-			dmas = <&gpi_dma1 0 4 1 64 0xc>,
-				<&gpi_dma1 1 4 1 64 0xc>;
+			dmas = <&gpi_dma1 0 2 1 64 0xc>,
+				<&gpi_dma1 1 2 1 64 0xc>;
 			dma-names = "tx", "rx";
 			spi-max-frequency = <50000000>;
 			qcom,le-vm;
 			status = "disabled";
 		};
 	};
+
 
 	/* QUPv3_2 GPI Instance */
 	gpi_dma2: qcom,gpi-dma@800000 {

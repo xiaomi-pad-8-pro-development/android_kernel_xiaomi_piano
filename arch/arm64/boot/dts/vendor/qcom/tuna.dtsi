@@ -70,21 +70,15 @@
 		spi15 = &qupv3_se15_spi;
 	};
 
+
 	chosen: chosen {
-		bootargs = "log_buf_len=512K loglevel=6 cpufreq.default_governor=performance sysctl.kernel.sched_pelt_multiplier=4 no-steal-acc kpti=0 swiotlb=0 loop.max_part=7 pcie_ports=compat irqaffinity=0-1 printk.console_no_auto_verbose=1 kasan=off rcupdate.rcu_expedited=1 rcu_nocbs=0-7 kernel.panic_on_rcu_stall=1 disable_dma32=on cgroup_disable=pressure fw_devlink.strict=1 can.stats_timer=0 ftrace_dump_on_oops cpufreq.default_governor=performance page_poison=on cgroup.memory=nokmem,nosocket pci-msm-drv.pcie_sm_regs=0x1D07000,0x1040,0x1048,0x3000,0x1";
+		bootargs = "cpufreq.default_governor=performance sysctl.kernel.sched_pelt_multiplier=4 no-steal-acc kpti=0 swiotlb=0 loop.max_part=7 pcie_ports=compat irqaffinity=0-1 firmware_class.path=/odm/firmware/o10u printk.console_no_auto_verbose=0 kasan=off rcupdate.rcu_expedited=1 rcu_nocbs=0-7 kernel.panic_on_rcu_stall=1 disable_dma32=on cgroup_disable=pressure fw_devlink.strict=1 can.stats_timer=0 ftrace_dump_on_oops cpufreq.default_governor=performance cgroup.memory=nokmem,nosocket pci-msm-drv.pcie_sm_regs=0x1D07000,0x1040,0x1048,0x3000,0x1";
 		stdout-path = "serial0:115200n8";
 	};
-
+	
 	reserved_memory: reserved-memory {};
 
 	ddr-regions { };
-
-	mem-offline {
-		compatible = "qcom,mem-offline";
-		offline-sizes = <0x2 0xc0000000 0x1 0x0>;
-		granule = <512>;
-		qcom,qmp = <&aoss_qmp>;
-	};
 
 	firmware: firmware {
 		qcom_scm: qcom_scm {};
@@ -439,6 +433,13 @@
 	#size-cells = <2>;
 	ranges;
 
+	ramoops_mem: ramoops_region {
+		compatible = "ramoops";
+		reg = <0x0 0xa3500000 0x0 0x400000>;
+		console-size = <0x200000>;
+		pmsg-size = <0x200000>;
+	};
+
 	cdsp_eva_mem: cdsp_eva_region {
 		compatible = "shared-dma-pool";
 		alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
@@ -470,11 +471,6 @@
 		size = <0 0x1000000>;
 	};
 
-	ramoops_mem: ramoops-region {
-		alloc-ranges = <0x1 0x00000000 0xfffffffe 0xffffffff>;
-		size = <0x0 0x200000>;
-		no-map;
-	};
 };
 
 &firmware {
@@ -941,6 +937,8 @@
 	adsp_sleepmon: adsp-sleepmon {
 		compatible = "qcom,adsp-sleepmon";
 		qcom,rproc-handle = <&adsp_pas>;
+		qcom,wait_time_lpm = <45>;
+		qcom,wait_time_lpi = <45>;
 	};
 
 	pcie_pdc: pdc@b360000 {
@@ -2142,13 +2140,6 @@
 		status = "ok";
 	};
 
-	qcom_ramoops {
-		compatible = "qcom,ramoops";
-		memory-region = <&ramoops_mem>;
-		pmsg-size = <0x200000>;
-		mem-type = <2>;
-	};
-
 	qcom,mpm2-sleep-counter@c221000 {
 		compatible = "qcom,mpm2-sleep-counter";
 		reg = <0xc221000 0x1000>;
@@ -2836,6 +2827,12 @@
 
 		battery_charger: qcom,battery_charger {
 			compatible = "qcom,battery-charger";
+			status = "disabled";
+		};
+
+		mca_adsp_glink: mca,adsp_glink {
+			compatible = "mca,adsp_glink";
+			status = "disabled";
 		};
 
 		ucsi: qcom,ucsi {
@@ -3788,6 +3785,17 @@
 		compatible = "qcom,wcd939x-i2c";
 		reg = <0xe>;
 		vdd-usb-cp-supply = <&L7B>;
+	};
+};
+
+&qupv3_se3_i2c {
+	status = "ok";
+
+	/* FSA4480 */
+	fsa4480: fsa4480@42 {
+		status = "ok";
+		compatible = "qcom,fsa4480-i2c";
+		reg = <0x42>;
 	};
 };
 

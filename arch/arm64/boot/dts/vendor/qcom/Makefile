@@ -39,6 +39,13 @@ SUN_BOARDS += \
 		sun-qrd-sku2-v8-overlay.dtbo \
 		sun-rcm-kiwi-overlay.dtbo \
 		sun-rcm-kiwi-v8-overlay.dtbo \
+		haotian-sm8750-overlay.dtbo \
+		dada-sm8750-overlay.dtbo \
+		xuanyuan-sm8750-overlay.dtbo \
+		miro-sm8750-overlay.dtbo \
+		annibale-sm8750-overlay.dtbo \
+		bixi-sm8750-overlay.dtbo \
+		piano-sm8750-overlay.dtbo \
 		sun-rcm-overlay.dtbo \
 		sun-rcm-v8-overlay.dtbo \
 		sun-atp-overlay.dtbo \
@@ -65,7 +72,10 @@ TUNA_BOARDS += \
 		tuna-mtp-kiwi-pmd802x-overlay.dtbo \
 		tuna-qrd-overlay.dtbo \
 		tuna-rcm-kiwi-overlay.dtbo \
-		tuna-rcm-overlay.dtbo
+		tuna-rcm-overlay.dtbo \
+		onyx-sm8735-overlay.dtbo \
+		luming-sm8735-overlay.dtbo \
+		yupei-sm8735-overlay.dtbo
 
 NOAPQ_TUNA_BOARDS += \
 		tuna-rumi-overlay.dtbo

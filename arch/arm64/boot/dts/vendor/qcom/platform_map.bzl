@@ -191,6 +191,243 @@ _platform_map = {
             {"name": "kera-rcm-wcn7750-ufs4-overlay.dtbo"},
         ],
     },
+    "haotian": {
+        "dtb_list": [
+            # keep sorted
+            {"name": "sun.dtb"},
+            {
+                "name": "sunp.dtb",
+                "apq": True,
+            },
+            {
+                "name": "sunp-v2.dtb",
+                "apq": True,
+            },
+            {"name": "sun-v2.dtb"},
+            {"name": "sun-tp.dtb"},
+            {"name": "sun-tp-v2.dtb"},
+            {
+                "name": "sunp-tp.dtb",
+                "apq": True,
+            },
+            {
+                "name": "sunp-tp-v2.dtb",
+                "apq": True,
+            },
+        ],
+        "dtbo_list": [
+            # keep sorted
+            {"name": "haotian-sm8750-overlay.dtbo"},
+        ],
+    },
+    "dada": {
+        "dtb_list": [
+            # keep sorted
+            {"name": "sun.dtb"},
+            {
+                "name": "sunp.dtb",
+                "apq": True,
+            },
+            {
+                "name": "sunp-v2.dtb",
+                "apq": True,
+            },
+            {"name": "sun-v2.dtb"},
+            {"name": "sun-tp.dtb"},
+            {"name": "sun-tp-v2.dtb"},
+            {
+                "name": "sunp-tp.dtb",
+                "apq": True,
+            },
+            {
+                "name": "sunp-tp-v2.dtb",
+                "apq": True,
+            },
+        ],
+        "dtbo_list": [
+            # keep sorted
+            {"name": "dada-sm8750-overlay.dtbo"},
+        ],
+    },
+    "xuanyuan": {
+        "dtb_list": [
+            # keep sorted
+            {"name": "sun.dtb"},
+            {
+                "name": "sunp.dtb",
+                "apq": True,
+            },
+            {
+                "name": "sunp-v2.dtb",
+                "apq": True,
+            },
+            {"name": "sun-v2.dtb"},
+            {"name": "sun-tp.dtb"},
+            {"name": "sun-tp-v2.dtb"},
+            {
+                "name": "sunp-tp.dtb",
+                "apq": True,
+            },
+            {
+                "name": "sunp-tp-v2.dtb",
+                "apq": True,
+            },
+        ],
+        "dtbo_list": [
+            # keep sorted
+            {"name": "xuanyuan-sm8750-overlay.dtbo"},
+        ],
+    },
+    "miro": {
+        "dtb_list": [
+            # keep sorted
+            {"name": "sun.dtb"},
+            {
+                "name": "sunp.dtb",
+                "apq": True,
+            },
+            {
+                "name": "sunp-v2.dtb",
+                "apq": True,
+            },
+            {"name": "sun-v2.dtb"},
+            {"name": "sun-tp.dtb"},
+            {"name": "sun-tp-v2.dtb"},
+            {
+                "name": "sunp-tp.dtb",
+                "apq": True,
+            },
+            {
+                "name": "sunp-tp-v2.dtb",
+                "apq": True,
+            },
+        ],
+        "dtbo_list": [
+            # keep sorted
+            {"name": "miro-sm8750-overlay.dtbo"},
+        ],
+    },
+    "annibale": {
+        "dtb_list": [
+            # keep sorted
+            {"name": "sun.dtb"},
+            {
+                "name": "sunp.dtb",
+                "apq": True,
+            },
+            {
+                "name": "sunp-v2.dtb",
+                "apq": True,
+            },
+            {"name": "sun-v2.dtb"},
+            {"name": "sun-tp.dtb"},
+            {"name": "sun-tp-v2.dtb"},
+            {
+                "name": "sunp-tp.dtb",
+                "apq": True,
+            },
+            {
+                "name": "sunp-tp-v2.dtb",
+                "apq": True,
+            },
+        ],
+        "dtbo_list": [
+            # keep sorted
+            {"name": "annibale-sm8750-overlay.dtbo"},
+        ],
+    },
+    "bixi": {
+        "dtb_list": [
+            # keep sorted
+            {"name": "sun.dtb"},
+            {
+                "name": "sunp.dtb",
+                "apq": True,
+            },
+            {
+                "name": "sunp-v2.dtb",
+                "apq": True,
+            },
+            {"name": "sun-v2.dtb"},
+            {"name": "sun-tp.dtb"},
+            {"name": "sun-tp-v2.dtb"},
+            {
+                "name": "sunp-tp.dtb",
+                "apq": True,
+            },
+            {
+                "name": "sunp-tp-v2.dtb",
+                "apq": True,
+            },
+        ],
+        "dtbo_list": [
+            # keep sorted
+            {"name": "bixi-sm8750-overlay.dtbo"},
+        ],
+    },
+    "onyx": {
+        "dtb_list": [
+            {"name": "tuna.dtb"},
+            {"name": "tuna7.dtb"},
+        ],
+        "dtbo_list": [
+            # keep sorted
+            {"name": "onyx-sm8735-overlay.dtbo"},
+        ],
+    },
+    "luming": {
+        "dtb_list": [
+	    {"name": "tuna.dtb"},
+            {"name": "tuna7.dtb"},
+        ],
+        "dtbo_list": [
+            # keep sorted
+            {"name": "luming-sm8735-overlay.dtbo"},
+        ],
+    },
+    "piano": {
+        "dtb_list": [
+            # keep sorted
+            {"name": "sun.dtb"},
+            {
+                "name": "sunp.dtb",
+                "apq": True,
+            },
+            {
+                "name": "sunp-v2.dtb",
+                "apq": True,
+            },
+            {"name": "sun-v2.dtb"},
+            {"name": "sun-tp.dtb"},
+            {"name": "sun-tp-v2.dtb"},
+            {
+                "name": "sunp-tp.dtb",
+                "apq": True,
+            },
+            {
+                "name": "sunp-tp-v2.dtb",
+                "apq": True,
+            },
+        ],
+        "dtbo_list": [
+            # keep sorted
+            {"name": "piano-sm8750-overlay.dtbo"},
+        ],
+    },
+    "yupei": {
+        "dtb_list": [
+	    {"name": "tuna.dtb"},
+            {"name": "tuna7.dtb"},
+            {
+                "name": "tunap.dtb",
+                "apq": True,
+            },
+        ],
+        "dtbo_list": [
+            # keep sorted
+            {"name": "yupei-sm8735-overlay.dtbo"},
+        ],
+    },
     "parrot-tuivm": {
         "dtb_list": [
             # keep sorted

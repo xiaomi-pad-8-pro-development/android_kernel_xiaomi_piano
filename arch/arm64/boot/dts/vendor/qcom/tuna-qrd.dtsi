@@ -4,7 +4,9 @@
  */
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/interrupt-controller/irq.h>
+#include "tuna-pmic-overlay.dtsi"
 
+/*
 &qupv3_se4_spi {
 	#address-cells = <1>;
 	#size-cells = <0>;
@@ -43,6 +45,7 @@
 
 	};
 };
+*/
 
 &ufsphy_mem {
 	compatible = "qcom,ufs-phy-qmp-v4-niobe";

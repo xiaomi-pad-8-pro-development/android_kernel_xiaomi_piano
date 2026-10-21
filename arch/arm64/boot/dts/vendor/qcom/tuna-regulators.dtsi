@@ -317,7 +317,8 @@
 			<RPMH_REGULATOR_MODE_LPM
 			 RPMH_REGULATOR_MODE_HPM>;
 		qcom,mode-threshold-currents = <0 10000>;
-		status = "disabled";
+		/*ldob14/L14B is using need open*/
+		status = "ok";
 
 		L14B: pmxr2230_l14: vreg-pmxr2230-l14 {
 			regulator-name = "pmxr2230_l14";
@@ -1365,6 +1366,17 @@
 			regulator-min-microvolt = <3130000>;
 			regulator-max-microvolt = <3470000>;
 			qcom,init-voltage = <3304000>;
+		};
+	};
+
+	rpmh-regulator-vrm-wcal {
+		compatible = "qcom,rpmh-pbs-regulator";
+		qcom,resource-name = "vrm.wcal";
+
+		WCAL_PBS:
+		pmk8550_wcal_pbs: regulator-pmk8550-wcal-pbs {
+			regulator-name = "pmk8550_wcal_pbs";
+			qcom,set = <RPMH_REGULATOR_SET_ALL>;
 		};
 	};
 };
