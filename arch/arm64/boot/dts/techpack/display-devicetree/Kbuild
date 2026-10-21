@@ -1,7 +1,13 @@
 ifneq ($(CONFIG_ARCH_QTI_VM), y)
 dtbo-$(CONFIG_ARCH_SUN) += display/sun-sde.dtbo \
+		display/haotian-sde-display-mtp-overlay.dtbo \
+		display/miro-sde-display-mtp-overlay.dtbo \
+		display/annibale-sde-display-mtp-overlay.dtbo \
+		display/dada-sde-display-mtp-overlay.dtbo \
+		display/xuanyuan-sde-display-mtp-overlay.dtbo \
+		display/bixi-sde-display-mtp-overlay.dtbo \
+		display/piano-sde-display-mtp-overlay.dtbo \
 		display/sun-sde-display-cdp-overlay.dtbo \
-		display/sun-sde-display-mtp-overlay.dtbo \
 		display/sun-sde-display-rumi-overlay.dtbo \
 		display/sun-sde-display-rcm-overlay.dtbo \
 		display/sun-sde-display-qrd-sku1-overlay.dtbo \
@@ -14,7 +20,6 @@ dtbo-$(CONFIG_ARCH_SUN) += display/sun-sde.dtbo \
 		display/sun-sde-display-cdp-nfc-overlay.dtbo \
 		display/sun-sde-display-mtp-nfc-overlay.dtbo \
 		display/sun-sde-display-cdp-v8-overlay.dtbo \
-		display/sun-sde-display-mtp-v8-overlay.dtbo \
 		display/sun-sde-display-atp-overlay.dtbo \
 		display/sun-sde-display-mtp-3-5mm-overlay.dtbo \
 		display/sun-sde-display-rcm-kiwi-overlay.dtbo \
@@ -32,6 +37,9 @@ endif
 
 ifneq ($(CONFIG_ARCH_QTI_VM), y)
 dtbo-$(CONFIG_ARCH_TUNA) += display/tuna-sde.dtbo \
+		display/onyx-sde-display-mtp-overlay.dtbo \
+                display/luming-sde-display-mtp-overlay.dtbo \
+		display/yupei-sde-display-mtp-overlay.dtbo \
 		display/tuna-sde-display-atp-overlay.dtbo \
 		display/tuna-sde-display-cdp-overlay.dtbo \
 		display/tuna-sde-display-mtp-overlay.dtbo \

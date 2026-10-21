@@ -288,6 +288,7 @@
 			"qcom,sde-ebi-bus", "qcom,sde-reg-bus";
 
 	qcom,sde-has-idle-pc;
+	qcom,sde-wakeup-with-touch;
 
 	qcom,sde-ib-bw-vote = <2500000 0 800000>;
 	qcom,sde-dspp-ltm-version = <0x00010003>;
