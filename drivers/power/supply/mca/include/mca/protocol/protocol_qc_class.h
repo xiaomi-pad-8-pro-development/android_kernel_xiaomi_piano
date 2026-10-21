@@ -6,9 +6,9 @@
 
 #define QC3_STEP_SIZE 200
 enum mca_qc_hvdcp_cmd {
-	QC2_FORCE_5V = 0,
-	QC3_SINGLE_INCREMENT,
-	QC3_SINGLE_DECREMENT,
+	QC2_FORCE_5V = 0x2,
+	QC3_SINGLE_DECREMENT = 0x10,
+	QC3_SINGLE_INCREMENT = 0x20,
 };
 
 struct protocol_class_qc_ops {
