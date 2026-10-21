@@ -104,6 +104,16 @@ typedef enum {
 	EM_PACKET_VENDOR, /*vendor*/
 	EM_PACKET_UNKOWN, /*未知*/
 } EM_PacketType;
+
+/*
+ * Touchpad report: ID, buttons, three contacts and the contact count. Piano
+ * contacts carry tip pressure (8 bytes each), yupei ones do not (6 bytes).
+ */
+#ifdef CONFIG_MACH_XIAOMI_PIANO
+#define NANOSIC_TOUCH_REPORT_LEN 27
+#else
+#define NANOSIC_TOUCH_REPORT_LEN 21
+#endif
 ;
 
 /*

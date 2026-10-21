@@ -346,9 +346,10 @@ int Nanosic_i2c_parse(char *data, size_t datalen)
 			left -= 8;
 			break;
 		case 0x19:
-			Nanosic_input_write(EM_PACKET_TOUCH, p, 21);
-			p += 21;
-			left -= 21;
+			Nanosic_input_write(EM_PACKET_TOUCH, p,
+					    NANOSIC_TOUCH_REPORT_LEN);
+			p += NANOSIC_TOUCH_REPORT_LEN;
+			left -= NANOSIC_TOUCH_REPORT_LEN;
 			break;
 		case 0x22:
 			Nanosic_i2c_specified_packets_detect(p + 2);
