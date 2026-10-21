@@ -10,6 +10,9 @@
 #include "sde_core_irq.h"
 #include "sde_formats.h"
 #include "sde_trace.h"
+#ifdef MI_DISPLAY_MODIFY
+#include "mi_sde_encoder.h"
+#endif
 #include "sde_cesta.h"
 
 #define SDE_DEBUG_CMDENC(e, fmt, ...) SDE_DEBUG("enc%d intf%d " fmt, \
@@ -421,6 +424,9 @@ static void _sde_encoder_phys_signal_frame_done(struct sde_encoder_phys *phys_en
 	u32 scheduler_status = INVALID_CTL_STATUS, event = 0;
 	struct sde_hw_pp_vsync_info info[MAX_CHANNELS_PER_ENC] = {{0}};
 
+	struct sde_cesta_scc_status scc_status = {0, };
+	struct sde_cesta_client *cesta_client = sde_encoder_get_cesta_client(phys_enc->parent);
+
 	cmd_enc = to_sde_encoder_phys_cmd(phys_enc);
 	ctl = phys_enc->hw_ctl;
 
@@ -451,6 +457,9 @@ static void _sde_encoder_phys_signal_frame_done(struct sde_encoder_phys *phys_en
 		info[1].intf_frame_count, info[1].wr_ptr_line_count, info[1].rd_ptr_line_count,
 		DPUID(phys_enc->parent->dev));
 
+		if (cesta_client)
+		sde_cesta_get_status(cesta_client, &scc_status);
+
 	/*
 	 * For hw-fences, in the last frame during the autorefresh disable transition
 	 * hw won't trigger the output-fence signal once the frame is done, therefore
@@ -470,9 +479,19 @@ static void _sde_encoder_phys_signal_frame_done(struct sde_encoder_phys *phys_en
 static void sde_encoder_phys_cmd_ctl_done_irq(void *arg, int irq_idx)
 {
 	struct sde_encoder_phys *phys_enc = arg;
+#ifdef MI_DISPLAY_MODIFY
+	int crtc_id = 0;
+	struct drm_crtc *crtc = NULL;
+#endif
 
 	if (!phys_enc)
 		return;
+#ifdef MI_DISPLAY_MODIFY
+	if(phys_enc->parent)
+		crtc = phys_enc->parent->crtc;
+	if(crtc)
+		crtc_id = crtc->base.id;
+#endif
 
 	SDE_ATRACE_BEGIN("ctl_done_irq");
 
@@ -533,10 +552,21 @@ static void sde_encoder_phys_cmd_te_rd_ptr_irq(void *arg, int irq_idx)
 	struct sde_cesta_client *cesta_client;
 	unsigned long lock_flags;
 	u32 fence_ready = 0;
+#ifdef MI_DISPLAY_MODIFY
+	int crtc_id = 0;
+	struct drm_crtc *crtc = NULL;
+#endif
 
 	if (!phys_enc || !phys_enc->parent || !phys_enc->hw_pp || !phys_enc->hw_intf
 		|| !phys_enc->hw_ctl)
 		return;
+#ifdef MI_DISPLAY_MODIFY
+	if(phys_enc->parent)
+		crtc = phys_enc->parent->crtc;
+	if(crtc)
+		crtc_id = crtc->base.id;
+	mi_sde_encoder_save_vsync_info(phys_enc);
+#endif
 
 	SDE_ATRACE_BEGIN("rd_ptr_irq");
 	cmd_enc = to_sde_encoder_phys_cmd(phys_enc);
@@ -585,9 +615,22 @@ static void sde_encoder_phys_cmd_wr_ptr_irq(void *arg, int irq_idx)
 	struct sde_hw_ctl *ctl;
 	u32 event = 0, qsync_mode = 0;
 	struct sde_hw_pp_vsync_info info[MAX_CHANNELS_PER_ENC] = {{0}};
+#ifdef MI_DISPLAY_MODIFY
+	int crtc_id = 0;
+	struct drm_crtc *crtc = NULL;
+#endif
+
+	struct sde_cesta_scc_status scc_status = {0, };
+	struct sde_cesta_client *cesta_client = sde_encoder_get_cesta_client(phys_enc->parent);
 
 	if (!phys_enc || !phys_enc->hw_ctl)
 		return;
+#ifdef MI_DISPLAY_MODIFY
+	if(phys_enc->parent)
+		crtc = phys_enc->parent->crtc;
+	if(crtc)
+		crtc_id = crtc->base.id;
+#endif
 
 	SDE_ATRACE_BEGIN("wr_ptr_irq");
 	ctl = phys_enc->hw_ctl;
@@ -609,6 +652,9 @@ static void sde_encoder_phys_cmd_wr_ptr_irq(void *arg, int irq_idx)
 		info[0].wr_ptr_line_count, info[0].rd_ptr_line_count, info[1].pp_idx,
 		info[1].intf_idx, info[1].intf_frame_count, info[1].wr_ptr_line_count,
 		info[1].rd_ptr_line_count, DPUID(phys_enc->parent->dev));
+
+	if (cesta_client)
+		sde_cesta_get_status(cesta_client, &scc_status);
 
 	if (qsync_mode &&
 			!test_bit(SDE_INTF_TE_SINGLE_UPDATE, &phys_enc->hw_intf->cap->features))
@@ -848,6 +894,10 @@ static void sde_encoder_phys_cmd_mode_set(
 static int _sde_encoder_phys_cmd_handle_framedone_timeout(
 		struct sde_encoder_phys *phys_enc)
 {
+#ifdef MI_DISPLAY_MODIFY
+	struct sde_connector *sde_conn = NULL;
+	struct dsi_display *display = NULL;
+#endif
 	struct sde_encoder_phys_cmd *cmd_enc =
 			to_sde_encoder_phys_cmd(phys_enc);
 	bool recovery_events = sde_encoder_recovery_events_enabled(
@@ -870,6 +920,15 @@ static int _sde_encoder_phys_cmd_handle_framedone_timeout(
 	cmd_enc->frame_tx_timeout_report_cnt++;
 	pending_kickoff_cnt = atomic_read(&phys_enc->pending_kickoff_cnt) + 1;
 
+#ifdef MI_DISPLAY_MODIFY
+	sde_conn = to_sde_connector(phys_enc->connector);
+	if (sde_encoder_is_dsi_display(phys_enc->parent)) {
+		display = (struct dsi_display *)sde_conn->display;
+		if (display) {
+			SDE_ERROR("[%s] pingpong timeout!\n", display->name);
+		}
+	}
+#endif
 	SDE_EVT32(DRMID(phys_enc->parent), phys_enc->hw_pp->idx - PINGPONG_0,
 			cmd_enc->frame_tx_timeout_report_cnt,
 			pending_kickoff_cnt,

@@ -222,6 +222,21 @@ static int sde_hw_intf_avr_setup(struct sde_hw_intf *ctx,
 	return 0;
 }
 
+static void sde_hw_intf_avr_enable(struct sde_hw_intf *ctx, bool enable)
+{
+	struct sde_hw_blk_reg_map *c;
+	u32 avr_ctrl = 0;
+
+	if (!ctx)
+		return;
+
+	c = &ctx->hw;
+	if (enable)
+		avr_ctrl = BIT(0);
+
+	SDE_REG_WRITE(c, INTF_AVR_CONTROL, avr_ctrl);
+}
+
 static void sde_hw_intf_avr_ctrl(struct sde_hw_intf *ctx,
 	const struct intf_avr_params *avr_params)
 {
@@ -490,7 +505,7 @@ static u64 sde_hw_intf_get_vsync_timestamp(struct sde_hw_intf *ctx, bool is_vid)
 
 static void sde_hw_intf_setup_timing_engine(struct sde_hw_intf *ctx,
 		const struct intf_timing_params *p,
-		const struct sde_format *fmt, bool align_esync, bool align_avr)
+		const struct sde_format *fmt, bool align_esync, bool align_avr, bool esync_always_on)
 {
 	struct sde_hw_blk_reg_map *c = &ctx->hw;
 	u32 hsync_period, vsync_period;
@@ -654,6 +669,9 @@ static void sde_hw_intf_setup_timing_engine(struct sde_hw_intf *ctx,
 		 */
 		if (align_avr)
 			alignment = 0x46;
+
+		if (esync_always_on)
+			alignment = 0x41;
 
 		intf_cfg2 |= BIT(23);
 	}
@@ -1479,6 +1497,7 @@ static void _setup_intf_ops(struct sde_hw_intf_ops *ops,
 	ops->avr_setup = sde_hw_intf_avr_setup;
 	ops->avr_trigger = sde_hw_intf_avr_trigger;
 	ops->avr_ctrl = sde_hw_intf_avr_ctrl;
+	ops->avr_enable = sde_hw_intf_avr_enable;
 	ops->enable_compressed_input = sde_hw_intf_enable_compressed_input;
 	ops->enable_wide_bus = sde_hw_intf_enable_wide_bus;
 	ops->is_te_32bit_supported = sde_hw_intf_is_te_32bit_supported;

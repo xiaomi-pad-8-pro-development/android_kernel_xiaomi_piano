@@ -155,7 +155,7 @@ struct intf_esync_params {
 struct sde_hw_intf_ops {
 	void (*setup_timing_gen)(struct sde_hw_intf *intf,
 			const struct intf_timing_params *p,
-			const struct sde_format *fmt, bool align_esync, bool align_avr);
+			const struct sde_format *fmt, bool align_esync, bool align_avr, bool esync_always_on);
 
 	void (*setup_prg_fetch)(struct sde_hw_intf *intf,
 			const struct intf_prog_fetch *fetch);
@@ -276,6 +276,11 @@ struct sde_hw_intf_ops {
 	 */
 	void (*avr_ctrl)(struct sde_hw_intf *intf,
 			const struct intf_avr_params *avr_params);
+
+	/**
+	 * Enable AVR
+	 */
+	void (*avr_enable)(struct sde_hw_intf *intf, bool enable);
 
 	/**
 	 * Enable trigger based on TE level

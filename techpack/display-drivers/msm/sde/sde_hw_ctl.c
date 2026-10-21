@@ -1723,6 +1723,7 @@ static void sde_hw_ctl_cesta_flush(struct sde_hw_ctl *ctx, struct sde_ctl_cesta_
 	val |= BIT(0);
 
 	SDE_REG_WRITE(c, CTL_CESTA_FLUSH + (cfg->index * 0x4), val);
+	SDE_EVT32(cfg->index, val);
 
 	if (cfg->flags & SDE_CTL_CESTA_OVERRIDE_FLAG) {
 

@@ -59,6 +59,10 @@
 
 #include "sde_power_handle.h"
 
+#ifdef MI_DISPLAY_MODIFY
+#include <drm/mi_disp.h>
+#endif
+
 #define GET_MAJOR_REV(rev)		((rev) >> 28)
 #define GET_MINOR_REV(rev)		(((rev) >> 16) & 0xFFF)
 #define GET_STEP_REV(rev)		((rev) & 0xFFFF)
@@ -223,6 +227,10 @@ enum msm_mdp_conn_property {
 	CONNECTOR_PROP_DEMURA_PANEL_ID,
 	CONNECTOR_PROP_DIMMING_BL_LUT,
 	CONNECTOR_PROP_DNSC_BLUR,
+#ifdef MI_DISPLAY_MODIFY
+	CONNECTOR_PROP_MI_MODE_INFO,
+	CONNECTOR_PROP_MI_MAFR_INFO,
+#endif
 
 	/* # of blob properties */
 	CONNECTOR_PROP_BLOBCOUNT,
@@ -266,6 +274,7 @@ enum msm_mdp_conn_property {
 	CONNECTOR_PROP_WB_ROT_TYPE,
 	CONNECTOR_PROP_WB_ROT_BYTES_PER_CLK,
 	CONNECTOR_PROP_BPP_MODE,
+	CONNECTOR_PROP_WCM_MODE,
 
 	/* total # of properties */
 	CONNECTOR_PROP_COUNT
@@ -553,6 +562,9 @@ struct msm_display_dsc_info {
 	u32 dsc_4hsmerge_alignment;
 	bool half_panel_pu;
 	bool rc_override_v1;
+#ifdef MI_DISPLAY_MODIFY
+	bool is_nvt_panel;
+#endif
 };
 
 
@@ -987,6 +999,11 @@ struct msm_mode_info {
 	struct msm_display_wd_jitter_config wd_jitter;
 	u32 vpadding;
 	u32 te_pulse_width_us;
+#ifdef MI_DISPLAY_MODIFY
+	struct mi_mode_info mi_mode_info;
+	bool mi_mafr_flag_;
+	bool last_mi_mafr_flag_;
+#endif
 };
 
 /**
@@ -1075,10 +1092,13 @@ struct msm_display_info {
 	uint32_t qsync_min_fps;
 	bool has_qsync_min_fps_list;
 	uint32_t avr_step_fps;
+	bool avr_disable_hw_trigger;
 	struct msm_vrr_capabilities vrr_caps;
 	bool hwfence_sw_override_always;
 
 	bool esync_enabled;
+	bool esync_always_on;
+	bool esync_disable_switch_engine;
 	uint32_t esync_milli_skew;
 	uint32_t esync_hsync_milli_pulse_width;
 	uint32_t esync_emsync_fps;

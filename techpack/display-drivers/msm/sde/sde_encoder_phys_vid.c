@@ -13,6 +13,9 @@
 #include "sde_trace.h"
 #include "msm_drv.h"
 #include <drm/drm_fixed.h>
+#ifdef MI_DISPLAY_MODIFY
+#include "mi_sde_encoder.h"
+#endif
 
 #define SDE_DEBUG_VIDENC(e, fmt, ...) SDE_DEBUG("enc%d intf%d " fmt, \
 		(e) && (e)->base.parent ? \
@@ -533,7 +536,8 @@ static void _sde_encoder_phys_vid_avr_ctrl(struct sde_encoder_phys *phys_enc)
 	}
 
 	if (sde_enc->disp_info.vrr_caps.video_psr_support &&
-			phys_enc->sde_kms->catalog->is_vrr_hw_fence_enable)
+			phys_enc->sde_kms->catalog->is_vrr_hw_fence_enable &&
+			!sde_enc->disp_info.avr_disable_hw_trigger)
 		avr_params.hw_avr_trigger = true;
 
 	if (info->avr_step_fps && (avr_step_state == AVR_STEP_ENABLE))
@@ -553,7 +557,8 @@ static void _sde_encoder_phys_vid_avr_ctrl(struct sde_encoder_phys *phys_enc)
 
 	SDE_EVT32(DRMID(phys_enc->parent), phys_enc->hw_intf->idx - INTF_0, avr_params.avr_mode,
 			avr_params.avr_step_lines, info->avr_step_fps, avr_step_state,
-			sde_enc->disp_info.is_te_using_watchdog_timer);
+			sde_enc->disp_info.is_te_using_watchdog_timer,sde_enc->disp_info.vrr_caps.arp_support,
+			sde_enc->disp_info.vrr_caps.video_psr_support);
 }
 
 void _sde_encoder_phys_vid_setup_panic_ctrl(struct sde_encoder_phys *phys_enc)
@@ -612,9 +617,9 @@ static void sde_encoder_phys_vid_setup_timing_engine(
 		struct sde_encoder_phys *phys_enc, bool from_idle)
 {
 	struct sde_encoder_phys_vid *vid_enc;
-	struct msm_display_info *info;
+	struct sde_encoder_virt *sde_enc = to_sde_encoder_virt(phys_enc->parent);
+	struct msm_display_info *info = &sde_enc->disp_info;
 	struct drm_display_mode mode;
-	struct sde_encoder_virt *sde_enc;
 	struct intf_timing_params timing_params = { 0 };
 	const struct sde_format *fmt = NULL;
 	u32 fmt_fourcc = DRM_FORMAT_RGB888;
@@ -678,8 +683,9 @@ static void sde_encoder_phys_vid_setup_timing_engine(
 	SDE_DEBUG_VIDENC(vid_enc, "fmt_fourcc 0x%X\n", fmt_fourcc);
 
 	spin_lock_irqsave(phys_enc->enc_spinlock, lock_flags);
+
 	phys_enc->hw_intf->ops.setup_timing_gen(phys_enc->hw_intf,
-			&timing_params, fmt, info->esync_enabled, avr_enabled);
+			&timing_params, fmt, info->esync_enabled, avr_enabled, info->esync_always_on);
 
 	if (test_bit(SDE_CTL_ACTIVE_CFG,
 				&phys_enc->hw_ctl->caps->features)) {
@@ -1151,6 +1157,9 @@ static void sde_encoder_phys_vid_vblank_irq(void *arg, int irq_idx)
 	if (!hw_ctl)
 		return;
 
+#ifdef MI_DISPLAY_MODIFY
+	mi_sde_encoder_save_vsync_info(phys_enc);
+#endif
 	SDE_ATRACE_BEGIN("vblank_irq");
 
 	/*
@@ -1344,6 +1353,10 @@ static void sde_encoder_phys_vid_cont_splash_mode_set(
 	phys_enc->enable_state = SDE_ENC_ENABLED;
 
 	_sde_encoder_phys_vid_setup_irq_hw_idx(phys_enc);
+#ifdef MI_DISPLAY_MODIFY
+	phys_enc->kickoff_timeout_ms =
+		sde_encoder_helper_get_kickoff_timeout_ms(phys_enc->parent);
+#endif
 }
 
 static void sde_encoder_phys_vid_mode_set(
@@ -1793,6 +1806,10 @@ static int _sde_encoder_phys_vid_wait_for_vblank(
 	}
 
 	hw_ctl = phys_enc->hw_ctl;
+#ifdef MI_DISPLAY_MODIFY
+	if (!hw_ctl)
+		return -EINVAL;
+#endif
 	conn = phys_enc->connector;
 
 	wait_info.wq = &phys_enc->pending_kickoff_wq;
@@ -2152,6 +2169,7 @@ static void sde_encoder_phys_vid_timing_engine_disable_wait(struct sde_encoder_p
 {
 	struct intf_status intf_status = {0};
 	unsigned long lock_flags;
+	struct sde_encoder_virt *sde_enc = to_sde_encoder_virt(phys_enc->parent);
 
 	spin_lock_irqsave(phys_enc->enc_spinlock, lock_flags);
 
@@ -2178,6 +2196,9 @@ static void sde_encoder_phys_vid_timing_engine_disable_wait(struct sde_encoder_p
 	/* Slave DPU timing engine is disabled */
 	phys_enc->hw_intf->ops.enable_timing(phys_enc->hw_intf, false);
 	sde_encoder_phys_inc_pending(phys_enc);
+
+	if (sde_enc->disp_info.vrr_caps.video_psr_support)
+		phys_enc->hw_intf->ops.avr_enable(phys_enc->hw_intf, false);
 
 	spin_unlock_irqrestore(phys_enc->enc_spinlock, lock_flags);
 
@@ -2246,6 +2267,9 @@ void sde_encoder_phys_vid_idle_pc_enter(struct sde_encoder_phys *phys_enc)
 	}
 
 	sde_connector_esync_clk_ctrl(drm_conn, false);
+
+	if (sde_enc->disp_info.vrr_caps.video_psr_support)
+		c_conn->qsync_mode = SDE_RM_QSYNC_DISABLED;
 }
 
 void sde_encoder_phys_vid_idle_pc_exit(struct sde_encoder_phys *phys_enc)
@@ -2292,6 +2316,7 @@ static void sde_encoder_phys_vid_disable(struct sde_encoder_phys *phys_enc)
 {
 	struct msm_drm_private *priv;
 	struct sde_encoder_phys_vid *vid_enc;
+	struct sde_connector *c_conn;
 	struct sde_encoder_virt *sde_enc;
 	struct msm_display_info *info;
 
@@ -2333,12 +2358,20 @@ static void sde_encoder_phys_vid_disable(struct sde_encoder_phys *phys_enc)
 			phys_enc->hw_intf->ops.enable_esync(phys_enc->hw_intf, false);
 		if (phys_enc->hw_intf->ops.enable_backup_esync)
 			phys_enc->hw_intf->ops.enable_backup_esync(phys_enc->hw_intf, false);
+
+		phys_enc->esync_pc_exit = false;
+		if (sde_enc->rc_state == SDE_ENC_RC_STATE_IDLE)
+			sde_connector_osc_clk_ctrl(phys_enc->connector, false);
 	}
 
 	if (sde_enc && sde_enc->disp_info.vrr_caps.vrr_support) {
 		hrtimer_cancel(&phys_enc->sde_vrr_cfg.freq_step_timer);
 		hrtimer_cancel(&phys_enc->sde_vrr_cfg.backlight_timer);
 	}
+
+	c_conn = to_sde_connector(sde_enc->cur_master->connector);
+	if (sde_enc->disp_info.vrr_caps.video_psr_support)
+		c_conn->qsync_mode = SDE_RM_QSYNC_DISABLED;
 
 	sde_encoder_helper_phys_disable(phys_enc, NULL);
 exit:
@@ -2612,14 +2645,17 @@ void sde_encoder_phys_vid_add_enc_to_minidump(struct sde_encoder_phys *phys_enc)
 void sde_encoder_phys_vid_cesta_ctrl_cfg(struct sde_encoder_phys *phys_enc,
 		struct sde_cesta_ctrl_cfg *cfg, bool *req_flush, bool *req_scc)
 {
+	struct sde_encoder_virt *sde_enc = to_sde_encoder_virt(phys_enc->parent);
 	bool qsync_en = sde_connector_get_qsync_mode(phys_enc->connector);
+	bool disable_hw_sleep = sde_enc->disp_info.disable_cesta_hw_sleep;
 
 	cfg->enable = true;
 	cfg->avr_enable = qsync_en;
 	cfg->intf = phys_enc->intf_idx - INTF_0;
 	cfg->auto_active_on_panic = true;
 	cfg->req_mode = qsync_en ? SDE_CESTA_CTRL_REQ_IMMEDIATE : SDE_CESTA_CTRL_REQ_PANIC_REGION;
-	cfg->hw_sleep_enable = !phys_enc->sde_kms->splash_data.num_splash_displays;
+	cfg->hw_sleep_enable = !(phys_enc->sde_kms->splash_data.num_splash_displays ||
+				disable_hw_sleep);
 
 	if ((phys_enc->split_role == DPU_MASTER_ENC_ROLE_MASTER)
 			|| (phys_enc->split_role == DPU_SLAVE_ENC_ROLE_MASTER))

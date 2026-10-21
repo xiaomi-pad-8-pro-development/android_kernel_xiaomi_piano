@@ -62,6 +62,22 @@ static struct sde_csc_cfg sde_encoder_phys_wb_rgb2yuv_601l = {
 	{ 0x040, 0x3ac, 0x040, 0x3c0, 0x040, 0x3c0 },
 };
 
+/*
+ * sde_rgb2yuv_bt2020l - rgb to yuv color space conversion matrix
+ *
+ */
+static struct sde_csc_cfg sde_encoder_phys_wb_rgb2yuv_bt2020l = {
+	{
+		TO_S15D16(0x0073), TO_S15D16(0x0129), TO_S15D16(0x001A),
+		TO_S15D16(0x1fc2), TO_S15D16(0x1f5e), TO_S15D16(0x00e0),
+		TO_S15D16(0x00e0), TO_S15D16(0x1f31), TO_S15D16(0x1fef)
+	},
+	{ 0x00, 0x00, 0x00 },
+	{ 0x0040, 0x0200, 0x0200 },
+	{ 0x000, 0x3ff, 0x000, 0x3ff, 0x000, 0x3ff },
+	{ 0x040, 0x3ac, 0x040, 0x3c0, 0x040, 0x3c0 },
+};
+
 /**
  * sde_encoder_phys_wb_is_master - report wb always as master encoder
  */
@@ -255,8 +271,16 @@ void sde_encoder_phys_setup_cdm(struct sde_encoder_phys *phys_enc, struct drm_fr
 	struct sde_encoder_phys_wb *wb_enc;
 	int ret;
 
+	struct drm_connector_state *conn_state;
+	enum sde_wb_usage_type usage_type;
+	enum sde_wcm_mode wcm_mode;
+
 	if (!phys_enc || !format)
 		return;
+
+	conn_state = phys_enc->connector->state;
+	usage_type = sde_connector_get_property(conn_state, CONNECTOR_PROP_WB_USAGE_TYPE);
+	wcm_mode = sde_connector_get_property(conn_state, CONNECTOR_PROP_WCM_MODE);
 
 	wb_enc = to_sde_encoder_phys_wb(phys_enc);
 	cdm_cfg = &phys_enc->cdm_cfg;
@@ -316,7 +340,13 @@ void sde_encoder_phys_setup_cdm(struct sde_encoder_phys *phys_enc, struct drm_fr
 		cdm_cfg->h_cdwn_type, cdm_cfg->v_cdwn_type);
 
 	if (hw_cdm && hw_cdm->ops.setup_csc_data) {
-		ret = hw_cdm->ops.setup_csc_data(hw_cdm, &sde_encoder_phys_wb_rgb2yuv_601l);
+		if (usage_type == WB_USAGE_WFD && wcm_mode == WCM_ENABLE) {
+			SDE_DEBUG("WCM: setup WB CSC with rgb2yuv_bt2020l matrix");
+			ret = hw_cdm->ops.setup_csc_data(hw_cdm, &sde_encoder_phys_wb_rgb2yuv_bt2020l);
+		} else {
+			ret = hw_cdm->ops.setup_csc_data(hw_cdm, &sde_encoder_phys_wb_rgb2yuv_601l);
+		}
+
 		if (ret < 0) {
 			SDE_ERROR("[enc:%d wb:%d] failed to setup CSC; ret:%d\n",
 					DRMID(phys_enc->parent), WBID(wb_enc), ret);

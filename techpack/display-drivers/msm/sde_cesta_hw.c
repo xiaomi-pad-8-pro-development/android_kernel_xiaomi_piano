@@ -10,6 +10,7 @@
 #include <linux/iopoll.h>
 
 #include "sde_cesta.h"
+#include "sde_dbg.h"
 
 #define RSCC_SEQ_PWR_CTRL_STATUS	0x2d0
 
@@ -96,6 +97,8 @@ void _sde_cesta_hw_force_db_update(struct sde_cesta *cesta, u32 idx,
 	dss_reg_w(&cesta->scc_io[idx], SCC_CTRL, ctl_val, cesta->debug_mode);
 	dss_reg_w(&cesta->scc_io[idx], SCC_OVERRIDE_CTRL, override_val, cesta->debug_mode);
 	wmb(); /* for reset to be applied immediately */
+
+	SDE_EVT32(idx, ctl_val, override_val);
 }
 
 void _sde_cesta_hw_reset(struct sde_cesta *cesta, u32 idx, bool en)
@@ -127,6 +130,7 @@ void _sde_cesta_hw_ctrl_setup(struct sde_cesta *cesta, u32 idx, struct sde_cesta
 
 	if (!cfg || !cfg->enable) {
 		dss_reg_w(&cesta->scc_io[idx], SCC_CTRL, 0xf0, cesta->debug_mode);
+		SDE_EVT32(idx, 0xf0);
 		_sde_cesta_hw_override_ctrl_setup(cesta, idx, SDE_CESTA_OVERRIDE_FORCE_DB_UPDATE);
 		return;
 	}
@@ -152,6 +156,7 @@ void _sde_cesta_hw_ctrl_setup(struct sde_cesta *cesta, u32 idx, struct sde_cesta
 		val |= BIT(0);
 
 	dss_reg_w(&cesta->scc_io[idx], SCC_CTRL, val, cesta->debug_mode);
+	SDE_EVT32(idx, val);
 }
 
 int _sde_cesta_hw_poll_handshake(struct sde_cesta *cesta, u32 idx)
@@ -169,6 +174,8 @@ int _sde_cesta_hw_poll_handshake(struct sde_cesta *cesta, u32 idx)
 void _sde_cesta_hw_get_status(struct sde_cesta *cesta, u32 idx, struct sde_cesta_scc_status *status)
 {
 	u32 val;
+	u32 debug1 = 0xc, debug2 = 0xd;
+	u32 debug_val1, debug_val2;
 
 	val = dss_reg_r(&cesta->scc_io[idx], SCC_HW_STATE_READBACK, cesta->debug_mode);
 
@@ -181,6 +188,24 @@ void _sde_cesta_hw_get_status(struct sde_cesta *cesta, u32 idx, struct sde_cesta
 
 	/* clear flush_missed counter */
 	dss_reg_w(&cesta->scc_io[idx], DEBUG_FLUSH_MISSED_CLEAR, 0x1, cesta->debug_mode);
+
+	debug_val1 = (debug1 << 1) | BIT(0);
+	dss_reg_w(&cesta->wrapper_io, 0x10, debug_val1, cesta->debug_mode);
+	wmb();
+	debug_val1 = dss_reg_r(&cesta->wrapper_io, 0x14, cesta->debug_mode);
+
+	dss_reg_w(&cesta->wrapper_io, 0x10, 0x0, cesta->debug_mode);
+	wmb();
+
+	debug_val2 = (debug2 << 1) | BIT(0);
+	dss_reg_w(&cesta->wrapper_io, 0x10, debug_val2, cesta->debug_mode);
+	wmb();
+	debug_val2 = dss_reg_r(&cesta->wrapper_io, 0x14, cesta->debug_mode);
+
+	dss_reg_w(&cesta->wrapper_io, 0x10, 0x0, cesta->debug_mode);
+	wmb();
+
+	SDE_EVT32(idx, debug1, debug_val1, debug2, debug_val2);
 }
 
 u32 _sde_cesta_hw_get_pwr_event(struct sde_cesta *cesta)

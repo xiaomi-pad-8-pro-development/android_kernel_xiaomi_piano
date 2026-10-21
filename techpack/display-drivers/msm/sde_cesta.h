@@ -15,7 +15,6 @@
 #define SDE_CESTA_INDEX		0
 
 #define MAX_CESTA_CLIENT_NAME_LEN	32
-
 /**
  * SCC override ctrl flags
  * SDE_CESTA_OVERRIDE_FORCE_DB_UPDATE: resets the state machines within SCC
@@ -234,6 +233,7 @@ struct sde_cesta {
 
 	struct dss_io_data rscc_io;
 	struct dss_io_data wrapper_io;
+	struct dss_io_data sde_crm_io;
 	struct dss_io_data disp_cc_io;
 
 	struct list_head client_list;
@@ -391,7 +391,6 @@ int sde_cesta_sw_client_update(u32 cesta_index, struct sde_cesta_sw_client_data 
  * @cesta_index: cesta instance used
  */
 u64 sde_cesta_get_core_clk_rate(u32 cesta_index);
-
 /**
  * sde_cesta_override_ctrl - configure the scc override ctrl for the client
  * @client: pointer to sde cesta client

@@ -772,7 +772,7 @@ static void _dp_calc_extra_bytes(struct tu_algo_data *tu)
 }
 
 static void _dp_panel_calc_tu(struct dp_tu_calc_input *in,
-				   struct dp_vc_tu_mapping_table *tu_table)
+				   struct dp_vc_tu_mapping_table *tu_table, int bw_code)
 {
 	struct tu_algo_data tu;
 	int compare_result_1, compare_result_2;
@@ -1086,6 +1086,16 @@ static void _dp_panel_calc_tu(struct dp_tu_calc_input *in,
 	tu_table->lower_boundary_count      = tu.lower_boundary_count;
 	tu_table->tu_size_minus1            = tu.tu_size_minus1;
 
+	if ((bw_code == DP_LINK_BW_5_4) && (in->hactive == 3840) && (in->nlanes == 1) && (in->dsc_en == 1)) {
+		tu_table->valid_boundary_link    = 32;
+		tu_table->delay_start_link     = 7;
+		tu_table->boundary_moderation_en  = 0;
+		tu_table->valid_lower_boundary_link = 0;
+		tu_table->upper_boundary_count   = 0;
+		tu_table->lower_boundary_count   = 0;
+		tu_table->tu_size_minus1      = 31;
+	}
+
 	DP_DEBUG("TU: valid_boundary_link: %d\n", tu_table->valid_boundary_link);
 	DP_DEBUG("TU: delay_start_link: %d\n", tu_table->delay_start_link);
 	DP_DEBUG("TU: boundary_moderation_en: %d\n",
@@ -1128,13 +1138,13 @@ static void dp_panel_calc_tu_parameters(struct dp_panel *dp_panel,
 		in.compress_ratio = mult_frac(100, pinfo->comp_info.src_bpp,
 				pinfo->comp_info.tgt_bpp);
 
-	_dp_panel_calc_tu(&in, tu_table);
+	_dp_panel_calc_tu(&in, tu_table, bw_code);
 }
 
 void dp_panel_calc_tu_test(struct dp_tu_calc_input *in,
 		struct dp_vc_tu_mapping_table *tu_table)
 {
-	_dp_panel_calc_tu(in, tu_table);
+	_dp_panel_calc_tu(in, tu_table, 0xFF);
 }
 
 static void dp_panel_config_tr_unit(struct dp_panel *dp_panel)
@@ -1719,9 +1729,14 @@ static int dp_panel_read_dpcd(struct dp_panel *dp_panel, bool multi_func)
 	if (drm_dp_enhanced_frame_cap(dpcd))
 		link_info->capabilities |= DP_LINK_CAP_ENHANCED_FRAMING;
 
-	rlen = drm_dp_dpcd_read(panel->aux->drm_aux, DP_TEST_SINK_MISC, &temp, 1);
-	if ((rlen == 1) && (temp & DP_TEST_CRC_SUPPORTED))
-		link_info->capabilities |= DP_LINK_CAP_CRC;
+	/* Current CRC process is not good enough to run, for DP case getting sink CRC
+	 + * has never been runing into, this will cause no entry can be added to the frames,
+	 + * so disable CRC mode and TODO re-enable after CRC mechanisms is sufficient to run.
+	 + */
+	//rlen = drm_dp_dpcd_read(panel->aux->drm_aux, DP_TEST_SINK_MISC, &temp, 1);
+	//
+	//if ((rlen == 1) && (temp & DP_TEST_CRC_SUPPORTED))
+	//link_info->capabilities |= DP_LINK_CAP_CRC;
 
 	dfp_count = dpcd[DP_DOWN_STREAM_PORT_COUNT] &
 						DP_DOWN_STREAM_PORT_COUNT;
@@ -1783,7 +1798,11 @@ static int dp_panel_read_edid(struct dp_panel *dp_panel,
 		(void **)&dp_panel->edid_ctrl);
 	if (!dp_panel->edid_ctrl->edid) {
 		DP_ERR("EDID read failed\n");
+#ifdef MI_DISPLAY_MODIFY
+		ret = -ENOLINK;
+#else
 		ret = -EINVAL;
+#endif
 		goto end;
 	}
 end:
@@ -3099,8 +3118,12 @@ static int dp_panel_convert_to_dp_mode(struct dp_panel *dp_panel,
 			comp_info->enabled = false;
 			return -EAGAIN;
 		}
-
+#ifdef MI_DISPLAY_MODIFY
+		rc = sde_dsc_populate_dsc_config(&comp_info->dsc_info.config, 0, 0);
+#else
 		rc = sde_dsc_populate_dsc_config(&comp_info->dsc_info.config, 0);
+#endif
+
 		if (rc) {
 			DP_DEBUG("failed populating dsc params \n");
 			dp_mode->capabilities &= ~DP_PANEL_CAPS_DSC;

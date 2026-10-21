@@ -1586,6 +1586,7 @@ int dsi_display_clk_ctrl(void *handle,
 	rc = dsi_clk_req_state(handle, clk_type, clk_state, true);
 	if (rc)
 		DSI_ERR("failed set clk state, rc = %d\n", rc);
+
 	mutex_unlock(&dsi_mngr_clk_mutex);
 
 	return rc;

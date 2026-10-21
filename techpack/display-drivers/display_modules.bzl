@@ -1,6 +1,11 @@
 load(":display_driver_build.bzl", "display_module_entry")
 
-display_driver_modules = display_module_entry([":display_drivers_headers"])
+display_driver_modules = display_module_entry([
+                            ":display_drivers_headers",
+                            "//msm-kernel:mi_irq_headers",
+                            "//msm-kernel:hwid_headers",
+                            "//msm-kernel:miev_headers",
+                        ])
 module_entry = display_driver_modules.register
 
 #---------- MSM-DRM MODULE -------------------------
@@ -168,6 +173,37 @@ module_entry(
             "msm/msm_gem_vma.c",
             "msm/msm_smmu.c",
             "msm/msm_prop.c",
+         ],
+         "MI_DISPLAY_MODIFY" : [
+            "msm/mi_disp/mi_disp_core.c",
+            "msm/mi_disp/mi_disp_feature.c",
+            "msm/mi_disp/mi_disp_sysfs.c",
+            "msm/mi_disp/mi_disp_file.c",
+            "msm/mi_disp/mi_disp_procfs.c",
+            "msm/mi_disp/mi_disp_debugfs.c",
+            "msm/mi_disp/mi_disp_log.c",
+            "msm/mi_disp/mi_disp_flatmode.c",
+            "msm/mi_disp/mi_disp_lhbm.c",
+            "msm/mi_disp/mi_disp_parser.c",
+            "msm/mi_disp/mi_dsi_display.c",
+            "msm/mi_disp/mi_dsi_panel.c",
+            "msm/mi_disp/mi_sde_encoder.c",
+            "msm/mi_disp/mi_sde_connector.c",
+            "msm/mi_disp/mi_disp_print.c",
+            "msm/mi_disp/mi_backlight_ktz8866.c",
+         ],
+         "CONFIG_VIS_DISPLAY" : [
+            "msm/driver_novatek/vis_display/vis_display_boot.c",
+            "msm/driver_novatek/vis_display/vis_display_common.c",
+            "msm/driver_novatek/vis_display/vis_display_dsi.c",
+            "msm/driver_novatek/vis_display/vis_display_factory.c",
+            "msm/driver_novatek/vis_display/vis_display_gpio.c",
+            "msm/driver_novatek/vis_display/vis_display_notify.c",
+            "msm/driver_novatek/vis_display/vis_display_ops.c",
+            "msm/driver_novatek/vis_display/vis_display_power.c",
+            "msm/driver_novatek/vis_display/vis_display_pq.c",
+            "msm/driver_novatek/vis_display/vis_display_spi.c",
+            "msm/driver_novatek/vis_display/vis_display_test.c",
          ],
          "CONFIG_MSM_SDE_ROTATOR":{
             True: [

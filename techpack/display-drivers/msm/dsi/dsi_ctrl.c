@@ -535,8 +535,8 @@ static int dsi_ctrl_check_state(struct dsi_ctrl *dsi_ctrl,
 			DSI_CTRL_ERR(dsi_ctrl, "No change in state, cmd_state=%d\n",
 			       op_state);
 			rc = -EINVAL;
-		} else if ((state->power_state != DSI_CTRL_POWER_VREG_ON) ||
-			   (state->controller_state != DSI_CTRL_ENGINE_ON)) {
+		} else if (!esync_enabled && ((state->power_state != DSI_CTRL_POWER_VREG_ON) ||
+			   (state->controller_state != DSI_CTRL_ENGINE_ON))) {
 			DSI_CTRL_ERR(dsi_ctrl, "State error: op=%d: %d, %d\n",
 			       op,
 			       state->power_state,

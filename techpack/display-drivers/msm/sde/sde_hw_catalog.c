@@ -241,6 +241,7 @@ enum sde_prop {
 	LINE_INSERTION,
 	SOCCP_PH,
 	HW_FENCE_MDP_OFFSET,
+	SDE_DISP_CACHE_WORKAROUND,
 	SDE_PROP_MAX,
 };
 
@@ -684,7 +685,8 @@ static struct sde_prop_type sde_prop[] = {
 	{IPCC_CLIENT_DPU_PHYS_ID, "qcom,sde-ipcc-client-dpu-phys-id", false, PROP_TYPE_U32},
 	{LINE_INSERTION, "qcom,sde-has-line-insertion", false, PROP_TYPE_BOOL},
 	{SOCCP_PH, "qcom,sde-soccp-controller", false, PROP_TYPE_U32},
-	{HW_FENCE_MDP_OFFSET, "qcom,sde-hw-fence-mdp-ctl-offset", false, PROP_TYPE_U32}
+	{HW_FENCE_MDP_OFFSET, "qcom,sde-hw-fence-mdp-ctl-offset", false, PROP_TYPE_U32},
+	{SDE_DISP_CACHE_WORKAROUND, "qcom,sde_disp_cache_workaround", false, PROP_TYPE_BOOL}
 };
 
 static struct sde_prop_type sde_perf_prop[] = {
@@ -4556,6 +4558,7 @@ static void _sde_top_parse_dt_helper(struct sde_mdss_cfg *cfg,
 	cfg->max_trusted_vm_displays = PROP_VALUE_ACCESS(props->values,
 			MAX_TRUSTED_VM_DISPLAYS, 0);
 	cfg->has_line_insertion = PROP_VALUE_ACCESS(props->values, LINE_INSERTION, 0);
+	cfg->disp_cache_workaround = PROP_VALUE_ACCESS(props->values, SDE_DISP_CACHE_WORKAROUND, 0);
 	if (props->exists[TVM_INCLUDE_REG]) {
 		cfg->tvm_reg_count = props->counts[TVM_INCLUDE_REG] / 2;
 		for (i = 0; i < cfg->tvm_reg_count; i++) {
@@ -5908,10 +5911,10 @@ static int _sde_hardware_pre_caps(struct sde_mdss_cfg *sde_cfg, uint32_t hw_rev)
 		set_bit(SDE_FEATURE_TRUSTED_VM, sde_cfg->features);
 		set_bit(SDE_FEATURE_CTL_DONE, sde_cfg->features);
 		set_bit(SDE_FEATURE_TRUSTED_VM, sde_cfg->features);
-		set_bit(SDE_SYS_CACHE_DISP, sde_cfg->sde_sys_cache_type_map);
-		set_bit(SDE_SYS_CACHE_DISP_WB, sde_cfg->sde_sys_cache_type_map);
-		set_bit(SDE_FEATURE_SYS_CACHE_NSE, sde_cfg->features);
-		set_bit(SDE_FEATURE_SYS_CACHE_STALING, sde_cfg->features);
+		//set_bit(SDE_SYS_CACHE_DISP, sde_cfg->sde_sys_cache_type_map);
+		//set_bit(SDE_SYS_CACHE_DISP_WB, sde_cfg->sde_sys_cache_type_map);
+		//set_bit(SDE_FEATURE_SYS_CACHE_NSE, sde_cfg->features);
+		//set_bit(SDE_FEATURE_SYS_CACHE_STALING, sde_cfg->features);
 		set_bit(SDE_FEATURE_WB_ROTATION, sde_cfg->features);
 		set_bit(SDE_FEATURE_EPT, sde_cfg->features);
 		set_bit(SDE_FEATURE_10_BITS_COMPONENTS, sde_cfg->features);
@@ -5978,6 +5981,7 @@ static int _sde_hardware_pre_caps(struct sde_mdss_cfg *sde_cfg, uint32_t hw_rev)
 		sde_cfg->ctl_rev = SDE_CTL_CFG_VERSION_1_0_0;
 		sde_cfg->true_inline_rot_rev = SDE_INLINE_ROT_VERSION_2_0_1;
 		sde_cfg->uidle_cfg.uidle_rev = SDE_UIDLE_VERSION_1_0_4;
+		sde_cfg->uidle_cfg.fal10_override = true;
 		sde_cfg->sid_rev = SDE_SID_VERSION_2_0_0;
 		sde_cfg->mdss_hw_block_size = 0x15c;
 		sde_cfg->max_bw_upvote_threshold_ns = DEFAULT_BW_UPVOTE_THRESHOLD_NS;

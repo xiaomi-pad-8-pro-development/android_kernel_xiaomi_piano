@@ -23,14 +23,24 @@
 #include "dsi_parser.h"
 #include "msm_drv.h"
 
+#ifdef MI_DISPLAY_MODIFY
+#include "mi_dsi_panel.h"
+#endif
 #define MAX_BL_LEVEL 4096
 #define MAX_BL_SCALE_LEVEL 1024
 #define MAX_SV_BL_SCALE_LEVEL 65535
 #define SV_BL_SCALE_CAP (MAX_SV_BL_SCALE_LEVEL * 4)
 #define DSI_CMD_PPS_SIZE 135
 
+#ifdef MI_DISPLAY_MODIFY
+#define PEAK_HDR_BL_LEVEL 3901
+#endif
+
 #define DSI_CMD_PPS_HDR_SIZE 7
 #define DSI_MODE_MAX 32
+#ifdef MI_DISPLAY_MODIFY
+#define DIM_PARAM 4094
+#endif
 
 /*
  * Defining custom dsi msg flag.
@@ -100,6 +110,7 @@ struct dsi_qsync_capabilities {
 };
 
 struct dsi_avr_capabilities {
+	bool avr_disable_hw_trigger;
 	u32 avr_step_fps;
 	u32 *avr_step_fps_list;
 	u32 avr_step_fps_list_len;
@@ -107,6 +118,8 @@ struct dsi_avr_capabilities {
 
 struct dsi_esync_capabilities {
 	bool esync_support;
+	bool esync_always_on;;
+	bool esync_disable_switch_engine;
 	u32 milli_skew;
 	u32 hsync_milli_pulse_width;
 	u32 emsync_milli_pulse_width;
@@ -140,10 +153,15 @@ struct dsi_backlight_config {
 	u32 bl_min_level;
 	u32 bl_max_level;
 	u32 brightness_max_level;
+#ifdef MI_DISPLAY_MODIFY
+	u32 bl_normal_max;
+	u32 brightness_init_level;
+#endif
 	/* current brightness value */
 	u32 brightness;
 	u32 bl_level;
 	u32 bl_scale;
+	bool pwm_dc_switching;
 	u32 bl_scale_sv;
 	u32 bl_dcs_subtype;
 	bool bl_inverted_dbv;
@@ -193,8 +211,16 @@ enum esd_check_status_mode {
 
 struct drm_panel_esd_config {
 	bool esd_enabled;
+#ifdef MI_DISPLAY_MODIFY
+	bool esd_aod_enabled;
+	u32 esd_status_interval;
+#endif
 
 	enum esd_check_status_mode status_mode;
+#ifdef MI_DISPLAY_MODIFY
+	struct dsi_panel_cmd_set offset_cmd;
+	struct dsi_panel_cmd_set after_cmd;
+#endif
 	struct dsi_panel_cmd_set status_cmd;
 	u32 *status_cmds_rlen;
 	u32 *status_valid_params;
@@ -258,6 +284,11 @@ struct dsi_panel {
 	struct dsi_pinctrl_info pinctrl;
 	struct drm_panel_hdr_properties hdr_props;
 	struct drm_panel_esd_config esd_config;
+#ifdef MI_DISPLAY_MODIFY
+	struct drm_panel_build_id_config id_config;
+	struct drm_panel_wp_config wp_config;
+	struct drm_panel_cell_id_config cell_id_config;
+#endif
 
 	struct dsi_parser_utils utils;
 
@@ -296,6 +327,13 @@ struct dsi_panel {
 	enum dsi_panel_physical_type panel_type;
 
 	struct dsi_panel_ops panel_ops;
+
+#ifdef MI_DISPLAY_MODIFY
+	u32 disp_id;
+	struct mi_dsi_panel_cfg mi_cfg;
+	bool qsync_enable;
+	bool pending_backlight_by_qsync;
+#endif
 };
 
 static inline bool dsi_panel_ulps_feature_enabled(struct dsi_panel *panel)
@@ -405,7 +443,9 @@ int dsi_panel_send_roi_dcs(struct dsi_panel *panel, int ctrl_idx,
 		struct dsi_rect *roi);
 
 int dsi_panel_dcs_cmd_tx(struct dsi_panel *panel, enum dsi_cmd_set_type cmd);
-
+#ifdef CONFIG_VIS_DISPLAY
+int dsi_panel_osc_trim_send_cmd(struct dsi_panel *panel, int temp_val);
+#endif
 int dsi_panel_switch_video_mode_out(struct dsi_panel *panel);
 
 int dsi_panel_switch_cmd_mode_out(struct dsi_panel *panel);
@@ -447,6 +487,22 @@ int dsi_panel_create_cmd_packets(const char *data, u32 length, u32 count,
 void dsi_panel_destroy_cmd_packets(struct dsi_panel_cmd_set *set);
 
 void dsi_panel_dealloc_cmd_packets(struct dsi_panel_cmd_set *set);
+#ifdef MI_DISPLAY_MODIFY
+int dsi_panel_tx_cmd_set(struct dsi_panel *panel,
+				enum dsi_cmd_set_type type, bool do_peripheral_flush);
+int dsi_panel_update_backlight(struct dsi_panel *panel, u32 bl_lvl);
+
+int dsi_panel_parse_cmd_sets_sub(struct dsi_panel_cmd_set *cmd,
+					enum dsi_cmd_set_type type,
+					struct dsi_parser_utils *utils);
+
+int dsi_panel_gamma_switch_locked(struct dsi_panel *panel);
+int dsi_panel_video_mode_pre_aod_locked(struct dsi_panel *panel);
+int dsi_panel_video_mode_post_aod_locked(struct dsi_panel *panel);
+
+int dsi_panel_power_off(struct dsi_panel *panel);
+
+#endif /* MI_DISPLAY_MODIFY*/
 
 int dsi_panel_send_cmd(struct dsi_panel *panel,
 		struct msm_display_conn_params *params, enum dsi_cmd_set_type type,

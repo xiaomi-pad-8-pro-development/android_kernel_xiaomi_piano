@@ -61,6 +61,9 @@
 #include "sde_wb.h"
 #include "sde_dbg.h"
 
+#ifdef CONFIG_VIS_DISPLAY
+#include <vis_display/vis_display_ops.h>
+#endif
 /*
  * MSM driver version:
  * - 1.0.0 - initial interface
@@ -2457,6 +2460,9 @@ static int __init msm_drm_register(void)
 	msm_smmu_driver_init();
 	sde_wb_register();
 	platform_driver_register(&msm_platform_driver);
+#ifdef CONFIG_VIS_DISPLAY
+	vis_display_host_init();
+#endif
 	dsi_display_register();
 	msm_hdcp_register();
 	dp_display_register();
@@ -2482,6 +2488,9 @@ static void __exit msm_drm_unregister(void)
 	msm_hdcp_unregister();
 	dp_display_unregister();
 	dsi_display_unregister();
+#ifdef CONFIG_VIS_DISPLAY
+	vis_display_host_exit();
+#endif
 	sde_cesta_unregister();
 	sde_rsc_unregister();
 	sde_shd_unregister();

@@ -57,6 +57,9 @@
 #include "sde_vm.h"
 #include "sde_color_processing_aiqe.h"
 #include "sde_cesta.h"
+#ifdef CONFIG_VIS_DISPLAY
+#include "vis_display.h"
+#endif
 
 #define SDE_PSTATES_MAX (SDE_STAGE_MAX * 4)
 #define SDE_MULTIRECT_PLANE_MAX (SDE_STAGE_MAX * 2)
@@ -846,6 +849,9 @@ static void sde_crtc_destroy(struct drm_crtc *crtc)
 
 	drm_crtc_cleanup(crtc);
 	mutex_destroy(&sde_crtc->crtc_lock);
+#ifdef MI_DISPLAY_MODIFY
+	mutex_destroy(&sde_crtc->crtc_cesta_client_lock);
+#endif
 	kfree(sde_crtc);
 }
 
@@ -5381,7 +5387,10 @@ void sde_crtc_commit_kickoff(struct drm_crtc *crtc,
 	enum sde_crtc_idle_pc_state idle_pc_state;
 	struct sde_encoder_kickoff_params params = { 0 };
 	bool is_vid = false;
-
+#ifdef CONFIG_VIS_DISPLAY
+	static int lastUsecaseID = 0;
+	int currentUsecaseID = 0;
+#endif
 	if (!crtc) {
 		SDE_ERROR("invalid argument\n");
 		return;
@@ -5428,6 +5437,18 @@ void sde_crtc_commit_kickoff(struct drm_crtc *crtc,
 			sde_encoder_control_idle_pc(encoder,
 			    (idle_pc_state == IDLE_PC_ENABLE) ? true : false);
 
+#ifdef CONFIG_VIS_DISPLAY
+		if (is_mi_dev_support_nova()) {
+			currentUsecaseID = vis_display_get_CurrentUsecaseID();
+			if(lastUsecaseID != currentUsecaseID) {
+				lastUsecaseID = currentUsecaseID;
+				if (currentUsecaseID != 0)
+					sde_encoder_control_idle_pc(encoder, false);	//disable idle power-collapse
+				else
+					sde_encoder_control_idle_pc(encoder, true);	//enable idle power-collapse
+			}
+		}
+#endif
 		if (sde_encoder_get_intf_mode(encoder) == INTF_MODE_VIDEO)
 			is_vid = true;
 	}
@@ -5876,8 +5897,8 @@ static void _sde_crtc_reset(struct drm_crtc *crtc)
 	/* mark mixer cfgs dirty before wiping them */
 	sde_crtc_clear_cached_mixer_cfg(crtc);
 
-	memset(sde_crtc->mixers, 0, sizeof(sde_crtc->mixers));
 	sde_crtc->num_mixers = 0;
+	memset(sde_crtc->mixers, 0, sizeof(sde_crtc->mixers));
 	sde_crtc->mixers_swapped = false;
 
 	/* disable clk & bw control until clk & bw properties are set */
@@ -5983,8 +6004,13 @@ static void sde_crtc_disable(struct drm_crtc *crtc)
 	/* avoid clk/bw downvote if cont-splash is enabled */
 	if (!in_cont_splash && !sde_crtc->cesta_client)
 		sde_core_perf_crtc_update(crtc, SDE_PERF_DISABLE_COMMIT);
-
+#ifdef MI_DISPLAY_MODIFY
+	mutex_lock(&sde_crtc->crtc_cesta_client_lock);
+#endif
 	sde_crtc->cesta_client = NULL;
+#ifdef MI_DISPLAY_MODIFY
+	mutex_unlock(&sde_crtc->crtc_cesta_client_lock);
+#endif
 
 	drm_for_each_encoder_mask(encoder, crtc->dev,
 			crtc->state->encoder_mask) {
@@ -8870,6 +8896,9 @@ struct drm_crtc *sde_crtc_init(struct drm_device *dev, struct drm_plane *plane)
 	crtc->dev = dev;
 
 	mutex_init(&sde_crtc->crtc_lock);
+#ifdef MI_DISPLAY_MODIFY
+	mutex_init(&sde_crtc->crtc_cesta_client_lock);
+#endif
 	spin_lock_init(&sde_crtc->spin_lock);
 	spin_lock_init(&sde_crtc->event_spin_lock);
 	atomic_set(&sde_crtc->frame_pending, 0);

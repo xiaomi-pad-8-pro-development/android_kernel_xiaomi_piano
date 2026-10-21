@@ -28,6 +28,7 @@
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 19, 0))
 #include <linux/dma-fence-chain.h>
 #endif
+#include "sde_crtc.h"
 
 #define MULTIPLE_CONN_DETECTED(x) (x > 1)
 

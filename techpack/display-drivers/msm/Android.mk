@@ -1,3 +1,4 @@
+ifneq (, $(filter $(call get-component-name), miodm))
 DISPLAY_SELECT := CONFIG_DRM_MSM=m
 
 LOCAL_PATH := $(call my-dir)
@@ -43,6 +44,17 @@ ifneq ($(call is-board-platform-in-list, taro monaco), true)
 endif
 endif
 
+include $(CLEAR_VARS)
+# For incremental compilation
+LOCAL_SRC_FILES           := $(wildcard $(LOCAL_PATH)/**/*) $(wildcard $(LOCAL_PATH)/*)
+LOCAL_MODULE              := msm_drm-module-symvers
+LOCAL_MODULE_STEM         := Module.symvers
+LOCAL_MODULE_KBUILD_NAME  := Module.symvers
+LOCAL_MODULE_PATH         := $(KERNEL_MODULES_OUT)
+# Include kp_module.ko in the /vendor/lib/modules (vendor.img)
+# BOARD_VENDOR_KERNEL_MODULES += $(LOCAL_MODULE_PATH)/$(LOCAL_MODULE)
+include $(DLKM_DIR)/Build_external_kernelmodule.mk
+
 ###########################################################
 include $(CLEAR_VARS)
 LOCAL_SRC_FILES   := $(wildcard $(LOCAL_PATH)/**/*) $(wildcard $(LOCAL_PATH)/*)
@@ -76,3 +88,4 @@ endif
 include $(DLKM_DIR)/Build_external_kernelmodule.mk
 ###########################################################
 endif # DLKM check
+endif

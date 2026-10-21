@@ -55,7 +55,7 @@
 #define IDLE_POWERCOLLAPSE_IN_EARLY_WAKEUP (200 - 16/2)
 
 /* below this fps limit, timeouts are adjusted based on fps */
-#define DEFAULT_TIMEOUT_FPS_THRESHOLD            24
+#define DEFAULT_TIMEOUT_FPS_THRESHOLD            10
 
 #define SDE_ENC_IRQ_REGISTERED(phys_enc, idx) \
 		((!(phys_enc) || ((idx) < 0) || ((idx) >= INTR_IDX_MAX)) ? \
@@ -835,6 +835,13 @@ static inline u32 sde_encoder_get_dfps_maxfps(struct drm_encoder *drm_enc)
 
 	return sde_enc->mode_info.dfps_maxfps;
 }
+
+/**
+ * sde_encoder_vid_wait_for_active - wait Vactive region for some mark region
+ * @drm_enc:    Pointer to drm encoder structure
+ * @Return:     non zero value if wait timeout occurred
+ */
+int sde_encoder_vid_wait_for_active(struct drm_encoder *enc);
 
 /**
  * sde_encoder_virt_reset - delay encoder virt reset

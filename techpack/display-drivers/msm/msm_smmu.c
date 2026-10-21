@@ -472,7 +472,6 @@ static int msm_smmu_fault_handler(struct iommu_domain *domain,
 		DRM_ERROR("Error: token is NULL\n");
 		return -EINVAL;
 	}
-
 	client = (struct msm_smmu_client *)token;
 
 	/* see iommu.h for fault flags definition */
