@@ -689,11 +689,11 @@ int xiaomi_touch_mode(private_data_t *client_private_data, u32 user_size, unsign
 		if (common_data.cmd == SET_CUR_VALUE && common_data.mode == DATA_MODE_144) {
 			if (common_data.data_buf[0] != DATA_MODE_144) {
 			//	DATA_MODE_144 = common_data.data_buf[0];
-				LOG_INFO("cmd: %d, mode: %d, data_buf[0]: %d", common_data.cmd, common_data.mode, common_data.data_buf[0]);
+				LOG_DEBUG("cmd: %d, mode: %d, data_buf[0]: %d", common_data.cmd, common_data.mode, common_data.data_buf[0]);
 			}
 		} else {
 			/* print the other log*/
-			LOG_INFO("cmd: %d, mode: %d, data_buf[0]: %d", common_data.cmd, common_data.mode, common_data.data_buf[0]);
+			LOG_DEBUG("cmd: %d, mode: %d, data_buf[0]: %d", common_data.cmd, common_data.mode, common_data.data_buf[0]);
 		}
 
 		switch (common_data.cmd) {

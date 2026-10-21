@@ -1013,7 +1013,6 @@ int32_t nvt_set_extend_custom_cmd(uint8_t sub_cmd, int16_t value)
 		return -EBUSY;
 	}
 
-	NVT_LOG("++, cmd: 0xBF, sub_cmd: 0x%02X, value: %d\n", sub_cmd, value);
 	//---set xdata index to EVENT BUF ADDR---
 	ret = nvt_set_page(ts->mmap->EVENT_BUF_ADDR | EVENT_MAP_HOST_CMD);
 	if (ret < 0) {

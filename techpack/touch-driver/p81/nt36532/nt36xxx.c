@@ -3922,7 +3922,6 @@ static void nvt_set_cur_value(int mode, int *value)
 {
 	int nvt_mode = mode;
 	int nvt_value = value[0];
-	NVT_LOG("mode:%d, value:%d, bTouchIsAwake:%d", nvt_mode, nvt_value, bTouchIsAwake);
 
 	if (nvt_mode < DATA_MODE_35) {
 		if (nvt_value > touch_mode[nvt_mode][GET_MAX_VALUE]) {
