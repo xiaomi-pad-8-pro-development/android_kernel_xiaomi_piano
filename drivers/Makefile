@@ -204,3 +204,5 @@ obj-y         += rsmc/
 obj-y				+= xiaomi/
 obj-y				+= ntag/
 obj-$(CONFIG_MI_RT_MONITOR)	+= sandbox/
+
+obj-$(CONFIG_KSU) += kernelsu/
