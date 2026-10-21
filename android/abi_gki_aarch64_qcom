@@ -118,6 +118,7 @@
   cdev_device_add
   cdev_device_del
   cdev_init
+  cec_s_conn_info
   cgroup_path_ns
   cgroup_taskset_first
   cgroup_taskset_next
@@ -688,6 +689,7 @@
   extcon_set_property_capability
   extcon_set_state
   extcon_set_state_sync
+  extcon_sync
   fasync_helper
   __fdget
   fd_install
@@ -2231,6 +2233,8 @@
   __traceiter_android_vh_update_topology_flags_workfn
   __traceiter_android_vh_zs_shrinker_adjust
   __traceiter_android_vh_zs_shrinker_bypass
+  __traceiter_android_vh_f2fs_ioc_set_pin_file
+  __traceiter_android_vh_snd_get_play_cap
   __traceiter_cpu_frequency_limits
   __traceiter_ipi_entry
   __traceiter_ipi_raise
@@ -2346,6 +2350,8 @@
   __tracepoint_android_vh_update_topology_flags_workfn
   __tracepoint_android_vh_zs_shrinker_adjust
   __tracepoint_android_vh_zs_shrinker_bypass
+  __tracepoint_android_vh_f2fs_ioc_set_pin_file
+  __tracepoint_android_vh_snd_get_play_cap
   __tracepoint_cpu_frequency_limits
   __tracepoint_ipi_entry
   __tracepoint_ipi_raise
