@@ -39,7 +39,6 @@ cdc-acm.ko
 usbserial.ko
 ftdi_sio.ko
 ptp.ko
-ptp_kvm.ko
 pps_core.ko
 hci_uart.ko
 btsdio.ko
