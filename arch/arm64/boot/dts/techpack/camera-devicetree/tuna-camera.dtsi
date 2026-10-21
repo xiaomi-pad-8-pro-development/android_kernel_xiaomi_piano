@@ -491,12 +491,12 @@
 	#size-cells = <1>;
 	interrupt-parent = <&intc>;
 
-	cam_req_mgr: qcom,cam-req-mgr {
+	qcom,cam-req-mgr {
 		compatible = "qcom,cam-req-mgr";
 		status = "ok";
 	};
 
-	cam_sync: qcom,cam-sync {
+	qcom,cam-sync {
 		compatible = "qcom,cam-sync";
 		status = "ok";
 	};
@@ -847,7 +847,7 @@
 		};
 	};
 
-	cam_smmu: qcom,cam_smmu {
+	qcom,cam_smmu {
 		compatible = "qcom,msm-cam-smmu", "simple-bus";
 		status = "ok";
 		expanded_memory;
@@ -1109,7 +1109,7 @@
 		};
 	};
 
-	cam_cpas: qcom,cam-cpas@ac13000 {
+	qcom,cam-cpas@ac13000 {
 		cell-index = <0>;
 		compatible = "qcom,cam-cpas";
 		label = "cpas";
@@ -1243,7 +1243,6 @@
 		sys-cache-uids = <71 72 73 74 75>;
 		sys-cache-concur = <1 1 1 0 0>;
 		enable-smart-qos;
-		enable-cam-drv = <(CAM_DDR_DRV | CAM_CLK_DRV)>;
 		rt-wr-priority-min = <4>;
 		rt-wr-priority-max = <5>;
 		rt-wr-priority-clamp = <6>;
@@ -1932,7 +1931,7 @@
 		};
 	};
 
-	cam_cdm_intf: qcom,cam-cdm-intf {
+	qcom,cam-cdm-intf {
 		compatible = "qcom,cam-cdm-intf";
 		cell-index = <0>;
 		label = "cam-cdm-intf";
@@ -1943,7 +1942,7 @@
 		status = "ok";
 	};
 
-	cam_rt_cdm0: qcom,rt-cdm0@ac7f000 {
+	qcom,rt-cdm0@ac7f000 {
 		cell-index = <0>;
 		compatible = "qcom,cam-rt-cdm2_2";
 		label = "rt-cdm";
@@ -1968,7 +1967,7 @@
 		status = "ok";
 	};
 
-	cam_rt_cdm1: qcom,rt-cdm1@ac80000 {
+	qcom,rt-cdm1@ac80000 {
 		cell-index = <1>;
 		compatible = "qcom,cam-rt-cdm2_2";
 		label = "rt-cdm";
@@ -1993,7 +1992,7 @@
 		status = "ok";
 	};
 
-	cam_rt_cdm2: qcom,rt-cdm2@ac81000 {
+	qcom,rt-cdm2@ac81000 {
 		cell-index = <2>;
 		compatible = "qcom,cam-rt-cdm2_2";
 		label = "rt-cdm";
@@ -2018,7 +2017,7 @@
 		status = "ok";
 	};
 
-	cam_rt_cdm3: qcom,rt-cdm3@ac82000 {
+	qcom,rt-cdm3@ac82000 {
 		cell-index = <3>;
 		compatible = "qcom,cam-rt-cdm2_2";
 		label = "rt-cdm";
@@ -2043,7 +2042,7 @@
 		status = "ok";
 	};
 
-	cam_rt_cdm4: qcom,rt-cdm4@ac83000 {
+	qcom,rt-cdm4@ac83000 {
 		cell-index = <4>;
 		compatible = "qcom,cam-rt-cdm2_2";
 		label = "rt-cdm";
@@ -2068,7 +2067,7 @@
 		status = "ok";
 	};
 
-	cam_isp: qcom,cam-isp {
+	qcom,cam-isp {
 		compatible = "qcom,cam-isp";
 		arch-compat = "mc_tfe";
 		status = "ok";
@@ -2554,7 +2553,7 @@
 		status = "ok";
 	};
 
-	icp0: qcom,cam-icp0 {
+	qcom,cam-icp0 {
 		compatible = "qcom,cam-icp0";
 		cell-index = <0>;
 		compat-hw-name = "qcom,icp0",
@@ -2568,7 +2567,7 @@
 		synx_signaling_en;
 	};
 
-	icp1: qcom,cam-icp1 {
+	qcom,cam-icp1 {
 		compatible = "qcom,cam-icp1";
 		cell-index = <1>;
 		compat-hw-name = "qcom,icp1",
@@ -2757,7 +2756,7 @@
 		status = "ok";
 	};
 
-	cam_jpeg: qcom,cam-jpeg {
+	qcom,cam-jpeg {
 		compatible = "qcom,cam-jpeg";
 		compat-hw-name = "qcom,jpegenc0",
 			"qcom,jpegdma0";
