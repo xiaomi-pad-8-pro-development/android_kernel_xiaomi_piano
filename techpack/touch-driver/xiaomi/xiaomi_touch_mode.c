@@ -638,6 +638,23 @@ static void xiaomi_touch_set_mode_value(common_data_t *common_data)
  * with others where not involving hardware.
  */
 static DEFINE_MUTEX(ioctl_operation_mutex);
+
+/* Set one touch mode from the kernel, as the touchfeature HAL would. */
+void xiaomi_touch_set_mode(s8 touch_id, u16 mode, s32 value)
+{
+	common_data_t common_data = {
+		.touch_id = touch_id,
+		.mode = mode,
+		.data_len = 1,
+	};
+
+	common_data.data_buf[0] = value;
+	mutex_lock(&ioctl_operation_mutex);
+	xiaomi_touch_set_mode_value(&common_data);
+	mutex_unlock(&ioctl_operation_mutex);
+}
+EXPORT_SYMBOL_GPL(xiaomi_touch_set_mode);
+
 int xiaomi_touch_mode(private_data_t *client_private_data, u32 user_size, unsigned long arg)
 {
 	mutex_lock(&ioctl_operation_mutex);

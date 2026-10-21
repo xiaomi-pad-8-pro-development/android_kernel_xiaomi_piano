@@ -354,6 +354,7 @@ void schedule_resume_suspend_work(s8 touch_id, bool resume_work);
 void driver_update_touch_mode(s8 touch_id, int touch_mode[DATA_MODE_35], long update_mode_mask);
 u8 xiaomi_get_gesture_type(s8 touch_id);
 int driver_get_touch_mode(s8 touch_id, int mode);
+void xiaomi_touch_set_mode(s8 touch_id, u16 mode, s32 value);
 
 /* use in xiaomi_touch module */
 #ifdef TOUCH_KNOCK_SUPPORT

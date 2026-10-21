@@ -573,6 +573,20 @@ CREATE_ATTR(touch_log_level, {
 		return count;
 	});
 
+/* Double tap to wake, for the LineageOS tap to wake setting. */
+CREATE_ATTR(double_tap, {
+		return snprintf(buf, PAGE_SIZE, "%d\n",
+				driver_get_touch_mode(TOUCH_ID, DATA_MODE_14));
+	},
+	{
+		int value;
+
+		if (kstrtoint(buf, 10, &value) || value < 0 || value > 1)
+			return -EINVAL;
+		xiaomi_touch_set_mode(TOUCH_ID, DATA_MODE_14, value);
+		return count;
+	});
+
 static struct attribute *touch_attr_group[] = {
 #ifdef TOUCH_FOD_SUPPORT
 	&dev_attr_fod_press_status.attr,
@@ -595,6 +609,7 @@ static struct attribute *touch_attr_group[] = {
 	&dev_attr_touch_thp_ic_cmd.attr,
 	&dev_attr_touch_finger_status.attr,
 	&dev_attr_touch_log_level.attr,
+	&dev_attr_double_tap.attr,
 #ifdef DFS_DEBUG_TEST
 	&dev_attr_touch_dfs_test.attr,
 #endif
