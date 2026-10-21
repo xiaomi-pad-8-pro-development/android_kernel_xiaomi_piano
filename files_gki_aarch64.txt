@@ -883,6 +883,7 @@ drivers/dma-buf/heaps/deferred-free-helper.h
 drivers/dma-buf/heaps/page_pool.c
 drivers/dma-buf/heaps/page_pool.h
 drivers/dma-buf/sync_file.c
+drivers/dma-buf/udmabuf.c
 drivers/dma/dmaengine.c
 drivers/dma/dmaengine.h
 drivers/dma/of-dma.c
@@ -1074,6 +1075,7 @@ drivers/gpu/drm/ttm/ttm_range_manager.c
 drivers/gpu/drm/ttm/ttm_resource.c
 drivers/gpu/drm/ttm/ttm_sys_manager.c
 drivers/gpu/drm/ttm/ttm_tt.c
+drivers/gpu/host1x/context_bus.c
 drivers/gpu/trace/trace_gpu_mem.c
 drivers/hid/hid-apple.c
 drivers/hid/hid-core.c
@@ -4974,6 +4976,7 @@ include/uapi/linux/tty.h
 include/uapi/linux/tty_flags.h
 include/uapi/linux/types.h
 include/uapi/linux/ublk_cmd.h
+include/uapi/linux/udmabuf.h
 include/uapi/linux/udp.h
 include/uapi/linux/uhid.h
 include/uapi/linux/uinput.h
@@ -5830,6 +5833,9 @@ mm/maccess.c
 mm/madvise.c
 mm/memblock.c
 mm/memcontrol.c
+mm/memfd-ashmem-shim-internal.h
+mm/memfd-ashmem-shim.c
+mm/memfd-ashmem-shim.h
 mm/memfd.c
 mm/memory.c
 mm/memory_hotplug.c

@@ -471,28 +471,6 @@ static bool wcd_usbss_is_in_reset_state(void)
 	}
 
 	mutex_lock(&wcd_usbss_ctxt_->switch_update_lock);
-	if (!wcd_usbss_ctxt_->is_in_standby) {
-		/* Toggle WCD_USBSS_PMP_MISC1 bit<0>: 0 --> 1 --> 0 */
-		rc = rc | regmap_update_bits(wcd_usbss_ctxt_->regmap, WCD_USBSS_PMP_MISC1,
-				0x1, 0x0);
-		rc = rc | regmap_update_bits(wcd_usbss_ctxt_->regmap, WCD_USBSS_PMP_MISC1,
-				0x1, 0x1);
-		rc = rc | regmap_update_bits(wcd_usbss_ctxt_->regmap, WCD_USBSS_PMP_MISC1,
-				0x1, 0x0);
-
-		/* Check 3: Read WCD_USBSS_PMP_MISC2 */
-		rc = rc | regmap_read(wcd_usbss_ctxt_->regmap, WCD_USBSS_PMP_MISC2, &read_val);
-
-		if (rc != 0) {
-			mutex_unlock(&wcd_usbss_ctxt_->switch_update_lock);
-			goto done;
-		}
-
-		if ((read_val & 0x1) == 0) {
-			dev_err(wcd_usbss_ctxt_->dev, "%s: Surge check #3 failed\n", __func__);
-			ret = true;
-		}
-	}
 	/* MG comparator bias current to 1uA */
 	regmap_write(wcd_usbss_ctxt_->regmap, WCD_USBSS_MG1_BIAS, MG_BIAS_CURRENT);
 	regmap_write(wcd_usbss_ctxt_->regmap, WCD_USBSS_MG2_BIAS, MG_BIAS_CURRENT);
@@ -1965,6 +1943,28 @@ static void wcd_usbss_remove(struct i2c_client *i2c)
 	wcd_usbss_ctxt_ = NULL;
 }
 
+static void wcd_usbss_shutdown(struct i2c_client *i2c)
+{
+	int error;
+	struct wcd_usbss_ctxt *priv =
+			(struct wcd_usbss_ctxt *)i2c_get_clientdata(i2c);
+
+	if (!priv)
+		return;
+
+	error = pm_runtime_resume_and_get(priv->dev);
+	if (error < 0)
+		dev_err(priv->dev, "%s: pm_runtime_resume_and_get failed: %i\n",
+				__func__, error);
+
+	wcd_usbss_disable_surge_kthread();
+	if (error >= 0)
+		pm_runtime_put_sync(priv->dev);
+	pm_runtime_dont_use_autosuspend(priv->dev);
+	pm_runtime_disable(priv->dev);
+	device_init_wakeup(priv->dev, false);
+}
+
 #ifdef CONFIG_PM_SLEEP
 static int wcd_usbss_pm_suspend(struct device *dev)
 {
@@ -2036,6 +2036,7 @@ static struct i2c_driver wcd_usbss_i2c_driver = {
 	.id_table = wcd_usbss_id_i2c,
 	.probe = wcd_usbss_probe,
 	.remove = wcd_usbss_remove,
+	.shutdown = wcd_usbss_shutdown,
 };
 module_i2c_driver(wcd_usbss_i2c_driver);
 
