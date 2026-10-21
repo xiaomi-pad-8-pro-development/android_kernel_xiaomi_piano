@@ -28,7 +28,9 @@
 int fp_parse_dts(struct fp_device *fp_dev)
 {
 	int ret;
-        uint32_t platform_id, hw_level;
+#ifdef HARDWARE_PROJECT_P11
+	uint32_t platform_id, hw_level;
+#endif
 	struct device_node *node = fp_dev->driver_device->dev.of_node;
 	FUNC_ENTRY();
 	if (node) {
@@ -152,6 +154,7 @@ int fp_parse_dts(struct fp_device *fp_dev)
 		fp_dev->fw_ipc.work_init = false;
 #endif
 
+#ifdef HARDWARE_PROJECT_P11
 		platform_id = get_hw_version_platform();
 
 		hw_level = (((get_hw_id_value() & HW_LEVEL_MASK) >> 16) & 0xF) * 10
@@ -160,7 +163,9 @@ int fp_parse_dts(struct fp_device *fp_dev)
 		if((platform_id == HARDWARE_PROJECT_P11)&&(hw_level ==  HW_LEVEL_P01)) {
 			fp_dev->vreg_3v3.mRegulator = regulator_get(&fp_dev->driver_device->dev, DTS_VOlT_REGULATER_3V1);
 			pr_debug(" p11 fp voltage is P01 L9B\n");
-		} else{
+		} else
+#endif
+		{
 			fp_dev->vreg_3v3.mRegulator = regulator_get(&fp_dev->driver_device->dev, DTS_VOlT_REGULATER_3V3);
 	        }
 		fp_dev->vreg_1v8.mRegulator = regulator_get(&fp_dev->driver_device->dev, DTS_VOlT_REGULATER_1V8);
