@@ -13,7 +13,6 @@
 
 #define DRV_NAME "msm-stub-codec"
 
-/* A dummy driver useful only to advertise hardware parameters */
 static struct snd_soc_dai_driver msm_stub_dais[] = {
 	{
 		.name = "msm-stub-rx",
@@ -42,7 +41,6 @@ static struct snd_soc_dai_driver msm_stub_dais[] = {
 		},
 	},
 };
-
 static const struct snd_soc_component_driver soc_msm_stub = {
 	.name = DRV_NAME,
 };

@@ -3,7 +3,7 @@
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
  * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
-
+#define DEBUG
 #include <linux/device.h>
 #include <linux/init.h>
 #include <linux/module.h>
@@ -602,6 +602,8 @@ static int swr_haptics_parse_port_mapping(struct swr_device *sdev)
 		return -EINVAL;
 	}
 
+	dev_info(swr_hap->dev, "%s: get rx_swr_ch_map\n", __func__);
+
 	swr_hap->port.port_id = (u8) port_cfg[PORT_ID_DT_IDX];
 	swr_hap->port.num_ch = (u8) port_cfg[NUM_CH_DT_IDX];
 	swr_hap->port.ch_mask = (u8) port_cfg[CH_MASK_DT_IDX];
@@ -623,11 +625,13 @@ static int swr_haptics_parse_port_mapping(struct swr_device *sdev)
 				return -EINVAL;
 			}
 
+			dev_info(swr_hap->dev, "%s: get rx_swr_vi_ch_map\n", __func__);
 			swr_hap->vi_port.port_id = (u8) port_cfg[PORT_ID_DT_IDX];
 			swr_hap->vi_port.num_ch = (u8) port_cfg[NUM_CH_DT_IDX];
 			swr_hap->vi_port.ch_mask = (u8) port_cfg[CH_MASK_DT_IDX];
 			swr_hap->vi_port.ch_rate =  port_cfg[CH_RATE_DT_IDX];
 			swr_hap->vi_port.port_type = (u8) port_cfg[PORT_TYPE_DT_IDX];
+			dev_info(swr_hap->dev, "%s: got rx_swr_vi_ch_map\n", __func__);
 		} else {
 			dev_err(swr_hap->dev, "%s: qcom,rx_swr_vi_ch_map not supported\n",
 						__func__);

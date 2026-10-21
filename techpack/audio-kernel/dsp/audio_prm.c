@@ -19,7 +19,7 @@
 #include <dsp/spf-core.h>
 #include <dsp/audio_notifier.h>
 
-#define TIMEOUT_MS 200
+#define TIMEOUT_MS 450
 #define MAX_RETRY_COUNT 3
 #define APM_READY_WAIT_DURATION 2
 #define GPR_SEND_PKT_APM_TIMEOUT_MS 0

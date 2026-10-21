@@ -1007,7 +1007,7 @@ static int swrm_cmd_fifo_rd_cmd(struct swr_mstr_ctrl *swrm, int *cmd_data,
 	swrm_wait_for_fifo_avail(swrm, SWRM_RD_CHECK_AVAIL);
 retry_read:
 	*cmd_data = swr_master_read(swrm, SWRM_CMD_FIFO_RD_FIFO(swrm->ee_val));
-	dev_dbg(swrm->dev, "%s: reg: 0x%x, cmd_id: 0x%x, rcmd_id: 0x%x, \
+	dev_err_ratelimited(swrm->dev, "%s: reg: 0x%x, cmd_id: 0x%x, rcmd_id: 0x%x, \
 		dev_num: 0x%x, cmd_data: 0x%x\n", __func__, reg_addr,
 		cmd_id, swrm->rcmd_id, dev_addr, *cmd_data);
 	if ((((*cmd_data) & 0xF00) >> 8) != swrm->rcmd_id) {
@@ -1049,7 +1049,7 @@ static int swrm_cmd_fifo_wr_cmd(struct swr_mstr_ctrl *swrm, u8 cmd_data,
 	else
 		val = swrm_get_packed_reg_val(&cmd_id, cmd_data,
 					      dev_addr, reg_addr);
-	dev_dbg(swrm->dev, "%s: reg: 0x%x, cmd_id: 0x%x,wcmd_id: 0x%x, \
+	dev_err_ratelimited(swrm->dev, "%s: reg: 0x%x, cmd_id: 0x%x,wcmd_id: 0x%x, \
 			dev_num: 0x%x, cmd_data: 0x%x\n", __func__,
 			reg_addr, cmd_id, swrm->wcmd_id,dev_addr, cmd_data);
 	/*
@@ -1619,7 +1619,7 @@ static void swrm_copy_data_port_config(struct swr_master *master, u8 bank)
 				dev_err_ratelimited(swrm->dev,
 					"%s:slaves/slave ports attaching to mport%d"\
 					" are not using same SI or data lane, update slave tables,"\
-					"bailing out without setting port config\n",
+					"bailing out without setting port config[TF-NOSOUND]\n",
 					__func__, i);
 				return;
 			}
@@ -1927,7 +1927,6 @@ static void swrm_initialize_clk_base_scale(struct swr_mstr_ctrl *swrm, u8 dev_nu
 	}
 }
 
-#define SLAVE_DEV_CLASS_ID  GENMASK(45, 40)
 static int swrm_update_clk_base_and_scale(struct swr_master *master, u8 inactive_bank)
 {
 	struct swr_device *swr_dev;
@@ -1940,8 +1939,7 @@ static int swrm_update_clk_base_and_scale(struct swr_master *master, u8 inactive
 		if (swr_dev->dev_num == 0)
 			continue;
 
-		/* check class_id if 1 */
-		if (!(swr_dev->addr & SLAVE_DEV_CLASS_ID))
+		if (!swr_dev->paging_support)
 			continue;
 
 		/* v1.2 slave could be attached to the bus */
@@ -2089,6 +2087,7 @@ static int swrm_slvdev_datapath_control(struct swr_master *master, bool enable)
 	swrm_update_clk_base_and_scale(master, bank);
 	enable_bank_switch(swrm, bank, n_row, n_col);
 	inactive_bank = bank ? 0 : 1;
+	swrm_update_clk_base_and_scale(master, inactive_bank);
 
 	if (enable)
 		swrm_copy_data_port_config(master, inactive_bank);
@@ -2497,7 +2496,7 @@ static irqreturn_t swr_mstr_interrupt(int irq, void *dev)
 	intr_sts = swr_master_read(swrm, SWRM_INTERRUPT_STATUS(swrm->ee_val));
 	intr_sts_masked = intr_sts & swrm->intr_mask;
 
-	dev_dbg(swrm->dev, "%s: status: 0x%x \n", __func__, intr_sts_masked);
+	dev_err_ratelimited(swrm->dev, "%s: status: 0x%x \n", __func__, intr_sts_masked);
 handle_irq:
 	for (i = 0; i < SWRM_INTERRUPT_MAX; i++) {
 		value = intr_sts_masked & (1 << i);
@@ -2506,7 +2505,7 @@ handle_irq:
 
 		switch (value) {
 		case SWRM_INTERRUPT_STATUS_SLAVE_PEND_IRQ:
-			dev_dbg(swrm->dev, "%s: Trigger irq to slave device\n",
+			dev_err_ratelimited(swrm->dev, "%s: Trigger irq to slave device\n",
 				__func__);
 			status = swr_master_read(swrm, SWRM_MCP_SLV_STATUS);
 			ret = swrm_find_alert_slave(swrm, status, &devnum);
@@ -2542,7 +2541,7 @@ handle_irq:
 			}
 			break;
 		case SWRM_INTERRUPT_STATUS_NEW_SLAVE_ATTACHED:
-			dev_dbg(swrm->dev, "%s: SWR new slave attached\n",
+			dev_err_ratelimited(swrm->dev, "%s: SWR new slave attached\n",
 				__func__);
 			break;
 		case SWRM_INTERRUPT_STATUS_CHANGE_ENUM_SLAVE_STATUS:
@@ -2596,7 +2595,7 @@ handle_irq:
 				swrm->intr_mask);
 			break;
 		case SWRM_INTERRUPT_STATUS_READ_EN_RD_VALID_MISMATCH:
-			dev_dbg(swrm->dev,
+			dev_err_ratelimited(swrm->dev,
 				"%s: SWR read enable valid mismatch\n",
 				__func__);
 			swrm->intr_mask &=
@@ -2607,14 +2606,14 @@ handle_irq:
 			break;
 		case SWRM_INTERRUPT_STATUS_SPECIAL_CMD_ID_FINISHED:
 			complete(&swrm->broadcast);
-			dev_dbg(swrm->dev, "%s: SWR cmd id finished\n",
+			dev_err_ratelimited(swrm->dev, "%s: SWR cmd id finished\n",
 				__func__);
 			break;
 		case SWRM_INTERRUPT_STATUS_AUTO_ENUM_FAILED:
 			swr_master_write(swrm, SWRM_ENUMERATOR_CFG, 0);
 			while (swr_master_read(swrm, SWRM_ENUMERATOR_STATUS)) {
 				if (!retry) {
-					dev_dbg(swrm->dev,
+					dev_err_ratelimited(swrm->dev,
 						"%s: ENUM status is not idle\n",
 						__func__);
 					break;
@@ -2632,7 +2631,7 @@ handle_irq:
 			break;
 		case SWRM_INTERRUPT_STATUS_EXT_CLK_STOP_WAKEUP:
 			if (swrm->state == SWR_MSTR_UP) {
-				dev_dbg(swrm->dev,
+				dev_err_ratelimited(swrm->dev,
 					"%s:SWR Master is already up\n",
 					__func__);
 			} else {
@@ -2680,7 +2679,7 @@ handle_irq:
 	intr_sts_masked = intr_sts & swrm->intr_mask;
 
 	if (intr_sts_masked && !pm_runtime_suspended(swrm->dev)) {
-		dev_dbg(swrm->dev, "%s: new interrupt received 0x%x\n",
+		dev_err_ratelimited(swrm->dev, "%s: new interrupt received 0x%x\n",
 			__func__, intr_sts_masked);
 		goto handle_irq;
 	}

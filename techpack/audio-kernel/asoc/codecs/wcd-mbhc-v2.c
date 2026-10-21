@@ -2,6 +2,7 @@
 /* Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
  * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
+#define DEBUG
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/slab.h>
@@ -26,12 +27,57 @@
 #endif
 #include <linux/usb/typec.h>
 #include <sound/soc.h>
+#include "lpass-cdc/lpass-cdc.h"
 #include <sound/jack.h>
 #include <asoc/msm-cdc-pinctrl.h>
 #include <asoc/wcdcal-hwdep.h>
 #include "wcd-mbhc-legacy.h"
 #include "wcd-mbhc-adc.h"
 #include <asoc/wcd-mbhc-v2-api.h>
+#include <linux/debugfs.h>
+#define CONFIG_AUDIO_UART_DEBUG
+
+#define HEADSET_STATUS_RECORD_INDEX_PLUGIN_HEADSET (3)
+#define HEADSET_STATUS_RECORD_INDEX_PLUGIN_HEADPHONE (1)
+#define HEADSET_STATUS_RECORD_INDEX_PLUGOUT (0)
+#define HEADSET_EVENT_PLUGIN_HEADPHONE (0)
+#define HEADSET_EVENT_PLUGIN_MICROPHONE (4)
+#define HEADSET_EVENT_PLUGIN_JACK (8)
+#define HEADSET_EVENT_KEY_PREVIOUS_DOWN (0)
+#define HEADSET_EVENT_KEY_PREVIOUS_UP (4)
+#define HEADSET_EVENT_KEY_PREVIOUS_ORDER (8)
+#define HEADSET_EVENT_KEY_NEXT_DOWN (0)
+#define HEADSET_EVENT_KEY_NEXT_UP (4)
+#define HEADSET_EVENT_KEY_NEXT_ORDER (8)
+#define HEADSET_EVENT_KEY_MEDIA_DOWN (0)
+#define HEADSET_EVENT_KEY_MEDIA_UP (4)
+#define HEADSET_EVENT_KEY_MEDIA_ORDER (8)
+#define HEADSET_EVENT_PLUGOUT_HEADPHONE (0)
+#define HEADSET_EVENT_PLUGOUT_MICROPHONE (4)
+#define HEADSET_EVENT_PLUGOUT_JACK (8)
+#define MAX_KEY_COUNT (3)
+#define DEBUGFS_DIR_NAME "mbhc"
+#define DEBUGFS_HEADSET_STATUS_FILE_NAME "headset_status"
+#define HEADSET_EVENT_MAX (6)
+static struct dentry* mbhc_debugfs_dir;
+static ssize_t headset_status_read(struct file *filp, char __user *buffer,
+		size_t count, loff_t *ppos);
+static ssize_t headset_status_write(struct file *filp, const char __user *buffer,
+		size_t count, loff_t *ppos);
+static void add_headset_event(int status, int mask, int jackstatus);
+static u16 headset_status[HEADSET_EVENT_MAX] = {0,0,0,0,0,0};
+// When the number of events is more than 15, no more growth.
+static int maxF(int a, int b) {
+	int x = 0;
+	x = a & (0xF << b);
+	x += 0x1 << b;
+	if (x > (0xF << b)) {
+		x = 0xF << b;
+		return (x + (a & ~(0xF << b)));
+	} else {
+		return a + (0x1 << b);
+	}
+}
 
 static const unsigned int mbhc_ext_dev_supported_table[] = {
 	EXTCON_JACK_MICROPHONE,
@@ -47,9 +93,100 @@ struct mutex hphr_pa_lock;
 void wcd_mbhc_jack_report(struct wcd_mbhc *mbhc,
 			  struct snd_soc_jack *jack, int status, int mask)
 {
+	pr_debug("%s: enter, jack->status: %d, status: %d, mask: %d\n", __func__, jack->status, status, mask);
 	snd_soc_jack_report(jack, status, mask);
+	add_headset_event(mbhc->hph_status, mask, jack->status);
 }
 EXPORT_SYMBOL(wcd_mbhc_jack_report);
+
+static void add_headset_event(int status, int mask, int jackstatus) {
+	static int headset_key_order = 0;
+	headset_status[5] = headset_key_order;
+	if (headset_key_order == MAX_KEY_COUNT) {
+		headset_key_order = 0;
+	}
+        pr_debug("%s: enter, status: %d, mask: %d, jackstatus: %d\n", __func__, status, mask, jackstatus);
+	if (status == HEADSET_STATUS_RECORD_INDEX_PLUGOUT) {
+		headset_status[4] = maxF(headset_status[4], HEADSET_EVENT_PLUGOUT_HEADPHONE);
+		headset_status[4] = maxF(headset_status[4], HEADSET_EVENT_PLUGOUT_MICROPHONE);
+		return;
+	} else if (status == HEADSET_STATUS_RECORD_INDEX_PLUGIN_HEADPHONE) {
+		headset_status[0] = maxF(headset_status[0], HEADSET_EVENT_PLUGIN_HEADPHONE);
+		headset_status[0] = maxF(headset_status[0], HEADSET_EVENT_PLUGIN_JACK);
+		return;
+	} else if (status == HEADSET_STATUS_RECORD_INDEX_PLUGIN_HEADSET) {
+		switch(mask) {
+			case SND_JACK_BTN_0:
+				if(!jackstatus) {
+				headset_key_order++;
+				headset_status[3] = maxF(headset_status[3], HEADSET_EVENT_KEY_MEDIA_DOWN);
+				headset_status[3] = headset_status[3] | (headset_key_order << HEADSET_EVENT_KEY_MEDIA_ORDER);
+				} else {
+				headset_status[3] = maxF(headset_status[3], HEADSET_EVENT_KEY_MEDIA_UP);
+				}
+				break;
+			case SND_JACK_BTN_1:
+				if(!jackstatus) {
+				headset_key_order++;
+				headset_status[1] = maxF(headset_status[1], HEADSET_EVENT_KEY_PREVIOUS_DOWN);
+				headset_status[1] = headset_status[1] | (headset_key_order << HEADSET_EVENT_KEY_PREVIOUS_ORDER);
+				} else {
+				headset_status[1] = maxF(headset_status[1], HEADSET_EVENT_KEY_PREVIOUS_UP);
+				}
+				break;
+			case SND_JACK_BTN_2:
+				if(!jackstatus) {
+				headset_key_order++;
+				headset_status[2] = maxF(headset_status[2], HEADSET_EVENT_KEY_NEXT_DOWN);
+				headset_status[2] = headset_status[2] | (headset_key_order << HEADSET_EVENT_KEY_NEXT_ORDER);
+				} else {
+				headset_status[2] = maxF(headset_status[2], HEADSET_EVENT_KEY_NEXT_UP);
+				}
+				break;
+			default:
+			headset_status[0] = maxF(headset_status[0], HEADSET_EVENT_PLUGIN_HEADPHONE);
+				headset_status[0] = maxF(headset_status[0], HEADSET_EVENT_PLUGIN_MICROPHONE);
+				headset_status[0] = maxF(headset_status[0], HEADSET_EVENT_PLUGIN_JACK);
+				break;
+		}
+		return;
+	}
+}
+static ssize_t headset_status_read(struct file *filp, char __user *buffer,
+		size_t count, loff_t *ppos) {
+	char buf[64];
+        static int headset_status_read_freq = 0;
+	sprintf(buf, "0x%04x 0x%04x 0x%04x 0x%04x 0x%04x 0x%04x\n",
+			headset_status[0], headset_status[1],
+			headset_status[2], headset_status[3],
+			headset_status[4], headset_status[5]);
+	pr_debug("%s: enter: %d, Get(%s)\n", __func__, headset_status_read_freq, buf);
+	headset_status_read_freq += 1;
+	return simple_read_from_buffer(buffer, count, ppos, buf, strlen(buf));
+}
+static ssize_t headset_status_write(struct file *filp, const char __user *buffer,
+		size_t count, loff_t *ppos) {
+	char buf[4], buf1[64];
+	size_t buf_size = min(count, sizeof(buf) - 1);
+        static int headset_status_write_freq = 0;
+        sprintf(buf1, "0x%04x 0x%04x 0x%04x 0x%04x 0x%04x 0x%04x\n",
+			headset_status[0], headset_status[1],
+			headset_status[2], headset_status[3],
+			headset_status[4], headset_status[5]);
+	pr_debug("%s: enter: %d, Get(%s)\n", __func__, headset_status_write_freq, buf1);
+	headset_status_write_freq += 1;
+	if (copy_from_user(buf, buffer, buf_size))
+		return -EFAULT;
+	if (strncmp(buf, "0", 1) == 0) {
+		memset(headset_status, 0, sizeof(headset_status));
+	}
+	return count;
+}
+static const struct file_operations mbhc_headset_status_fops = {
+	.owner = THIS_MODULE,
+	.read = headset_status_read,
+	.write = headset_status_write,
+};
 
 #if IS_ENABLED(CONFIG_AUDIO_QGKI)
 static void __hphocp_off_report(struct wcd_mbhc *mbhc, u32 jack_status,
@@ -584,6 +721,9 @@ void wcd_mbhc_report_plug(struct wcd_mbhc *mbhc, int insertion,
 	pr_debug("%s: enter insertion %d hph_status %x\n",
 		 __func__, insertion, mbhc->hph_status);
 	if (!insertion) {
+		if (mbhc->hph_status  == SND_JACK_HEADSET) {
+			lpass_cdc_tx_macro_mute_hs();
+		}
 		/* Report removal */
 		mbhc->hph_status &= ~jack_type;
 		/*
@@ -759,6 +899,8 @@ void wcd_mbhc_report_plug(struct wcd_mbhc *mbhc, int insertion,
 				pr_debug("%s: Marking jack type as SND_JACK_LINEOUT\n",
 				__func__);
 			}
+			pr_debug("%s: The impedance is: zl %d, zr %d\n",
+				__func__, mbhc->zl, mbhc->zr);
 		}
 
 		/* Do not calculate impedance again for lineout
@@ -892,6 +1034,13 @@ void wcd_mbhc_find_plug_and_report(struct wcd_mbhc *mbhc,
 		jack_type = SND_JACK_HEADSET;
 
 		/*
+		 * if current plug is headphone,
+		 * report headphone removal before reporting headset insertion
+		 */
+		if (mbhc->current_plug == MBHC_PLUG_TYPE_HEADPHONE)
+			wcd_mbhc_report_plug(mbhc, 0, SND_JACK_HEADPHONE);
+
+		/*
 		 * If Headphone was reported previously, this will
 		 * only report the mic line
 		 */
@@ -924,7 +1073,7 @@ void wcd_mbhc_find_plug_and_report(struct wcd_mbhc *mbhc,
 			ret = extcon_set_state_sync(mbhc->extdev, EXTCON_JACK_LINE_OUT, 1);
 		}
 	} else {
-		WARN(1, "Unexpected current plug_type %d, plug_type %d\n",
+		WARN(1, "Unexpected current plug_type %d, plug_type %d [TF-HEADSET]\n",
 		     mbhc->current_plug, plug_type);
 	}
 exit:
@@ -983,7 +1132,6 @@ static void wcd_mbhc_set_hsj_connect(struct wcd_mbhc *mbhc, bool connect)
 					"qcom,usbss-hsj-connect-enabled", NULL))
 				wcd_usbss_switch_update(WCD_USBSS_HSJ_CONNECT,
 							WCD_USBSS_CABLE_DISCONNECT);
-
 			if (mbhc->mbhc_cb && mbhc->mbhc_cb->zdet_leakage_resistance) {
 				/* disable 1M pull-up */
 				mbhc->mbhc_cb->zdet_leakage_resistance(mbhc, true);
@@ -1066,10 +1214,16 @@ static void wcd_mbhc_swch_irq_handler(struct wcd_mbhc *mbhc)
 			mbhc->mbhc_cb->enable_mb_source(mbhc, true);
 		mbhc->btn_press_intr = false;
 		mbhc->is_btn_press = false;
+		mbhc->mbhc_cfg->flip_switch = false;
 		if (mbhc->mbhc_fn)
 			mbhc->mbhc_fn->wcd_mbhc_detect_plug_type(mbhc);
 	} else if ((mbhc->current_plug != MBHC_PLUG_TYPE_NONE)
 			&& !detection_type) {
+		if (mbhc->mbhc_cb->mbhc_micbias_control){
+			mbhc->mbhc_cb->mbhc_micbias_control(
+					component, MIC_BIAS_2,
+					MICB_DISABLE);
+		}
 		/* Disable external voltage source to micbias if present */
 		if (mbhc->mbhc_cb->enable_mb_source)
 			mbhc->mbhc_cb->enable_mb_source(mbhc, false);
@@ -1290,8 +1444,12 @@ static irqreturn_t wcd_mbhc_btn_press_handler(int irq, void *data)
 	WCD_MBHC_RSC_LOCK(mbhc);
 	wcd_cancel_btn_work(mbhc);
 	if (wcd_swch_level_remove(mbhc)) {
-		pr_debug("%s: Switch level is low ", __func__);
+		pr_debug("%s: Switch level is low [TF-HEADSET]", __func__);
 		goto done;
+	}
+
+	if (mbhc->is_btn_press) {
+		pr_debug("%s: This button press maybe abnormal [TF-HEADSET]\n", __func__);
 	}
 
 	mbhc->is_btn_press = true;
@@ -1338,14 +1496,14 @@ static irqreturn_t wcd_mbhc_release_handler(int irq, void *data)
 	pr_debug("%s: enter\n", __func__);
 	WCD_MBHC_RSC_LOCK(mbhc);
 	if (wcd_swch_level_remove(mbhc)) {
-		pr_debug("%s: Switch level is low ", __func__);
+		pr_debug("%s: Switch level is low [TF-HEADSET]", __func__);
 		goto exit;
 	}
 
 	if (mbhc->is_btn_press) {
 		mbhc->is_btn_press = false;
 	} else {
-		pr_debug("%s: This release is for fake btn press\n", __func__);
+		pr_debug("%s: This release is for fake btn press [TF-HEADSET]\n", __func__);
 		goto exit;
 	}
 
@@ -1374,14 +1532,14 @@ static irqreturn_t wcd_mbhc_release_handler(int irq, void *data)
 				pr_debug("%s: Switch irq kicked in, ignore\n",
 					__func__);
 			} else {
-				pr_debug("%s: Reporting btn press\n",
-					 __func__);
+				pr_debug("%s: Reporting btn %#x press\n",
+					 __func__, mbhc->buttons_pressed);
 				wcd_mbhc_jack_report(mbhc,
 						     &mbhc->button_jack,
 						     mbhc->buttons_pressed,
 						     mbhc->buttons_pressed);
-				pr_debug("%s: Reporting btn release\n",
-					 __func__);
+				pr_debug("%s: Reporting btn %#x release\n",
+					 __func__, mbhc->buttons_pressed);
 				wcd_mbhc_jack_report(mbhc,
 						&mbhc->button_jack,
 						0, mbhc->buttons_pressed);
@@ -1485,6 +1643,13 @@ static int wcd_mbhc_initialise(struct wcd_mbhc *mbhc)
 	pr_debug("%s: enter\n", __func__);
 	WCD_MBHC_RSC_LOCK(mbhc);
 
+	mbhc_debugfs_dir = debugfs_create_dir(DEBUGFS_DIR_NAME, NULL);
+	if (!IS_ERR(mbhc_debugfs_dir)) {
+		debugfs_create_file(DEBUGFS_HEADSET_STATUS_FILE_NAME, 0666,
+				mbhc_debugfs_dir, NULL, &mbhc_headset_status_fops);
+	}
+
+
 	/* enable HS detection */
 	if (mbhc->mbhc_cb->hph_pull_up_control_v2)
 		mbhc->mbhc_cb->hph_pull_up_control_v2(component,
@@ -1537,15 +1702,15 @@ static int wcd_mbhc_initialise(struct wcd_mbhc *mbhc)
 		WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_L_DET_EN, 1);
 
 	if (mbhc->mbhc_cfg->enable_usbc_analog) {
-		/* Insertion debounce set to 48ms */
-		WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_INSREM_DBNC, 4);
+		/* Insertion debounce set to 192ms */
+		WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_INSREM_DBNC, 8);
 	} else {
 		/* Insertion debounce set to 96ms */
 		WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_INSREM_DBNC, 6);
 	}
 
-	/* Button Debounce set to 16ms */
-	WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_BTN_DBNC, 2);
+	/* Button Debounce set to 32ms */
+	WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_BTN_DBNC, 3);
 
 	/* enable bias */
 	mbhc->mbhc_cb->mbhc_bias(component, true);
@@ -1707,10 +1872,40 @@ static int wcd_mbhc_set_keycode(struct wcd_mbhc *mbhc)
 }
 
 #if IS_ENABLED(CONFIG_QCOM_FSA4480_I2C) || IS_ENABLED(CONFIG_QCOM_WCD_USBSS_I2C)
+#ifdef CONFIG_AUDIO_UART_DEBUG
+static int wcd_mbhc_init_gpio(struct wcd_mbhc *mbhc,
+			      struct wcd_mbhc_config *mbhc_cfg,
+			      const char *gpio_dt_str,
+			      int *gpio, struct device_node **gpio_dn)
+{
+	int rc = 0;
+	struct snd_soc_component *component;
+	struct snd_soc_card *card;
+	if (!mbhc || !mbhc_cfg)
+		return -EINVAL;
+	component = mbhc->component;
+	card = component->card;
+	dev_dbg(mbhc->component->dev, "%s: gpio %s\n", __func__, gpio_dt_str);
+	*gpio_dn = of_parse_phandle(card->dev->of_node, gpio_dt_str, 0);
+	if (!(*gpio_dn)) {
+		*gpio = of_get_named_gpio(card->dev->of_node, gpio_dt_str, 0);
+		if (!gpio_is_valid(*gpio)) {
+			dev_err(card->dev, "%s, property %s not in node %s",
+				__func__, gpio_dt_str,
+				card->dev->of_node->full_name);
+			rc = -EINVAL;
+		}
+	}
+	return rc;
+}
+#endif
 static int wcd_mbhc_usbc_ana_event_handler(struct notifier_block *nb,
 					   unsigned long mode, void *ptr)
 {
 	struct wcd_mbhc *mbhc = container_of(nb, struct wcd_mbhc, aatc_dev_nb);
+#ifdef CONFIG_AUDIO_UART_DEBUG
+        struct wcd_mbhc_config *config = mbhc->mbhc_cfg;
+#endif
 #if IS_ENABLED(CONFIG_QCOM_WCD_USBSS_I2C)
 	int l_det_en = 0, detection_type = 0;
 	bool *cable_status = (bool*) ptr;
@@ -1722,6 +1917,10 @@ static int wcd_mbhc_usbc_ana_event_handler(struct notifier_block *nb,
 
 	if (mode == TYPEC_ACCESSORY_AUDIO) {
 		dev_dbg(mbhc->component->dev, "enter, %s: mode = %lu\n", __func__, mode);
+#ifdef CONFIG_AUDIO_UART_DEBUG
+		msm_cdc_pinctrl_select_active_state(config->uart_audio_switch_gpio_p);
+		dev_dbg(mbhc->component->dev, "disable uart\n");
+#endif
 #if IS_ENABLED(CONFIG_QCOM_WCD_USBSS_I2C)
 		if (mbhc->wcd_usbss_aatc_dev_np) {
 			if (cable_status == NULL)
@@ -1738,8 +1937,12 @@ static int wcd_mbhc_usbc_ana_event_handler(struct notifier_block *nb,
 			}
 		}
 #endif
-		if (mbhc->mbhc_cb->clk_setup)
+		if (mbhc->mbhc_cb->clk_setup) {
+			mbhc->mbhc_cb->clk_setup(mbhc->component, false);
 			mbhc->mbhc_cb->clk_setup(mbhc->component, true);
+		}
+		/* insertion detected, enable L_DET_EN */
+		WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_L_DET_EN, 0);
 		WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_L_DET_EN, 1);
 
 #if IS_ENABLED(CONFIG_QCOM_WCD_USBSS_I2C)
@@ -1754,6 +1957,10 @@ static int wcd_mbhc_usbc_ana_event_handler(struct notifier_block *nb,
 		}
 #endif
 	} else if (mode < TYPEC_MAX_ACCESSORY) {
+#ifdef CONFIG_AUDIO_UART_DEBUG
+		msm_cdc_pinctrl_select_sleep_state(config->uart_audio_switch_gpio_p);
+		dev_dbg(mbhc->component->dev, "enable uart\n");
+#endif
 #if IS_ENABLED(CONFIG_QCOM_WCD_USBSS_I2C)
 		if (mbhc->wcd_usbss_aatc_dev_np) {
 			WCD_MBHC_REG_READ(WCD_MBHC_L_DET_EN, l_det_en);
@@ -1820,6 +2027,18 @@ int wcd_mbhc_start(struct wcd_mbhc *mbhc, struct wcd_mbhc_config *mbhc_cfg)
 
 	/* Parse wcd_usbss/fsa switch handle */
 	if (mbhc_cfg->enable_usbc_analog) {
+#ifdef CONFIG_AUDIO_UART_DEBUG
+		if (of_find_property(card->dev->of_node,
+					"qcom,uart-audio-sw-gpio",
+					NULL)) {
+			rc = wcd_mbhc_init_gpio(mbhc, mbhc_cfg,
+					"qcom,uart-audio-sw-gpio",
+					&mbhc_cfg->uart_audio_switch_gpio,
+					&mbhc_cfg->uart_audio_switch_gpio_p);
+			if (rc)
+				goto err;
+		}
+#endif
 		dev_dbg(mbhc->component->dev, "%s: usbc analog enabled\n",
 					__func__);
 		mbhc->swap_thr = GND_MIC_USBC_SWAP_THRESHOLD;
@@ -1947,14 +2166,14 @@ int wcd_mbhc_init(struct wcd_mbhc *mbhc, struct snd_soc_component *component,
 	ret = of_property_read_u32(card->dev->of_node, hph_switch, &hph_swh);
 	if (ret) {
 		dev_err(card->dev,
-			"%s: missing %s in dt node\n", __func__, hph_switch);
+			"%s: missing %s in dt node [TF-HEADSET]\n", __func__, hph_switch);
 		goto err;
 	}
 
 	ret = of_property_read_u32(card->dev->of_node, gnd_switch, &gnd_swh);
 	if (ret) {
 		dev_err(card->dev,
-			"%s: missing %s in dt node\n", __func__, gnd_switch);
+			"%s: missing %s in dt node [TF-HEADSET]\n", __func__, gnd_switch);
 		goto err;
 	}
 

@@ -200,7 +200,7 @@ static int msm_audio_dma_buf_map(struct dma_buf *dma_buf,
 	if (IS_ERR(alloc_data->table)) {
 		rc = PTR_ERR(alloc_data->table);
 		dev_err(cb_dev,
-			"%s: Fail to map attachment, rc = %d\n",
+			"%s: Fail to map attachment, rc = %d[TF-NOSOUND][ION]\n",
 			__func__, rc);
 		goto detach_dma_buf;
 	}
@@ -564,7 +564,7 @@ static int msm_audio_ion_import(struct dma_buf **dma_buf, int fd,
 	if (ion_data->smmu_enabled) {
 		rc = msm_audio_ion_buf_map(*dma_buf, paddr, plen, iosys_vmap, ion_data);
 		if (rc) {
-			pr_err("%s: failed to map ION buf, rc = %d\n", __func__, rc);
+			pr_err("%s: failed to map ION buf, rc = %d [TF-NOSOUND]\n", __func__, rc);
 			goto err;
 		}
 		pr_debug("%s: mapped address = %pK, size=%zd\n", __func__,
@@ -754,12 +754,10 @@ static long msm_audio_ion_ioctl(struct file *file, unsigned int ioctl_num,
 		msm_audio_get_handle((int)ioctl_param, &mem_handle);
 		ret = msm_audio_ion_free(mem_handle, ion_data);
 		if (ret < 0) {
-			pr_err("%s Ion free failed %d\n", __func__, ret);
-			if (ret == -ENOENT) {
+                        pr_err("%s Ion free failed %d\n", __func__, ret);
+			if (ret == -ENOENT)
 				msm_audio_delete_fd_entry(mem_handle, (int)ioctl_param);
-				return 0;
-			}
-			return ret;
+			return 0;
 		}
 		msm_audio_delete_fd_entry(mem_handle, (int)ioctl_param);
 		break;

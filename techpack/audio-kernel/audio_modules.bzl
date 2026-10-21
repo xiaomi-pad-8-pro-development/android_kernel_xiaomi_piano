@@ -8,7 +8,11 @@ ASOC_CODECS_PATH = ASOC_PATH + "/codecs"
 ASOC_CODECS_LPASS_CDC_PATH = ASOC_CODECS_PATH + "/lpass-cdc"
 ASOC_CODECS_BOLERO_PATH = ASOC_CODECS_PATH + "/bolero"
 
-audio_modules = create_module_registry([":audio_headers"])
+audio_modules = create_module_registry([
+":audio_headers",
+"//msm-kernel:hwid_headers",
+]
+)
 # ------------------------------------ AUDIO MODULE DEFINITIONS ---------------------------------
 # >>>> DSP MODULES <<<<
 audio_modules.register(
@@ -262,6 +266,15 @@ audio_modules.register(
             "wcd-mbhc-legacy.c"
         ]
     },
+        deps = [":%b_lpass_cdc_tx_macro_dlkm",
+            ":%b_wcd_core_dlkm",
+	],
+)
+audio_modules.register(
+    name = "sdca_registers_dlkm",
+    path = ASOC_CODECS_PATH,
+    config_option = "CONFIG_SND_SOC_SDCA_REGISTERS",
+    srcs = ["sdca-registers-api.c"]
 )
 audio_modules.register(
     name = "swr_dmic_dlkm",
@@ -347,6 +360,7 @@ audio_modules.register(
     ],
     deps = [":%b_spf_core_dlkm",
             ":%b_snd_event_dlkm",
+            ":%b_typec_analog_acc_dlkm",
 	],
 )
 audio_modules.register(
@@ -474,6 +488,52 @@ audio_modules.register(
             ":%b_swr_dlkm",
 	],
 )
+# >>>> SIA91xx MODULE <<<<
+audio_modules.register(
+    name = "sia91xx_dlkm",
+    path = ASOC_CODECS_PATH + "/sia91xx",
+    config_option = "CONFIG_SND_SOC_SIA91XX",
+    srcs = [
+        "sipa.c",
+        "sipa_91xx.c",
+        "sipa_aux_dev_if.c",
+        "sipa_parameter.c",
+        "sipa_regmap.c",
+    ],
+    deps = [":%b_machine_dlkm",
+    ],
+)
+
+audio_modules.register(
+    name = "sia91xx_tuning_dlkm",
+    path = ASOC_CODECS_PATH + "/sia91xx",
+    config_option = "CONFIG_SND_SOC_SIA91XX",
+    srcs = [
+        "sipa_tuning_if.c",
+        "sipa_tuning_misc.c",
+    ],
+    deps = [":%b_machine_dlkm",
+    ],
+)
+# >>>> FS19XX MODULE <<<<
+audio_modules.register(
+    name = "fs19xx_dlkm",
+    path = ASOC_CODECS_PATH + "/fs19xx",
+    config_option = "CONFIG_SND_SOC_FS19XX",
+    srcs = [
+        "fsm_core.c",
+        "fs1958.c",
+        "fsm_i2c.c",
+        "fsm_firmware.c",
+        "fsm_class.c",
+        "fsm_misc.c",
+        "fsm_q6afe.c",
+        "fsm_mtk_ipi.c",
+        "fsm_codec.c",
+    ],
+    deps = [":%b_machine_dlkm",
+    ],
+)
 # >>>> WCD937X MODULES <<<<
 audio_modules.register(
     name = "wcd937x_dlkm",
@@ -559,6 +619,7 @@ audio_modules.register(
             ":%b_wcd_core_dlkm",
             ":%b_wcd9xxx_dlkm",
             ":%b_swr_dlkm",
+            ":%b_sdca_registers_dlkm",
 	],
 )
 audio_modules.register(
@@ -580,4 +641,10 @@ audio_modules.register(
     ],
     deps = [":%b_swr_dlkm",
 	],
+)
+audio_modules.register(
+    name = "typec_analog_acc_dlkm",
+    path = ASOC_CODECS_PATH,
+    config_option = "CONFIG_SND_SOC_TYPEC_ANALOG_ACC",
+    srcs = ["typec_analog_acc.c"]
 )

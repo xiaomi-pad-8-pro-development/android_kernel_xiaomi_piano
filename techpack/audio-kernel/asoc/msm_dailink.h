@@ -352,25 +352,110 @@ SND_SOC_DAILINK_DEFS(sep_mi2s_tx,
 	DAILINK_COMP_ARRAY(COMP_CODEC("msm-stub-codec.1", "msm-stub-tx")),
 	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-soc-dummy")));
 
+#if defined(CONFIG_TARGET_PRODUCT_LUMING)
+SND_SOC_DAILINK_DEFS(pri_tdm_rx_0,
+	DAILINK_COMP_ARRAY(COMP_CPU("snd-soc-dummy-dai")),
+	DAILINK_COMP_ARRAY(COMP_CODEC("aw882xx_smartpa.10-0034", "aw882xx-aif-10-34"),
+				COMP_CODEC("aw882xx_smartpa.10-0035", "aw882xx-aif-10-35")),
+	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-soc-dummy")));
+#else
 SND_SOC_DAILINK_DEFS(pri_tdm_rx_0,
 	DAILINK_COMP_ARRAY(COMP_CPU("snd-soc-dummy-dai")),
 	DAILINK_COMP_ARRAY(COMP_CODEC("msm-stub-codec.1", "msm-stub-rx")),
 	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-soc-dummy")));
+#endif
 
+#if defined(CONFIG_TARGET_PRODUCT_LUMING)
+SND_SOC_DAILINK_DEFS(pri_tdm_tx_0,
+	DAILINK_COMP_ARRAY(COMP_CPU("snd-soc-dummy-dai")),
+	DAILINK_COMP_ARRAY(COMP_CODEC("aw882xx_smartpa.10-0034", "aw882xx-aif-10-34"),
+				COMP_CODEC("aw882xx_smartpa.10-0035", "aw882xx-aif-10-35")),
+	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-soc-dummy")));
+#else
 SND_SOC_DAILINK_DEFS(pri_tdm_tx_0,
 	DAILINK_COMP_ARRAY(COMP_CPU("snd-soc-dummy-dai")),
 	DAILINK_COMP_ARRAY(COMP_CODEC("msm-stub-codec.1", "msm-stub-tx")),
 	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-soc-dummy")));
+#endif
 
+#if defined(CONFIG_TARGET_PRODUCT_HAOTIAN)
+SND_SOC_DAILINK_DEFS(sec_tdm_rx_0,
+	DAILINK_COMP_ARRAY(COMP_CPU("snd-soc-dummy-dai")),
+	DAILINK_COMP_ARRAY(COMP_CODEC("cs35l43.0-0042", "cs35l43-rx-0042"),
+			COMP_CODEC("cs40l26-codec.1.auto", "cs40l26-pcm"),
+			COMP_CODEC("cs35l43.0-0040", "cs35l43-rx-0040")),
+	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-soc-dummy")));
+#elif defined(CONFIG_TARGET_PRODUCT_MIRO)
+SND_SOC_DAILINK_DEFS(sec_tdm_rx_0,
+	DAILINK_COMP_ARRAY(COMP_CPU("snd-soc-dummy-dai")),
+	DAILINK_COMP_ARRAY(COMP_CODEC("tfa98xx.0-0034", "tfa98xx-aif-0-34"),
+			COMP_CODEC("tfa98xx.0-0035", "tfa98xx-aif-0-35")),
+	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-soc-dummy")));
+// #elif defined(CONFIG_TARGET_PRODUCT_ANNIBALE)
+// SND_SOC_DAILINK_DEFS(sec_tdm_rx_0,
+// 	DAILINK_COMP_ARRAY(COMP_CPU("snd-soc-dummy-dai")),
+// 	DAILINK_COMP_ARRAY(COMP_CODEC("tfa98xx.0-0034", "tfa98xx-aif-0-34"),
+// 			COMP_CODEC("tfa98xx.0-0036", "tfa98xx-aif-0-36")),
+// 	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-soc-dummy")));
+#elif defined(CONFIG_TARGET_PRODUCT_DADA)
+SND_SOC_DAILINK_DEFS(sec_tdm_rx_0,
+	DAILINK_COMP_ARRAY(COMP_CPU("snd-soc-dummy-dai")),
+	DAILINK_COMP_ARRAY(COMP_CODEC("cs35l43.0-0040", "cs35l43-rx-0040"),
+			    COMP_CODEC("cs35l43.0-0042", "cs35l43-rx-0042")),
+	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-soc-dummy")));
+#elif defined(CONFIG_TARGET_PRODUCT_NIRVANA)
+SND_SOC_DAILINK_DEFS(sec_tdm_rx_0,
+	DAILINK_COMP_ARRAY(COMP_CPU("snd-soc-dummy-dai")),
+	DAILINK_COMP_ARRAY(COMP_CODEC("cs35l43.0-0040", "cs35l43-rx-0040"),
+			    COMP_CODEC("cs35l43.0-0042", "cs35l43-rx-0042")),
+	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-soc-dummy")));
+#elif defined(CONFIG_TARGET_PRODUCT_BIXI)
+SND_SOC_DAILINK_DEFS(sec_tdm_rx_0,
+	DAILINK_COMP_ARRAY(COMP_CPU("snd-soc-dummy-dai")),
+	DAILINK_COMP_ARRAY(COMP_CODEC("cs35l43.0-0040", "cs35l43-rx-0040"),
+			    COMP_CODEC("cs35l43.0-0041", "cs35l43-rx-0041"),
+			    COMP_CODEC("cs35l43.0-0042", "cs35l43-rx-0042")),
+	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-soc-dummy")));
+#elif defined(CONFIG_TARGET_PRODUCT_XUANYUAN)
+SND_SOC_DAILINK_DEFS(sec_tdm_rx_0,
+	DAILINK_COMP_ARRAY(COMP_CPU("snd-soc-dummy-dai")),
+	DAILINK_COMP_ARRAY(COMP_CODEC("tas25xx.0-004a", "tas25xx ASI1")),
+	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-soc-dummy")));
+#else
 SND_SOC_DAILINK_DEFS(sec_tdm_rx_0,
 	DAILINK_COMP_ARRAY(COMP_CPU("snd-soc-dummy-dai")),
 	DAILINK_COMP_ARRAY(COMP_CODEC("msm-stub-codec.1", "msm-stub-rx")),
 	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-soc-dummy")));
+#endif
 
+#if defined(CONFIG_TARGET_PRODUCT_MIRO)
+SND_SOC_DAILINK_DEFS(sec_tdm_tx_0,
+	DAILINK_COMP_ARRAY(COMP_CPU("snd-soc-dummy-dai")),
+	DAILINK_COMP_ARRAY(COMP_CODEC("tfa98xx.0-0034", "tfa98xx-aif-0-34"),
+			COMP_CODEC("tfa98xx.0-0035", "tfa98xx-aif-0-35")),
+	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-soc-dummy")));
+// #elif defined(CONFIG_TARGET_PRODUCT_ANNIBALE)
+// SND_SOC_DAILINK_DEFS(sec_tdm_tx_0,
+// 	DAILINK_COMP_ARRAY(COMP_CPU("snd-soc-dummy-dai")),
+// 	DAILINK_COMP_ARRAY(COMP_CODEC("tfa98xx.0-0034", "tfa98xx-aif-0-34"),
+// 			COMP_CODEC("tfa98xx.0-0036", "tfa98xx-aif-0-36")),
+// 	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-soc-dummy")));
+#elif defined(CONFIG_TARGET_PRODUCT_XUANYUAN)
+SND_SOC_DAILINK_DEFS(sec_tdm_tx_0,
+	DAILINK_COMP_ARRAY(COMP_CPU("snd-soc-dummy-dai")),
+	DAILINK_COMP_ARRAY(COMP_CODEC("tas25xx.0-004a", "tas25xx ASI1")),
+	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-soc-dummy")));
+#elif defined(CONFIG_TARGET_PRODUCT_PIANO)
+SND_SOC_DAILINK_DEFS(sec_tdm_tx_0,
+	DAILINK_COMP_ARRAY(COMP_CPU("snd-soc-dummy-dai")),
+	DAILINK_COMP_ARRAY(COMP_CODEC("fs16xx.0-0034", "fs16xx-aif")),
+	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-soc-dummy")));
+#else
 SND_SOC_DAILINK_DEFS(sec_tdm_tx_0,
 	DAILINK_COMP_ARRAY(COMP_CPU("snd-soc-dummy-dai")),
 	DAILINK_COMP_ARRAY(COMP_CODEC("msm-stub-codec.1", "msm-stub-tx")),
 	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-soc-dummy")));
+#endif
 
 SND_SOC_DAILINK_DEFS(tert_tdm_rx_0,
 	DAILINK_COMP_ARRAY(COMP_CPU("snd-soc-dummy-dai")),
@@ -391,16 +476,32 @@ SND_SOC_DAILINK_DEFS(quat_tdm_tx_0,
 	DAILINK_COMP_ARRAY(COMP_CPU("snd-soc-dummy-dai")),
 	DAILINK_COMP_ARRAY(COMP_CODEC("msm-stub-codec.1", "msm-stub-tx")),
 	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-soc-dummy")));
-
+//byxh
+// #if defined(CONFIG_TARGET_PRODUCT_ONYX)
+// SND_SOC_DAILINK_DEFS(quin_tdm_rx_0,
+// 	DAILINK_COMP_ARRAY(COMP_CPU("snd-soc-dummy-dai")),
+// 	DAILINK_COMP_ARRAY(COMP_CODEC("sipa.15-006c", "sia91xx-aif-c-6c"),
+// 				COMP_CODEC("sipa.15-006d", "sia91xx-aif-c-d")),
+// 	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-soc-dummy")));
+// #else
 SND_SOC_DAILINK_DEFS(quin_tdm_rx_0,
 	DAILINK_COMP_ARRAY(COMP_CPU("snd-soc-dummy-dai")),
 	DAILINK_COMP_ARRAY(COMP_CODEC("msm-stub-codec.1", "msm-stub-rx")),
 	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-soc-dummy")));
+// #endif
 
+// #if defined(CONFIG_TARGET_PRODUCT_ONYX)
+// SND_SOC_DAILINK_DEFS(quin_tdm_tx_0,
+// 	DAILINK_COMP_ARRAY(COMP_CPU("snd-soc-dummy-dai")),
+// 	DAILINK_COMP_ARRAY(COMP_CODEC("sipa.15-006c", "sia91xx-aif-c-6d"),
+// 				COMP_CODEC("sipa.15-006d", "sia91xx-aif-c-6d")),
+// 	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-soc-dummy")));
+// #else
 SND_SOC_DAILINK_DEFS(quin_tdm_tx_0,
 	DAILINK_COMP_ARRAY(COMP_CPU("snd-soc-dummy-dai")),
 	DAILINK_COMP_ARRAY(COMP_CODEC("msm-stub-codec.1", "msm-stub-tx")),
 	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-soc-dummy")));
+// #endif
 
 SND_SOC_DAILINK_DEFS(sen_tdm_rx_0,
 	DAILINK_COMP_ARRAY(COMP_CPU("snd-soc-dummy-dai")),

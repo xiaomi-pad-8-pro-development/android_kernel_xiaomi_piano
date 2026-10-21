@@ -1,12 +1,7 @@
 load(":audio_modules.bzl", "audio_modules")
 load(":module_mgr.bzl", "define_target_modules")
 
-def define_sun():
-    define_target_modules(
-        target = "sun",
-        variants = ["consolidate", "perf"],
-        registry = audio_modules,
-        modules = [
+arch_modules = [
             "q6_dlkm",
             "spf_core_dlkm",
             "audpkt_ion_dlkm",
@@ -23,6 +18,7 @@ def define_sun():
             "machine_dlkm",
             "wcd_core_dlkm",
             "mbhc_dlkm",
+            "typec_analog_acc_dlkm",
             "swr_dmic_dlkm",
             "wcd9xxx_dlkm",
             "swr_haptics_dlkm",
@@ -34,8 +30,12 @@ def define_sun():
             "lpass_cdc_va_macro_dlkm",
             "lpass_cdc_rx_macro_dlkm",
             "lpass_cdc_tx_macro_dlkm",
+            "sdca_registers_dlkm",
             "wsa883x_dlkm",
             "wsa884x_dlkm",
+            "fs19xx_dlkm",
+            "sia91xx_dlkm",
+            "sia91xx_tuning_dlkm",
             "wcd938x_dlkm",
             "wcd938x_slave_dlkm",
             "wcd939x_dlkm",
@@ -43,9 +43,10 @@ def define_sun():
             "wcd9378_dlkm",
             "wcd9378_slave_dlkm",
             "lpass_bt_swr_dlkm",
-			"qmp_dlkm"
-        ],
-        config_options = [
+            "qmp_dlkm"
+]
+
+arch_config_options = [
             "CONFIG_SND_SOC_SUN",
             "CONFIG_SND_SOC_MSM_QDSP6V2_INTF",
             "CONFIG_MSM_QDSP6_SSR",
@@ -61,5 +62,13 @@ def define_sun():
             "CONFIG_AUDIO_BTFM_PROXY",
             "CONFIG_MSM_EXT_DISPLAY",
             "CONFIG_SND_SOC_QMP",
-        ]
+]
+
+def define_sun():
+    define_target_modules(
+        target = "sun",
+        variants = ["consolidate", "perf"],
+        registry = audio_modules,
+        modules = arch_modules,
+        config_options = arch_config_options,
     )

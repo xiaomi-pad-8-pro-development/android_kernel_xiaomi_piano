@@ -3,7 +3,7 @@
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  * Copyright (c) 2022-2025, Qualcomm Innovation Center, Inc. All rights reserved.
  */
-
+#define DEBUG
 #include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/gpio.h>
@@ -47,6 +47,7 @@
 #include "msm-audio-defs.h"
 #include "msm_common.h"
 #include "msm_dailink.h"
+#include "hwid.h"
 
 #define DRV_NAME "sun-asoc-snd"
 #define __CHIPSET__ "SUN "
@@ -56,7 +57,7 @@
 #define WCD9XXX_MBHC_DEF_BUTTONS    8
 #define CODEC_EXT_CLK_RATE          9600000
 #define DEV_NAME_STR_LEN            32
-#define WCD_MBHC_HS_V_MAX           1600
+#define WCD_MBHC_HS_V_MAX           1700
 
 #define WCN_CDC_SLIM_RX_CH_MAX 2
 #define WCN_CDC_SLIM_TX_CH_MAX 2
@@ -66,6 +67,62 @@
 #define MONO_SPEAKER    1
 #define STEREO_SPEAKER  2
 #define QUAD_SPEAKER    4
+
+
+//add for smartpa compatible begin
+#define PA_NAME_MAX  24
+#define  SMARTPA_MAX_NUM  4
+static int probe_cout = 0;
+static char smartpa_num = 0;
+static char smartpa_type[PA_NAME_MAX] = "none";
+#if defined(CONFIG_TARGET_PRODUCT_YUPEI)
+static int tdm_rx0_id = 0;
+static int tdm_rx1_id = 0;
+static int tdm_tx_id = 0;
+#elif defined(CONFIG_TARGET_PRODUCT_PIANO)
+static int tdm_rx0_id = 1;
+static int tdm_rx1_id = 1;
+static int tdm_tx_id = 1;
+#elif defined(CONFIG_TARGET_PRODUCT_ANNIBALE)
+static int tdm_rx0_id = 1;
+static int tdm_rx1_id = 1;
+static int tdm_tx_id = 1;
+#else
+static int tdm_rx0_id = 5;
+static int tdm_rx1_id = 6;
+static int tdm_tx_id = 5;
+#endif
+
+static const char *smartpa_cust_name[SMARTPA_MAX] = {
+	[SMARTPA_NONE] = "none",
+	[SMARTPA_FS19XX] = "fs19xx",
+	[SMARTPA_SIA91XX] = "sia91xx",
+};
+
+static const char *tdm_rx_dailink_name[] = {
+	LPASS_BE_PRI_TDM_RX_0,
+	LPASS_BE_SEC_TDM_RX_0,
+	LPASS_BE_TERT_TDM_RX_0,
+	LPASS_BE_SEN_TDM_RX_0,
+	LPASS_BE_QUAT_TDM_RX_0,
+	LPASS_BE_QUIN_TDM_RX_0,//quin_tdm_tx_0
+	LPASS_BE_QUIN_TDM_RX_0_VIRT,
+	LPASS_BE_SEP_TDM_RX_0
+};
+
+static const char *tdm_tx_dailink_name[] = {
+	LPASS_BE_PRI_TDM_TX_0,
+	LPASS_BE_SEC_TDM_TX_0,
+	LPASS_BE_TERT_TDM_TX_0,
+	LPASS_BE_SEN_TDM_TX_0,
+	LPASS_BE_QUAT_TDM_TX_0,
+	LPASS_BE_QUIN_TDM_TX_0,//quin_tdm_tx_0
+	LPASS_BE_SEP_TDM_TX_0
+};
+
+static int smartpa_count = 0;
+struct snd_soc_dai_link_component smartpa_dails[SMARTPA_MAX_NUM] = {0};
+//add for smartpa compatibe end
 
 enum {
 	WCD937X_DEV_INDEX,
@@ -81,6 +138,7 @@ struct msm_asoc_mach_data {
 	struct device_node *dmic23_gpio_p; /* used by pinctrl API */
 	struct device_node *dmic45_gpio_p; /* used by pinctrl API */
 	struct device_node *dmic67_gpio_p; /* used by pinctrl API */
+	struct device_node *dmic_enable_gpio; /* used by pinctrl API */
 	struct pinctrl *usbc_en2_gpio_p; /* used by pinctrl API */
 	bool is_afe_config_done;
 	struct device_node *fsa_handle;
@@ -126,9 +184,9 @@ static struct wcd_mbhc_config wcd_mbhc_cfg = {
 	.swap_gnd_mic = NULL,
 	.hs_ext_micbias = true,
 	.key_code[0] = KEY_MEDIA,
-	.key_code[1] = KEY_VOICECOMMAND,
-	.key_code[2] = KEY_VOLUMEUP,
-	.key_code[3] = KEY_VOLUMEDOWN,
+	.key_code[1] = BTN_1,
+	.key_code[2] = BTN_2,
+	.key_code[3] = 0,
 	.key_code[4] = 0,
 	.key_code[5] = 0,
 	.key_code[6] = 0,
@@ -141,6 +199,20 @@ static struct wcd_mbhc_config wcd_mbhc_cfg = {
 	.moisture_duty_cycle_en = true,
 };
 
+static int usbhs_direction_get(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	if (wcd_mbhc_cfg.flip_switch)
+		ucontrol->value.integer.value[0] = 1;
+	else
+		ucontrol->value.integer.value[0] = 0;
+	return 0;
+}
+
+static const struct snd_kcontrol_new msm_common_snd_controls[] = {
+	SOC_SINGLE_EXT("USB Headset Direction", 0, 0, UINT_MAX, 0,usbhs_direction_get, NULL),
+};
+
 static bool msm_usbc_swap_gnd_mic(struct snd_soc_component *component, bool active)
 {
 	int ret = 0;
@@ -150,7 +222,7 @@ static bool msm_usbc_swap_gnd_mic(struct snd_soc_component *component, bool acti
 
 	if (!pdata->wcd_usbss_handle && !pdata->fsa_handle)
 		return false;
-
+	wcd_mbhc_cfg.flip_switch = true;
 	if (pdata->fsa_handle) {
 		ret = fsa4480_switch_event(pdata->fsa_handle, FSA_MIC_GND_SWAP);
 	} else {
@@ -161,8 +233,8 @@ static bool msm_usbc_swap_gnd_mic(struct snd_soc_component *component, bool acti
 		else if (wcd_mbhc_cfg.enable_usbc_analog)
 			ret = wcd_usbss_switch_update(WCD_USBSS_GND_MIC_SWAP_AATC,
 							WCD_USBSS_CABLE_CONNECT);
+#endif //need check more
 	}
-#endif
 	if (ret == 0)
 		return true;
 	else
@@ -483,8 +555,8 @@ static void *def_wcd_mbhc_cal(void)
 		(sizeof(btn_cfg->_v_btn_low[0]) * btn_cfg->num_btn);
 
 	btn_high[0] = 75;
-	btn_high[1] = 150;
-	btn_high[2] = 237;
+	btn_high[1] = 260;
+	btn_high[2] = 500;
 	btn_high[3] = 500;
 	btn_high[4] = 500;
 	btn_high[5] = 500;
@@ -1236,6 +1308,17 @@ static struct snd_soc_dai_link msm_tdm_dai_links[] = {
 		SND_SOC_DAILINK_REG(pri_tdm_rx_0),
 	},
 	{
+		.name = LPASS_BE_PRI_TDM_RX_0_VIRT,
+		.stream_name = LPASS_BE_PRI_TDM_RX_0_VIRT,
+		.playback_only = 1,
+		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+			SND_SOC_DPCM_TRIGGER_POST},
+		.ops = &msm_common_be_ops,
+		.ignore_suspend = 1,
+		.ignore_pmdown_time = 1,
+		SND_SOC_DAILINK_REG(pri_tdm_rx_0),
+	},
+	{
 		.name = LPASS_BE_PRI_TDM_TX_0,
 		.stream_name = LPASS_BE_PRI_TDM_TX_0,
 		.capture_only = 1,
@@ -1278,6 +1361,17 @@ static struct snd_soc_dai_link msm_tdm_dai_links[] = {
 		SND_SOC_DAILINK_REG(tert_tdm_rx_0),
 	},
 	{
+		.name = LPASS_BE_SEC_TDM_RX_0_VIRT,
+		.stream_name = LPASS_BE_SEC_TDM_RX_0_VIRT,
+		.playback_only = 1,
+		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+			SND_SOC_DPCM_TRIGGER_POST},
+		.ops = &msm_common_be_ops,
+		.ignore_suspend = 1,
+		.ignore_pmdown_time = 1,
+		SND_SOC_DAILINK_REG(sec_tdm_rx_0),
+	},
+	{
 		.name = LPASS_BE_TERT_TDM_TX_0,
 		.stream_name = LPASS_BE_TERT_TDM_TX_0,
 		.capture_only = 1,
@@ -1311,6 +1405,17 @@ static struct snd_soc_dai_link msm_tdm_dai_links[] = {
 	{
 		.name = LPASS_BE_QUIN_TDM_RX_0,
 		.stream_name = LPASS_BE_QUIN_TDM_RX_0,
+		.playback_only = 1,
+		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+			SND_SOC_DPCM_TRIGGER_POST},
+		.ops = &msm_common_be_ops,
+		.ignore_suspend = 1,
+		.ignore_pmdown_time = 1,
+		SND_SOC_DAILINK_REG(quin_tdm_rx_0),
+	},
+	{
+		.name = LPASS_BE_QUIN_TDM_RX_0_VIRT,
+		.stream_name = LPASS_BE_QUIN_TDM_RX_0_VIRT,
 		.playback_only = 1,
 		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 			SND_SOC_DPCM_TRIGGER_POST},
@@ -1617,6 +1722,8 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev, int w
 	int rc = 0;
 	u32 val = 0;
 	const struct of_device_id *match;
+	uint32_t platform_id, build_minor, hw_id;
+	int i, j;
 
 	match = of_match_node(sun_asoc_machine_of_match, dev->of_node);
 	if (!match) {
@@ -1786,6 +1893,27 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev, int w
 
 		dailink = msm_stub_dai_links;
 		total_links = ARRAY_SIZE(msm_stub_be_dai_links);
+	}
+
+	platform_id = get_hw_version_platform();
+	build_minor = get_hw_version_minor();
+	hw_id = get_hw_id_value();
+	/* For o2 p0 */
+	if ((platform_id == HARDWARE_PROJECT_O2) && (build_minor == 0) && (hw_id == 0)) {
+		for (i = 0; i < total_links; i ++) {
+			if (dailink[i].num_codecs > 0) {
+				for (j = 0; j < dailink[i].num_codecs; j ++) {
+					if (!dailink[i].codecs[j].name)
+						continue;
+					if (!strcmp(dailink[i].codecs[j].name, "cs35l43.0-0040")) {
+						dailink[i].num_codecs -= 1;
+						dev_dbg(dev, "%s(): codec dai : %s, num_codecs: %d \n",
+							__func__, dailink[i].codecs[j].name, dailink[i].num_codecs);
+						break;
+					}
+				}
+			}
+		}
 	}
 
 	if (card) {
@@ -2129,6 +2257,13 @@ static int msm_rx_tx_codec_init(struct snd_soc_pcm_runtime *rtd)
 		return ret;
 	}
 
+	ret = snd_soc_add_component_controls(lpass_cdc_component, msm_common_snd_controls,
+                                             ARRAY_SIZE(msm_common_snd_controls));
+	if (ret < 0) {
+		pr_err("%s: add common snd controls failed: %d\n",__func__, ret);
+		return ret;
+	}
+
 	dapm = snd_soc_component_get_dapm(lpass_cdc_component);
 
 	snd_soc_dapm_new_controls(dapm, msm_int_dapm_widgets,
@@ -2379,6 +2514,170 @@ void msm_common_set_pdata(struct snd_soc_card *card,
 	pdata->common_pdata = common_pdata;
 }
 
+//add for smartpa compatible begin
+bool check_smartpa_type(const char *name)
+{
+	pr_debug("%s smartpa_type: %s \n", __func__, smartpa_type);
+	if (!strcmp(smartpa_type, "none") || !strcmp(smartpa_type, name)) {
+		return true;
+	} else {
+		return false;
+	}
+}
+EXPORT_SYMBOL_GPL(check_smartpa_type);
+
+int get_smartpa_type(void)
+{
+	pr_debug("%s smartpa_num: %d \n", __func__, smartpa_num);
+	return smartpa_num;
+}
+EXPORT_SYMBOL_GPL(get_smartpa_type);
+
+int set_smartpa_type(const char *name, unsigned int size)
+{
+	int i;
+
+	if (size > PA_NAME_MAX) {
+		pr_err("%s size[%d] > %d too large \n", __func__, size, PA_NAME_MAX);
+		return -1;
+	}
+
+	for (i = 0; i < SMARTPA_MAX; i++) {
+		if(!strncmp(name, smartpa_cust_name[i], size)){
+			pr_debug("%s find: %s \n", __func__, smartpa_cust_name[i]);
+			smartpa_num = i;
+			break;
+		}
+	}
+
+	if (i == SMARTPA_MAX) {
+		pr_err("%s find: %s failed\n", __func__, name);
+		return -1;
+	}
+
+	memcpy(smartpa_type, name, size);
+	pr_info("%s smartpa_type: %s \n", __func__, smartpa_type);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(set_smartpa_type);
+
+#define NAME_SIZE (32)
+static char *fmt_single_name(struct device *dev, int *id)
+{
+	char *found, name[NAME_SIZE];
+	unsigned int id1, id2;
+
+	if (dev_name(dev) == NULL)
+		return NULL;
+
+	strlcpy(name, dev_name(dev), NAME_SIZE);
+
+	/* are we a "%s.%d" name (platform and SPI components) */
+	found = strstr(name, dev->driver->name);
+	if (found) {
+		/* get ID */
+		if (sscanf(&found[strlen(dev->driver->name)], ".%d", id) == 1) {
+
+			/* discard ID from name if ID == -1 */
+			if (*id == -1)
+				found[strlen(dev->driver->name)] = '\0';
+		}
+
+	} else {
+		/* I2C component devices are named "bus-addr"  */
+		if (sscanf(name, "%x-%x", &id1, &id2) == 2) {
+			char tmp[NAME_SIZE];
+
+			/* create unique ID number from I2C addr and bus */
+			*id = ((id1 & 0xffff) << 16) + id2;
+
+			/* sanitize component name for DAI link creation */
+			snprintf(tmp, NAME_SIZE, "%s.%s", dev->driver->name, name);
+			strlcpy(name, tmp, NAME_SIZE);
+		} else
+			*id = 0;
+	}
+
+	return kstrdup(name, GFP_KERNEL);
+}
+
+void set_smartpa_codec(struct device *dev, const char *dai_name)
+{
+	int id;
+
+	if ((dev == NULL) || (dai_name == NULL)
+		|| (smartpa_count >= SMARTPA_MAX_NUM)) {
+		dev_err(dev, "%s dev or dai_name is NULL, or count > MAX!\n", __func__);
+		return;
+	}
+
+	smartpa_dails[smartpa_count].of_node = NULL;
+	smartpa_dails[smartpa_count].name = fmt_single_name(dev, &id);
+	smartpa_dails[smartpa_count].dai_name = dai_name;
+
+	dev_info(dev, "%s smartpa_dails name:%s  dai_name:%s \n", __func__,
+		smartpa_dails[smartpa_count].name, smartpa_dails[smartpa_count].dai_name);
+
+	smartpa_count++;
+}
+EXPORT_SYMBOL_GPL(set_smartpa_codec);
+
+static void smartpa_dai_link_select(void)
+{
+	struct snd_soc_dai_link *dailink = msm_tdm_dai_links;
+	int size = ARRAY_SIZE(msm_tdm_dai_links);
+	int i = 0;
+
+	if (smartpa_count == 0) {
+		pr_err("%s smartpa_count:%d return \n", __func__, smartpa_count);
+		return;
+	}
+
+	for (i = 0; i < size; i++) {
+		if (!strncmp(dailink[i].name, tdm_rx_dailink_name[tdm_rx0_id], strlen(dailink[i].name))
+			||!strncmp(dailink[i].name, tdm_rx_dailink_name[tdm_rx1_id], strlen(dailink[i].name))
+			|| !strncmp(dailink[i].name, tdm_tx_dailink_name[tdm_tx_id], strlen(dailink[i].name))) {
+			dailink[i].codecs = smartpa_dails;
+			dailink[i].num_codecs = smartpa_count;
+			pr_info("%s dailink:%s codec_name: %s codec_dai: %s \n", __func__,
+				dailink[i].name, smartpa_dails[0].name, smartpa_dails[0].dai_name);
+		}
+	}
+}
+
+static ssize_t smartpa_type_show(struct kobject *kobj,
+				struct kobj_attribute *attr, char *buff)
+{
+	return sprintf(buff, "%s\n", smartpa_type);
+}
+
+static struct kobj_attribute smartpa_type_attr =
+	__ATTR(smartpa_type, 0644, smartpa_type_show, NULL);
+
+static int smartpa_sysfs_init(void)
+{
+	int ret = -1;
+
+	static struct kobject *ext_debug_kobj;
+
+	if (ext_debug_kobj)
+		return 0;
+
+	ext_debug_kobj = kobject_create_and_add("smartpa", kernel_kobj);
+	if (ext_debug_kobj == NULL) {
+		ret = -ENOMEM;
+		pr_err("register sysfs failed. ret = %d\n", ret);
+		return ret;
+	}
+	ret = sysfs_create_file(ext_debug_kobj, &smartpa_type_attr.attr);
+
+	if (ret)
+ 		pr_err("create sysfs failed. ret = %d\n", ret);
+	return ret;
+}
+//add for smartpa compatibe end
+
 static int msm_asoc_machine_probe(struct platform_device *pdev)
 {
 	struct snd_soc_card *card = NULL;
@@ -2413,6 +2712,14 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 	/* Check if WSA2 Backends were used for dedicated usecase */
 	pdata->dedicated_wsa2 = of_find_property(pdev->dev.of_node,
 				"qcom,dedicated-wsa2", NULL);
+
+	//add for smartpa compatible begin
+	if (probe_cout == 0) {
+		smartpa_dai_link_select();
+		smartpa_sysfs_init();
+	}
+	probe_cout++;
+	//end for smartpa compatibe end
 
 	card = populate_snd_card_dailinks(&pdev->dev, pdata->wsa_max_devs);
 	if (!card) {
@@ -2451,14 +2758,13 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 
 	ret = msm_populate_dai_link_component_of_node(card);
 	if (ret) {
+		dev_err(&pdev->dev, "%s:%d err:%d\n", __func__, __LINE__, ret);
 		ret = -EPROBE_DEFER;
 		goto err;
 	}
 
 	/* parse upd configuration */
 	msm_parse_upd_configuration(pdev, pdata);
-
-
 
 	pdata->fsa_handle = of_parse_phandle(pdev->dev.of_node,
 						"fsa4480-i2c-handle", 0);
@@ -2472,11 +2778,12 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 		dev_dbg(&pdev->dev, "property %s not detected in node %s\n",
 			"wcd939x-i2c-handle", pdev->dev.of_node->full_name);
 
-	if ((pdata->wcd_usbss_handle) || (pdata->fsa_handle))
-		wcd_mbhc_cfg.swap_gnd_mic = msm_usbc_swap_gnd_mic;
+	//if ((pdata->wcd_usbss_handle) || (pdata->fsa_handle))
+	//	wcd_mbhc_cfg.swap_gnd_mic = msm_usbc_swap_gnd_mic;
 
 	ret = devm_snd_soc_register_card(&pdev->dev, card);
 	if (ret == -EPROBE_DEFER) {
+		dev_err(&pdev->dev, "%s:%d err:%d\n", __func__, __LINE__, ret);
 		if (codec_reg_done)
 			ret = -EINVAL;
 		goto err;
@@ -2487,6 +2794,11 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 	}
 	dev_info(&pdev->dev, "%s: Sound card %s registered\n",
 		 __func__, card->name);
+
+	if (wcd_mbhc_cfg.enable_usbc_analog) {
+		dev_dbg(&pdev->dev, "%s: get swap_gnd_mic \n", __func__);
+		wcd_mbhc_cfg.swap_gnd_mic = msm_usbc_swap_gnd_mic;
+	}
 
 	pdata->dmic01_gpio_p = of_parse_phandle(pdev->dev.of_node,
 					      "qcom,cdc-dmic01-gpios",
@@ -2500,6 +2812,15 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 	pdata->dmic67_gpio_p = of_parse_phandle(pdev->dev.of_node,
 					      "qcom,cdc-dmic67-gpios",
 					       0);
+
+	if(pdata->wcd_disabled){
+		pdata->dmic_enable_gpio = of_parse_phandle(pdev->dev.of_node,
+						      "qcom,cdc-dmic-enable-gpios",
+						       0);
+		ret = msm_cdc_pinctrl_select_active_state(pdata->dmic_enable_gpio);
+		if(ret)
+			dev_err(&pdev->dev, "%s:%d dmicenable_gpio set failed, err:%d\n", __func__, __LINE__, ret);
+	}
 	if (pdata->dmic01_gpio_p)
 		msm_cdc_pinctrl_set_wakeup_capable(pdata->dmic01_gpio_p, false);
 	if (pdata->dmic23_gpio_p)
@@ -2537,6 +2858,7 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 	return 0;
 err:
 	devm_kfree(&pdev->dev, pdata);
+	dev_err(&pdev->dev, "%s:%d err:%d\n", __func__, __LINE__, ret);
 	return ret;
 }
 

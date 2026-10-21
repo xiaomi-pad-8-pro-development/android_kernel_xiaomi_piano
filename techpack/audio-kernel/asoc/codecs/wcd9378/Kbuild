@@ -123,3 +123,7 @@ wcd9378_slave_dlkm-y := $(WCD9378_SLAVE_OBJS)
 
 # inject some build related information
 DEFINES += -DBUILD_TIMESTAMP=\"$(shell date -u +'%Y-%m-%dT%H:%M:%SZ')\"
+
+ifneq (, $(filter $(word 2,$(subst _, ,$(TARGET_PRODUCT))), onyx))
+	CDEFINES += -DCONFIG_TARGET_PRODUCT_ONYX
+endif

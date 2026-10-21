@@ -46,7 +46,14 @@
 #define LPASS_CDC_TX_MACRO_AMIC_UNMUTE_DELAY_MS	100
 #define LPASS_CDC_TX_MACRO_DMIC_HPF_DELAY_MS	300
 #define LPASS_CDC_TX_MACRO_AMIC_HPF_DELAY_MS	300
+#if defined(CONFIG_TARGET_PRODUCT_ONYX)
 #define LPASS_CDC_TX_MACRO_DEC_UNMUTE_DELAY_MS  10
+#else
+#define LPASS_CDC_TX_MACRO_DEC_UNMUTE_DELAY_MS  40
+#endif
+
+struct lpass_cdc_tx_macro_priv *g_lpass_cdc_tx_priv;
+
 
 static int tx_unmute_delay = LPASS_CDC_TX_MACRO_DMIC_UNMUTE_DELAY_MS;
 module_param(tx_unmute_delay, int, 0664);
@@ -140,7 +147,9 @@ struct lpass_cdc_tx_macro_priv {
 	struct tx_dec_unmute_work tx_dec_unmute_work[LPASS_CDC_TX_MACRO_MAX_DAIS];
 	struct hpf_work tx_hpf_work[NUM_DECIMATORS];
 	struct tx_mute_work tx_mute_dwork[NUM_DECIMATORS];
+	struct delayed_work tx_hs_unmute_dwork;
 	u16 dmic_clk_div[MIC_PAIR_MAX];
+	u16 reg_before_mute[NUM_DECIMATORS];
 	u32 version;
 	unsigned long active_ch_mask[LPASS_CDC_TX_MACRO_MAX_DAIS];
 	unsigned long active_ch_cnt[LPASS_CDC_TX_MACRO_MAX_DAIS];
@@ -466,7 +475,7 @@ static void lpass_cdc_tx_macro_tx_hpf_corner_freq_callback(struct work_struct *w
 			usleep_range(31, 32);
 			break;
 		case 4:
-			usleep_range(20, 21);
+			usleep_range(20, 40);
 			break;
 		case 5:
 			usleep_range(10, 11);
@@ -729,6 +738,62 @@ err:
 	kfree(w_name);
 	return ret;
 }
+
+static void tx_macro_hs_unmute_dwork(struct work_struct *work)
+{
+	struct snd_soc_component *component = NULL;
+	struct lpass_cdc_tx_macro_priv *lpass_cdc_tx_priv = NULL;
+	struct delayed_work *delayed_work = NULL;
+	u16 tx_mute_ctl_reg = 0;
+	u16 decimator = 0;
+	u16 reg_val = 0;
+
+	delayed_work = to_delayed_work(work);
+	lpass_cdc_tx_priv = container_of(delayed_work, struct lpass_cdc_tx_macro_priv,
+        		tx_hs_unmute_dwork);
+	component = lpass_cdc_tx_priv->component;
+
+	for_each_set_bit(decimator, &lpass_cdc_tx_priv->active_ch_mask[LPASS_CDC_TX_MACRO_AIF1_CAP],
+		LPASS_CDC_TX_MACRO_DEC_MAX) {
+		tx_mute_ctl_reg = LPASS_CDC_TX0_TX_PATH_CTL +
+			LPASS_CDC_TX_MACRO_TX_PATH_OFFSET * decimator;
+		snd_soc_component_update_bits(component, tx_mute_ctl_reg, 0x10, lpass_cdc_tx_priv->reg_before_mute[decimator]);
+		reg_val = snd_soc_component_read(component, tx_mute_ctl_reg);
+		dev_info(lpass_cdc_tx_priv->dev, "%s: decimator %d, the reg value after unmute is: %#x \n",
+				__func__, decimator, reg_val);
+	}
+}
+
+void lpass_cdc_tx_macro_mute_hs(void)
+{
+	struct snd_soc_component *component = NULL;
+	u16 reg_val = 0;
+	int tx_unmute_delay = 1200;
+	u16 tx_mute_ctl_reg = 0;
+	u16 decimator = 0;
+	if (!g_lpass_cdc_tx_priv)
+		return;
+
+	component = g_lpass_cdc_tx_priv->component;
+
+	for_each_set_bit(decimator, &g_lpass_cdc_tx_priv->active_ch_mask[LPASS_CDC_TX_MACRO_AIF1_CAP],
+		LPASS_CDC_TX_MACRO_DEC_MAX) {
+		tx_mute_ctl_reg = LPASS_CDC_TX0_TX_PATH_CTL +
+			LPASS_CDC_TX_MACRO_TX_PATH_OFFSET * decimator;
+		g_lpass_cdc_tx_priv->reg_before_mute[decimator] = snd_soc_component_read(component, tx_mute_ctl_reg);
+		dev_info(component->dev, "%s: decimator %d, the reg value before mute is: %#x \n",
+				__func__, decimator, g_lpass_cdc_tx_priv->reg_before_mute[decimator]);
+	    /* Enable TX PGA Mute */
+		snd_soc_component_update_bits(component, tx_mute_ctl_reg, 0x10, 0x10);
+		reg_val = snd_soc_component_read(component, tx_mute_ctl_reg);
+		dev_info(component->dev, "%s: decimator %d, the reg value after mute is: %#x \n",
+				__func__, decimator, reg_val);
+	}
+	schedule_delayed_work(&g_lpass_cdc_tx_priv->tx_hs_unmute_dwork,
+		msecs_to_jiffies(tx_unmute_delay));
+	return;
+}
+EXPORT_SYMBOL(lpass_cdc_tx_macro_mute_hs);
 
 static int lpass_cdc_tx_macro_dec_mode_get(struct snd_kcontrol *kcontrol,
 				 struct snd_ctl_elem_value *ucontrol)
@@ -2167,6 +2232,7 @@ static int lpass_cdc_tx_macro_init(struct snd_soc_component *component)
 		INIT_DELAYED_WORK(&tx_priv->tx_mute_dwork[i].dwork,
 			  lpass_cdc_tx_macro_mute_update_callback);
 	}
+        INIT_DELAYED_WORK(&tx_priv->tx_hs_unmute_dwork, tx_macro_hs_unmute_dwork);
 
 	for (dai_idx = 0; dai_idx < LPASS_CDC_TX_MACRO_MAX_DAIS; ++dai_idx) {
 		tx_priv->tx_dec_unmute_work[dai_idx].tx_priv = tx_priv;
@@ -2232,6 +2298,7 @@ static int lpass_cdc_tx_macro_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	platform_set_drvdata(pdev, tx_priv);
 
+        g_lpass_cdc_tx_priv = tx_priv;
 	tx_priv->dev = &pdev->dev;
 	ret = of_property_read_u32(pdev->dev.of_node, "reg",
 				   &tx_base_addr);

@@ -3225,7 +3225,6 @@ static const struct snd_soc_dapm_route wsa2_audio_map[] = {
 	{"WSA2 AIF_ECHO", NULL, "WSA2 RX_MIX EC0_MUX"},
 	{"WSA2 AIF_ECHO", NULL, "WSA2 RX_MIX EC1_MUX"},
 	{"WSA2 AIF_ECHO", NULL, "WSA2_MCLK"},
-
 	{"WSA2 AIF_PCM PB", NULL, "WSA2_MCLK"},
 	{"WSA2_HAPT OUT", NULL, "WSA2 AIF_PCM PB"},
 

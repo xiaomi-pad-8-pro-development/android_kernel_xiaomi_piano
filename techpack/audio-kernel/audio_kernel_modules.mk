@@ -27,8 +27,13 @@ AUDIO_KERNEL_MODULES += $(KERNEL_MODULES_OUT)/q6_notifier_dlkm.ko\
 	$(KERNEL_MODULES_OUT)/snd_event_dlkm.ko \
 	$(KERNEL_MODULES_OUT)/wcd_core_dlkm.ko \
 	$(KERNEL_MODULES_OUT)/mbhc_dlkm.ko \
+	$(KERNEL_MODULES_OUT)/sdca_registers_dlkm.ko \
+	$(KERNEL_MODULES_OUT)/typec_analog_acc_dlkm.ko \
 	$(KERNEL_MODULES_OUT)/wcd9xxx_dlkm.ko \
 	$(KERNEL_MODULES_OUT)/stub_dlkm.ko \
+	$(KERNEL_MODULES_OUT)/fs19xx_dlkm.ko \
+	$(KERNEL_MODULES_OUT)/sia91xx_dlkm.ko \
+	$(KERNEL_MODULES_OUT)/sia91xx_tuning_dlkm.ko \
 	$(KERNEL_MODULES_OUT)/machine_dlkm.ko
 ifneq ($(call is-board-platform-in-list,bengal holi blair), true)
 AUDIO_KERNEL_MODULES += $(KERNEL_MODULES_OUT)/swr_dmic_dlkm.ko \
