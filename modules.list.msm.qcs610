@@ -45,6 +45,7 @@ qcom-spmi-pmic.ko
 spmi-pmic-arb.ko
 rtc-pm8xxx.ko
 ufshcd-crypto-qti.ko
+cqhci-crypto-qti.ko
 sdhci-msm.ko
 cqhci.ko
 qcom-pdc.ko
