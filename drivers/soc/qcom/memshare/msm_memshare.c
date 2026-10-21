@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2013-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <linux/err.h>
@@ -95,7 +95,10 @@ static void free_client(int id)
 	memblock[id].allotted = 0;
 	memblock[id].guarantee = 0;
 	memblock[id].sequence_id = -1;
+	memblock[id].hyp_mapping = 0;
 	memblock[id].memory_type = MEMORY_CMA;
+
+	dev_dbg(memsh_drv->dev, "memshare_free: freed client: %d\n", memblock[id].client_id);
 }
 
 static void fill_alloc_response(struct mem_alloc_generic_resp_msg_v01 *resp,
@@ -140,8 +143,10 @@ static int modem_notifier_cb(struct notifier_block *this, unsigned long code,
 {
 	u64 source_vmids = 0;
 	int i, j, ret, size = 0;
-	struct qcom_scm_vmperm dest_vmids[] = {{QCOM_SCM_VMID_HLOS},
-					       {PERM_READ|PERM_WRITE|PERM_EXEC}};
+	struct qcom_scm_vmperm dest_vmids[] = {
+		{ .vmid = QCOM_SCM_VMID_HLOS,
+		  .perm = PERM_READ | PERM_WRITE | PERM_EXEC }
+	};
 	struct memshare_child *client_node = NULL;
 
 	mutex_lock(&memsh_drv->mem_share);
@@ -410,8 +415,10 @@ static void handle_free_generic_req(struct qmi_handle *handle,
 	struct memshare_child *client_node = NULL;
 	int rc, flag = 0, ret = 0, size = 0, i, j;
 	int index = DHMS_MEM_CLIENT_INVALID;
-	struct qcom_scm_vmperm dest_vmids[] = {{QCOM_SCM_VMID_HLOS},
-						{PERM_READ|PERM_WRITE|PERM_EXEC}};
+	struct qcom_scm_vmperm dest_vmids[] = {
+		{ .vmid = QCOM_SCM_VMID_HLOS,
+		  .perm = PERM_READ | PERM_WRITE | PERM_EXEC }
+	};
 
 	mutex_lock(&memsh_drv->mem_free);
 	free_req = (struct mem_free_generic_req_msg_v01 *)decoded_msg;
@@ -504,6 +511,9 @@ static void handle_free_generic_req(struct qmi_handle *handle,
 		free_resp.resp.error = QMI_ERR_NONE_V01;
 	}
 
+	dev_info(memsh_drv->dev,
+		"memshare_free: free_req->client_id: %d, free_resp.resp.result: %d\n",
+		free_req->client_id, free_resp.resp.result);
 	mutex_unlock(&memsh_drv->mem_free);
 
 resp_fill:
