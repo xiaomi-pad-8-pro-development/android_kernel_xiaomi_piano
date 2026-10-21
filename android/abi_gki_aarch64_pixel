@@ -883,6 +883,7 @@
   drm_mode_duplicate
   drm_mode_equal
   drm_mode_equal_no_clocks
+  drm_mode_is_420_only
   drm_mode_object_find
   drm_mode_object_get
   drm_mode_object_put
@@ -2732,6 +2733,7 @@
   __traceiter_android_vh_ufs_update_sysfs
   __traceiter_android_vh_usb_dev_resume
   __traceiter_android_vh_use_amu_fie
+  __traceiter_android_vh_xhci_full_reset_on_remove
   __traceiter_clock_set_rate
   __traceiter_cma_alloc_finish
   __traceiter_cma_alloc_start
@@ -2751,6 +2753,10 @@
   __traceiter_pelt_irq_tp
   __traceiter_pelt_rt_tp
   __traceiter_pelt_se_tp
+  __traceiter_rwmmio_post_read
+  __traceiter_rwmmio_post_write
+  __traceiter_rwmmio_read
+  __traceiter_rwmmio_write
   __traceiter_sched_cpu_capacity_tp
   __traceiter_sched_overutilized_tp
   __traceiter_sched_switch
@@ -2866,6 +2872,7 @@
   __tracepoint_android_vh_ufs_update_sysfs
   __tracepoint_android_vh_usb_dev_resume
   __tracepoint_android_vh_use_amu_fie
+  __tracepoint_android_vh_xhci_full_reset_on_remove
   __tracepoint_clock_set_rate
   __tracepoint_cma_alloc_finish
   __tracepoint_cma_alloc_start
@@ -2887,6 +2894,10 @@
   __tracepoint_pelt_se_tp
   tracepoint_probe_register
   tracepoint_probe_unregister
+  __tracepoint_rwmmio_post_read
+  __tracepoint_rwmmio_post_write
+  __tracepoint_rwmmio_read
+  __tracepoint_rwmmio_write
   __tracepoint_sched_cpu_capacity_tp
   __tracepoint_sched_overutilized_tp
   __tracepoint_sched_switch
