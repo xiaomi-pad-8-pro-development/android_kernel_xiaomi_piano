@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2025, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/debugfs.h>
@@ -25,6 +25,12 @@
 #include "cam_ife_hw_mgr.h"
 #include "cam_subdev.h"
 #include "cam_mem_mgr_api.h"
+#include "cam_dump_util.h" //xiaomi add
+
+/*xiaomi added detect framerate begin*/
+static uint frame_interval_para;
+module_param(frame_interval_para, uint, 0644);
+/*xiaomi added detect framerate end*/
 
 static const char isp_dev_name[] = "cam-isp";
 
@@ -58,7 +64,19 @@ static int __cam_isp_ctx_check_deferred_buf_done(
 	struct cam_isp_hw_done_event_data *done,
 	uint32_t bubble_state);
 
+/* xiaomi add IMMUNE_SYSTEM */
+static int __cam_isp_notify_immunesystem_event(
+	uint32_t error_type, uint32_t error_code,
+	uint64_t error_request_id, struct cam_context *ctx);
+/* xiaomi add IMMUNE_SYSTEM */
+
 static int __cam_isp_ctx_print_event_record(struct cam_isp_context *ctx_isp);
+
+static int __cam_isp_ctx_flush_req(struct cam_context *ctx,
+	struct list_head *req_list, struct cam_req_mgr_flush_request *flush_req);
+
+static void __cam_isp_ctx_dump_frame_timing_record(
+	struct cam_isp_context *ctx_isp);
 
 static const char *__cam_isp_evt_val_to_type(
 	uint32_t evt_id)
@@ -154,7 +172,9 @@ static int __cam_isp_ctx_handle_sof_freeze_evt(
 	struct cam_isp_hw_cmd_args   isp_hw_cmd_args;
 
 	ctx_isp = (struct cam_isp_context *)ctx->ctx_priv;
+	__cam_isp_ctx_dump_frame_timing_record(ctx_isp);
 	__cam_isp_ctx_print_event_record(ctx_isp);
+	__cam_isp_ctx_dump_state_monitor_array(ctx_isp);
 	hw_cmd_args.ctxt_to_hw_map = ctx->ctxt_to_hw_map;
 	hw_cmd_args.cmd_type = CAM_HW_MGR_CMD_INTERNAL;
 	isp_hw_cmd_args.cmd_type = CAM_ISP_HW_MGR_CMD_SOF_DEBUG;
@@ -689,7 +709,7 @@ static void __cam_isp_ctx_dump_state_monitor_array(
 	for (i = 0; i < num_entries; i++) {
 		time64_to_tm(ctx_isp->dbg_monitors.state_monitor[index].evt_time_stamp.tv_sec,
 			0, &ts);
-		CAM_ERR(CAM_ISP,
+		CAM_INFO(CAM_ISP,
 			"Idx[%d] time[%d-%d %d:%d:%d.%lld]:Substate[%s] Frame[%lld] Req[%llu] evt[%s] at time[%llu: %09llu]",
 			index, ts.tm_mon + 1, ts.tm_mday, ts.tm_hour, ts.tm_min, ts.tm_sec,
 			ctx_isp->dbg_monitors.state_monitor[index].evt_time_stamp.tv_nsec / 1000000,
@@ -1179,7 +1199,6 @@ static int __cam_isp_ctx_enqueue_init_request(
 	struct cam_isp_prepare_hw_update_data *req_update_old;
 	struct cam_isp_prepare_hw_update_data *req_update_new;
 	struct cam_isp_prepare_hw_update_data *hw_update_data;
-	struct cam_kmd_buf_info *kmd_buff_old = NULL;
 
 	spin_lock_bh(&ctx->lock);
 	if (list_empty(&ctx->pending_req_list)) {
@@ -1238,9 +1257,6 @@ static int __cam_isp_ctx_enqueue_init_request(
 				req->request_id, req_old->request_id, ctx->ctx_id, ctx->link_hdl);
 
 			if (req_old->packet) {
-
-				kmd_buff_old = &(req_isp_old->hw_update_data.kmd_cmd_buff_info);
-				cam_mem_put_kref(kmd_buff_old->handle);
 				cam_common_mem_free(req_old->packet);
 				req_old->packet = req->packet;
 				req->packet = NULL;
@@ -1330,14 +1346,10 @@ end:
 static inline void __cam_isp_ctx_move_req_to_free_list(
 	struct cam_context *ctx, struct cam_ctx_request *req)
 {
-	struct cam_isp_ctx_req *req_isp = (struct cam_isp_ctx_req *) req->req_priv;
-	struct cam_kmd_buf_info *kmd_cmd_buff_info = &(req_isp->hw_update_data.kmd_cmd_buff_info);
-
 	CAM_DBG(CAM_ISP,
 		"Free req id: %lld, packet: 0x%x, ctx_idx: %u, link: 0x%x",
 		req->request_id, req->packet, ctx->ctx_id, ctx->link_hdl);
 	if (req->packet) {
-		cam_mem_put_kref(kmd_cmd_buff_info->handle);
 		cam_common_mem_free(req->packet);
 		req->packet = NULL;
 	}
@@ -1592,7 +1604,7 @@ static int __cam_isp_ctx_recover_sof_timestamp(struct cam_context *ctx, uint64_t
 			ctx->ctx_id, ctx->link_hdl, a, b, c, request_id);
 	} else {
 		/* Hardware is at frame A (which we supposedly missed) */
-		CAM_ERR_RATE_LIMIT(CAM_ISP,
+		CAM_WARN_RATE_LIMIT(CAM_ISP,
 			"ctx:%u link: 0x%x erroneous call to SOF recovery(last:0x%llx, prev:0x%llx, curr:0x%llx) req: %llu",
 			ctx->ctx_id, ctx->link_hdl, a, prev_ts, curr_ts, request_id);
 		return 0;
@@ -1731,6 +1743,14 @@ static void __cam_isp_ctx_send_sof_timestamp(
 
 	ctx_isp->reported_frame_id = ctx_isp->frame_id;
 	shutter_event.status = sof_event_status;
+
+	/*xiaomi added detect framerate begin*/
+	if (frame_interval_para > 1) {
+		cam_isp_detect_framerate(ctx_isp, frame_interval_para);
+	} else if (frame_interval_para == 1) {
+		CAM_DBG(MI_PERF, "ERROR, the frame interval num must greater than 1");
+	}
+	/*xiaomi added detect framerate end*/
 
 	if ((ctx_isp->v4l2_event_sub_ids & (1 << V4L_EVENT_CAM_REQ_MGR_SOF_UNIFIED_TS))
 		&& !ctx_isp->use_frame_header_ts) {
@@ -1994,6 +2014,7 @@ static int __cam_isp_ctx_handle_buf_done_for_req_list(
 			buf_done_req_id, ctx_isp->active_req_cnt, ctx->ctx_id, ctx->link_hdl);
 		ctx_isp->req_info.last_bufdone_req_id = req->request_id;
 		ctx_isp->last_bufdone_err_apply_req_id = 0;
+		ctx_isp->is_dumpped = false;
 	}
 
 	/* Reset it in case a previous rup affect new frame */
@@ -3350,6 +3371,7 @@ static int __cam_isp_ctx_apply_pending_req(
 
 		spin_unlock_bh(&ctx->lock);
 	} else {
+		atomic_set(&ctx_isp->last_applied_default, 0);
 		atomic_set(&ctx_isp->apply_in_progress, 0);
 		CAM_DBG(CAM_ISP, "New substate state %d, applied req %lld, ctx: %u, link: 0x%x",
 			CAM_ISP_CTX_ACTIVATED_APPLIED,
@@ -3451,13 +3473,19 @@ static int __cam_isp_ctx_reg_upd_in_epoch_bubble_state(
 				CAM_REQ_MGR_SOF_EVENT_SUCCESS);
 		}
 	} else {
-		atomic_set(&ctx_isp->unserved_rup, 1);
+		if (!atomic_read(&ctx_isp->last_applied_default))
+			atomic_set(&ctx_isp->unserved_rup, 1);
 		CAM_WARN_RATE_LIMIT(CAM_ISP,
 			"ctx:%u Unexpected regupdate in activated Substate[%s] for frame_id:%lld",
+			"last_applied_default:%d, unserved_rup:%d",
 			ctx_isp->base->ctx_id,
 			__cam_isp_ctx_substate_val_to_type(
 			ctx_isp->substate_activated),
-			ctx_isp->frame_id);
+			ctx_isp->frame_id,
+			atomic_read(&ctx_isp->last_applied_default),
+			atomic_read(&ctx_isp->unserved_rup));
+
+		atomic_set(&ctx_isp->last_applied_default, 0);
 	}
 	return 0;
 }
@@ -3648,9 +3676,9 @@ notify_only:
 		if (request_id != 0)
 			ctx_isp->reported_req_id = request_id;
 
-		if (request_id == 0)
-			__cam_isp_ctx_send_sof_timestamp(ctx_isp, request_id,
-				CAM_REQ_MGR_SOF_EVENT_SUCCESS);
+		//xiaomi add
+		cam_debug_record_key_message(CAM_ISP,(void*)ctx,NULL,-1,-1,EVENT_ISP_EPOCH);
+		//end
 
 		__cam_isp_ctx_update_state_monitor_array(ctx_isp,
 			CAM_ISP_STATE_CHANGE_TRIGGER_EPOCH,
@@ -3673,6 +3701,9 @@ static int __cam_isp_ctx_notify_eof_in_activated_state(
 	if (rc)
 		CAM_ERR(CAM_ISP, "ctx:%u link: 0x%x Failed to get timestamp from HW",
 			ctx->ctx_id, ctx->link_hdl);
+	//xiaomi add
+	cam_debug_record_key_message(CAM_ISP,(void*)ctx,NULL,-1,-1,EVENT_ISP_EOF);
+	//end
 	__cam_isp_ctx_update_state_monitor_array(ctx_isp,
 		CAM_ISP_STATE_CHANGE_TRIGGER_CDM_DONE, last_cdm_done_req);
 
@@ -3730,6 +3761,9 @@ static int __cam_isp_ctx_sof_in_activated_state(
 
 	__cam_isp_ctx_update_sof_ts_util(sof_event_data, ctx_isp);
 
+	//xiaomi add
+	cam_debug_record_key_message(CAM_ISP,(void*)ctx,NULL,request_id,-1,EVENT_ISP_SOF);
+	//end
 	__cam_isp_ctx_update_state_monitor_array(ctx_isp,
 		CAM_ISP_STATE_CHANGE_TRIGGER_SOF, request_id);
 
@@ -3771,9 +3805,15 @@ static int __cam_isp_ctx_reg_upd_in_sof(struct cam_isp_context *ctx_isp,
 				"receive rup in unexpected state, ctx_idx: %u, link: 0x%x",
 				ctx->ctx_id, ctx->link_hdl);
 	} else {
-		atomic_set(&ctx_isp->unserved_rup, 1);
-		CAM_WARN(CAM_ISP, "Received a unserved rup ctx:%u link: 0x%x",
-			ctx->ctx_id, ctx->link_hdl);
+		if (!atomic_read(&ctx_isp->last_applied_default))
+			atomic_set(&ctx_isp->unserved_rup, 1);
+		CAM_WARN(CAM_ISP,
+			"Received a unserved rup ctx:%u link: 0x%x, last_applied_default:%d, unserved_rup:%d",
+			ctx->ctx_id,
+			ctx->link_hdl,
+			atomic_read(&ctx_isp->last_applied_default),
+			atomic_read(&ctx_isp->unserved_rup));
+		atomic_set(&ctx_isp->last_applied_default, 0);
 	}
 
 	if (req != NULL) {
@@ -4025,6 +4065,9 @@ static int __cam_isp_ctx_sof_in_epoch(struct cam_isp_context *ctx_isp,
 			__cam_isp_ctx_substate_val_to_type(
 			ctx_isp->substate_activated));
 
+	//xiaomi add
+	cam_debug_record_key_message(CAM_ISP,(void*)ctx,NULL,req->request_id,-1,EVENT_ISP_SOF);
+	//end
 	CAM_DBG(CAM_ISP, "SOF in epoch ctx:%u link: 0x%x frame_id:%lld next substate:%s",
 		ctx->ctx_id, ctx->link_hdl, ctx_isp->frame_id,
 		__cam_isp_ctx_substate_val_to_type(
@@ -4101,6 +4144,15 @@ static int __cam_isp_ctx_epoch_in_bubble_applied(
 		ctx->ctx_id, ctx->link_hdl, req_isp->bubble_report, req->request_id);
 	req_isp->reapply_type = CAM_CONFIG_REAPPLY_IO;
 	req_isp->cdm_reset_before_apply = false;
+
+
+	/* xiaomi add IMMUNE_SYSTEM */
+	__cam_isp_notify_immunesystem_event(
+		V4L_EVENT_IMMUNE_SYSTEM_ISP,
+		V4L_EVENT_IMMUNE_SYSTEM_BUBBLE,
+		req->request_id,
+		ctx);
+	/* xiaomi add IMMUNE_SYSTEM */
 
 	if (req_isp->bubble_report) {
 		__cam_isp_ctx_notify_error_util(CAM_TRIGGER_POINT_SOF, CRM_KMD_ERR_BUBBLE,
@@ -5633,6 +5685,7 @@ static int __cam_isp_ctx_apply_req_in_activated_state(
 	rc = ctx->hw_mgr_intf->hw_config(ctx->hw_mgr_intf->hw_mgr_priv, &cfg);
 	if (!rc) {
 		spin_lock_bh(&ctx->lock);
+		atomic_set(&ctx_isp->last_applied_default, 0);
 		ctx_isp->substate_activated = next_state;
 		ctx_isp->last_applied_req_id = apply->request_id;
 		ctx_isp->last_applied_jiffies = jiffies;
@@ -5793,11 +5846,29 @@ static int __cam_isp_ctx_apply_default_req_settings(
 	bool skip_rup_aup = false;
 	struct cam_ctx_request *req = NULL;
 	struct cam_isp_ctx_req *req_isp = NULL;
+	struct cam_ctx_request *active_req = NULL;
 	struct cam_isp_context *isp_ctx =
 		(struct cam_isp_context *) ctx->ctx_priv;
+	struct cam_isp_ctx_req *active_req_isp = NULL;
 	struct cam_hw_cmd_args hw_cmd_args;
 	struct cam_isp_hw_cmd_args isp_hw_cmd_args;
 	struct cam_hw_config_args cfg = {0};
+
+	spin_lock_bh(&ctx->lock);
+	if (!list_empty(&ctx->active_req_list))
+		active_req = list_first_entry(&ctx->active_req_list,
+				struct cam_ctx_request, list);
+	spin_unlock_bh(&ctx->lock);
+
+	if (active_req) {
+		active_req_isp =
+				(struct cam_isp_ctx_req *) active_req->req_priv;
+		if (!active_req_isp->is_reg_dump_triggered) {
+			__cam_isp_ctx_trigger_reg_dump(CAM_HW_MGR_CMD_REG_DUMP_PER_REQ, ctx,
+				&active_req_isp->hw_update_data);
+			active_req_isp->is_reg_dump_triggered = true;
+		}
+	}
 
 	if (isp_ctx->mode_switch_en && isp_ctx->handle_mswitch) {
 		if ((apply->last_applied_max_pd_req > 0) &&
@@ -5861,32 +5932,6 @@ static int __cam_isp_ctx_apply_default_req_settings(
 
 end:
 	return rc;
-}
-
-static void __cam_isp_ctx_handle_reg_dump(struct cam_context *ctx)
-{
-	struct cam_ctx_request *active_req = NULL;
-	struct cam_isp_ctx_req *active_req_isp = NULL;
-
-	spin_lock_bh(&ctx->lock);
-	if (!list_empty(&ctx->active_req_list))
-		active_req = list_first_entry(&ctx->active_req_list, struct cam_ctx_request, list);
-	spin_unlock_bh(&ctx->lock);
-
-	if (active_req) {
-		active_req_isp = (struct cam_isp_ctx_req *) active_req->req_priv;
-
-		CAM_DBG(CAM_ISP, "Handling reg dump for active req %llu, ctx %d",
-				active_req->request_id, ctx->ctx_id);
-		if (!active_req_isp->is_reg_dump_triggered) {
-			__cam_isp_ctx_trigger_reg_dump(CAM_HW_MGR_CMD_REG_DUMP_PER_REQ, ctx,
-				&active_req_isp->hw_update_data);
-			active_req_isp->is_reg_dump_triggered = true;
-		}
-	} else {
-		CAM_DBG(CAM_ISP, "No active req, hence not doing reg_dump for ctx id %d",
-			ctx->ctx_id);
-	}
 }
 
 static void *cam_isp_ctx_user_dump_req_list(
@@ -6117,7 +6162,9 @@ static int __cam_isp_ctx_dump_in_top_state(
 		}
 	}
 	ctx_isp = (struct cam_isp_context *)ctx->ctx_priv;
+	__cam_isp_ctx_dump_frame_timing_record(ctx_isp);
 	__cam_isp_ctx_print_event_record(ctx_isp);
+	__cam_isp_ctx_dump_state_monitor_array(ctx_isp);
 	spin_unlock_bh(&ctx->lock);
 	cam_mem_put_cpu_buf(dump_info->buf_handle);
 	return 0;
@@ -6151,7 +6198,9 @@ hw_dump:
 	diff = ktime_us_delta(
 		req_isp->event_timestamp[CAM_ISP_CTX_EVENT_APPLY],
 		cur_time);
+	__cam_isp_ctx_dump_frame_timing_record(ctx_isp);
 	__cam_isp_ctx_print_event_record(ctx_isp);
+	__cam_isp_ctx_dump_state_monitor_array(ctx_isp);
 	if (diff < CAM_ISP_CTX_RESPONSE_TIME_THRESHOLD) {
 		CAM_INFO(CAM_ISP, "req %lld found no error, ctx_idx: %u, link: 0x%x",
 			req->request_id, ctx->ctx_id, ctx->link_hdl);
@@ -6282,11 +6331,61 @@ static int __cam_isp_ctx_flush_req_in_flushed_state(
 	struct cam_context               *ctx,
 	struct cam_req_mgr_flush_request *flush_req)
 {
-	CAM_INFO(CAM_ISP, "Flush (type %d) in flushed state req id %lld ctx_id:%u link: 0x%x",
-		flush_req->type, flush_req->req_id, ctx->ctx_id, ctx->link_hdl);
+	struct cam_isp_context           *ctx_isp;
+
 	if (flush_req->req_id > ctx->last_flush_req)
 		ctx->last_flush_req = flush_req->req_id;
+	ctx_isp = (struct cam_isp_context *) ctx->ctx_priv;
+	ctx_isp->standby_en = flush_req->enable_sensor_standby;
 
+	if (flush_req->type == CAM_REQ_MGR_FLUSH_TYPE_ALL) {
+		if (ctx->state <= CAM_CTX_READY) {
+			ctx->state = CAM_CTX_ACQUIRED;
+			goto end;
+		}
+
+		spin_lock_bh(&ctx->lock);
+		ctx->state = CAM_CTX_FLUSHED;
+		ctx_isp->substate_activated = CAM_ISP_CTX_ACTIVATED_HALT;
+		spin_unlock_bh(&ctx->lock);
+
+		CAM_INFO(CAM_ISP, "Last request id to flush is %lld, ctx_id:%u link: 0x%x",
+			flush_req->req_id, ctx->ctx_id, ctx->link_hdl);
+		ctx->last_flush_req = flush_req->req_id;
+		/*
+		 * Just clear the lists in case there is a flush just after the
+		 * init packet without sending the actual packets.
+		 * Reaching here in flush state means hw reset has been done in the
+		 * last flush call. In such cases, we need to clear the list else
+		 * it may result in stale entried for upcoming configure requests and
+		 * corrupt the packets.
+		 */
+		spin_lock_bh(&ctx->lock);
+		if (!list_empty(&ctx->wait_req_list))
+			__cam_isp_ctx_flush_req(ctx, &ctx->wait_req_list,
+				flush_req);
+
+		if (!list_empty(&ctx->active_req_list))
+			__cam_isp_ctx_flush_req(ctx, &ctx->active_req_list,
+				flush_req);
+
+		ctx_isp->active_req_cnt = 0;
+
+		if (!list_empty(&ctx->pending_req_list))
+			__cam_isp_ctx_flush_req(ctx, &ctx->pending_req_list, flush_req);
+
+		ctx_isp->init_received = false;
+		spin_unlock_bh(&ctx->lock);
+	}
+
+end:
+	ctx_isp->bubble_frame_cnt = 0;
+	ctx_isp->congestion_cnt = 0;
+	ctx_isp->sof_dbg_irq_en = false;
+	ctx_isp->num_inits_post_flush = 0;
+	atomic_set(&ctx_isp->process_bubble, 0);
+	atomic_set(&ctx_isp->rxd_epoch, 0);
+	atomic_set(&ctx_isp->internal_recovery_set, 0);
 	return 0;
 }
 
@@ -7535,7 +7634,6 @@ static int __cam_isp_ctx_config_dev_in_top_state(
 	struct cam_isp_hw_cmd_args       isp_hw_cmd_args;
 	uint32_t                         packet_opcode = 0;
 	struct cam_isp_ch_ctx_fcg_config_internal *sfe_ch_ctx_fcg, *ife_ch_ctx_fcg;
-	struct cam_kmd_buf_info *kmd_buff = NULL;
 
 	CAM_DBG(CAM_ISP, "get free request object......ctx_idx: %u, link: 0x%x",
 		ctx->ctx_id, ctx->link_hdl);
@@ -7646,6 +7744,12 @@ static int __cam_isp_ctx_config_dev_in_top_state(
 		goto free_req_and_buf_tracker_list;
 	}
 
+	/*xiaomi added detect framerate begin*/
+	if (frame_interval_para > 1) {
+		cam_isp_get_frame_batchsize(ctx, packet);
+	}
+	/*xiaomi added detect framerate end*/
+
 	req_isp->num_cfg = cfg.num_hw_update_entries;
 	req_isp->num_fence_map_out = cfg.num_out_map_entries;
 	req_isp->num_fence_map_in = cfg.num_in_map_entries;
@@ -7747,6 +7851,9 @@ static int __cam_isp_ctx_config_dev_in_top_state(
 						req->request_id, ctx->link_hdl, ctx->ctx_id);
 			} else {
 				__cam_isp_ctx_enqueue_request_in_order(ctx, req, true);
+				//xiaomi add
+				cam_debug_record_key_message(CAM_ISP,(void *)ctx,(void *)&add_req,-1,-1,EVENT_ADD_REQ);
+				//end
 			}
 		} else {
 			CAM_ERR(CAM_ISP, "Unable to add request: req id=%llu,ctx: %u,link: 0x%x",
@@ -7788,8 +7895,6 @@ put_ref:
 	}
 free_req_and_buf_tracker_list:
 	cam_smmu_buffer_tracker_putref(&req->buf_tracker);
-	kmd_buff = &(req_isp->hw_update_data.kmd_cmd_buff_info);
-	cam_mem_put_kref(kmd_buff->handle);
 free_packet:
 	cam_common_mem_free(packet);
 free_req:
@@ -9740,6 +9845,9 @@ static int __cam_isp_ctx_apply_req(struct cam_context *ctx,
 		(struct cam_isp_context *) ctx->ctx_priv;
 
 	trace_cam_apply_req("ISP", ctx->ctx_id, apply->request_id, apply->link_hdl);
+	//xiaomi add
+	cam_debug_record_key_message(CAM_ISP,(void *)ctx,(void *)apply,apply->request_id,-1,EVENT_APPLY_REQ);
+	//end
 	CAM_DBG(CAM_ISP, "Enter: apply req in Substate[%s] request_id:%lld, ctx: %u link: 0x%x",
 		__cam_isp_ctx_substate_val_to_type(
 		ctx_isp->substate_activated), apply->request_id, ctx->ctx_id, ctx->link_hdl);
@@ -9796,12 +9904,6 @@ static int __cam_isp_ctx_apply_default_settings(
 		fcg_tracker->num_skipped, ctx->ctx_id);
 
 	/*
-	 * Attempt register dump in case of skip frame
-	 * and when per request reg dump is enabled.
-	 */
-	__cam_isp_ctx_handle_reg_dump(ctx);
-
-	/*
 	 * Call notify frame skip for static offline cases or
 	 * mode switch cases where IFE mode switch delay differs
 	 * from other devices on the link
@@ -9828,6 +9930,7 @@ static int __cam_isp_ctx_apply_default_settings(
 			CAM_WARN_RATE_LIMIT(CAM_ISP,
 				"Apply default failed in active substate %d rc %d ctx: %u link: 0x%x",
 				ctx_isp->substate_activated, rc, ctx->ctx_id, ctx->link_hdl);
+		atomic_set(&ctx_isp->last_applied_default, 1);
 	}
 
 	return rc;
@@ -10453,3 +10556,102 @@ int cam_isp_context_deinit(struct cam_isp_context *ctx)
 
 	return 0;
 }
+
+/*xiaomi added detect framerate begin*/
+void cam_isp_detect_framerate(struct cam_isp_context *ctx, uint interval)
+{
+	uint32_t timespan;
+	uint64_t frame_rate;
+
+	if ((ctx->base->exlink != ctx->base->link_hdl) || (ctx->frame_id == 1)) {
+		ctx->base->exlink = ctx->base->link_hdl;
+		ctx->base->dbg_timestamp = ctx->sof_timestamp_val;
+		ctx->base->dbg_frame = ctx->frame_id;
+	} else {
+		switch (ctx->frame_id % interval) {
+		case 0: {
+			timespan = (ctx->sof_timestamp_val - ctx->base->dbg_timestamp) / 1000000;
+			frame_rate = ctx->base->batchsize * (1000000 * (ctx->frame_id - ctx->base->dbg_frame)) / timespan;
+			CAM_DBG(MI_PERF,
+					"link hdl 0x%x frame number %d, Time Span(ms): %d Frame Rate(fps): %d.%03d ctx %d",
+					ctx->base->link_hdl, ctx->frame_id, timespan, frame_rate / 1000, frame_rate % 1000, ctx->base->ctx_id);
+			break;
+		}
+		case 1: {
+			ctx->base->dbg_timestamp = ctx->sof_timestamp_val;
+			ctx->base->dbg_frame = ctx->frame_id;
+			break;
+		}
+		default:
+			break;
+		}
+	}
+}
+
+void cam_isp_get_frame_batchsize(struct cam_context *ctx, struct cam_packet *cpkt)
+{
+	int rc = 0;
+	int i;
+	struct cam_cmd_buf_desc *cmd_desc = NULL;
+	struct cam_isp_resource_hfr_config *hfr_config;
+	uintptr_t cpu_addr = 0;
+	size_t buf_size;
+	uint32_t *blob_ptr;
+	uint32_t blob_type, blob_size, blob_block_size, len_read;
+
+	cmd_desc = (struct cam_cmd_buf_desc *)((uint8_t *)cpkt->payload + cpkt->cmd_buf_offset);
+
+	for (i = 0; i < cpkt->num_cmd_buf; i++) {
+		if (cmd_desc[i].meta_data == CAM_ISP_PACKET_META_GENERIC_BLOB_COMMON) {
+			rc = cam_mem_get_cpu_buf(cmd_desc[i].mem_handle, &cpu_addr, &buf_size);
+			blob_ptr = (uint32_t *)(((uint8_t *)cpu_addr) + cmd_desc[i].offset);
+			len_read = 0;
+
+			while (len_read < cmd_desc[i].length) {
+				blob_type = ((*blob_ptr) & CAM_GENERIC_BLOB_CMDBUFFER_TYPE_MASK) >> CAM_GENERIC_BLOB_CMDBUFFER_TYPE_SHIFT;
+				blob_size = ((*blob_ptr) & CAM_GENERIC_BLOB_CMDBUFFER_SIZE_MASK) >> CAM_GENERIC_BLOB_CMDBUFFER_SIZE_SHIFT;
+				blob_block_size = sizeof(uint32_t) + (((blob_size + sizeof(uint32_t) - 1) / sizeof(uint32_t)) * sizeof(uint32_t));
+				len_read += blob_block_size;
+				if (blob_type == CAM_ISP_GENERIC_BLOB_TYPE_HFR_CONFIG) {
+					hfr_config = (struct cam_isp_resource_hfr_config *)(uint8_t *)(blob_ptr + 1);
+					ctx->batchsize = hfr_config->port_hfr_config[0].subsample_period + 1;
+					break;
+				}
+				blob_ptr += (blob_block_size / sizeof(uint32_t));
+			}
+		}
+	}
+}
+/*xiaomi added detect framerate end*/
+
+/* xiaomi add IMMUNE_SYSTEM */
+static int __cam_isp_notify_immunesystem_event(
+	uint32_t error_type, uint32_t error_code,
+	uint64_t error_request_id, struct cam_context *ctx)
+{
+	int                         rc = 0;
+	struct cam_req_mgr_message  req_msg;
+
+	req_msg.session_hdl = ctx->session_hdl;
+	req_msg.u.err_msg.device_hdl = ctx->dev_hdl;
+	req_msg.u.err_msg.error_type = error_type;
+	req_msg.u.err_msg.link_hdl = ctx->link_hdl;
+	req_msg.u.err_msg.request_id = error_request_id;
+	req_msg.u.err_msg.resource_size = 0x0;
+	req_msg.u.err_msg.error_code = error_code;
+
+	CAM_INFO(CAM_ISP,
+		"[IMMUNESYS] MQS event [type: %u code: %u] for req: %llu in ctx: %u on link: 0x%x notified",
+		error_type, error_code, error_request_id, ctx->ctx_id, ctx->link_hdl);
+
+	rc = cam_req_mgr_notify_message(&req_msg,
+			V4L_EVENT_IMMUNE_SYSTEM_ISP,
+			V4L_EVENT_IMMUNE_SYSTEM_EVENT);
+	if (rc)
+		CAM_ERR(CAM_ISP,
+			"[IMMUNESYS] Notifying MQS event error [type: %u code: %u] failed for req id:%llu in ctx %u on link: 0x%x",
+			error_request_id, ctx->ctx_id);
+
+	return rc;
+}
+/* xiaomi add IMMUNE_SYSTEM */

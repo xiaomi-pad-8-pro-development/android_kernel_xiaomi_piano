@@ -957,7 +957,7 @@ int tpg_1_4_layer_init(struct tpg_hw *hw)
 		dbgfileptr_parent, hw, &tpg_1_4_shdr_line_offset0);
 	debugfs_create_file("tpg_shdr_line_offset1", 0644,
 		dbgfileptr_parent, hw, &tpg_1_4_shdr_line_offset1);
-	CAM_INFO(CAM_TPG, "Layer init called");
-
+	// xiaomi modify
+	CAM_DBG(CAM_TPG, "Layer init called");
 	return 0;
 }

@@ -377,7 +377,7 @@ static int cam_sync_signal_validate_util(
 	}
 
 	if (row->state != CAM_SYNC_STATE_ACTIVE) {
-		CAM_ERR(CAM_SYNC,
+		CAM_DBG(CAM_SYNC,
 			"Error: Sync object already signaled sync_obj = %s[%d]",
 			row->name, sync_obj);
 		return -EALREADY;
@@ -454,7 +454,7 @@ int cam_sync_signal(int32_t sync_obj, uint32_t status, uint32_t event_cause)
 		spin_unlock_bh(&sync_dev->row_spinlocks[sync_obj]);
 		rc = cam_synx_obj_internal_signal(synx_row_idx, &signal_synx_obj);
 		spin_lock_bh(&sync_dev->row_spinlocks[sync_obj]);
-		if (rc) {
+		if (rc && rc != -EALREADY) {
 			CAM_ERR(CAM_SYNC,
 				"Error: Failed to signal associated synx obj = %d for sync_obj = %d",
 				signal_synx_obj.synx_obj, sync_obj);
@@ -1103,7 +1103,7 @@ static int cam_sync_synx_obj_cb(int32_t sync_obj,
 	}
 
 	rc = cam_sync_signal_validate_util(sync_obj, signal_sync_obj->status);
-	if (rc) {
+	if (rc && rc != -EALREADY) {
 		CAM_ERR(CAM_SYNC,
 			"Error: Failed to validate signal info for sync_obj = %d[%s] with status = %d rc = %d",
 			sync_obj, row->name, signal_sync_obj->status, rc);
@@ -1801,7 +1801,7 @@ static int cam_generic_fence_handle_synx_import(
 			is_sync_obj_created = true;
 		}
 
-		if (rc) {
+		if (rc  && rc != -EALREADY) {
 			fence_cfg->reason_code = rc;
 			goto out_copy;
 		}
@@ -1863,7 +1863,7 @@ static int cam_generic_fence_handle_synx_signal(
 		fence_signal_info->num_fences_processed++;
 
 		rc = cam_synx_obj_signal_obj(&synx_signal_info[i]);
-		if (rc) {
+		if (rc && rc != -EALREADY) {
 			CAM_ERR(CAM_SYNX,
 				"Failed to signal for synx_obj: %d, rc: %d, status : %d",
 				synx_signal_info[i].synx_obj, rc,

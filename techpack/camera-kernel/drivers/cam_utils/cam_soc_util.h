@@ -30,6 +30,10 @@
 #include <linux/soc/qcom/msm_mmrm.h>
 #endif
 
+// XIAOMI ADD: FeatureAutoEQ
+#include "cam_context.h"
+// END: FeatureAutoEQ
+
 #define NO_SET_RATE  -1
 #define INIT_RATE    -2
 
@@ -369,10 +373,12 @@ struct cam_hw_soc_info {
 	uint32_t                        vmrm_resource_ids[CAM_VMRM_MAX_RESOURCE_IDS];
 #endif
 
+	// XIAOMI ADD: FeatureAutoEQ
+	uint8_t                         phy_cfg_current_index[CAM_PHY_MAX_CTRL_NO];
+	// END: FeatureAutoEQ
 	uint32_t                        num_reset;
 	const char                     *reset_name[CAM_SOC_MAX_RESET];
 	struct reset_control           *resets[CAM_SOC_MAX_RESET];
-
 };
 
 /**
@@ -723,6 +729,16 @@ int cam_soc_util_irq_enable(struct cam_hw_soc_info *soc_info);
  * @return:             Success or failure
  */
 int cam_soc_util_irq_disable(struct cam_hw_soc_info *soc_info);
+
+/**
+ * cam_soc_util_get_regulator_enable()
+ *
+ * @brief:              Enable single regulator
+ *
+ * @rgltr               Regulator that needs to be turned ON
+ * @return:             Success or failure
+ */
+int cam_soc_util_get_regulator_enable(struct regulator *rgltr, const char *name);
 
 /**
  * cam_soc_util_regulator_enable()

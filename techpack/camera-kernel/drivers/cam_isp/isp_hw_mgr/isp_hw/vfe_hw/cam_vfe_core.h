@@ -11,6 +11,7 @@
 #include "cam_vfe_top.h"
 #include "cam_vfe_bus.h"
 #include "cam_vfe_hw_intf.h"
+#include "cam_isp_hw_mgr_intf.h"
 
 #define CAM_VFE_HW_IRQ_CAP_SOF             BIT(0)
 #define CAM_VFE_HW_IRQ_CAP_EPOCH_0         BIT(1)
@@ -24,6 +25,9 @@
 #define CAM_VFE_HW_IRQ_CAP_LITE_INT_CSID   0x79
 #define CAM_VFE_HW_IRQ_CAP_EXT_CSID        0x27
 #define CAM_VFE_HW_IRQ_CAP_LITE_EXT_CSID   0x21
+
+#define CAM_IFE_HW_CORE_NUM_MAX 0x8
+extern int g_cam_tfe_clk_lvl[CAM_IFE_HW_CORE_NUM_MAX];
 
 struct cam_vfe_irq_hw_info {
 	int                                   reset_irq_handle;

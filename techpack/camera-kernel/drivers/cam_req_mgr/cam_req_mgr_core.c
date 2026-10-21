@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -21,6 +21,13 @@
 #include "cam_mem_mgr.h"
 #include "cam_mem_mgr_api.h"
 #include "cam_cpas_api.h"
+#include "cam_dump_util.h"
+
+/*xiaomi added detect framerate begin*/
+int          debug_tool_init_count = 0;
+static uint  debug_tool = 1;
+module_param(debug_tool, uint, 0644);
+/*xiaomi added detect framerate end*/
 
 static struct cam_req_mgr_core_device *g_crm_core_dev;
 static struct cam_req_mgr_core_link g_links[MAXIMUM_LINKS_CAPACITY];
@@ -3089,7 +3096,7 @@ static inline bool cam_req_mgr_check_for_functional_flush_caps(
 }
 
 static int __cam_req_mgr_flush_dev_with_max_pd(struct cam_req_mgr_core_link *link,
-	struct cam_req_mgr_flush_info *flush_info, int max_pd)
+	struct cam_req_mgr_flush_info *flush_info)
 {
 	struct cam_req_mgr_connected_device *device;
 	struct cam_req_mgr_flush_request flush_req = {0};
@@ -3099,8 +3106,6 @@ static int __cam_req_mgr_flush_dev_with_max_pd(struct cam_req_mgr_core_link *lin
 
 	for (i = 0; i < link->num_devs; i++) {
 		device = &link->l_dev[i];
-		if (device->dev_info.p_delay > max_pd)
-			continue;
 
 		flush_req.link_hdl = flush_info->link_hdl;
 		flush_req.dev_hdl = device->dev_hdl;
@@ -3173,13 +3178,6 @@ static int __cam_req_mgr_try_cancel_req(struct cam_req_mgr_core_link *link,
 				flush_info->req_id, flush_info->link_hdl);
 			return -EPERM;
 		}
-
-		/* find highest pd device that can be flushed */
-		while (pd + 1 <= link->max_delay) {
-			if (flush_info->req_id <= link->req.prev_apply_data[pd + 1].req_id)
-				break;
-			pd++;
-		}
 		fallthrough;
 	case CRM_SLOT_STATUS_REQ_READY:
 	case CRM_SLOT_STATUS_REQ_ADDED:
@@ -3192,9 +3190,9 @@ static int __cam_req_mgr_try_cancel_req(struct cam_req_mgr_core_link *link,
 		return -EINVAL;
 	}
 
-	CAM_DBG(CAM_CRM, "cancelling request %lld on link 0x%x for devices with pd less than %d",
-		flush_info->req_id, flush_info->link_hdl, pd);
-	__cam_req_mgr_flush_dev_with_max_pd(link, flush_info, pd);
+	CAM_DBG(CAM_CRM, "cancelling request %lld on link 0x%x",
+		flush_info->req_id, flush_info->link_hdl);
+	__cam_req_mgr_flush_dev_with_max_pd(link, flush_info);
 	link->open_req_cnt--;
 	return 0;
 }
@@ -3239,7 +3237,7 @@ int cam_req_mgr_process_flush_req(void *priv, void *data)
 			flush_info->req_id, link->link_hdl);
 		__cam_req_mgr_flush_req_slot(link);
 		__cam_req_mgr_reset_apply_data(link);
-		__cam_req_mgr_flush_dev_with_max_pd(link, flush_info, link->max_delay);
+		__cam_req_mgr_flush_dev_with_max_pd(link, flush_info);
 		link->open_req_cnt = 0;
 		link->resume_sync_curr_mask = 0x0;
 		link->exp_time_for_resume = 0;
@@ -4584,10 +4582,10 @@ static int cam_req_mgr_cb_notify_msg(
 				"Requested timeout [%dms] max supported timeout [%dms] resetting to max",
 				frame_duration_ms, CAM_REQ_MGR_WATCHDOG_TIMEOUT_MAX);
 			slot->additional_timeout = CAM_REQ_MGR_WATCHDOG_TIMEOUT_MAX;
-		} else if (frame_duration_ms > CAM_REQ_MGR_WATCHDOG_TIMEOUT) {
-			slot->additional_timeout = frame_duration_ms;
 		} else {
-			slot->additional_timeout = 0;
+			/*xiaomi plus frame_duration_ms begin*/
+			slot->additional_timeout = frame_duration_ms * 2;
+			/*xiaomi plus frame_duration_ms end*/
 		}
 
 		CAM_DBG(CAM_CRM,
@@ -4941,6 +4939,18 @@ int cam_req_mgr_create_session(
 	mutex_unlock(&cam_session->lock);
 end:
 	mutex_unlock(&g_crm_core_dev->crm_lock);
+/*xiaomi added debug_tool begin*/
+	if(debug_tool != 0 && debug_tool_init_count == 0)
+	{
+		cam_init_message_buffer();
+		debug_tool_init_count = 1;
+	}
+	else if(debug_tool == 0 && debug_tool_init_count != 0)
+	{
+		cam_deinit_message_buffer();
+		debug_tool_init_count = 0;
+	}
+/*xiaomi added debug_tool end*/
 	return rc;
 }
 
@@ -6299,6 +6309,9 @@ int cam_req_mgr_core_device_deinit(void)
 
 	CAM_DBG(CAM_CRM, "g_crm_core_dev %pK", g_crm_core_dev);
 	cam_req_mgr_debug_unregister();
+	//xiaomi add
+	cam_deinit_message_buffer();
+	//end
 	mutex_destroy(&g_crm_core_dev->crm_lock);
 	CAM_MEM_FREE(g_crm_core_dev);
 	g_crm_core_dev = NULL;

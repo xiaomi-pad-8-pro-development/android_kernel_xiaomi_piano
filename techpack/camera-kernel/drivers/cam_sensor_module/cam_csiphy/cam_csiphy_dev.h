@@ -237,6 +237,10 @@ struct csiphy_device;
  * @data_rate_reg_array       : array of data rate specific reg value pairs
  */
 struct data_rate_reg_info_t {
+	// XIAOMI ADD: FeatureAutoEQ
+	uint8_t this_setting_max_choice;
+	uint8_t this_setting_current_choice;
+	// END: FeatureAutoEQ
 	uint64_t bandwidth;
 	ssize_t  data_rate_reg_array_size;
 	struct csiphy_reg_t *data_rate_reg_array[MAX_CSIPHY][CAM_CSIPHY_MAX_DATARATE_VARIANTS];
@@ -485,6 +489,10 @@ struct csiphy_device {
 	bool                                     skip_aux_settings;
 	bool                                     domain_id_security;
 	uint16_t                                 preamble_enable;
+	// XIAOMI ADD: FeatureAutoEQ
+	char                           phy_dts_name[CAM_PHY_DTS_NAME];
+	uint8_t                        device_has_customized;
+	// END: FeatureAutoEQ
 };
 
 /**

@@ -284,7 +284,8 @@ void cam_sensor_module_add_i2c_device(void *ctrl_struct, int device_type)
 	if (!cam_debugfs_available())
 		return;
 
-	CAM_INFO(CAM_SENSOR, "Adding device type: %d", device_type);
+	// xiaomi modify
+	CAM_DBG(CAM_SENSOR, "Adding device type: %d", device_type);
 
 	switch (device_type) {
 	case CAM_SENSOR_ACTUATOR:

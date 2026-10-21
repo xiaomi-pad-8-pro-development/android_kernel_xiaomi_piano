@@ -20,6 +20,7 @@
 #include "cam_mem_mgr_api.h"
 #include "cam_req_mgr_interface.h"
 #include "cam_vmrm_interface.h"
+#include "cam_vfe_top_common.h"
 
 #define CAM_CPAS_LOG_BUF_LEN      512
 #define CAM_CPAS_APPLY_TYPE_START  1
@@ -1281,7 +1282,7 @@ static inline void cam_cpas_util_validate_rt_camnoc_clk_rate(struct cam_cpas *cp
 
 	if ((rt_hlos_clk_rate + total_hw_client_rate) >
 		(soc_info->clk_rate[soc_info->highest_clk_level][soc_info->src_clk_idx]))
-		CAM_WARN(CAM_CPAS,
+		CAM_DBG(CAM_CPAS,
 			"Requested clk rate[SW HW Total]: [%lld %lld %lld] exceeds max supported value: %d",
 			rt_hlos_clk_rate, total_hw_client_rate, (rt_hlos_clk_rate +
 			total_hw_client_rate),
@@ -1409,11 +1410,48 @@ static int cam_cpas_util_set_camnoc_axi_drv_clk_rate(struct cam_hw_soc_info *soc
 	return rc;
 }
 
+static int cam_cpas_get_max_of_tfe_and_camnoc(
+	struct cam_hw_soc_info *soc_info,
+	int64_t hlos_clk_rate, int64_t *max_hlos_clk_rate)
+{
+	int i = 0;
+	int camnoc_clk_lvl = -1;
+	int max_tfe_clk_lvl = -1;
+	int clk_lvl_to_be_applied = -1;
+	int clock_idx = soc_info->src_clk_idx;
+
+	for (i = 0; i < CAM_IFE_HW_CORE_NUM_MAX; i++) {
+		CAM_DBG(CAM_CPAS,"IFE=%d, level=%d", i, g_cam_tfe_clk_lvl[i]);
+		if (max_tfe_clk_lvl < g_cam_tfe_clk_lvl[i])
+			max_tfe_clk_lvl = g_cam_tfe_clk_lvl[i];
+	}
+
+	cam_soc_util_get_clk_level(soc_info, hlos_clk_rate, soc_info->src_clk_idx, &camnoc_clk_lvl);
+
+	if (max_tfe_clk_lvl > camnoc_clk_lvl)
+		clk_lvl_to_be_applied = max_tfe_clk_lvl;
+	else
+		clk_lvl_to_be_applied = camnoc_clk_lvl;
+
+	if (camnoc_clk_lvl != clk_lvl_to_be_applied)
+		*max_hlos_clk_rate = soc_info->clk_rate[clk_lvl_to_be_applied][clock_idx];
+	else
+		*max_hlos_clk_rate = hlos_clk_rate;
+
+	CAM_DBG(CAM_CPAS,
+		"clk name %s Max ife_lvl= %d, clk_level= %d hlos_clk_rate = %llu applied_rate %llu",
+		soc_info->clk_name[clock_idx], max_tfe_clk_lvl, camnoc_clk_lvl, hlos_clk_rate,
+		*max_hlos_clk_rate);
+
+	return 0;
+}
+
 static int cam_cpas_util_set_max_camnoc_axi_clk_rate(struct cam_cpas *cpas_core,
 	struct cam_hw_soc_info *soc_info)
 {
 	int rc, highest_level = 0;
 	int64_t applied_rate = 0;
+	int64_t max_hlos_clk_rate = 0;
 	const struct camera_debug_settings *cam_debug = NULL;
 	struct cam_cpas_private_soc *soc_private =
 		(struct cam_cpas_private_soc *) soc_info->soc_private;
@@ -1440,8 +1478,13 @@ static int cam_cpas_util_set_max_camnoc_axi_clk_rate(struct cam_cpas *cpas_core,
 
 	CAM_DBG(CAM_CPAS, "Highest valid lvl: %d, applying corresponding rate %lld",
 		highest_level, applied_rate);
+	// need to add more here
+	rc = cam_cpas_get_max_of_tfe_and_camnoc(soc_info, applied_rate,
+			&max_hlos_clk_rate);
+	CAM_DBG(CAM_CPAS, "Highest valid lvl: %d, applying corresponding rate %lld max level %lld",
+		highest_level, applied_rate, max_hlos_clk_rate);
 
-	rc = cam_soc_util_set_src_clk_rate(soc_info, CAM_CLK_SW_CLIENT_IDX, applied_rate, 0);
+	rc = cam_soc_util_set_src_clk_rate(soc_info, CAM_CLK_SW_CLIENT_IDX, max_hlos_clk_rate, 0);
 	if (rc) {
 		CAM_ERR(CAM_CPAS,
 			"Failed in setting camnoc axi clk applied rate:[%lld] rc:%d",
@@ -1449,7 +1492,9 @@ static int cam_cpas_util_set_max_camnoc_axi_clk_rate(struct cam_cpas *cpas_core,
 		return rc;
 	}
 
-	cpas_core->applied_camnoc_axi_rate.sw_client = applied_rate;
+	cpas_core->applied_camnoc_axi_rate.sw_client = max_hlos_clk_rate;
+	CAM_DBG(CAM_PERF, "Setting camnoc axi HLOS clk rate[Clk] : [%lld]",
+			max_hlos_clk_rate);
 
 	return rc;
 }

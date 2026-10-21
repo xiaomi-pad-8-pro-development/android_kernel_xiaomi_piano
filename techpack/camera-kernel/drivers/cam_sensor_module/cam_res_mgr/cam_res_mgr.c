@@ -658,6 +658,16 @@ void cam_res_mgr_gpio_free_arry(struct device *dev,
 }
 EXPORT_SYMBOL(cam_res_mgr_gpio_free_arry);
 
+int cam_res_mgr_gpio_get_value(unsigned int gpio)
+{
+	int rc = 0;
+	mutex_lock(&cam_res->gpio_res_lock);
+	rc = gpio_get_value_cansleep(gpio);
+	mutex_unlock(&cam_res->gpio_res_lock);
+	return rc;
+}
+EXPORT_SYMBOL(cam_res_mgr_gpio_get_value);
+
 int cam_res_mgr_gpio_set_value(unsigned int gpio, int value)
 {
 	int rc = 0;

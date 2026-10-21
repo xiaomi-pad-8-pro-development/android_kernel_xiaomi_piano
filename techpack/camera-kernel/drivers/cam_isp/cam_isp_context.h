@@ -385,6 +385,7 @@ struct cam_isp_fcg_prediction_tracker {
  * @dbg_monitors:              Debug monitors for ISP context
  * @apply_in_progress          Whether request apply is in progress
  * @unserved_rup:              Indicate there is unserved rup
+ * @last_applied_default:        Indicate last applied setting is default or not
  * @init_timestamp:            Timestamp at which this context is initialized
  * @isp_device_type:           ISP device type
  * @rxd_epoch:                 Indicate whether epoch has been received. Used to
@@ -460,6 +461,7 @@ struct cam_isp_context {
 	struct cam_isp_context_debug_monitors dbg_monitors;
 	atomic_t                              apply_in_progress;
 	atomic_t                              unserved_rup;
+	atomic_t                              last_applied_default;
 	atomic_t                              internal_recovery_set;
 	unsigned int                          init_timestamp;
 	uint32_t                              isp_device_type;
@@ -496,6 +498,7 @@ struct cam_isp_context {
 	bool                                  mode_switch_en;
 	bool                                  sfe_en;
 	bool                                  standby_en;
+	bool                                  is_dumpped;
 };
 
 /**
@@ -660,5 +663,29 @@ int cam_isp_context_init(struct cam_isp_context *ctx,
  *
  */
 int cam_isp_context_deinit(struct cam_isp_context *ctx);
+
+/*xiaomi added detect framerate begin*/
+/**
+ * cam_isp_detect_framerate()
+ *
+ * @brief                function to detect framerate - xiaomi added
+ *
+ * @ctx:                 ISP context
+ * @interval:            frame interval num to calculate framerate
+ *
+ */
+void cam_isp_detect_framerate(struct cam_isp_context *ctx,
+	uint interval);
+
+/**
+ * @brief                 function to get frame batchsize of HFR - xiaomi add
+ *
+ * @ctx:                  ISP context obj to be detected
+ * @cpkt:                 camera packet
+ *
+ */
+void cam_isp_get_frame_batchsize(struct cam_context *ctx,
+	struct cam_packet *cpkt);
+/*xiaomi added detect framerate end*/
 
 #endif  /* __CAM_ISP_CONTEXT_H__ */

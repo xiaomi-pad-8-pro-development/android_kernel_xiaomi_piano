@@ -553,8 +553,6 @@ int32_t cam_context_prepare_dev_to_hw(struct cam_context *ctx,
 	if (req->packet) {
 		CAM_WARN(CAM_CTXT, "[%s][%d] Missing free request local packet",
 			ctx->dev_name, ctx->ctx_id);
-		/* Remove buffer ref counts if any */
-		cam_smmu_buffer_tracker_putref(&req->buf_tracker);
 		cam_common_mem_free(req->packet);
 		req->packet = NULL;
 	}
@@ -1578,7 +1576,7 @@ static int cam_context_stream_dump_validation(struct cam_context *ctx,
 static int cam_context_user_dump(struct cam_context *ctx,
 	struct cam_hw_dump_args *dump_args)
 {
-	int                              rc = 0, i;
+	int                              rc, i;
 	struct cam_ctx_request          *req = NULL, *req_temp;
 	struct cam_context_dump_header  *hdr;
 	uint8_t                         *dst;
@@ -1638,7 +1636,6 @@ static int cam_context_user_dump(struct cam_context *ctx,
 	dump_args->offset += hdr->size +
 		sizeof(struct cam_context_dump_header);
 
-	spin_lock(&ctx->lock);
 	/* Dump waiting requests */
 	if (!list_empty(&ctx->wait_req_list)) {
 		list_for_each_entry_safe(req, req_temp, &ctx->wait_req_list, list) {
@@ -1648,8 +1645,8 @@ static int cam_context_user_dump(struct cam_context *ctx,
 					CAM_WARN(CAM_CTXT,
 						"No sufficient space in dump buffer for headers, remain buf size: %d, header size: %d",
 						remain_len, sizeof(struct cam_context_dump_header));
-					rc = -ENOSPC;
-					goto cleanup;
+					cam_mem_put_cpu_buf(dump_args->buf_handle);
+					return -ENOSPC;
 				}
 
 				dst = (uint8_t *)cpu_addr + dump_args->offset;
@@ -1690,8 +1687,8 @@ static int cam_context_user_dump(struct cam_context *ctx,
 					CAM_WARN(CAM_CTXT,
 						"No sufficient space in dump buffer for headers, remain buf size: %d, header size: %d",
 						remain_len, sizeof(struct cam_context_dump_header));
-					rc = -ENOSPC;
-					goto cleanup;
+					cam_mem_put_cpu_buf(dump_args->buf_handle);
+					return -ENOSPC;
 				}
 
 				dst = (uint8_t *)cpu_addr + dump_args->offset;
@@ -1732,8 +1729,8 @@ static int cam_context_user_dump(struct cam_context *ctx,
 					CAM_WARN(CAM_CTXT,
 						"No sufficient space in dump buffer for headers, remain buf size: %d, header size: %d",
 						remain_len, sizeof(struct cam_context_dump_header));
-					rc = -ENOSPC;
-					goto cleanup;
+					cam_mem_put_cpu_buf(dump_args->buf_handle);
+					return -ENOSPC;
 				}
 
 				dst = (uint8_t *)cpu_addr + dump_args->offset;
@@ -1765,9 +1762,8 @@ static int cam_context_user_dump(struct cam_context *ctx,
 		}
 	}
 cleanup:
-	spin_unlock(&ctx->lock);
 	cam_mem_put_cpu_buf(dump_args->buf_handle);
-	return rc;
+	return 0;
 }
 
 int32_t cam_context_dump_dev_to_hw(struct cam_context *ctx,

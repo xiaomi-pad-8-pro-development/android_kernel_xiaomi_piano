@@ -432,6 +432,17 @@ static int cam_sensor_i2c_component_bind(struct device *dev,
 	cam_record_bind_latency(drv_name, microsec);
 	of_node_put(np);
 
+	/* xiaomi add for cci debug start */
+	rc = cam_cci_dev_create_debugfs_entry(s_ctrl->sensor_name,
+		s_ctrl->soc_info.index, CAM_SENSOR_NAME,
+		&s_ctrl->io_master_info, CCI_MASTER_MAX,
+		&s_ctrl->cci_debug);
+	if (rc) {
+		CAM_WARN(CAM_SENSOR, "debugfs creation failed rc %d", rc);
+		rc = 0;
+	}
+	/* xiaomi add for cci debug end */
+
 	return rc;
 
 free_deferred_frame_update:
@@ -473,6 +484,9 @@ static void cam_sensor_i2c_component_unbind(struct device *dev,
 	cam_sensor_shutdown(s_ctrl);
 	mutex_unlock(&(s_ctrl->cam_sensor_mutex));
 	cam_unregister_subdev(&(s_ctrl->v4l2_dev_str));
+	/* xiaomi add for cci debug start */
+	cam_cci_dev_remove_debugfs_entry((void *)s_ctrl->cci_debug);
+	/* xiaomi add for cci debug end */
 
 	CAM_MEM_FREE(s_ctrl->i2c_data.deferred_frame_update);
 	CAM_MEM_FREE(s_ctrl->i2c_data.per_frame);
@@ -677,6 +691,17 @@ static int cam_sensor_component_bind(struct device *dev,
 	CAM_GET_TIMESTAMP_DIFF_IN_MICRO(ts_start, ts_end, microsec);
 	cam_record_bind_latency(pdev->name, microsec);
 
+	/* xiaomi add for cci debug start */
+	rc = cam_cci_dev_create_debugfs_entry(s_ctrl->sensor_name,
+		s_ctrl->soc_info.index, CAM_SENSOR_NAME,
+		&s_ctrl->io_master_info, s_ctrl->cci_i2c_master,
+		&s_ctrl->cci_debug);
+	if (rc) {
+		CAM_WARN(CAM_SENSOR, "debugfs creation failed");
+		rc = 0;
+	}
+	/* xiaomi add for cci debug end */
+
 	return rc;
 
 free_deferred_frame_update:
@@ -716,6 +741,9 @@ static void cam_sensor_component_unbind(struct device *dev,
 	cam_sensor_shutdown(s_ctrl);
 	mutex_unlock(&(s_ctrl->cam_sensor_mutex));
 	cam_unregister_subdev(&(s_ctrl->v4l2_dev_str));
+	/* xiaomi add for cci debug start */
+	cam_cci_dev_remove_debugfs_entry((void *)s_ctrl->cci_debug);
+	/* xiaomi add for cci debug end */
 	soc_info = &s_ctrl->soc_info;
 	for (i = 0; i < soc_info->num_clk; i++) {
 		if (!soc_info->clk[i]) {

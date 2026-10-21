@@ -13,7 +13,7 @@
 
 #define CAM_SENSOR_PROBE_CMD      (CAM_COMMON_OPCODE_MAX + 1)
 #define CAM_FLASH_MAX_LED_TRIGGERS 2
-#define MAX_OIS_NAME_SIZE 32
+#define MAX_OIS_NAME_SIZE 64 //xiaomi changed from 32 to 64
 #define MAX_OIS_FW_COUNT  2
 #define CAM_CSIPHY_SECURE_MODE_ENABLED 1
 #define CAM_SENSOR_NAME_MAX_SIZE 32
@@ -75,6 +75,7 @@ enum cam_actuator_packet_opcodes {
 	CAM_ACTUATOR_PACKET_AUTO_MOVE_LENS,
 	CAM_ACTUATOR_PACKET_MANUAL_MOVE_LENS,
 	CAM_ACTUATOR_PACKET_OPCODE_READ,
+	CAM_ACTUATOR_PACKET_OPCODE_PARKLENS, // xiaomi add
 	CAM_ACTUATOR_PACKET_NOP_OPCODE = 127
 };
 
@@ -87,7 +88,8 @@ enum cam_ois_packet_opcodes {
 	CAM_OIS_PACKET_OPCODE_INIT,
 	CAM_OIS_PACKET_OPCODE_OIS_CONTROL,
 	CAM_OIS_PACKET_OPCODE_READ,
-	CAM_OIS_PACKET_OPCODE_WRITE_TIME
+	CAM_OIS_PACKET_OPCODE_WRITE_TIME,
+	CAM_OIS_PACKET_OPCODE_OIS_PARKLENS // xiaomi add
 };
 
 enum camera_sensor_i2c_op_code {
@@ -425,16 +427,33 @@ struct cam_sensor_frame_info {
 /**
  * struct cam_ois_opcode - Contains OIS opcode
  *
- * @prog            :    OIS FW prog register address
- * @coeff           :    OIS FW coeff register address
- * @pheripheral     :    OIS pheripheral
- * @memory          :    OIS memory
+ * @prog                  :    OIS FW prog register address
+ * @coeff                 :    OIS FW coeff register address
+ * @pheripheral           :    OIS pheripheral
+ * @memory                :    OIS memory
+ * @fw_version            :    OIS firmware version
+ * @fw_addr_type          :    OIS fw Addr Type
+ * @is_addr_increase      :    OIS addr Increase
+ * @customized_ois_flag   :    customized ois flag
+ * @is_littleendian_op    :    is littleendianop
+ * @fw_addr               :    fw addr
+ * @fw_mem_store          :    is fw mem store
  */
 struct cam_ois_opcode {
 	__u32 prog;
 	__u32 coeff;
 	__u32 pheripheral;
 	__u32 memory;
+	//xiaomi add begain
+	__u32 fw_version;
+	__u8  fw_addr_type;
+	__u8  is_addr_increase;
+	__u8  customized_ois_flag;
+	__u8  is_littleendian_op;
+	__u32 fw_addr;
+	bool  fw_mem_store;
+	bool  noUpdateForOisWithFlash;
+	//xiaomi add end
 } __attribute__((packed));
 
 /**

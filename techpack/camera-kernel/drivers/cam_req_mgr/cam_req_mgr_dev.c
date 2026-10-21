@@ -32,8 +32,11 @@
 #include "cam_vmrm_interface.h"
 #include "cam_mem_mgr_api.h"
 #include "cam_req_mgr_debug.h"
+#include "cam_dump_util.h" //xiaomi add
 
-#define CAM_REQ_MGR_EVENT_MAX 30
+/* Xiaomi: enlarge from 30 to 200 */
+#define CAM_REQ_MGR_EVENT_MAX 200
+/* Xiaomi: enlarge from 30 to 200 */
 #define CAM_I3C_MASTER_COMPAT "qcom,geni-i3c"
 
 static struct cam_req_mgr_device g_dev;
@@ -289,7 +292,7 @@ static void cam_v4l2_event_queue_notify_error(const struct v4l2_event *old,
 				ev_header->u.frame_msg.request_id,
 				ev_header->u.frame_msg.link_hdl);
 		else
-			CAM_WARN_RATE_LIMIT_CUSTOM(CAM_CRM, 5, 1,
+			CAM_DBG(CAM_CRM,
 				"Failed to notify %s Sess %X FrameId %lld FrameMeta %d ReqId %lld link %X",
 				((old->id == V4L_EVENT_CAM_REQ_MGR_SOF) ?
 				"SOF_TS" : ((old->id == V4L_EVENT_CAM_REQ_MGR_SOF_BOOT_TS) ?
@@ -816,6 +819,64 @@ static long cam_private_ioctl(struct file *file, void *fh,
 			rc = -EFAULT;
 		}
 		break;
+//xiaomi add
+	case CAM_REQ_MGR_QUERY_DUMP_MSG:{
+		struct cam_debug_record_key_message_buffer *cam_key_buffer;
+		struct cam_io_data_record *cam_io_record_buffer;
+		struct cam_power_info_record *cam_power_record_buffer;
+		if(k_ioctl->size == sizeof(struct cam_debug_record_key_message_buffer))
+		{
+			cam_key_buffer = cam_get_key_msg_buffer();
+			if(cam_key_buffer == NULL)
+			{
+				rc = -EFAULT;
+			}
+			else if(copy_to_user(
+				u64_to_user_ptr(k_ioctl->handle),
+				cam_key_buffer,
+				sizeof(struct cam_debug_record_key_message_buffer))){
+				rc = -EFAULT;
+				}
+		}
+		else if(k_ioctl->size == sizeof(struct cam_power_info_record))
+		{
+			cam_power_record_buffer = cam_get_power_msg_buffer();
+			if(cam_power_record_buffer == NULL)
+			{
+				rc = -EFAULT;
+			}
+			else if(copy_to_user(
+				u64_to_user_ptr(k_ioctl->handle),
+				cam_power_record_buffer,
+				sizeof(struct cam_power_info_record))){
+				rc = -EFAULT;
+			}
+		}
+		else if(k_ioctl->size == sizeof(struct cam_io_data_record))
+		{
+			cam_io_record_buffer = cam_get_io_msg_buffer();
+			if(cam_io_record_buffer == NULL)
+			{
+				rc = -EFAULT;
+			}
+			else if(copy_to_user(
+				u64_to_user_ptr(k_ioctl->handle),
+				cam_io_record_buffer,
+				sizeof(struct cam_io_data_record))){
+					rc = -EFAULT;
+				}
+		}
+		else
+		{
+			return -EINVAL;
+		}
+	}
+		break;
+	case CAM_TRIGGER_DUMP_SENSOR_SETTING:{
+		dump_sensor_setting();
+	}
+		break;
+//end
 	default:
 		CAM_ERR(CAM_CRM, "Invalid Opcode %d", k_ioctl->op_code);
 		rc = -ENOIOCTLCMD;

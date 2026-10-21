@@ -259,7 +259,8 @@ static int32_t cam_sensor_driver_get_dt_data(struct cam_sensor_ctrl_t *s_ctrl)
 		CAM_DBG(CAM_SENSOR, "cell_idx: %d is not used for AON usecase", soc_info->index);
 		s_ctrl->aon_camera_id = NOT_AON_CAM;
 	} else {
-		CAM_INFO(CAM_SENSOR,
+		// xiaomi modify
+		CAM_DBG(CAM_SENSOR,
 			"AON Sensor detected in cell_idx: %d aon_camera_id: %d phy_index: %d",
 			soc_info->index, s_ctrl->aon_camera_id,
 			s_ctrl->sensordata->subdev_id[SUB_MODULE_CSIPHY]);
@@ -320,6 +321,7 @@ int32_t cam_sensor_parse_dt(struct cam_sensor_ctrl_t *s_ctrl)
 
 	/* Initialize mutex */
 	mutex_init(&(s_ctrl->cam_sensor_mutex));
+	init_power_sync_mutex(s_ctrl->io_master_info.cci_client, s_ctrl->cci_i2c_master);//xiaomi add
 
 	/* Initialize default parameters */
 	for (i = 0; i < soc_info->num_clk; i++) {

@@ -12,6 +12,9 @@
 #include "camera_main.h"
 #include "cam_compat.h"
 #include "cam_mem_mgr_api.h"
+/* xiaomi add for cci debug start */
+#include "cam_cci_debug_util.h"
+/* xiaomi add for cci debug end */
 
 static struct cam_i3c_ois_data {
 	struct cam_ois_ctrl_t                       *o_ctrl;
@@ -189,7 +192,7 @@ static int cam_ois_init_subdev_param(struct cam_ois_ctrl_t *o_ctrl)
 static int cam_ois_i2c_component_bind(struct device *dev,
 	struct device *master_dev, void *data)
 {
-	int                          rc = 0;
+	int                          rc = 0, i = 0; // xiaomi add
 	struct i2c_client           *client = NULL;
 	struct cam_ois_ctrl_t       *o_ctrl = NULL;
 	struct cam_ois_soc_private  *soc_private = NULL;
@@ -230,6 +233,23 @@ static int cam_ois_i2c_component_bind(struct device *dev,
 
 	np = of_node_get(client->dev.of_node);
 	drv_name = of_node_full_name(np);
+	//xiaomi add  begain
+	o_ctrl->fw_store.fw_count = 0;
+	for (i = 0; i < MAX_FW_COUNT; i++) {
+		o_ctrl->fw_store.fw_name[i] = NULL;
+		o_ctrl->fw_store.fw[i] = NULL;
+	}
+	CAM_INFO(CAM_OIS, "Component ois_i2c %s bound successfully", client->name);
+
+	INIT_LIST_HEAD(&(o_ctrl->i2c_parklens_data.list_head));
+	parklens_atomic_set(&(o_ctrl->parklens_ctrl.parklens_opcode),
+		ENTER_PARKLENS_WITH_POWERDOWN);
+	parklens_atomic_set(&(o_ctrl->parklens_ctrl.exit_result),
+		PARKLENS_ENTER);
+	parklens_atomic_set(&(o_ctrl->parklens_ctrl.parklens_state),
+		PARKLENS_INVALID);
+	o_ctrl->parklens_ctrl.parklens_thread = NULL;
+	//xiaomi add end
 
 	soc_private = CAM_MEM_ZALLOC(sizeof(struct cam_ois_soc_private),
 		GFP_KERNEL);
@@ -257,6 +277,17 @@ static int cam_ois_i2c_component_bind(struct device *dev,
 	CAM_GET_TIMESTAMP_DIFF_IN_MICRO(ts_start, ts_end, microsec);
 	cam_record_bind_latency(drv_name, microsec);
 	of_node_put(np);
+
+	/* xiaomi add for cci debug start */
+	rc = cam_cci_dev_create_debugfs_entry(o_ctrl->device_name,
+		o_ctrl->soc_info.index, CAM_OIS_NAME,
+		&o_ctrl->io_master_info, o_ctrl->cci_i2c_master,
+		&o_ctrl->cci_debug);
+	if (rc) {
+		CAM_WARN(CAM_OIS, "debugfs creation failed");
+		rc = 0;
+	}
+	/* xiaomi add for cci debug end */
 
 	return rc;
 
@@ -307,6 +338,9 @@ static void cam_ois_i2c_component_unbind(struct device *dev,
 	cam_ois_shutdown(o_ctrl);
 	mutex_unlock(&(o_ctrl->ois_mutex));
 	cam_unregister_subdev(&(o_ctrl->v4l2_dev_str));
+	/* xiaomi add for cci debug start */
+	cam_cci_dev_remove_debugfs_entry((void *)o_ctrl->cci_debug);
+	/* xiaomi add for cci debug end */
 
 	CAM_MEM_FREE(o_ctrl->soc_info.soc_private);
 	v4l2_set_subdevdata(&o_ctrl->v4l2_dev_str.sd, NULL);
@@ -394,6 +428,7 @@ static int cam_ois_component_bind(struct device *dev,
 	struct platform_device         *pdev = to_platform_device(dev);
 	struct timespec64               ts_start, ts_end;
 	long                            microsec = 0;
+	int32_t                         i = 0; // xiaomi add
 
 	CAM_GET_TIMESTAMP(ts_start);
 	i3c_i2c_target = of_property_read_bool(pdev->dev.of_node, "i3c-i2c-target");
@@ -443,6 +478,23 @@ static int cam_ois_component_bind(struct device *dev,
 	}
 	o_ctrl->bridge_intf.device_hdl = -1;
 
+	// xiaomi add begain
+	o_ctrl->fw_store.fw_count = 0;
+	for (i = 0; i < MAX_FW_COUNT; i++) {
+		o_ctrl->fw_store.fw_name[i] = NULL;
+		o_ctrl->fw_store.fw[i] = NULL;
+	}
+
+	INIT_LIST_HEAD(&(o_ctrl->i2c_parklens_data.list_head));
+	parklens_atomic_set(&(o_ctrl->parklens_ctrl.parklens_opcode),
+		ENTER_PARKLENS_WITH_POWERDOWN);
+	parklens_atomic_set(&(o_ctrl->parklens_ctrl.exit_result),
+		PARKLENS_ENTER);
+	parklens_atomic_set(&(o_ctrl->parklens_ctrl.parklens_state),
+		PARKLENS_INVALID);
+	o_ctrl->parklens_ctrl.parklens_thread = NULL;
+	// xiaomi add end
+
 	cam_sensor_module_add_i2c_device((void *) o_ctrl, CAM_SENSOR_OIS);
 
 	platform_set_drvdata(pdev, o_ctrl);
@@ -454,7 +506,19 @@ static int cam_ois_component_bind(struct device *dev,
 	CAM_GET_TIMESTAMP_DIFF_IN_MICRO(ts_start, ts_end, microsec);
 	cam_record_bind_latency(pdev->name, microsec);
 
-	CAM_DBG(CAM_OIS, "Component bound successfully");
+	CAM_INFO(CAM_OIS, "Component %s bound successfully", pdev->name);
+
+	/* xiaomi add for cci debug start */
+	rc = cam_cci_dev_create_debugfs_entry(o_ctrl->device_name,
+		o_ctrl->soc_info.index, CAM_OIS_NAME,
+		&o_ctrl->io_master_info, o_ctrl->cci_i2c_master,
+		&o_ctrl->cci_debug);
+	if (rc) {
+		CAM_WARN(CAM_OIS, "debugfs creation failed");
+		rc = 0;
+	}
+	/* xiaomi add for cci debug end */
+
 	return rc;
 unreg_subdev:
 	cam_unregister_subdev(&(o_ctrl->v4l2_dev_str));
@@ -501,6 +565,9 @@ static void cam_ois_component_unbind(struct device *dev,
 	cam_ois_shutdown(o_ctrl);
 	mutex_unlock(&(o_ctrl->ois_mutex));
 	cam_unregister_subdev(&(o_ctrl->v4l2_dev_str));
+	/* xiaomi add for cci debug start */
+	cam_cci_dev_remove_debugfs_entry((void *)o_ctrl->cci_debug);
+	/* xiaomi add for cci debug end */
 
 	CAM_MEM_FREE(o_ctrl->soc_info.soc_private);
 	CAM_MEM_FREE(o_ctrl->io_master_info.cci_client);

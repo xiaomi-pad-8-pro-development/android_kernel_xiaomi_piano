@@ -9,6 +9,10 @@
 #include "cam_sensor_i3c.h"
 #include <linux/pm_runtime.h>
 
+// xiaomi add begin
+#define QUP_IIC_MAX_WRITE_SIZE 2500
+// xiaomi add end
+
 int32_t camera_io_dev_poll(struct camera_io_master *io_master_info,
 	uint32_t addr, uint16_t data, uint32_t data_mask,
 	enum camera_sensor_i2c_type addr_type,
@@ -148,6 +152,14 @@ int32_t camera_io_dev_read_seq(struct camera_io_master *io_master_info,
 int32_t camera_io_dev_write(struct camera_io_master *io_master_info,
 	struct cam_sensor_i2c_reg_setting *write_setting)
 {
+	// xiaomi add begin
+	int rc = 0;
+	int i = 0;
+	int setting_segment_num = 0;
+	int setting_size = 0;
+	bool is_segment_write = false;
+	// xiaomi add end
+
 	if (!write_setting || !io_master_info) {
 		CAM_ERR(CAM_SENSOR_IO,
 			"Input parameters not valid ws: %pK ioinfo: %pK",
@@ -164,7 +176,46 @@ int32_t camera_io_dev_write(struct camera_io_master *io_master_info,
 	case CCI_MASTER:
 		return cam_cci_i2c_write_table(io_master_info, write_setting);
 	case I2C_MASTER:
-		return cam_qup_i2c_write_table(io_master_info, write_setting);
+	// xiaomi modify begin
+		setting_size = write_setting->size;
+		setting_segment_num = setting_size / QUP_IIC_MAX_WRITE_SIZE;
+
+		while (i < setting_segment_num) {
+			write_setting->size = QUP_IIC_MAX_WRITE_SIZE;
+
+			CAM_INFO(CAM_SENSOR, "total size: %d, segment index: %d, write size:%d",
+				setting_size, i, write_setting->size);
+
+			rc = cam_qup_i2c_write_table(io_master_info, write_setting);
+			if (rc != 0)
+			{
+				write_setting->size = setting_size;
+				write_setting->reg_setting -= i * QUP_IIC_MAX_WRITE_SIZE;
+				CAM_ERR(CAM_SENSOR, "write segment:%d failed!", i);
+
+				return rc;
+			}
+
+			i++;
+			is_segment_write = true;
+			write_setting->reg_setting += QUP_IIC_MAX_WRITE_SIZE;
+		};
+
+		if (is_segment_write) {
+			write_setting->size = setting_size - (setting_segment_num * QUP_IIC_MAX_WRITE_SIZE);
+			CAM_DBG(CAM_SENSOR, " the rest of segment write size:%d", write_setting->size);
+		}
+
+		if (write_setting->size > 0)
+			rc = cam_qup_i2c_write_table(io_master_info, write_setting);
+		
+		if (is_segment_write) {
+			write_setting->size = setting_size;
+			write_setting->reg_setting -= setting_segment_num * QUP_IIC_MAX_WRITE_SIZE;
+		}
+
+		return rc;
+	// xiaomi modify end
 	case SPI_MASTER:
 		return cam_spi_write_table(io_master_info, write_setting);
 	case I3C_MASTER:

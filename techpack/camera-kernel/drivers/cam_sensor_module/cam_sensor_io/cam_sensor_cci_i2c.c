@@ -185,6 +185,9 @@ static int32_t cam_cci_i2c_compare(struct cam_sensor_cci_client *client,
 		return rc;
 
 	reg_data = reg_data & 0xFFFF;
+	/* xiaomi add I2C trace begin */
+	trace_poll_i2c_compare(data, (reg_data & ~data_mask));
+	/* xiaomi add I2C trace end */
 	if (data == (reg_data & ~data_mask))
 		return I2C_COMPARE_MATCH;
 	else {
@@ -223,7 +226,7 @@ int32_t cam_cci_i2c_poll(struct cam_sensor_cci_client *client,
 
 	/* If rc is 1 then read is successful but poll is failure */
 	if (rc == 1)
-		CAM_ERR(CAM_SENSOR_IO, "poll failed rc=%d(non-fatal)",	rc);
+		CAM_INFO(CAM_SENSOR, "poll failed rc=%d(non-fatal)", rc);
 
 	if (rc < 0)
 		CAM_ERR(CAM_SENSOR_IO, "poll failed rc=%d", rc);

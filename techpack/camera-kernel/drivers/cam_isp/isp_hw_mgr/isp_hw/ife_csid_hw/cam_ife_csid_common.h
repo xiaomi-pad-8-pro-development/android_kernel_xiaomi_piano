@@ -19,7 +19,11 @@
  * CRC error threshold is set to be 1% of frame width and
  * this macro is used as divisor in calculation
  */
-#define CAM_IFE_CSID_MAX_CRC_ERR_DIVISOR                  100
+#define CAM_IFE_CSID_MAX_CRC_ERR_DIVISOR                  65535 //changed by xiaomi
+/*add by xiaomi start*/
+#define CAM_IFE_CSID_MAX_CRC_ERR_DIVISOR_XIAOMI           65535
+#define CAM_IFE_CSID_MIN_CRC_ERR_DIVISOR_XIAOMI           1
+/*add by xiaomi end*/
 
 #define CAM_IFE_CSID_HW_CAP_IPP                           0x1
 #define CAM_IFE_CSID_HW_CAP_RDI                           0x2
@@ -547,4 +551,9 @@ int cam_ife_csid_get_base(struct cam_hw_soc_info *soc_info,
 const char *cam_ife_csid_reset_type_to_string(enum cam_ife_csid_reset_type reset_type);
 
 const uint8_t **cam_ife_csid_get_irq_reg_tag_ptr(void);
+
+/* xiaomi add mipi_error_flag begin */
+void count_mipi_error(uint32_t res_type);
+/* xiaomi add mipi_error_flag end */
+
 #endif /*_CAM_IFE_CSID_COMMON_H_ */

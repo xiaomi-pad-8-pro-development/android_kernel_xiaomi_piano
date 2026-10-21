@@ -665,7 +665,6 @@ static int cam_soc_util_set_cesta_clk_rate(struct cam_hw_soc_info *soc_info,
 	int32_t src_clk_idx;
 	struct clk *clk = NULL;
 	int rc = 0;
-	bool is_crmb_sup = false;
 
 	if (!soc_info || (soc_info->src_clk_idx < 0) ||
 		(soc_info->src_clk_idx >= CAM_SOC_MAX_CLK)) {
@@ -683,13 +682,9 @@ static int cam_soc_util_set_cesta_clk_rate(struct cam_hw_soc_info *soc_info,
 	/* Only source clocks are supported by this API to set HW client clock votes */
 	src_clk_idx = soc_info->src_clk_idx;
 	clk = soc_info->clk[src_clk_idx];
-	is_crmb_sup = cam_is_crmb_supported(soc_info);
-
-	CAM_DBG(CAM_UTIL, "%s Requested clk [hi lo]:[%llu %llu] cesta_client_idx:%d is_crmb_sup:%d",
-		soc_info->clk_name[src_clk_idx], high_val, low_val, cesta_client_idx, is_crmb_sup);
 
 	if (!skip_mmrm_set_rate && soc_info->mmrm_handle) {
-		if (!is_crmb_sup) {
+		if (!cam_is_crmb_supported(soc_info)) {
 			CAM_DBG(CAM_UTIL,
 				"cesta mmrm hw client: set %s, high-rate %lld low-rate %lld",
 				soc_info->clk_name[src_clk_idx], high_val, low_val);
@@ -711,7 +706,10 @@ static int cam_soc_util_set_cesta_clk_rate(struct cam_hw_soc_info *soc_info,
 		}
 	}
 
-	if (is_crmb_sup) {
+	CAM_DBG(CAM_UTIL, "%s Requested clk rate [high low]: [%llu %llu] cesta_client_idx: %d",
+		soc_info->clk_name[src_clk_idx], high_val, low_val, cesta_client_idx);
+
+	if (cam_is_crmb_supported(soc_info)) {
 
 		/* For CRMB, we pass 0 for nd_idx as we only need a single node for CESTA */
 
@@ -3348,6 +3346,10 @@ int cam_soc_util_regulator_disable(struct regulator *rgltr,
 	return rc;
 }
 
+int cam_soc_util_get_regulator_enable(struct regulator *rgltr, const char *name)
+{
+	return cam_wrapper_regulator_is_enabled(rgltr, name);
+}
 
 int cam_soc_util_regulator_enable(struct regulator *rgltr,
 	const char *rgltr_name,

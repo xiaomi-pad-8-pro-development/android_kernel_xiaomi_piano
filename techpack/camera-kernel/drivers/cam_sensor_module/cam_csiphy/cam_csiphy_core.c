@@ -18,6 +18,13 @@
 #include "cam_cpas_api.h"
 #include "cam_compat.h"
 
+// XIAOMI ADD: FeatureAutoEQ
+#include <media/cam_csiphy_xm_data.h>
+uint64_t xm_mipi_kmd_setting = 0;
+uint8_t  xm_mipi_para_index[CAM_PHY_MAX_CTRL_NO] = {0};
+extern struct cam_csiphy_xm_data_t cam_csiphy_xm_data;
+// END: FeatureAutoEQ
+
 #define SCM_SVC_CAMERASS 0x18
 #define SECURE_SYSCALL_ID 0x6
 #define SECURE_SYSCALL_ID_2 0x7
@@ -36,7 +43,9 @@
 #define CSIPHY_POLL_DELAY_US 500
 #define CSIPHY_POLL_TIMEOUT_US 10000
 #define CSPIHY_REFGEN_STATUS_BIT (1 << 7)
-#define CSIPHY_ONTHEGO_BUFSIZE 90
+/* Xiaomi change this value from 90 to 150 */
+#define CSIPHY_ONTHEGO_BUFSIZE 150
+#define CSIPHY_QMARGIN_CMN_STATUS_REG_COUNT 11
 #define CSIPHY_ONTHEGO_BUFSIZE_READ (CSIPHY_ONTHEGO_BUFSIZE / 6)
 #define CSIPHY_QMARGIN_STR_LEN       20
 #define CSIPHY_QMARGIN_DEFAULT_STR   "default"
@@ -58,7 +67,7 @@ static DEFINE_MUTEX(active_csiphy_cnt_mutex);
 static DEFINE_MUTEX(main_aon_selection);
 static struct g_csiphy_data g_phy_data[MAX_CSIPHY] = {0};
 static int active_csiphy_hw_cnt;
-static char csiphy_onthego_regs[20];
+static char csiphy_onthego_regs[CSIPHY_ONTHEGO_BUFSIZE - 10]; // mod by xiaomi
 static int csiphy_onthego_reg_count[MAX_CSIPHY];
 static unsigned int csiphy_onthego_regvals[MAX_CSIPHY][CSIPHY_ONTHEGO_BUFSIZE];
 static char csiphy_qmargin[CSIPHY_QMARGIN_STR_LEN];
@@ -111,7 +120,7 @@ static int csiphy_set_onthego_values(const char *val, const struct kernel_param 
 		return -EINVAL;
 	}
 
-	strscpy(csiphy_onthego_regs, p1, 20);
+	strscpy(csiphy_onthego_regs, p1, sizeof(csiphy_onthego_regs)); // mod by xiaomi
 	while ((token = strsep(&p1, ":")) != NULL) {
 		if (!kstrtoint(token, 0, &idx) && idx >= 0 && idx < MAX_CSIPHY)
 			phy_target[idx] = true;
@@ -129,6 +138,12 @@ static int csiphy_set_onthego_values(const char *val, const struct kernel_param 
 		return 0;
 	}
 
+	//xiaomi add begin
+	if (phy_target[idx]) {
+		csiphy_onthego_reg_count[idx] = 0;
+	}
+	//xiaomi add end
+  
 	while (((token = strsep(&p1, ",")) != NULL) && onthego_idx < CSIPHY_ONTHEGO_BUFSIZE) {
 		while (token && token[0] == ' ')
 			token++;
@@ -498,7 +513,6 @@ static inline void cam_csiphy_apply_onthego_reg_values(void __iomem *csiphybase,
 			cam_io_r_mb(csiphybase + csiphy_onthego_regvals[csiphy_idx][i]),
 			csiphy_onthego_regvals[csiphy_idx][i+2]);
 	}
-
 }
 
 int cam_csiphy_release_from_reset_state(struct csiphy_device *csiphy_dev,
@@ -1513,6 +1527,63 @@ static inline void __cam_csiphy_compute_cdr_value(
 		*cdr_val -= csiphy_device->cdr_params.cdr_tolerance;
 }
 
+// XIAOMI ADD: FeatureAutoEQ
+static void XM_MIPI_KMD_GET_CTRL_FLAG_VAL(int ctl_no, u8 *flag, u8 *val)
+{
+	u8 *p1;
+	u8 *p2;
+
+	p1 = flag;
+	p2 = val;
+
+	*p1 = XM_MIPI_KMD_GET_CTRL_FLAG(ctl_no);
+	*p2 = XM_MIPI_KMD_GET_CTRL_VAL(ctl_no);
+
+	return ;
+}
+static int cam_csiphy_cphy_reconfig_work(struct csiphy_device *csiphy_device, struct data_rate_reg_info_t *
+drate_settings)
+{
+	const char *p = NULL;
+	u8 phy_index = 0;
+	u8 phy_flag = 0;
+	u8 phy_val = 0;
+	int ret = 0;
+	int skip_current_setting = 0;
+
+	if ((!csiphy_device) || (!drate_settings)) {
+		skip_current_setting = 0;
+		return skip_current_setting;
+	}
+	if (drate_settings->this_setting_max_choice != 0) {
+		p = csiphy_device->device_name;
+		p += strlen(csiphy_device->device_name) - 1;
+		ret = kstrtou8(p, 0, &phy_index);
+		XM_MIPI_KMD_GET_CTRL_FLAG_VAL(phy_index, &phy_flag, &phy_val);
+		CAM_INFO(CAM_ISP, "phy_index[%d], flag=[%d], val=[%d], max_choice[%d], ret %d",\
+			phy_index, phy_flag, phy_val,drate_settings->this_setting_max_choice, ret);
+
+		if (phy_flag) {
+			if ((xm_mipi_para_index[phy_index] + 1) == drate_settings->this_setting_max_choice) { // the max choice
+				xm_mipi_para_index[phy_index] = 0;
+				skip_current_setting = 0;// we keep using the 1st choisce, when we tried all backup paras
+			}
+
+			if (xm_mipi_para_index[phy_index] >= drate_settings->this_setting_current_choice) {
+				skip_current_setting = 1;// continue...
+			} else {
+				XM_MIPI_KMD_SET_CTRL_FLAG_VAL(phy_index, 0);
+				xm_mipi_para_index[phy_index]++;
+				xm_mipi_para_index[phy_index] %= drate_settings->this_setting_max_choice;
+				skip_current_setting = 0;// find the backup ones
+			}
+		}
+	}
+
+	return skip_current_setting;
+}
+// END: FeatureAutoEQ
+
 static int cam_csiphy_cphy_data_rate_config(struct csiphy_device *csiphy_device, int32_t idx,
 	uint8_t datarate_variant_idx)
 {
@@ -1573,6 +1644,22 @@ static int cam_csiphy_cphy_data_rate_config(struct csiphy_device *csiphy_device,
 				data_rate_idx, supported_phy_bw, required_phy_data_rate);
 			continue;
 		}
+
+		// XIAOMI ADD: FeatureAutoEQ
+		if (cam_csiphy_xm_data.auto_eq_enable == XM_CSIPHY_ENABLE_AUTO_EQ_ENABLE) {
+			CAM_INFO(CAM_CSIPHY, "auto eq enable");
+			if (cam_csiphy_cphy_reconfig_work(csiphy_device, &drate_settings[data_rate_idx]) == 1) {
+				CAM_INFO(CAM_CSIPHY,
+					"double Skipping table [%d] with BW: %llu, Required data_rate: %llu",
+					data_rate_idx, supported_phy_bw, required_phy_data_rate);
+				continue;
+			}
+			CAM_INFO(CAM_CSIPHY,
+					"table [%d] with BW: %llu, Required data_rate: %llu, max.using[%d.%d]",
+					data_rate_idx, supported_phy_bw, required_phy_data_rate,
+					drate_settings[data_rate_idx].this_setting_max_choice, drate_settings[data_rate_idx].this_setting_current_choice);
+		}
+		// END: FeatureAutoEQ
 
 		CAM_DBG(CAM_CSIPHY, "table[%d] BW : %llu Selected",
 			data_rate_idx, supported_phy_bw);
@@ -1865,6 +1952,17 @@ int32_t cam_csiphy_config_dev(struct csiphy_device *csiphy_dev,
 	if (rc)
 		return rc;
 	skew_cal_enable = csiphy_dev->csiphy_info[index].mipi_flags;
+
+	/* xiaomi add DPHY log - begin */
+	if (!csiphy_dev->csiphy_info[index].csiphy_3phase) {
+		for (i = 0; i < cfg_size; i++) {
+			CAM_DBG(MI_DEBUG,
+				"register index: %d/%d, param_type: %d, writing reg: %x, val: %x, delay: %dus",
+				i, cfg_size, reg_array[i].csiphy_param_type, reg_array[i].reg_addr,
+				reg_array[i].reg_data, reg_array[i].delay);
+		}
+	}
+	/* xiaomi add DPHY log - end */
 
 	for (i = 0; i < cfg_size; i++) {
 		switch (reg_array[i].csiphy_param_type) {

@@ -16,8 +16,9 @@
 #define MAX_REQ_SLOTS                  48
 #define MAX_REQ_STATE_MONITOR_NUM      108
 #define MAX_DEV_FOR_SPECIAL_OPS        4
-
-#define CAM_REQ_MGR_WATCHDOG_TIMEOUT          1000
+/*xiaomi plus TIMEOUT begin*/
+#define CAM_REQ_MGR_WATCHDOG_TIMEOUT          3000
+/*xiaomi plus TIMEOUT end*/
 #define CAM_REQ_MGR_WATCHDOG_TIMEOUT_DEFAULT  5000
 #define CAM_REQ_MGR_WATCHDOG_TIMEOUT_MAX      60000
 #define CAM_REQ_MGR_SCHED_REQ_TIMEOUT         1000
@@ -44,7 +45,7 @@
 
 #define MAXIMUM_LINKS_PER_SESSION  4
 
-#define MAXIMUM_RETRY_ATTEMPTS 3
+#define MAXIMUM_RETRY_ATTEMPTS 6
 
 #define VERSION_1  1
 #define VERSION_2  2

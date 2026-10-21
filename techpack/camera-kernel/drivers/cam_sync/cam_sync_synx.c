@@ -538,10 +538,17 @@ int cam_synx_obj_internal_signal(int32_t row_idx,
 	/* Ensures sync obj cb is not invoked */
 	row->sync_signal_synx = true;
 
-	if (row->state != CAM_SYNX_OBJ_STATE_ACTIVE) {
+	if (row->state == CAM_SYNX_OBJ_STATE_INVALID) {
 		CAM_ERR(CAM_SYNX, "synx obj: %u not in right state: %d to signal",
 			signal_synx_obj->synx_obj, row->state);
 		rc = -EINVAL;
+		goto monitor_dump;
+	}
+
+	if (row->state == CAM_SYNX_OBJ_STATE_SIGNALED) {
+		CAM_DBG(CAM_SYNX, "synx obj: %u already signalled state: %d",
+			signal_synx_obj->synx_obj, row->state);
+		rc = -EALREADY;
 		goto monitor_dump;
 	}
 
@@ -587,7 +594,7 @@ int cam_synx_obj_internal_signal(int32_t row_idx,
 	}
 
 	rc = __cam_synx_signal_util(signal_synx_obj->synx_obj, signal_status);
-	if (rc) {
+	if (rc && rc != -EALREADY) {
 		CAM_ERR(CAM_SYNX, "Failed to signal synx hdl: %u with status: %u rc: %d",
 			signal_synx_obj->synx_obj, signal_status, rc);
 		goto end;

@@ -159,6 +159,7 @@ int cam_ois_driver_soc_init(struct cam_ois_ctrl_t *o_ctrl)
 	INIT_LIST_HEAD(&(o_ctrl->i2c_fw_version_data.list_head));
 	INIT_LIST_HEAD(&(o_ctrl->i2c_mode_data.list_head));
 	INIT_LIST_HEAD(&(o_ctrl->i2c_time_data.list_head));
+	INIT_LIST_HEAD(&(o_ctrl->i2c_postinit_data.list_head)); // xiaomi add
 
 	return rc;
 }

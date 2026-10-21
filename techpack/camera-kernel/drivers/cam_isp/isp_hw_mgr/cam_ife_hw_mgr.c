@@ -29,6 +29,9 @@
 #include "cam_mem_mgr_api.h"
 #include "cam_common_util.h"
 #include "cam_presil_hw_access.h"
+// XIAOMI ADD: enableForceFullRecoveryForCRC
+#include "cam_csiphy_xm_data.h"
+// END: enableForceFullRecoveryForCRC
 
 #define CAM_IFE_SAFE_DISABLE 0
 #define CAM_IFE_SAFE_ENABLE 1
@@ -85,6 +88,10 @@ static uint32_t blob_type_hw_cmd_map[CAM_ISP_GENERIC_BLOB_TYPE_MAX] = {
 	CAM_ISP_HW_CMD_BLANKING_UPDATE,
 	CAM_ISP_HW_CMD_WM_CONFIG_UPDATE_V2,
 };
+
+// XIAOMI ADD: enableForceFullRecoveryForCRC
+extern struct cam_csiphy_xm_data_t cam_csiphy_xm_data;
+// END: enableForceFullRecoveryForCRC
 
 static struct cam_ife_hw_mgr g_ife_hw_mgr;
 static uint32_t g_num_ife_available, g_num_ife_lite_available, g_num_sfe_available;
@@ -565,6 +572,13 @@ static int cam_isp_mgr_drv_config(struct cam_ife_hw_mgr_ctx         *ctx,
 			request_id, ctx->ctx_index);
 	}
 
+	if (force_disable_drv) {
+		update_drv = true;
+		drv_en = false;
+		CAM_DBG(CAM_ISP, "req_id:%llu force to disable drv, ctx:%d",
+			request_id, ctx->ctx_index);
+	}
+
 	if (!update_drv) {
 		CAM_DBG(CAM_ISP, "req_id:%llu no need to update drv, ctx:%d",
 			request_id, ctx->ctx_index);
@@ -839,7 +853,6 @@ static int cam_ife_mgr_handle_reg_dump(struct cam_ife_hw_mgr_ctx *ctx,
 	struct cam_hw_soc_skip_dump_args skip_dump_args;
 	uintptr_t cpu_addr = 0;
 	size_t    buf_size = 0;
-	uint8_t total_ctx_acquired = 0;
 
 	CAM_DBG(CAM_ISP, "Reg dump req_type: %u ctx_idx: %u req:%llu",
 		meta_type, ctx->ctx_index, ctx->applied_req_id);
@@ -874,13 +887,8 @@ static int cam_ife_mgr_handle_reg_dump(struct cam_ife_hw_mgr_ctx *ctx,
 			"Reg dump values might be from more than one request, ctx_idx: %u",
 			ctx->ctx_index);
 
-	for (i = 0; i < CAM_ISP_MULTI_CTXT_MAX; i++) {
-		if (ctx->acq_hw_ctxt_src_dst_map[i])
-			total_ctx_acquired++;
-	}
-
-	if (g_ife_hw_mgr.isp_caps.skip_regdump_data.skip_regdump &&
-			(total_ctx_acquired != 1)) {
+	if ((meta_type != CAM_ISP_PACKET_META_REG_DUMP_ON_ERROR) &&
+			g_ife_hw_mgr.isp_caps.skip_regdump_data.skip_regdump) {
 		skip_dump_args.skip_regdump =
 			g_ife_hw_mgr.isp_caps.skip_regdump_data.skip_regdump;
 		skip_dump_args.start_offset =
@@ -16411,6 +16419,17 @@ static int cam_ife_hw_mgr_handle_csid_error(
 		recovery_data.error_type = err_type;
 		recoverable = false;
 	}
+
+	// XIAOMI ADD: enableForceFullRecoveryForCRC
+	if ((cam_csiphy_xm_data.crc_force_full_recovery ==
+		XM_CSIPHY_CRC_FORCE_FULL_RECOVERY_ENABLE) &&
+		(cam_csiphy_xm_data.crc_occurred)) {
+			CAM_ERR(CAM_ISP, "force to trigger crc full recovery, error %d", err_type);
+			recovery_data.error_type = err_type;
+			recoverable = false;
+			cam_csiphy_xm_data.crc_occurred = 0;
+	}
+	// END: enableForceFullRecoveryForCRC
 
 	if (recoverable && (is_bus_overflow ||
 		(err_type & CAM_ISP_RECOVERABLE_CSID_ERRORS))) {

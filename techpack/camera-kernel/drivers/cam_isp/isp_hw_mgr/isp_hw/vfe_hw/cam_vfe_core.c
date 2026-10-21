@@ -21,7 +21,7 @@
 #include "cam_common_util.h"
 
 static const char drv_name[] = "vfe";
-
+/*int g_cam_tfe_clk_lvl[CAM_IFE_HW_NUM_MAX] = {-1, -1, -1};*/
 int cam_vfe_get_hw_caps(void *hw_priv, void *get_hw_cap_args, uint32_t arg_size)
 {
 	struct cam_hw_info                *vfe_dev = hw_priv;

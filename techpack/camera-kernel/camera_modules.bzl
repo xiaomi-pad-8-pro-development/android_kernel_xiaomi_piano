@@ -1,6 +1,6 @@
 load("//build/kernel/kleaf:kernel.bzl", "ddk_module")
 load("//build/bazel_common_rules/dist:dist.bzl", "copy_to_dist_dir")
-load("//msm-kernel:target_variants.bzl", "get_all_variants")
+load("//msm-kernel:target_variants.bzl", "get_all_variants", "get_arch_of_target")
 load(":project_defconfig.bzl", "get_project_defconfig")
 
 def _define_module(target, variant):
@@ -58,6 +58,7 @@ def _define_module(target, variant):
             "drivers/cam_utils/cam_soc_util.c",
             "drivers/cam_utils/cam_packet_util.c",
             "drivers/cam_utils/cam_debug_util.c",
+            "drivers/cam_utils/cam_dump_util.c",
             "drivers/cam_utils/cam_trace.c",
             "drivers/cam_utils/cam_common_util.c",
             "drivers/cam_utils/cam_compat.c",
@@ -183,6 +184,7 @@ def _define_module(target, variant):
                     "drivers/cam_sensor_module/cam_cci/cam_cci_dev.c",
                     "drivers/cam_sensor_module/cam_cci/cam_cci_core.c",
                     "drivers/cam_sensor_module/cam_cci/cam_cci_soc.c",
+                    "drivers/cam_sensor_module/cam_cci/cam_cci_debug_util.c",
                     "drivers/cam_sensor_module/cam_tpg/cam_tpg_dev.c",
                     "drivers/cam_sensor_module/cam_tpg/cam_tpg_core.c",
                     "drivers/cam_sensor_module/cam_tpg/tpg_hw/tpg_hw.c",
@@ -214,6 +216,8 @@ def _define_module(target, variant):
                     "drivers/cam_sensor_module/cam_flash/cam_flash_core.c",
                     "drivers/cam_sensor_module/cam_flash/cam_flash_soc.c",
                     "drivers/cam_sensor_module/cam_sensor_module_debug.c",
+                    "drivers/cam_sensor_module/cam_sensor_utils/cam_parklens_thread.c",
+                    "drivers/cam_sensor_module/cam_ois/sem1217s.c",
                 ],
             },
             "CONFIG_SPECTRA_CUSTOM": {
@@ -252,10 +256,35 @@ def _define_module(target, variant):
         defconfig = "{}_defconfig_generated".format(tv),
         kernel_build = "//msm-kernel:{}".format(tv),
     )
-
+    ddk_module(
+        name = "{}_cameralog".format(tv),
+        out = "cameralog.ko",
+        srcs = [
+            "drivers/cam_log/cam_log.c",
+        ],
+        deps = deps,
+        kernel_build = "//msm-kernel:{}".format(tv),
+    )
+    ddk_module(
+        name = "{}_cameramsger".format(tv),
+        out = "cameramsger.ko",
+        srcs = [
+            "drivers/cam_msger/cam_msger.c",
+            "drivers/cam_msger/cam_sched.c",
+            "drivers/cam_msger/cam_pid.c",
+            "drivers/cam_msger/cam_binder.c",
+            "drivers/cam_msger/cam_msger_common.c",
+        ],
+        deps = deps,
+        kernel_build = "//msm-kernel:{}".format(tv),
+    )
     copy_to_dist_dir(
         name = "{}_camera_dist".format(tv),
-        data = [":{}_camera".format(tv)],
+        data = [
+            ":{}_camera".format(tv),
+            ":{}_cameralog".format(tv),
+            ":{}_cameramsger".format(tv),
+        ],
         dist_dir = "out/target/product/{}/dlkm/lib/modules/".format(target),
         flat = True,
         wipe_dist_dir = False,
@@ -264,5 +293,10 @@ def _define_module(target, variant):
     )
 
 def define_camera_module():
-    for (t, v) in get_all_variants():
+    pairs = []
+    for target, variant in get_all_variants():
+        arch = get_arch_of_target(target)
+        if arch == target:
+            pairs.append((target, variant))
+    for (t, v) in pairs:
         _define_module(t, v)

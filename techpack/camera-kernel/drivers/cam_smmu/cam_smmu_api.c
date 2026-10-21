@@ -3967,11 +3967,13 @@ int cam_smmu_map_user_iova(int handle, int ion_fd, struct dma_buf *dmabuf,
 
 		if (ts)
 			CAM_CONVERT_TIMESTAMP_FORMAT((*ts), hrs, min, sec, ms);
-		CAM_DBG(CAM_SMMU,
+		/* xiaomi limited non-fatal logs print */
+		CAM_INFO_RATE_LIMIT(CAM_SMMU,
 			"fd=%d already in list [%llu:%llu:%lu:%llu] cb=%s idx=%d handle=%d len=%llu,give same addr back",
 			ion_fd, hrs, min, sec, ms,
 			iommu_cb_set.cb_info[idx].name[0],
 			idx, handle, *len_ptr);
+		/* xiaomi limited non-fatal logs print */
 		rc = 0;
 		goto get_addr_end;
 	}

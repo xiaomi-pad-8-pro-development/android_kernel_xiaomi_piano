@@ -224,15 +224,12 @@ int cam_context_handle_crm_flush_req(struct cam_context *ctx,
 	}
 
 	mutex_lock(&ctx->ctx_mutex);
-	if (ctx->state != CAM_CTX_FLUSHED) {
-		if (ctx->state_machine[ctx->state].crm_ops.flush_req) {
-			rc = ctx->state_machine[ctx->state].crm_ops.flush_req(ctx,
-				flush);
-		} else {
-			CAM_INFO(CAM_CORE, "No crm flush req in dev %d, state %d, name %s",
-				ctx->dev_hdl, ctx->state, ctx->dev_name);
-			rc = -EPROTO;
-		}
+	if (ctx->state_machine[ctx->state].crm_ops.flush_req) {
+		rc = ctx->state_machine[ctx->state].crm_ops.flush_req(ctx, flush);
+	} else {
+		CAM_INFO(CAM_CORE, "No crm flush req in dev %d, state %d, name %s",
+			ctx->dev_hdl, ctx->state, ctx->dev_name);
+		rc = -EPROTO;
 	}
 	mutex_unlock(&ctx->ctx_mutex);
 
@@ -765,6 +762,13 @@ int cam_context_init(struct cam_context *ctx,
 	ctx->state_machine = NULL;
 	ctx->ctx_priv = NULL;
 	ctx->img_iommu_hdl = img_iommu_hdl;
+
+	/*xiaomi added detect framerate begin*/
+	ctx->dbg_timestamp = 0;
+	ctx->dbg_frame     = 0;
+	ctx->exlink        = -1;
+	ctx->batchsize     = 1;
+	/*xiaomi added detect framerate end*/
 
 	return 0;
 }
