@@ -5,7 +5,8 @@
  * The 803x sleeps while its sleep pin is low. Before every transfer the
  * host raises the pin and waits for the controller to raise its interrupt
  * line, and once the bus has been idle for a while it drops the pin again.
- * A controller that never wakes up is reset.
+ * A controller that never wakes up has no firmware running, so it is reset
+ * and gets its firmware uploaded again.
  */
 
 #include <linux/delay.h>
@@ -57,8 +58,11 @@ void Nanosic_PM_try_wakeup(struct nano_i2c_client *i2c_client)
 		}
 
 		if (i == PM_WAKEUP_TIMEOUT_MS) {
-			dbgprint(ERROR_LEVEL, "803x did not wake up, resetting it\n");
+			dbgprint(ERROR_LEVEL, "803x did not wake up, reloading it\n");
 			Nanosic_GPIO_reset();
+			Nanosic_firmware_load(i2c_client);
+			/* let the firmware start */
+			msleep(500);
 			Nanosic_PM_hold(i2c_client);
 		}
 

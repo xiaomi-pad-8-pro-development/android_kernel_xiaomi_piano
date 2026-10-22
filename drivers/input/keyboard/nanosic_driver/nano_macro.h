@@ -303,6 +303,7 @@ extern int Nanosic_cache_put(void);
 extern void Nanosic_PM_init(struct nano_i2c_client *i2c_client);
 extern void Nanosic_PM_try_wakeup(struct nano_i2c_client *i2c_client);
 extern void Nanosic_PM_free(struct nano_i2c_client *i2c_client);
+extern int Nanosic_firmware_load(struct nano_i2c_client *i2c_client);
 
 extern char gVers803x[21];
 extern char gVers176x[21];
