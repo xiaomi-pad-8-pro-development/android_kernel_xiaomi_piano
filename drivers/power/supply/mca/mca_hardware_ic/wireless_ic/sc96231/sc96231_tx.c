@@ -778,14 +778,10 @@ static int sc96231_parse_dt(struct sc96231 *sc)
 			return ret;
 	}
 
-	for (i = SC96231_GPIO_KB_FRONT; i <= SC96231_GPIO_KB_BACK; i++) {
-		if (sc->gpios[i] < 0)
-			continue;
-		ret = devm_gpio_request_one(sc->dev, sc->gpios[i], GPIOF_IN,
-					    sc96231_gpio_names[i]);
-		if (ret)
-			return ret;
-	}
+	/*
+	 * The keyboard hall sensors belong to xiaomi-hall, which reports them
+	 * as switches. They are only read here, so leave them unrequested.
+	 */
 
 	return 0;
 }
