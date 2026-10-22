@@ -287,7 +287,7 @@ extern int Nanosic_GPIO_recovery(struct nano_i2c_client *client, char *data,
 extern int Nanosic_GPIO_register(int vdd_pin, int reset_pin, int status_pin,
 				 int irq_pin, int sleep_pin);
 extern int Nanosic_Hall_notify(int hall_n_pin, int hall_s_pin);
-extern int Nanosic_RequestGensor_notify(void);
+extern int Nanosic_screen_state_notify(bool on);
 extern void Nanosic_GPIO_release(void);
 extern void Nanosic_GPIO_sleep(bool sleep);
 extern void Nanosic_GPIO_set(int gpio_pin, bool gpio_level);
@@ -328,7 +328,9 @@ struct xiaomi_keyboard_data {
 	bool dev_pm_suspend;
 	int irq;
 	struct workqueue_struct *event_wq;
+	struct work_struct early_resume_work;
 	struct work_struct resume_work;
+	struct work_struct early_suspend_work;
 	struct work_struct suspend_work;
 };
 
@@ -337,7 +339,11 @@ static struct xiaomi_keyboard_data *mdata;
 __attribute__((unused)) static int xiaomi_keyboard_init(
 	struct nano_i2c_client *i2c_client);
 __attribute__((unused)) static void
+keyboard_early_resume_work(struct work_struct *work);
+__attribute__((unused)) static void
 keyboard_resume_work(struct work_struct *work);
+__attribute__((unused)) static void
+keyboard_early_suspend_work(struct work_struct *work);
 __attribute__((unused)) static void
 keyboard_suspend_work(struct work_struct *work);
 __attribute__((unused)) static int

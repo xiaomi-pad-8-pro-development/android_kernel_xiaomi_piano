@@ -37,7 +37,7 @@ int gpio_hall_n_pin = -1;
 int gpio_hall_s_pin = -1;
 int g_wakeup_irqno = -1;
 
-bool g_panel_status = false; /*1:on, 0:off*/
+bool g_panel_status = true; /*1:on, 0:off*/
 #define SUPPORT_GPIO_SLEEP_FUNCTION
 
 /** ************************************************************************/ /**
@@ -175,7 +175,6 @@ int Nanosic_GPIO_register(int vdd_pin, int reset_pin, int status_pin,
 	}
 
 	registered = true;
-	g_panel_status = false;
 
 	dbgprint(ERROR_LEVEL, "register gpio succeed\n");
 
@@ -429,33 +428,21 @@ int Nanosic_Hall_notify(int hall_n_pin, int hall_s_pin)
 }
 
 /** ************************************************************************/ /**
- *  @func Nanosic_RequestGensor_notify
+ *  @func Nanosic_screen_state_notify
  *
- *  @brief request fw get gsensor
- *
+ *  @brief tell the keypad whether the screen is on
  ** */
-int Nanosic_RequestGensor_notify(void)
+int Nanosic_screen_state_notify(bool on)
 {
-	int err;
-	unsigned char requestgensor_data[66] = { 0x32, 0x00,	   0x4E,
-						 0x31, FIELD_HOST, FIELD_176X,
-						 0x52, 0x00,	   0x89 };
+	char cmd[I2C_DATA_LENGTH_WRITE] = { 0x32,	    0x00, 0x4E, 0x31, FIELD_HOST,
+					    FIELD_176X, 0x25, 0x01, on,	  0x00 };
+	int i, err;
 
-	//spin_lock(&gI2c_client->input_report_lock);
+	for (i = 2; i < 9; i++)
+		cmd[9] += cmd[i]; /*cal sum*/
 
-	err = Nanosic_i2c_write(gI2c_client, requestgensor_data,
-				sizeof(requestgensor_data));
-
-	dbgprint(
-		DEBUG_LEVEL,
-		"Nanosic_RequestGensor_notify, err:%d report 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x\n",
-		err, requestgensor_data[0], requestgensor_data[1],
-		requestgensor_data[2], requestgensor_data[3],
-		requestgensor_data[4], requestgensor_data[5],
-		requestgensor_data[6], requestgensor_data[7],
-		requestgensor_data[8], requestgensor_data[9],
-		requestgensor_data[10]);
-	//spin_unlock(&gI2c_client->input_report_lock);
+	err = Nanosic_i2c_write(gI2c_client, cmd, sizeof(cmd));
+	dbgprint(ALERT_LEVEL, "send screen %s: %d\n", on ? "on" : "off", err);
 
 	return err;
 }

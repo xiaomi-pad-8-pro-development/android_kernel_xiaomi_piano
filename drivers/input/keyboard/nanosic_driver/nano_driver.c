@@ -344,7 +344,9 @@ static int xiaomi_keyboard_init(struct nano_i2c_client *i2c_client)
 			"xiaomi_keyboard_init:Can not create work thread for suspend/resume!!");
 		return -ENOMEM;
 	}
+	INIT_WORK(&mdata->early_resume_work, keyboard_early_resume_work);
 	INIT_WORK(&mdata->resume_work, keyboard_resume_work);
+	INIT_WORK(&mdata->early_suspend_work, keyboard_early_suspend_work);
 	INIT_WORK(&mdata->suspend_work, keyboard_suspend_work);
 
 	mdata->notifier_cookie = panel_event_notifier_register(
@@ -371,23 +373,29 @@ err_register_drm_notif_failed:
 	return ret;
 }
 
+/* the screen is about to turn on, wake the 803x and fetch what it queued */
+static void keyboard_early_resume_work(struct work_struct *work)
+{
+	int ret = 0;
+	dbgprint(ALERT_LEVEL, "keyboard_early_resume_work: enter\n");
+	ret = Nanosic_cache_put();
+	if (ret < 0)
+		dbgprint(ERROR_LEVEL,
+			 "keyboard_early_resume_work: Nanosic_cache_put err:%d\n",
+			 ret);
+	Nanosic_GPIO_sleep(true);
+	Nanosic_workQueue_schedule(gI2c_client->worker);
+}
+
 static void keyboard_resume_work(struct work_struct *work)
 {
 	int ret = 0;
 	dbgprint(ALERT_LEVEL, "keyboard_resume_work: enter\n");
-	ret = Nanosic_cache_put();
+	ret = Nanosic_screen_state_notify(true);
 	if (ret < 0)
 		dbgprint(ERROR_LEVEL,
-			 "keyboard_resume_work: Nanosic_cache_put err:%d\n",
+			 "keyboard_resume_work: Nanosic_screen_state_notify err:%d\n",
 			 ret);
-	Nanosic_GPIO_sleep(true);
-	Nanosic_workQueue_schedule(gI2c_client->worker);
-	ret = Nanosic_RequestGensor_notify();
-	if (ret < 0)
-		dbgprint(
-			ERROR_LEVEL,
-			"keyboard_resume_work: Nanosic_RequestGensor_notify err:%d\n",
-			ret);
 	ret = Nanosic_Hall_notify(gpio_hall_n_pin, gpio_hall_s_pin);
 	if (ret < 0)
 		dbgprint(ERROR_LEVEL,
@@ -395,10 +403,23 @@ static void keyboard_resume_work(struct work_struct *work)
 			 ret);
 }
 
+/* the screen is about to turn off, tell the keypad while the 803x is awake */
+static void keyboard_early_suspend_work(struct work_struct *work)
+{
+	int ret;
+	dbgprint(ALERT_LEVEL, "keyboard_early_suspend_work: enter\n");
+	ret = Nanosic_screen_state_notify(false);
+	if (ret < 0)
+		dbgprint(ERROR_LEVEL,
+			 "keyboard_early_suspend_work: Nanosic_screen_state_notify err:%d\n",
+			 ret);
+}
+
 static void keyboard_suspend_work(struct work_struct *work)
 {
 	dbgprint(ALERT_LEVEL, "keyboard_suspend_work: enter\n");
 	Nanosic_GPIO_sleep(false);
+	pm_relax(gI2c_client->dev);
 }
 
 static int xiaomi_keyboard_pm_suspend(struct device *dev)
@@ -471,18 +492,20 @@ static void keyboard_panel_notifier_callback(enum panel_event_notifier_tag tag,
 	switch (notification->notif_type) {
 	case DRM_PANEL_EVENT_BLANK:
 	case DRM_PANEL_EVENT_BLANK_LP:
-		if (notification->notif_data.early_trigger) {
-			dbgprint(ALERT_LEVEL, "keyboard suspend\n");
-			flush_workqueue(mdata->event_wq);
-			queue_work(mdata->event_wq, &mdata->suspend_work);
-		}
+		dbgprint(ALERT_LEVEL, "keyboard suspend, early %d\n",
+			 notification->notif_data.early_trigger);
+		queue_work(mdata->event_wq,
+			   notification->notif_data.early_trigger ?
+				   &mdata->early_suspend_work :
+				   &mdata->suspend_work);
 		break;
 	case DRM_PANEL_EVENT_UNBLANK:
-		if (!notification->notif_data.early_trigger) {
-			dbgprint(ALERT_LEVEL, "keyboard resume\n");
-			flush_workqueue(mdata->event_wq);
-			queue_work(mdata->event_wq, &mdata->resume_work);
-		}
+		dbgprint(ALERT_LEVEL, "keyboard resume, early %d\n",
+			 notification->notif_data.early_trigger);
+		queue_work(mdata->event_wq,
+			   notification->notif_data.early_trigger ?
+				   &mdata->early_resume_work :
+				   &mdata->resume_work);
 		break;
 	default:
 		break;
