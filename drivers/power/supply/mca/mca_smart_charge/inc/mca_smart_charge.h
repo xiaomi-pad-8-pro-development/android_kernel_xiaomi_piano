@@ -192,6 +192,7 @@ struct smart_charge_info {
 	int scene;
 	int fake_scene;
 	int board_temp;
+	bool board_temp_set;
 	int enable_fv_dec_by_cc;
 
 	int smart_night_val;

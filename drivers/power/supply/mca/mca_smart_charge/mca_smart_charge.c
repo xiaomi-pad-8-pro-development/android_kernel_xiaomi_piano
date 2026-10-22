@@ -192,6 +192,7 @@ void mca_smartchg_set_board_temp(int board_temp)
 
 	mca_log_info("set board_temp: %d\n", board_temp);
 	info->board_temp = board_temp;
+	info->board_temp_set = true;
 }
 EXPORT_SYMBOL(mca_smartchg_set_board_temp);
 
@@ -855,6 +856,10 @@ update_smart_bypass_temp_section(struct smart_charge_info *info,
 	int cur = info->bypass_temp_index;
 	int report_index;
 	int i;
+
+	/* without a board temperature from userspace, go by the battery */
+	if (!info->board_temp_set)
+		(void)strategy_class_fg_ops_get_temperature(&board_temp);
 
 	for (i = 0; i < (int)count; i++) {
 		if (board_temp >= sections[i].temp_high ||
