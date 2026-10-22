@@ -214,6 +214,7 @@ static int nanosic_803_probe(struct i2c_client *client)
 	gI2c_client = I2client;
 	gI2c_client->dev = &(client->dev);
 	Nanosic_edge_filter_init(of_node);
+	device_init_wakeup(&client->dev, true);
 
 	ret = xiaomi_keyboard_init(I2client);
 	if (ret < 0)
@@ -275,6 +276,7 @@ static void nanosic_803_remove(struct i2c_client *client)
 	Nanosic_GPIO_release();
 	gI2c_client = NULL;
 	Nanosic_i2c_release(I2client);
+	device_init_wakeup(&client->dev, false);
 
 	Nanosic_switch_regulator(false);
 
@@ -383,6 +385,7 @@ static void keyboard_early_resume_work(struct work_struct *work)
 		dbgprint(ERROR_LEVEL,
 			 "keyboard_early_resume_work: Nanosic_cache_put err:%d\n",
 			 ret);
+	g_panel_status = true;
 	Nanosic_GPIO_sleep(true);
 	Nanosic_workQueue_schedule(gI2c_client->worker);
 }
@@ -418,6 +421,7 @@ static void keyboard_early_suspend_work(struct work_struct *work)
 static void keyboard_suspend_work(struct work_struct *work)
 {
 	dbgprint(ALERT_LEVEL, "keyboard_suspend_work: enter\n");
+	g_panel_status = false;
 	Nanosic_GPIO_sleep(false);
 	pm_relax(gI2c_client->dev);
 }

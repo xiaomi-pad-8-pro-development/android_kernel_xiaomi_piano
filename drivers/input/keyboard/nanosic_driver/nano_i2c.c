@@ -233,6 +233,8 @@ int Nanosic_i2c_write(struct nano_i2c_client *i2c_client, void *buf, size_t len)
 		return -1;
 	}
 
+	Nanosic_PM_try_wakeup(i2c_client);
+
 	adap = i2c_get_adapter(i2c_client->i2c_bus_id);
 
 	tmp_buf[0] = i2c_client->i2c_slave_addr;
@@ -403,6 +405,8 @@ int Nanosic_i2c_read_handler(void *data)
 		return -1;
 	}
 
+	Nanosic_PM_try_wakeup(i2c_client);
+
 	datalen = Nanosic_i2c_read(i2c_client, buf, sizeof(buf));
 	if (datalen > 0) {
 		Nanosic_i2c_parse(buf, datalen);
@@ -519,6 +523,8 @@ struct nano_i2c_client *Nanosic_i2c_register(int irqno, u32 irq_flags,
 	mutex_init(&i2c_client->read_mutex);
 	/*initialize i2c write mutexlock*/
 	mutex_init(&i2c_client->write_mutex);
+	/* the interrupt below already wakes the 803x up */
+	Nanosic_PM_init(i2c_client);
 
 	i2c_client->input_dev = input_allocate_device();
 	if (!i2c_client->input_dev) {
@@ -605,5 +611,6 @@ void Nanosic_i2c_release(struct nano_i2c_client *i2c_client)
 		Nanosic_timer_release();
 	}
 #endif
+	Nanosic_PM_free(i2c_client);
 	kfree(i2c_client);
 }

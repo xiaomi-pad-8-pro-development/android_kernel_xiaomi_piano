@@ -33,6 +33,7 @@ static int gpio_status_pin = -1;
 static int gpio_vdd_pin = -1;
 static int gpio_irq_pin = -1;
 static int gpio_sleep_pin = -1;
+static int gpio_sleep_level = -1;
 int gpio_hall_n_pin = -1;
 int gpio_hall_s_pin = -1;
 int g_wakeup_irqno = -1;
@@ -156,6 +157,7 @@ int Nanosic_GPIO_register(int vdd_pin, int reset_pin, int status_pin,
 	/* let the 803x come out of reset before waking it up */
 	msleep(500);
 	gpio_set_value(gpio_sleep_pin, 1); /*output 1 from reset pin*/
+	gpio_sleep_level = 1;
 	msleep(50);
 
 	if (gpio_is_valid(gpio_status_pin)) {
@@ -330,21 +332,48 @@ int Nanosic_GPIO_recovery(struct nano_i2c_client *client, char *data,
 /** ************************************************************************/ /**
  *  @func Nanosic_GPIO_sleep
  *  
- *  @brief switch to sleep mode , low level valid 低电平有效
- *  bool sleep : 0 -> 进入睡眠模式
- *               1 -> 退出睡眠模式
+ *  @brief drive the sleep pin, the 803x sleeps while it is low
  ** */
-void Nanosic_GPIO_sleep(bool sleep)
+void Nanosic_GPIO_sleep(bool awake)
 {
 	if (registered == false) {
 		dbgprint(ERROR_LEVEL, "need register first\n");
 		return;
 	}
 
-	/*GPIO_SLEEP set*/
-	gpio_set_value(gpio_sleep_pin, sleep);
-	g_panel_status = sleep;
-	dbgprint(DEBUG_LEVEL, "set gpio sleep pin %d\n", sleep);
+	if (gpio_sleep_level == awake)
+		return;
+
+	gpio_set_value(gpio_sleep_pin, awake);
+	gpio_sleep_level = awake;
+	dbgprint(DEBUG_LEVEL, "set gpio sleep pin %d\n", awake);
+}
+
+/** ************************************************************************/ /**
+ *  @func Nanosic_GPIO_irqpin_get
+ *
+ *  @brief the 803x holds its interrupt line high while it is awake
+ ** */
+int Nanosic_GPIO_irqpin_get(void)
+{
+	if (!gpio_is_valid(gpio_irq_pin))
+		return 1;
+
+	return gpio_get_value(gpio_irq_pin);
+}
+
+/** ************************************************************************/ /**
+ *  @func Nanosic_GPIO_reset
+ *
+ *  @brief pulse the reset pin and wait for the 803x to boot
+ ** */
+void Nanosic_GPIO_reset(void)
+{
+	gpio_set_value(gpio_reset_pin, 0);
+	msleep(100);
+	gpio_set_value(gpio_reset_pin, 1);
+	msleep(500);
+	dbgprint(ALERT_LEVEL, "reset 8030 done\n");
 }
 
 /** ************************************************************************/ /**

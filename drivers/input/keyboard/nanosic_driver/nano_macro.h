@@ -93,6 +93,8 @@ struct nano_i2c_client {
 	struct device *dev;
 	struct input_dev *input_dev;
 	struct spinlock input_report_lock;
+	struct mutex pm_mutex;
+	struct timer_list pm_timer;
 };
 
 /*input数据包类型*/
@@ -289,13 +291,18 @@ extern int Nanosic_GPIO_register(int vdd_pin, int reset_pin, int status_pin,
 extern int Nanosic_Hall_notify(int hall_n_pin, int hall_s_pin);
 extern int Nanosic_screen_state_notify(bool on);
 extern void Nanosic_GPIO_release(void);
-extern void Nanosic_GPIO_sleep(bool sleep);
+extern void Nanosic_GPIO_sleep(bool awake);
+extern int Nanosic_GPIO_irqpin_get(void);
+extern void Nanosic_GPIO_reset(void);
 extern void Nanosic_GPIO_set(int gpio_pin, bool gpio_level);
 extern void Nanosic_cache_expire(struct timer_list *t);
 extern int Nanosic_cache_insert(EM_PacketType type, void *data, size_t datalen);
 extern int Nanosic_cache_init(void);
 extern int Nanosic_cache_release(void);
 extern int Nanosic_cache_put(void);
+extern void Nanosic_PM_init(struct nano_i2c_client *i2c_client);
+extern void Nanosic_PM_try_wakeup(struct nano_i2c_client *i2c_client);
+extern void Nanosic_PM_free(struct nano_i2c_client *i2c_client);
 
 extern char gVers803x[21];
 extern char gVers176x[21];
@@ -320,8 +327,6 @@ extern void Nanosic_GPIO_set(bool status);
 		       (((unsigned short)(*((p) + 1))) << 8));                 \
 		(p) += 2;                                                      \
 	}
-
-extern void Nanosic_GPIO_sleep(bool sleep);
 
 struct xiaomi_keyboard_data {
 	void *notifier_cookie;
