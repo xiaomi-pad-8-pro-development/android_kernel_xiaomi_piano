@@ -4081,7 +4081,9 @@
 	ramoops_mem: ramoops-region {
 		compatible = "ramoops";
 		reg = <0x0 0xa3500000 0x0 0x400000>;
-		console-size = <0x200000>;
+		/* Keep pmsg at 0xa3700000 for the Xiaomi dump readers. */
+		record-size = <0x100000>;
+		console-size = <0x100000>;
 		pmsg-size = <0x200000>;
 	};
 

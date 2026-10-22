@@ -27,14 +27,14 @@
 	mtdoops_pmsg@0xa3500000 {
 		compatible = "xiaomi,mtdoops_pmsg";
 		reg = <0xa3500000 0x400000>;
-		console-size = <0x200000>;
+		console-size = <0x100000>;
 		pmsg-size = <0x200000>;
 	};
 
 	bootmonitor_pmsg@0xa3500000 {
 		compatible = "xiaomi,bootmonitor_pmsg";
 		reg = <0xa3500000 0x400000>;
-		console-size = <0x200000>;
+		console-size = <0x100000>;
 		pmsg-size = <0x200000>;
 	};
 };
