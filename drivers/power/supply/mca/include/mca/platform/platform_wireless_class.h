@@ -120,6 +120,7 @@ struct platform_class_wireless_ops {
 };
 int platform_class_wireless_register_ops(
 	unsigned int role, void *data, struct platform_class_wireless_ops *ops);
+void platform_class_wireless_unregister_ops(unsigned int role, void *data);
 int platform_class_wireless_enable_reverse_chg(unsigned int role, bool enable);
 int platform_class_wireless_is_present(unsigned int role, int *present);
 int platform_class_wireless_set_vout(unsigned int role, int vout);

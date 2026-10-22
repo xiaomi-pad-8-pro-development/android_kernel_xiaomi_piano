@@ -847,6 +847,8 @@ static void sc96231_remove(struct i2c_client *client)
 {
 	struct sc96231 *sc = i2c_get_clientdata(client);
 
+	/* the class must not call into the driver once it is gone */
+	platform_class_wireless_unregister_ops(sc->role, sc);
 	cancel_delayed_work_sync(&sc->power_on_work);
 	cancel_delayed_work_sync(&sc->hall_work);
 	cancel_delayed_work_sync(&sc->ppe_work);

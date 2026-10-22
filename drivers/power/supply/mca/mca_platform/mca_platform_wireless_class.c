@@ -104,6 +104,17 @@ int platform_class_wireless_register_ops(
 }
 EXPORT_SYMBOL(platform_class_wireless_register_ops);
 
+void platform_class_wireless_unregister_ops(unsigned int role, void *data)
+{
+	if (role >= WIRELESS_ROLE_MAX ||
+	    platform_wireless_data[role].data != data)
+		return;
+
+	platform_wireless_data[role].ops = NULL;
+	platform_wireless_data[role].data = NULL;
+}
+EXPORT_SYMBOL(platform_class_wireless_unregister_ops);
+
 int platform_class_wireless_enable_reverse_chg(unsigned int role, bool enable)
 {
 	struct platform_wireless_class_ops_data *temp_data =
