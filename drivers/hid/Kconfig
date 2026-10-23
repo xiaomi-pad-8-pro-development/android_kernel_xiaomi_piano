@@ -490,7 +490,8 @@ config HID_XIAOMI
 	tristate "Xiaomi"
 	help
 	  Adds support for side buttons of Xiaomi Mi Dual Mode Wireless
-	  Mouse Silent Edition.
+	  Mouse Silent Edition, and keeps the Xiaomi Focus Pen Pro pressure
+	  and gesture reports from turning into key presses.
 
 config HID_GYRATION
 	tristate "Gyration remote control"

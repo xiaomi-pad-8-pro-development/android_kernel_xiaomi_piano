@@ -76,8 +76,35 @@ static __u8 *xiaomi_report_fixup(struct hid_device *hdev, __u8 *rdesc,
 	return rdesc;
 }
 
+/*
+ * The Focus Pen Pro sends its gestures, tip pressure and motion in reports 2,
+ * 5 and 6 for the touch controller host, which reads them over hidraw. The
+ * descriptor leaves the pressure and motion collections on the keyboard
+ * usage page, so the input layer would turn every sample into a Keypad Plus
+ * press and every gesture into keypad navigation. Keep them off the input
+ * devices.
+ */
+static int xiaomi_input_mapping(struct hid_device *hdev, struct hid_input *hi,
+				struct hid_field *field, struct hid_usage *usage,
+				unsigned long **bit, int *max)
+{
+	if (hdev->vendor != BT_VENDOR_ID_XIAOMI_PEN ||
+	    hdev->product != BT_DEVICE_ID_XIAOMI_FOCUS_PEN_PRO)
+		return 0;
+
+	switch (field->report->id) {
+	case 2:
+	case 5:
+	case 6:
+		return -1;
+	}
+
+	return 0;
+}
+
 static const struct hid_device_id xiaomi_devices[] = {
 	{ HID_BLUETOOTH_DEVICE(USB_VENDOR_ID_XIAOMI, USB_DEVICE_ID_MI_SILENT_MOUSE) },
+	{ HID_BLUETOOTH_DEVICE(BT_VENDOR_ID_XIAOMI_PEN, BT_DEVICE_ID_XIAOMI_FOCUS_PEN_PRO) },
 	{ }
 };
 MODULE_DEVICE_TABLE(hid, xiaomi_devices);
@@ -86,6 +113,7 @@ static struct hid_driver xiaomi_driver = {
 	.name = "xiaomi",
 	.id_table = xiaomi_devices,
 	.report_fixup = xiaomi_report_fixup,
+	.input_mapping = xiaomi_input_mapping,
 };
 module_hid_driver(xiaomi_driver);
 
