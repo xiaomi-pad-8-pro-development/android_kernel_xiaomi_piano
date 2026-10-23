@@ -164,7 +164,7 @@ static int sc96231_read(struct sc96231 *sc, u16 reg, void *data, int len)
 		return ret;
 	}
 
-	memcpy(data, buf + reg - start, len);
+	memcpy(data, buf + (reg - start), len);
 	return 0;
 }
 
@@ -183,7 +183,7 @@ static int sc96231_write(struct sc96231 *sc, u16 reg, const void *data,
 	if (start != reg || size != len)
 		ret = regmap_raw_read(sc->regmap, start, buf, size);
 	if (!ret) {
-		memcpy(buf + reg - start, data, len);
+		memcpy(buf + (reg - start), data, len);
 		ret = regmap_raw_write(sc->regmap, start, buf, size);
 	}
 	mutex_unlock(&sc->i2c_rw_lock);
