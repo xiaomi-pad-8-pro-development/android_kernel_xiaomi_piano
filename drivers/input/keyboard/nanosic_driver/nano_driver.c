@@ -215,7 +215,9 @@ static int nanosic_803_probe(struct i2c_client *client)
 	gI2c_client->dev = &(client->dev);
 	Nanosic_edge_filter_init(of_node);
 
-	xiaomi_keyboard_init(I2client);
+	ret = xiaomi_keyboard_init(I2client);
+	if (ret < 0)
+		goto _err_keyboard;
 	/*initialize timer for test*/
 
 	ret = Nanosic_cache_init();
@@ -233,6 +235,8 @@ static int nanosic_803_probe(struct i2c_client *client)
 
 _err4:
 	Nanosic_cache_release();
+_err_keyboard:
+	xiaomi_keyboard_remove();
 _err3:
 	/* the wakeup interrupt uses gI2c_client, so free it first */
 	Nanosic_GPIO_release();
@@ -258,19 +262,19 @@ static void nanosic_803_remove(struct i2c_client *client)
 
 	I2client = i2c_get_clientdata(client);
 
+	/* Stop panel work before releasing its input and I2C devices. */
+	xiaomi_keyboard_remove();
+
 	/*release chardev module*/
 	Nanosic_chardev_release();
 
 	/*release input module*/
 	Nanosic_input_release();
 
-	/*release i2c module*/
-	Nanosic_i2c_release(I2client);
-
-	/*release timer module*/
-	//Nanosic_timer_release();//apply timer module instead of interrupt
-
+	/* The wakeup interrupt uses gI2c_client. */
 	Nanosic_GPIO_release();
+	gI2c_client = NULL;
+	Nanosic_i2c_release(I2client);
 
 	Nanosic_switch_regulator(false);
 
@@ -326,6 +330,8 @@ static int xiaomi_keyboard_init(struct nano_i2c_client *i2c_client)
 	int ret = 0;
 	dbgprint(ALERT_LEVEL, "xiaomi_keyboard_init: enter\n");
 	mdata = kzalloc(sizeof(struct xiaomi_keyboard_data), GFP_KERNEL);
+	if (!mdata)
+		return -ENOMEM;
 	mdata->dev_pm_suspend = false;
 	mdata->irq = i2c_client->irqno;
 	dbgprint(ALERT_LEVEL, "xiaomi_keyboard_init:irq:%d", mdata->irq);
@@ -336,7 +342,7 @@ static int xiaomi_keyboard_init(struct nano_i2c_client *i2c_client)
 		dbgprint(
 			ALERT_LEVEL,
 			"xiaomi_keyboard_init:Can not create work thread for suspend/resume!!");
-		//ret = -ENOMEM;
+		return -ENOMEM;
 	}
 	INIT_WORK(&mdata->resume_work, keyboard_resume_work);
 	INIT_WORK(&mdata->suspend_work, keyboard_suspend_work);
@@ -360,6 +366,7 @@ static int xiaomi_keyboard_init(struct nano_i2c_client *i2c_client)
 err_register_drm_notif_failed:
 	if (mdata->event_wq) {
 		destroy_workqueue(mdata->event_wq);
+		mdata->event_wq = NULL;
 	}
 	return ret;
 }
@@ -441,13 +448,14 @@ static const struct dev_pm_ops xiaomi_keyboard_pm_ops = {
 static int xiaomi_keyboard_remove(void)
 {
 	dbgprint(ALERT_LEVEL, "xiaomi_keyboard_remove: enter\n");
+	if (!mdata)
+		return 0;
 	if (mdata->notifier_cookie)
 		panel_event_notifier_unregister(mdata->notifier_cookie);
-	destroy_workqueue(mdata->event_wq);
-	if (mdata) {
-		kfree(mdata);
-		mdata = NULL;
-	}
+	if (mdata->event_wq)
+		destroy_workqueue(mdata->event_wq);
+	kfree(mdata);
+	mdata = NULL;
 	return 0;
 }
 

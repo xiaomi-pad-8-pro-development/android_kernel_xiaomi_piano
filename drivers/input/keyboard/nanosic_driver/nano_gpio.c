@@ -469,9 +469,8 @@ int Nanosic_RequestGensor_notify(void)
 void Nanosic_GPIO_release(void)
 {
 	if (registered == true) {
-#ifdef SUPPORT_GPIO_IRQ_FUNCTION
-		gpio_free(gpio_irq_pin);
-#endif
+		if (gpio_is_valid(gpio_irq_pin))
+			gpio_free(gpio_irq_pin);
 #ifdef SUPPORT_GPIO_SLEEP_FUNCTION
 		gpio_free(gpio_sleep_pin);
 #endif
