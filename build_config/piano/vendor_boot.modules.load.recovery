@@ -277,6 +277,7 @@ mca_strategy_quickchg.ko
 mca_strategy_buckchg.ko
 mca_charger_thermal.ko
 mca_buckchg_jeita.ko
+mca_onewire_auth_core.ko
 mca_strategy_fg_comp.ko
 mca_strategy_fg_class.ko
 mca_soc_limit.ko
