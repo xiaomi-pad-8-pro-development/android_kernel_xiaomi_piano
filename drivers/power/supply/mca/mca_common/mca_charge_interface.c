@@ -45,6 +45,7 @@ enum mca_charge_if_sysfs_type {
 	MCA_CHRAGE_IF_SYSFS_POWER_LIMIT,
 	MCA_CHRAGE_IF_SYSFS_SUSPEND_STATUS,
 	MCA_CHRAGE_IF_SYSFS_SHIPMODE,
+	MCA_CHARGE_IF_SYSFS_BATTERY_CHARGING,
 	MCA_CHRAGE_IF_SYSFS_END,
 };
 
@@ -77,6 +78,14 @@ static const char *const
 	};
 
 static struct mca_charge_if_ops *g_mca_charge_if_ops[MCA_CHARGE_IF_CHG_TYPE_END];
+
+/*
+ * battery_charging: a plain 0/1 view of the charge_enable vote of the
+ * "health" user, for userspace that cannot speak "user type value".
+ * The charger input stays on while it is 0, so the device runs from the
+ * adapter and the battery rests.
+ */
+static bool g_battery_charging = true;
 
 static int mca_charge_if_get_op_type(const char *type_name)
 {
@@ -300,6 +309,8 @@ static struct mca_sysfs_attr_info mca_charge_if_sysfs_field_tbl[] = {
 			  MCA_CHRAGE_IF_SYSFS_SUSPEND_STATUS, suspend_status),
 	mca_sysfs_attr_rw(mca_charge_if_sysfs, 0640,
 			  MCA_CHRAGE_IF_SYSFS_SHIPMODE, shipmode_count_reset),
+	mca_sysfs_attr_rw(mca_charge_if_sysfs, 0640,
+			  MCA_CHARGE_IF_SYSFS_BATTERY_CHARGING, battery_charging),
 };
 
 #define MCA_CHARGE_IF_SYSFS_ATTRS_SIZE ARRAY_SIZE(mca_charge_if_sysfs_field_tbl)
@@ -333,6 +344,8 @@ static ssize_t mca_charge_if_sysfs_show(struct device *dev,
 	} else if (info->sysfs_attr_name == MCA_CHRAGE_IF_SYSFS_SHIPMODE) {
 		mca_charge_ship_mode_show(&val);
 		return snprintf(buf, PAGE_SIZE, "%d\n", val);
+	} else if (info->sysfs_attr_name == MCA_CHARGE_IF_SYSFS_BATTERY_CHARGING) {
+		return snprintf(buf, PAGE_SIZE, "%d\n", g_battery_charging);
 	}
 
 	for (i = 0; i < MCA_CHARGE_IF_CHG_TYPE_ALL; i++) {
@@ -361,6 +374,17 @@ static ssize_t mca_charge_if_sysfs_store(struct device *dev,
 				     MCA_CHARGE_IF_SYSFS_ATTRS_SIZE);
 	if (!info)
 		return -EINVAL;
+	if (info->sysfs_attr_name == MCA_CHARGE_IF_SYSFS_BATTERY_CHARGING) {
+		bool enable;
+
+		if (kstrtobool(buf, &enable))
+			return -EINVAL;
+		mca_charge_if_common_sysfs_set("health", MCA_CHARGE_IF_CHG_TYPE_ALL,
+					       MCA_CHRAGE_IF_SYSFS_CHARGE_ENABLE,
+					       enable ? "1" : "0");
+		g_battery_charging = enable;
+		return count;
+	}
 	if (info->sysfs_attr_name == MCA_CHRAGE_IF_SYSFS_SHIPMODE) {
 		strcpy(value_str, buf);
 		strcpy(type_name, "buck");
