@@ -36,6 +36,7 @@ struct batt_psy_info {
 	int chg_status;
 	int fake_power;
 	struct mca_votable *input_suppend_voter;
+	struct mca_votable *chg_enable_voter;
 	struct thermal_zone_device *tzd;
 };
 

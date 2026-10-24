@@ -180,6 +180,19 @@ static int fake_batt_psy_get_prop(struct batt_psy_info *info,
 	return 0;
 }
 
+/*
+ * Bypass charging votes the charging off from userspace while the
+ * charger keeps powering the device, so the battery is not charging.
+ */
+static bool battery_psy_is_bypassed(struct batt_psy_info *info)
+{
+	if (!info->chg_enable_voter)
+		info->chg_enable_voter = mca_find_votable("chg_enable");
+
+	return info->chg_enable_voter &&
+	       mca_get_client_vote(info->chg_enable_voter, "bypass") == 0;
+}
+
 static int batt_psy_get_prop(struct power_supply *psy,
 			     enum power_supply_property psp,
 			     union power_supply_propval *pval)
@@ -229,7 +242,9 @@ static int batt_psy_get_prop(struct power_supply *psy,
 		rc = power_supply_get_property(info->usb_psy,
 					       POWER_SUPPLY_PROP_ONLINE, pval);
 		charging_done = strategy_class_fg_ops_get_charging_done();
-		if (pval->intval) {
+		if (pval->intval && battery_psy_is_bypassed(info)) {
+			pval->intval = POWER_SUPPLY_STATUS_NOT_CHARGING;
+		} else if (pval->intval) {
 			uisoc = strategy_class_fg_ops_get_soc();
 			if (uisoc == 100 && charging_done)
 				pval->intval = POWER_SUPPLY_STATUS_FULL;
