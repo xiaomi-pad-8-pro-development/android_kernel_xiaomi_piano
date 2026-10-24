@@ -14,6 +14,7 @@ dtbo-y += kera-wcn7750-bt.dtbo
 endif
 
 ifeq ($(CONFIG_ARCH_SUN), y)
+dtbo-y += piano-peach-bt-v8.dtbo
 dtbo-y += sun-peach-bt.dtbo
 dtbo-y += sun-kiwi-bt.dtbo
 dtbo-y += sun-peach-bt-v8.dtbo
