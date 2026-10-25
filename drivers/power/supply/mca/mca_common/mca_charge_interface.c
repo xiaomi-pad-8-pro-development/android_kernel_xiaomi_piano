@@ -187,7 +187,8 @@ static int mca_charge_if_common_sysfs_set(char *user, unsigned int type,
 	for (; begin < end; begin++)
 		ret |= mca_charge_if_op_set(user, begin, sysfs_type, value);
 
-	if (sysfs_type == MCA_CHRAGE_IF_SYSFS_INPUT_SUSPEND)
+	if (sysfs_type == MCA_CHRAGE_IF_SYSFS_INPUT_SUSPEND ||
+	    sysfs_type == MCA_CHRAGE_IF_SYSFS_CHARGE_ENABLE)
 		mca_event_block_notify(MCA_EVENT_TYPE_BATTERY_INFO,
 				       MCA_EVENT_BATTERY_STS_CHANGE, NULL);
 

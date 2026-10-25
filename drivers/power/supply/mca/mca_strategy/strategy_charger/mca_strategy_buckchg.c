@@ -3234,6 +3234,9 @@ static int strategy_buckchg_if_set_chg_en(const char *user, unsigned int value,
 		strategy_buckchg_clear_pmic_temp_term(info);
 		(void)mca_vote(info->chg_enable_voter, user, true,
 			       STATEGY_CHARGE_ENABLE);
+		/* Restart quick charge now instead of on the next tick */
+		if (info->proc_data.online)
+			mod_delayed_work(system_wq, &info->monitor_work, 0);
 	} else
 		(void)mca_vote(info->chg_enable_voter, user, true,
 			       STATEGY_CHARGE_DISENABLE);
