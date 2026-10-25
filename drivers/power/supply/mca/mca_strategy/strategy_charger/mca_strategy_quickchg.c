@@ -5625,8 +5625,10 @@ static int mca_quick_charge_probe(struct platform_device *pdev)
 
 	platform_class_cp_get_chip_vendor(CP_ROLE_MASTER, &info->cp_chip_vendor);
 	if (!info->cp_chip_vendor) {
-		if (platform_class_cp_get_probe_ok(CP_ROLE_MASTER) |
-		    platform_class_cp_get_probe_ok(CP_ROLE_SLAVE)) {
+		ret = platform_class_cp_get_probe_ok(CP_ROLE_MASTER);
+		if (info->cp_type == MCA_CP_TYPE_PARALLEL)
+			ret |= platform_class_cp_get_probe_ok(CP_ROLE_SLAVE);
+		if (ret) {
 			mca_log_err("cp is not ready, wait for it\n");
 			return -EPROBE_DEFER;
 		}
