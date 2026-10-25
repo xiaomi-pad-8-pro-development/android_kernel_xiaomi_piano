@@ -25,7 +25,7 @@
 #define MCA_ADSP_GLINK_OPCODE_READ 1
 #define MCA_ADSP_GLINK_OPCODE_WRITE 2
 #define MCA_ADSP_PROP_DATA_LEN 256
-#define MCA_ADSP_GLINK_TIMEOUT_MS 250
+#define MCA_ADSP_GLINK_TIMEOUT_MS 1000
 
 struct mca_adsp_glink_req_msg {
 	struct pmic_glink_hdr hdr;
