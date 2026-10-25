@@ -485,7 +485,13 @@ static void mca_quick_charge_stop_charging(struct mca_quick_charge_info *info)
 		info->proc_data.cur_adp_volt = MCA_QUICK_CHG_ADP_DEFAULT_VOLT;
 	info->proc_data.cur_adp_cur = MCA_QUICK_CHG_ADP_DEFAULT_CURR;
 	info->pd_switch_to_pmic = true;
-	if ((info->proc_data.adp_type == XM_CHARGER_TYPE_PD_VERIFY ||
+	/*
+	 * Only hand the adapter voltage back when quick charge raised it:
+	 * otherwise this overrides the voltage the buck charger requested.
+	 */
+	if (info->proc_data.charge_flag != MCA_QUICK_CHG_STS_CHARGING) {
+		mca_log_info("quick charge not running, keep adapter volt\n");
+	} else if ((info->proc_data.adp_type == XM_CHARGER_TYPE_PD_VERIFY ||
 	     info->proc_data.adp_type == XM_CHARGER_TYPE_PPS) &&
 	    info->pmic_chg_need_fixed_volt) {
 		protocol_class_pd_set_fixed_volt(TYPEC_PORT_0,
