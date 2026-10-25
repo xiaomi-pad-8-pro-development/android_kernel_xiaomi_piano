@@ -2608,10 +2608,13 @@ static void strategy_fg_monitor_workfunc(struct work_struct *work)
 		}
 		prohibit_jump = false;
 		strategy_fg_update_batt_info(fg);
-		if (fg->cfg.fg_type > MCA_FG_TYPE_SINGLE_NUM_MAX)
+		fg->dual_present[FG_IC_MASTER] = master_ok;
+		if (fg->cfg.fg_type > MCA_FG_TYPE_SINGLE_NUM_MAX) {
+			fg->dual_present[FG_IC_SLAVE] = slave_ok;
 			fg->fg_init_flag = master_ok && slave_ok;
-		else
+		} else {
 			fg->fg_init_flag = master_ok;
+		}
 		if (hwid && hwid->country_version == CountryCN &&
 		    fg->fg_init_flag && fg->cfg.support_fl4p0)
 			platform_fg_ops_fl4p0_enable_check(FG_IC_MASTER);
