@@ -3511,6 +3511,10 @@ static int strategy_fg_check_battery_adapt_power(void *data, int *match)
 				if (adapt_power == 55 &&
 				    adapt_power_slave == 15)
 					adapt_power = 67;
+			} else if (fg->cfg.base_flip_same) {
+				if (adapt_power == 33 &&
+				    adapt_power_slave == 33)
+					adapt_power = 67;
 			} else {
 				if (adapt_power != adapt_power_slave)
 					adapt_power = -1;
