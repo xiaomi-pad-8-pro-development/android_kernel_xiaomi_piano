@@ -98,7 +98,7 @@ static inline u8 mte_get_ptr_tag(void *ptr)
 /* Get allocation tag for the address. */
 static inline u8 mte_get_mem_tag(void *addr)
 {
-	asm(__MTE_PREAMBLE "ldg %0, [%0]"
+	asm volatile(__MTE_PREAMBLE "ldg %0, [%0]"
 		: "+r" (addr));
 
 	return mte_get_ptr_tag(addr);
@@ -109,7 +109,7 @@ static inline u8 mte_get_random_tag(void)
 {
 	void *addr;
 
-	asm(__MTE_PREAMBLE "irg %0, %0"
+	asm volatile(__MTE_PREAMBLE "irg %0, %0"
 		: "=r" (addr));
 
 	return mte_get_ptr_tag(addr);
