@@ -625,6 +625,13 @@ struct drm_encoder *sde_encoder_init(struct drm_device *dev,
 void sde_encoder_destroy(struct drm_encoder *drm_enc);
 
 /**
+ * sde_encoder_get_clones - Calculate the possible_clones for SDE encoder
+ * @sde_enc:        DRM encoder pointer
+ * Returns:         possible_clones mask
+ */
+uint32_t sde_encoder_get_clones(struct drm_encoder *drm_enc);
+
+/**
  * sde_encoder_prepare_commit - prepare encoder at the very beginning of an
  *	atomic commit, before any registers are written
  * @drm_enc:    Pointer to previously created drm encoder structure
