@@ -100,8 +100,8 @@
 			#cooling-cells = <2>;
 			cpu-release-addr = <0x0 0xE3940000>;
 			next-level-cache = <&L2_0>;
-			capacity-dmips-mhz = <960>;
-			dynamic-power-coefficient = <96>;
+			capacity-dmips-mhz = <1024>;
+			dynamic-power-coefficient = <100>;
 			L2_0: l2-cache {
 			      compatible = "cache";
 			      cache-level = <2>;
@@ -126,8 +126,8 @@
 			#cooling-cells = <2>;
 			cpu-release-addr = <0x0 0xE3940000>;
 			next-level-cache = <&L2_1>;
-			capacity-dmips-mhz = <960>;
-			dynamic-power-coefficient = <96>;
+			capacity-dmips-mhz = <1024>;
+			dynamic-power-coefficient = <100>;
 			L2_1: l2-cache {
 			      compatible = "cache";
 			      cache-level = <2>;
@@ -148,8 +148,8 @@
 			#cooling-cells = <2>;
 			cpu-release-addr = <0x0 0xE3940000>;
 			next-level-cache = <&L2_2>;
-			capacity-dmips-mhz = <1056>;
-			dynamic-power-coefficient = <128>;
+			capacity-dmips-mhz = <1024>;
+			dynamic-power-coefficient = <121>;
 			L2_2: l2-cache {
 			      compatible = "cache";
 			      cache-level = <2>;
@@ -169,8 +169,8 @@
 			#cooling-cells = <2>;
 			cpu-release-addr = <0x0 0xE3940000>;
 			next-level-cache = <&L2_3>;
-			capacity-dmips-mhz = <1056>;
-			dynamic-power-coefficient = <128>;
+			capacity-dmips-mhz = <1024>;
+			dynamic-power-coefficient = <121>;
 			L2_3: l2-cache {
 			      compatible = "cache";
 			      cache-level = <2>;
@@ -190,8 +190,8 @@
 			#cooling-cells = <2>;
 			cpu-release-addr = <0x0 0xE3940000>;
 			next-level-cache = <&L2_4>;
-			capacity-dmips-mhz = <1056>;
-			dynamic-power-coefficient = <128>;
+			capacity-dmips-mhz = <1024>;
+			dynamic-power-coefficient = <121>;
 			L2_4: l2-cache {
 			      compatible = "cache";
 			      cache-level = <2>;
@@ -212,7 +212,7 @@
 			cpu-release-addr = <0x0 0xE3940000>;
 			next-level-cache = <&L2_5>;
 			capacity-dmips-mhz = <1024>;
-			dynamic-power-coefficient = <118>;
+			dynamic-power-coefficient = <121>;
 			L2_5: l2-cache {
 			      compatible = "cache";
 			      cache-level = <2>;
@@ -233,7 +233,7 @@
 			cpu-release-addr = <0x0 0xE3940000>;
 			next-level-cache = <&L2_6>;
 			capacity-dmips-mhz = <1024>;
-			dynamic-power-coefficient = <118>;
+			dynamic-power-coefficient = <121>;
 			L2_6: l2-cache {
 			      compatible = "cache";
 			      cache-level = <2>;
@@ -253,8 +253,8 @@
 			#cooling-cells = <2>;
 			cpu-release-addr = <0x0 0xE3940000>;
 			next-level-cache = <&L2_7>;
-			capacity-dmips-mhz = <1184>;
-			dynamic-power-coefficient = <265>;
+			capacity-dmips-mhz = <1157>;
+			dynamic-power-coefficient = <295>;
 			L2_7: l2-cache {
 			      compatible = "cache";
 			      cache-level = <2>;
