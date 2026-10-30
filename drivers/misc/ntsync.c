@@ -29,13 +29,6 @@ enum ntsync_type {
 	NTSYNC_TYPE_EVENT,
 };
 
-extern unsigned long debug_symbol_lookup_name(const char *name);
-extern bool debug_symbol_available(void);
-int (*schedule_hrtimeout_range_clock_ptr)(ktime_t *expires,
-					  u64 delta,
-					  const enum hrtimer_mode mode,
-					  clockid_t clock_id);
-
 /*
  * Individual synchronization primitives are represented by
  * struct ntsync_obj, and each primitive is backed by a file.
@@ -850,15 +843,6 @@ static int ntsync_schedule(const struct ntsync_q *q, const struct ntsync_wait_ar
 
 	timeout_ptr = (args->timeout == U64_MAX ? NULL : &timeout);
 
-
-	if (!schedule_hrtimeout_range_clock_ptr && debug_symbol_available()) {
-		schedule_hrtimeout_range_clock_ptr = (void *)debug_symbol_lookup_name("schedule_hrtimeout_range_clock");
-		if (!schedule_hrtimeout_range_clock_ptr) {
-			pr_err("Failed to get schedule_hrtimeout_range_clock_ptr");
-			return -ENOMEM;
-		}
-	}
-
 	if (args->flags & NTSYNC_WAIT_REALTIME)
 		clock = CLOCK_REALTIME;
 
@@ -873,7 +857,7 @@ static int ntsync_schedule(const struct ntsync_q *q, const struct ntsync_wait_ar
 			ret = 0;
 			break;
 		}
-		ret = schedule_hrtimeout_range_clock_ptr(timeout_ptr, 0, HRTIMER_MODE_ABS, clock);
+		ret = schedule_hrtimeout_range_clock(timeout_ptr, 0, HRTIMER_MODE_ABS, clock);
 	} while (ret < 0);
 	__set_current_state(TASK_RUNNING);
 
