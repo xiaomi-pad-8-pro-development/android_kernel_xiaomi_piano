@@ -102,7 +102,6 @@ phy-msm-m31-eusb2.ko
 dwc3-msm.ko
 xhci-sideband.ko
 usb_f_rndis.ko
-f_fs_ipc_log.ko
 usb_f_cdev.ko
 usb_f_ccid.ko
 usb_f_qdss.ko
