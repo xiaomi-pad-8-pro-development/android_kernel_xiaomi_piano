@@ -1638,6 +1638,7 @@ int msm_vidc_set_auto_framerate(struct msm_vidc_inst *inst, u64 timestamp)
 	struct msm_vidc_timestamp *ts;
 	struct msm_vidc_timestamp *prev = NULL;
 	u32 counter = 0, prev_fr = 0, curr_fr = 0;
+	u32 max_fr, mbpf;
 	u64 time_us = 0;
 	int rc = 0;
 
@@ -1651,14 +1652,20 @@ int msm_vidc_set_auto_framerate(struct msm_vidc_inst *inst, u64 timestamp)
 	if (rc)
 		goto exit;
 
+	max_fr = inst->capabilities[FRAME_RATE].max;
+	mbpf = msm_vidc_get_mbs_per_frame(inst);
+	if (mbpf)
+		max_fr = min_t(u32, max_fr,
+			(core->capabilities[MAX_MBPS].value * 4 / 5 / mbpf) << 16);
+
 	list_for_each_entry(ts, &inst->timestamps.list, sort.list) {
 		if (prev) {
 			time_us = ts->sort.val - prev->sort.val;
 			prev_fr = curr_fr;
 			curr_fr = time_us ? DIV64_U64_ROUND_CLOSEST(USEC_PER_SEC, time_us) << 16 :
 					inst->auto_framerate;
-			if (curr_fr > inst->capabilities[FRAME_RATE].max)
-				curr_fr = inst->capabilities[FRAME_RATE].max;
+			if (curr_fr > max_fr)
+				curr_fr = max_fr;
 			if (curr_fr < inst->capabilities[FRAME_RATE].min)
 				curr_fr = inst->capabilities[FRAME_RATE].min;
 		}
