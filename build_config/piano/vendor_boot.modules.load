@@ -1,6 +1,5 @@
 gh_arm_drv.ko
 sched-walt.ko
-qcom_ipc_logging.ko
 zsmalloc.ko
 cpq.ko
 qcom-pdc.ko
