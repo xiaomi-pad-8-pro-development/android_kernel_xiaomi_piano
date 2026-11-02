@@ -1,0 +1,21 @@
+diff --git a/build/sun.bzl b/build/sun.bzl
+index 5d70604..55198ad 100644
+--- a/build/sun.bzl
++++ b/build/sun.bzl
+@@ -37,6 +37,8 @@ def define_sun():
+             "lpass_cdc_tx_macro_dlkm",
+             "wsa883x_dlkm",
+             "wsa884x_dlkm",
++            "wcd937x_dlkm",
++            "wcd937x_slave_dlkm",
+             "wcd938x_dlkm",
+             "wcd938x_slave_dlkm",
+             "wcd9378_dlkm",
+@@ -54,6 +56,7 @@ def define_sun():
+             "CONFIG_DIGITAL_CDC_RSC_MGR",
+             "CONFIG_SOUNDWIRE_MSTR_CTRL",
+             "CONFIG_SWRM_VER_2P0",
++            "CONFIG_BOLERO_VER_2P85",
+             "CONFIG_WCD9XXX_CODEC_CORE_V2",
+             "CONFIG_MSM_CDC_PINCTRL",
+             "CONFIG_SND_SOC_WCD_IRQ",

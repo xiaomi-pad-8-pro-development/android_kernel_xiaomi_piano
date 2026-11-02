@@ -1,0 +1,456 @@
+diff --git a/display_driver_build.bzl b/display_driver_build.bzl
+index 3c9031f..cd750ac 100644
+--- a/display_driver_build.bzl
++++ b/display_driver_build.bzl
+@@ -98,13 +98,13 @@ def define_target_variant_modules(target, variant, registry, modules, config_opt
+             "//soc-repo:{}/drivers/soc/qcom/qcom_rpmh".format(kernel_build_tv),
+             "//soc-repo:{}/drivers/soc/qcom/fsa4480_i2c".format(kernel_build_tv),
+         ],
+-        "//build/qcom_build_extensions:qtisocrepo_false": ["//msm-kernel:all_headers"],
++        "//build/qcom_build_extensions:qtisocrepo_false": ["//soc-repo:all_headers"],
+         })
+ 
+     if target == "seraph":
+         deps += select({
+            "//build/qcom_build_extensions:qtisocrepo_true": ["//soc-repo:{}/drivers/misc/isl97900_led/isl97900_led".format(kernel_build_tv)],
+-           "//build/qcom_build_extensions:qtisocrepo_false": ["//msm-kernel:all_headers"],
++           "//build/qcom_build_extensions:qtisocrepo_false": ["//soc-repo:all_headers"],
+         })
+ 
+     if not vm_target:
+@@ -131,7 +131,7 @@ def define_target_variant_modules(target, variant, registry, modules, config_opt
+ 
+     kernel_build = select({
+         "//build/qcom_build_extensions:qtisocrepo_true": "//soc-repo:{}_base_kernel".format(kernel_build_tv),
+-        "//build/qcom_build_extensions:qtisocrepo_false": "//msm-kernel:{}".format(kernel_build_tv),
++        "//build/qcom_build_extensions:qtisocrepo_false": "//soc-repo:{}".format(kernel_build_tv),
+     })
+     modules = [registry.get(module_name) for module_name in modules]
+     options = _get_kernel_build_options(modules, config_options)
+diff --git a/msm/dp/dp_altmode.c b/msm/dp/dp_altmode.c
+index b98425c..b027aa9 100644
+--- a/msm/dp/dp_altmode.c
++++ b/msm/dp/dp_altmode.c
+@@ -62,7 +62,9 @@ static int dp_altmode_set_usb_dp_mode(struct dp_altmode_private *altmode)
+ 	}
+ 
+ 	while (timeout) {
+-		rc = dwc3_msm_set_dp_mode(&usb_pdev->dev, altmode->connected, altmode->lanes);
++		rc = dwc3_msm_set_dp_mode(&usb_pdev->dev, altmode->connected, altmode->lanes,
++				altmode->dp_altmode.base.orientation, USB_SID_DISPLAYPORT, 0,
++				altmode->dp_altmode.base.hpd_high, altmode->dp_altmode.base.hpd_irq);
+ 		if (rc != -EBUSY && rc != -EAGAIN)
+ 			break;
+ 
+diff --git a/msm/dsi/dsi_display.c b/msm/dsi/dsi_display.c
+index 678b1a7..66ffbb0 100644
+--- a/msm/dsi/dsi_display.c
++++ b/msm/dsi/dsi_display.c
+@@ -4,6 +4,7 @@
+  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
+  */
+ 
++#include <linux/delay.h>
+ #include <linux/list.h>
+ #include <linux/of.h>
+ #include <linux/of_gpio.h>
+@@ -5708,6 +5709,7 @@ static int dsi_display_dfps_calc_front_porch(
+ 
+ 	if (b_fp_new < 0) {
+ 		DSI_ERR("Invalid new_hfp calcluated%d\n", b_fp_new);
++		pianodbg_pr("PIANODBG hfp old_fps %u new_fps %u a %u b %u b_fp %u\n", old_fps, new_fps, a_total, b_total, b_fp);
+ 		return -EINVAL;
+ 	}
+ 
+@@ -8635,25 +8637,31 @@ int dsi_display_get_default_lms(void *dsi_display, u32 *num_lm)
+ 
+ 	*num_lm = 0;
+ 
++	pianodbg_pr("PIANODBG lms lock1 owner=%lx\n", atomic_long_read(&display->display_lock.owner)); msleep(250);
+ 	mutex_lock(&display->display_lock);
+ 	count = display->panel->num_display_modes;
+ 	mutex_unlock(&display->display_lock);
++	pianodbg_pr("PIANODBG lms count=%u modes=%px\n", count, display->modes); msleep(250);
+ 
+ 	if (!display->modes) {
+ 		struct dsi_display_mode *m;
+ 
+ 		rc = dsi_display_get_modes(display, &m);
++		pianodbg_pr("PIANODBG lms get_modes rc=%d modes=%px\n", rc, display->modes); msleep(250);
+ 		if (rc)
+ 			return rc;
+ 	}
+ 
++	pianodbg_pr("PIANODBG lms lock2\n"); msleep(250);
+ 	mutex_lock(&display->display_lock);
+ 	for (i = 0; i < count; i++) {
+ 		struct dsi_display_mode *m = &display->modes[i];
+ 
++		pianodbg_pr("PIANODBG lms mode %u priv=%px\n", i, m->priv_info); msleep(50);
+ 		*num_lm = max(m->priv_info->topology.num_lm, *num_lm);
+ 	}
+ 	mutex_unlock(&display->display_lock);
++	pianodbg_pr("PIANODBG lms num_lm=%u\n", *num_lm); msleep(250);
+ 
+ 	return rc;
+ }
+diff --git a/msm/msm_drv.c b/msm/msm_drv.c
+index 4f3e0ca..a43d4f1 100644
+--- a/msm/msm_drv.c
++++ b/msm/msm_drv.c
+@@ -38,6 +38,7 @@
+  * OF THIS SOFTWARE.
+  */
+ 
++#include <linux/arm-smccc.h>
+ #include <linux/of_address.h>
+ #include <linux/of_platform.h>
+ #include <linux/kthread.h>
+@@ -185,10 +186,22 @@ static const struct drm_mode_config_helper_funcs mode_config_helper_funcs = {
+ static bool reglog = false;
+ MODULE_PARM_DESC(reglog, "Enable register read/write logging");
+ module_param(reglog, bool, 0600);
++
+ #else
+ #define reglog 0
+ #endif /* CONFIG_DRM_MSM_REGISTER_LOGGING */
+ 
++static int pianodbg_reset;
++module_param(pianodbg_reset, int, 0444);
++
++void pianodbg_hit(int line)
++{
++	struct arm_smccc_res res;
++
++	if (line == pianodbg_reset)
++		arm_smccc_smc(0x84000009, 0, 0, 0, 0, 0, 0, 0, &res);
++}
++
+ #if IS_ENABLED(CONFIG_DRM_FBDEV_EMULATION)
+ static bool fbdev = true;
+ MODULE_PARM_DESC(fbdev, "Enable fbdev compat layer");
+diff --git a/msm/msm_drv.h b/msm/msm_drv.h
+index d083947..8e30909 100644
+--- a/msm/msm_drv.h
++++ b/msm/msm_drv.h
+@@ -2064,4 +2064,9 @@ bool mdss_iommu_present(struct drm_device *dev);
+  * Return: 0 on success, or a negative error code on failure.
+  */
+ int msm_ioctl_rmfb2(struct drm_device *dev, void *data, struct drm_file *file_priv);
++/* Bring-up only: msm_drm.pianodbg_reset=N resets the board at the debug line on source line N. */
++void pianodbg_hit(int line);
++#define pianodbg_pr(fmt, ...) \
++	do { pr_err(fmt, ##__VA_ARGS__); pianodbg_hit(__LINE__); } while (0)
++
+ #endif /* __MSM_DRV_H__ */
+diff --git a/msm/msm_smmu.c b/msm/msm_smmu.c
+index 9e95b41..e97d594 100644
+--- a/msm/msm_smmu.c
++++ b/msm/msm_smmu.c
+@@ -17,6 +17,7 @@
+  * this program.  If not, see <http://www.gnu.org/licenses/>.
+  */
+ 
++#include <linux/delay.h>
+ #include <linux/module.h>
+ #include <linux/of_platform.h>
+ #include <linux/pm_runtime.h>
+@@ -85,7 +86,9 @@ static int msm_smmu_attach(struct msm_mmu *mmu, const char * const *names,
+ 		dev_dbg(client->dev, "iommu domain ops restored\n");
+ 	}
+ 
++	pr_err("PIANODBG before sid switch %s\n", dev_name(client->dev)); msleep(250);
+ 	rc = qcom_iommu_sid_switch(client->dev, SID_ACQUIRE);
++	pr_err("PIANODBG after sid switch rc=%d\n", rc); msleep(250);
+ 	if (rc) {
+ 		DISP_DEV_ERR(client->dev, "iommu sid switch failed (%d)\n", rc);
+ 		return rc;
+diff --git a/msm/sde/sde_connector.c b/msm/sde/sde_connector.c
+index 191d489..8afa756 100644
+--- a/msm/sde/sde_connector.c
++++ b/msm/sde/sde_connector.c
+@@ -5,6 +5,7 @@
+  */
+ 
+ #define pr_fmt(fmt)	"[drm:%s:%d] " fmt, __func__, __LINE__
++#include <linux/delay.h>
+ #include "msm_drv.h"
+ #include "sde_dbg.h"
+ #include <linux/vmalloc.h>
+@@ -3282,8 +3283,10 @@ static int _sde_connector_lm_preference(struct sde_connector *sde_conn,
+ 		return -EINVAL;
+ 	}
+ 
++	pianodbg_pr("PIANODBG lm set_pref num_lm=%u mixers=%u\n", num_lm, sde_kms->catalog->mixer_count); msleep(250);
+ 	sde_conn->lm_mask = sde_hw_mixer_set_preference(sde_kms->catalog,
+ 							num_lm, disp_type);
++	pianodbg_pr("PIANODBG lm mask=%x\n", sde_conn->lm_mask); msleep(250);
+ 
+ 	return ret;
+ }
+@@ -5167,6 +5170,7 @@ struct drm_connector *sde_connector_init(struct drm_device *dev,
+ 			goto error_free_conn;
+ 	}
+ 
++	if (connector_type == DRM_MODE_CONNECTOR_DSI) { pianodbg_pr("PIANODBG conn %s\n", "get_info"); msleep(250); }
+ 	rc = sde_connector_get_info(&c_conn->base, &display_info);
+ 	if (rc)
+ 		return ERR_PTR(rc);
+@@ -5187,12 +5191,14 @@ struct drm_connector *sde_connector_init(struct drm_device *dev,
+ 	mutex_init(&c_conn->lock);
+ 	mutex_init(&c_conn->bl_vrr.bl_lock);
+ 
++	if (connector_type == DRM_MODE_CONNECTOR_DSI) { pianodbg_pr("PIANODBG conn %s\n", "attach"); msleep(250); }
+ 	rc = drm_connector_attach_encoder(&c_conn->base, encoder);
+ 	if (rc) {
+ 		SDE_ERROR("failed to attach encoder to connector, %d\n", rc);
+ 		goto error_cleanup_fence;
+ 	}
+ 
++	if (connector_type == DRM_MODE_CONNECTOR_DSI) { pianodbg_pr("PIANODBG conn %s\n", "backlight"); msleep(250); }
+ 	rc = sde_backlight_setup(c_conn, dev);
+ 	if (rc) {
+ 		SDE_ERROR("failed to setup backlight, rc=%d\n", rc);
+@@ -5205,6 +5211,7 @@ struct drm_connector *sde_connector_init(struct drm_device *dev,
+ 			CONNECTOR_PROP_COUNT, CONNECTOR_PROP_BLOBCOUNT,
+ 			sizeof(struct sde_connector_state));
+ 
++	if (connector_type == DRM_MODE_CONNECTOR_DSI) { pianodbg_pr("PIANODBG conn %s\n", "post_init"); msleep(250); }
+ 	if (c_conn->ops.post_init) {
+ 		rc = c_conn->ops.post_init(&c_conn->base, display);
+ 		if (rc) {
+@@ -5221,6 +5228,7 @@ struct drm_connector *sde_connector_init(struct drm_device *dev,
+ 			sde_connector_handle_disp_recovery,
+ 			c_conn);
+ 
++	if (connector_type == DRM_MODE_CONNECTOR_DSI) { pianodbg_pr("PIANODBG conn %s\n", "props"); msleep(250); }
+ 	rc = _sde_connector_install_properties(dev, sde_kms, c_conn,
+ 		connector_type, display, &display_info);
+ 	if (rc)
+@@ -5235,14 +5243,17 @@ struct drm_connector *sde_connector_init(struct drm_device *dev,
+ 			SDE_ERROR("register panel id event err %d\n", rc);
+ 	}
+ 
++	if (connector_type == DRM_MODE_CONNECTOR_DSI) { pianodbg_pr("PIANODBG conn %s\n", "status"); msleep(250); }
+ 	rc = msm_property_install_get_status(&c_conn->property_info);
+ 	if (rc) {
+ 		SDE_ERROR("failed to create one or more properties\n");
+ 		goto error_destroy_property;
+ 	}
+ 
++	if (connector_type == DRM_MODE_CONNECTOR_DSI) { pianodbg_pr("PIANODBG conn %s\n", "lm_pref"); msleep(250); }
+ 	_sde_connector_lm_preference(c_conn, sde_kms,
+ 			display_info.display_type);
++	if (connector_type == DRM_MODE_CONNECTOR_DSI) { pianodbg_pr("PIANODBG conn %s\n", "hw_fence"); msleep(250); }
+ 
+ 
+ 	if (!c_conn->is_lb_conn) {
+@@ -5255,6 +5266,7 @@ struct drm_connector *sde_connector_init(struct drm_device *dev,
+ 			DRMID(&c_conn->base), DRMID(encoder),
+ 			c_conn->hwfence_wb_retire_fences_enable);
+ 
++	if (connector_type == DRM_MODE_CONNECTOR_DSI) { pianodbg_pr("PIANODBG conn %s\n", "done"); msleep(250); }
+ 	return &c_conn->base;
+ 
+ error_destroy_property:
+diff --git a/msm/sde/sde_encoder_phys_wb.c b/msm/sde/sde_encoder_phys_wb.c
+index 89d80f1..6970ab7 100644
+--- a/msm/sde/sde_encoder_phys_wb.c
++++ b/msm/sde/sde_encoder_phys_wb.c
+@@ -5,6 +5,8 @@
+  */
+ 
+ #define pr_fmt(fmt)	"[drm:%s:%d] " fmt, __func__, __LINE__
++#include "msm_drv.h"
++#include <linux/delay.h>
+ #include <linux/debugfs.h>
+ #include <drm/sde_drm.h>
+ 
+@@ -2978,7 +2980,9 @@ static int _sde_encoder_phys_wb_init_internal_fb(struct sde_encoder_phys_wb *wb_
+ 	}
+ 
+ 	/* prepare the backing buffer now so that it's available later */
++	pianodbg_pr("PIANODBG before fb prepare\n"); msleep(250);
+ 	ret = msm_framebuffer_prepare(fb, aspace);
++	pianodbg_pr("PIANODBG after fb prepare ret=%d\n", ret); msleep(250);
+ 	if (!ret)
+ 		wb_enc->fb_disable = fb;
+ 	return ret;
+diff --git a/msm/sde/sde_kms.c b/msm/sde/sde_kms.c
+index d807113..32a2e0b 100644
+--- a/msm/sde/sde_kms.c
++++ b/msm/sde/sde_kms.c
+@@ -20,6 +20,7 @@
+ #define pr_fmt(fmt)	"[drm:%s:%d] " fmt, __func__, __LINE__
+ 
+ #include <drm/drm_crtc.h>
++#include <linux/delay.h>
+ #include <drm/drm_fixed.h>
+ #include <drm/drm_panel.h>
+ #include <linux/debugfs.h>
+@@ -2329,6 +2330,7 @@ static void setup_loopback_displays(struct drm_device *dev,
+ 		connector = sde_connector_init(dev, encoder, 0, display,
+ 				&virt_ops, DRM_CONNECTOR_POLL_HPD,
+ 				DRM_MODE_CONNECTOR_VIRTUAL, false);
++		pianodbg_pr("PIANODBG dsi connector returned\n"); msleep(250);
+ 		if (!IS_ERR_OR_NULL(connector)) {
+ 			priv->encoders[priv->num_encoders++] = encoder;
+ 			priv->connectors[priv->num_connectors++] = connector;
+@@ -2523,20 +2525,24 @@ static int _sde_kms_setup_displays(struct drm_device *dev,
+ 		encoder = NULL;
+ 
+ 		memset(&info, 0x0, sizeof(info));
++		pianodbg_pr("PIANODBG dsi%d get_info\n", i); msleep(250);
+ 		rc = dsi_display_get_info(NULL, &info, display);
+ 		if (rc) {
+ 			SDE_ERROR("dsi get_info %d failed\n", i);
+ 			continue;
+ 		}
++		pianodbg_pr("PIANODBG dsi cesta client\n"); msleep(250);
+ 		snprintf(cesta_client_name, sizeof(cesta_client_name), "dsi%u", i);
+ 		cesta_client = sde_cesta_create_client(DPUID(dev), cesta_client_name);
+ 
++		pianodbg_pr("PIANODBG dsi encoder init\n"); msleep(250);
+ 		encoder = sde_encoder_init(dev, &info, cesta_client);
+ 		if (IS_ERR_OR_NULL(encoder)) {
+ 			SDE_ERROR("encoder init failed for dsi %d\n", i);
+ 			continue;
+ 		}
+ 
++		pianodbg_pr("PIANODBG dsi bridge\n"); msleep(250);
+ 		/* avoid passing cesta client to DSI bridge if AOSS VCD is not supported by cesta */
+ 		rc = dsi_display_drm_bridge_init(display, encoder,
+ 				sde_cesta_is_aoss_supported(DPUID(dev)) ? cesta_client : NULL);
+@@ -2549,6 +2555,7 @@ static int _sde_kms_setup_displays(struct drm_device *dev,
+ 		connector_poll = (info.capabilities & MSM_DISPLAY_CAP_HOT_PLUG) ?
+ 			DRM_CONNECTOR_POLL_HPD : 0;
+ 
++		pianodbg_pr("PIANODBG dsi connector\n"); msleep(250);
+ 		connector = sde_connector_init(dev,
+ 					encoder,
+ 					dsi_display_get_drm_panel(display),
+@@ -2566,6 +2573,7 @@ static int _sde_kms_setup_displays(struct drm_device *dev,
+ 			continue;
+ 		}
+ 
++		pianodbg_pr("PIANODBG dsi ext bridge\n"); msleep(250);
+ 		rc = dsi_display_drm_ext_bridge_init(display,
+ 					encoder, connector);
+ 		if (rc) {
+@@ -2972,6 +2980,7 @@ static int _sde_kms_drm_obj_init(struct sde_kms *sde_kms)
+ 	 */
+ 	if (!_sde_kms_get_displays(sde_kms))
+ 		(void)_sde_kms_setup_displays(dev, priv, sde_kms);
++	pianodbg_pr("PIANODBG displays done\n"); msleep(250);
+ 
+ 	for (i = 0; i < catalog->mixer_count; i++)
+ 		if (catalog->mixer[i].dummy_mixer)
+@@ -2979,6 +2988,7 @@ static int _sde_kms_drm_obj_init(struct sde_kms *sde_kms)
+ 
+ 	max_crtc_count = catalog->mixer_count - dummy_mixer_count;
+ 
++	pianodbg_pr("PIANODBG planes start\n"); msleep(250);
+ 	/* Create the planes */
+ 	for (i = 0; i < catalog->sspp_count; i++) {
+ 		bool primary = true;
+@@ -3028,7 +3038,9 @@ static int _sde_kms_drm_obj_init(struct sde_kms *sde_kms)
+ 	max_crtc_count = min(max_crtc_count, primary_planes_idx);
+ 
+ 	/* Create one CRTC per encoder */
++	pianodbg_pr("PIANODBG crtcs start\n"); msleep(250);
+ 	for (i = 0; i < max_crtc_count; i++) {
++		pianodbg_pr("PIANODBG crtc %d\n", i); msleep(100);
+ 		crtc = sde_crtc_init(dev, primary_planes[i]);
+ 		if (IS_ERR(crtc)) {
+ 			ret = PTR_ERR(crtc);
+@@ -7239,7 +7251,9 @@ int sde_kms_vm_trusted_resource_init(struct sde_kms *sde_kms,
+ 		goto error;
+ 	}
+ 
++	pianodbg_pr("PIANODBG before splash config\n"); msleep(250);
+ 	ret = sde_kms_cont_splash_config(&sde_kms->base, state);
++	pianodbg_pr("PIANODBG after splash config ret=%d\n", ret); msleep(250);
+ 	if (ret) {
+ 		SDE_ERROR("error in setting handoff configs\n");
+ 		goto error;
+diff --git a/msm/sde_power_handle.c b/msm/sde_power_handle.c
+index a29f399..27d29a8 100644
+--- a/msm/sde_power_handle.c
++++ b/msm/sde_power_handle.c
+@@ -7,6 +7,7 @@
+ #define pr_fmt(fmt)	"[drm:%s:%d]: " fmt, __func__, __LINE__
+ 
+ #include <linux/clk.h>
++#include <linux/delay.h>
+ #include <linux/clk/qcom.h>
+ #include <linux/kernel.h>
+ #include <linux/of.h>
+@@ -1160,20 +1161,20 @@ int sde_power_resource_enable(struct sde_power_handle *phandle, bool enable, int
+ 			}
+ 		}
+ 
+-		rc = msm_dss_enable_vreg(mp->vreg_config, mp->num_vreg,
+-				enable);
++		pr_err("PIANODBG before %s\n","vreg"); msleep(250); rc = msm_dss_enable_vreg(mp->vreg_config, mp->num_vreg,
++				enable); pr_err("PIANODBG after %s rc=%d\n","vreg",rc); msleep(250);
+ 		if (rc) {
+ 			pr_err("failed to enable vregs rc=%d\n", rc);
+ 			goto bus_err;
+ 		}
+ 
+-		rc = sde_power_enable_power_domain(phandle, SDE_POWER_PD_ID_GDSC, true);
++		pr_err("PIANODBG before %s\n","gdsc"); msleep(250); rc = sde_power_enable_power_domain(phandle, SDE_POWER_PD_ID_GDSC, true); pr_err("PIANODBG after %s rc=%d\n","gdsc",rc); msleep(250);
+ 		if (rc) {
+ 			pr_err("failed to enable core_gdsc rc=%d\n", rc);
+ 			goto core_gdsc_err;
+ 		}
+ 
+-		rc = sde_cesta_resource_enable(SDE_CESTA_INDEX);
++		pr_err("PIANODBG before %s\n","cesta"); msleep(250); rc = sde_cesta_resource_enable(SDE_CESTA_INDEX); pr_err("PIANODBG after %s rc=%d\n","cesta",rc); msleep(250);
+ 		if (rc) {
+ 			pr_err("failed to enable sde cesta\n");
+ 			goto cesta_err;
+@@ -1188,20 +1189,20 @@ int sde_power_resource_enable(struct sde_power_handle *phandle, bool enable, int
+ 			}
+ 		}
+ 
+-		rc = sde_power_scale_reg_bus(phandle, VOTE_INDEX_LOW, true);
++		pr_err("PIANODBG before %s\n","regbus"); msleep(250); rc = sde_power_scale_reg_bus(phandle, VOTE_INDEX_LOW, true); pr_err("PIANODBG after %s rc=%d\n","regbus",rc); msleep(250);
+ 		if (rc) {
+ 			pr_err("failed to set reg bus vote rc=%d\n", rc);
+ 			goto reg_bus_hdl_err;
+ 		}
+ 
+ 		SDE_EVT32_VERBOSE(enable, SDE_EVTLOG_FUNC_CASE1);
+-		rc = sde_power_rsc_update(phandle, true);
++		pr_err("PIANODBG before %s\n","rsc"); msleep(250); rc = sde_power_rsc_update(phandle, true); pr_err("PIANODBG after %s rc=%d\n","rsc",rc); msleep(250);
+ 		if (rc) {
+ 			pr_err("failed to update rsc\n");
+ 			goto rsc_err;
+ 		}
+ 
+-		rc = msm_dss_enable_clk(mp->clk_config, mp->num_clk, enable);
++		pr_err("PIANODBG before %s\n","clk"); msleep(250); rc = msm_dss_enable_clk(mp->clk_config, mp->num_clk, enable); pr_err("PIANODBG after %s rc=%d\n","clk",rc); msleep(250);
+ 		if (rc) {
+ 			pr_err("clock enable failed rc:%d\n", rc);
+ 			goto clk_err;
+diff --git a/targets/sun.bzl b/targets/sun.bzl
+index caa620b..e11e837 100644
+--- a/targets/sun.bzl
++++ b/targets/sun.bzl
+@@ -25,7 +25,6 @@ def define_sun():
+                     "CONFIG_DRM_SDE_WB",
+                     "CONFIG_DRM_MSM_REGISTER_LOGGING",
+                     "CONFIG_QCOM_MDSS_PLL",
+-                    "CONFIG_HDCP_QSEECOM",
+                     "CONFIG_DRM_SDE_VM",
+                     "CONFIG_QCOM_WCD939X_I2C",
+                     "CONFIG_THERMAL_OF",
+@@ -35,7 +34,6 @@ def define_sun():
+                     "CONFIG_MSM_EXT_DISPLAY",
+                     "CONFIG_DRM_LT9611UXD",
+                     "CONFIG_DRM_SDE_CESTA",
+-                    "CONFIG_SMMU_PROXY",
+                     "CONFIG_DRM_MSM_HDMI"
+                 ],
+             )

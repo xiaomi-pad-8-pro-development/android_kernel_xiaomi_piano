@@ -1,0 +1,75 @@
+diff --git a/hfi_core/define_hfi_core.bzl b/hfi_core/define_hfi_core.bzl
+index 40915a2..9b7048a 100644
+--- a/hfi_core/define_hfi_core.bzl
++++ b/hfi_core/define_hfi_core.bzl
+@@ -15,13 +15,13 @@ def _define_module(target, variant):
+             "//soc-repo:{}/drivers/soc/qcom/qcom_va_minidump".format(tv),
+         ],
+         "//build/qcom_build_extensions:qtisocrepo_false": [
+-            "//msm-kernel:all_headers",
++            "//soc-repo:all_headers",
+         ],
+     })
+ 
+     kernel_build = select({
+         "//build/qcom_build_extensions:qtisocrepo_true": "//soc-repo:{}_base_kernel".format(tv),
+-        "//build/qcom_build_extensions:qtisocrepo_false": "//msm-kernel:{}".format(tv),
++        "//build/qcom_build_extensions:qtisocrepo_false": "//soc-repo:{}".format(tv),
+     })
+ 
+     # some targets do not have synx available, accordingly disable hw-fence and avoid dependency
+diff --git a/hw_fence/define_hw_fence.bzl b/hw_fence/define_hw_fence.bzl
+index 71962d6..9d4f51c 100644
+--- a/hw_fence/define_hw_fence.bzl
++++ b/hw_fence/define_hw_fence.bzl
+@@ -17,12 +17,12 @@ def _define_module(target, variant):
+             "//soc-repo:{}/drivers/soc/qcom/hab/msm_hab".format(tv),
+         ],
+         "//build/qcom_build_extensions:qtisocrepo_false": [
+-            "//msm-kernel:all_headers",
++            "//soc-repo:all_headers",
+         ],
+     })
+     kernel_build = select({
+         "//build/qcom_build_extensions:qtisocrepo_true": "//soc-repo:{}_base_kernel".format(tv),
+-        "//build/qcom_build_extensions:qtisocrepo_false": "//msm-kernel:{}".format(tv),
++        "//build/qcom_build_extensions:qtisocrepo_false": "//soc-repo:{}".format(tv),
+     })
+ 
+     if target in ["pineapple", "alor-le"]:
+diff --git a/msm_ext_display/define_msm_ext_display.bzl b/msm_ext_display/define_msm_ext_display.bzl
+index 4d1bbaa..b4857e5 100644
+--- a/msm_ext_display/define_msm_ext_display.bzl
++++ b/msm_ext_display/define_msm_ext_display.bzl
+@@ -8,11 +8,11 @@ def _define_module(target, variant):
+ 
+     deps = select({
+         "//build/qcom_build_extensions:qtisocrepo_true": ["//soc-repo:all_headers"],
+-        "//build/qcom_build_extensions:qtisocrepo_false": ["//msm-kernel:all_headers"],
++        "//build/qcom_build_extensions:qtisocrepo_false": ["//soc-repo:all_headers"],
+     })
+     kernel_build = select({
+         "//build/qcom_build_extensions:qtisocrepo_true": "//soc-repo:{}_base_kernel".format(tv),
+-        "//build/qcom_build_extensions:qtisocrepo_false": "//msm-kernel:{}".format(tv),
++        "//build/qcom_build_extensions:qtisocrepo_false": "//soc-repo:{}".format(tv),
+     })
+ 
+     ddk_module(
+diff --git a/sync_fence/define_sync_fence.bzl b/sync_fence/define_sync_fence.bzl
+index c620e7e..eb269b7 100644
+--- a/sync_fence/define_sync_fence.bzl
++++ b/sync_fence/define_sync_fence.bzl
+@@ -8,11 +8,11 @@ def _define_module(target, variant):
+ 
+     deps = select({
+         "//build/qcom_build_extensions:qtisocrepo_true": ["//soc-repo:all_headers"],
+-        "//build/qcom_build_extensions:qtisocrepo_false": ["//msm-kernel:all_headers"],
++        "//build/qcom_build_extensions:qtisocrepo_false": ["//soc-repo:all_headers"],
+     })
+     kernel_build = select({
+         "//build/qcom_build_extensions:qtisocrepo_true": "//soc-repo:{}_base_kernel".format(tv),
+-        "//build/qcom_build_extensions:qtisocrepo_false": "//msm-kernel:{}".format(tv),
++        "//build/qcom_build_extensions:qtisocrepo_false": "//soc-repo:{}".format(tv),
+     })
+ 
+     ddk_module(
