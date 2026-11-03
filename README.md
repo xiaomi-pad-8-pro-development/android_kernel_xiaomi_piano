@@ -26,6 +26,15 @@ source, so piano's own drivers are ported from 6.6.
   `vendor/qcom/opensource/` and apply them there. Xiaomi's camera driver
   is kept rather than Qualcomm's 6.12 one, since the HyperOS camera HAL
   is built against its interface.
+  `input.patch` is against the same commit: copy
+  `drivers/input/keyboard/nanosic_driver` to `vendor/xiaomi/input/nanosic`,
+  `drivers/input/misc/xiaomi_hall.c` to `hall/`, `drivers/ntag/fm19511`
+  to `ntag/` and `drivers/input/fingerprint/mi_fp` to `mi_fp/`, and apply
+  it there. It builds the keyboard cover, hall sensor, NFC tag and
+  fingerprint drivers out of tree.
+  `soc-repo.patch` goes in `kernel_platform/soc-repo`: it enables the IR
+  blaster (Xiaomi's 6.6 `ir-spi`), the hardware RNG and USB audio
+  offload.
 - `scripts/` builds and tests it:
   - build: `./build_with_bazel.py -t sun perf -s abl` in `kernel_platform`
   - `dt612.sh` merges the piano devicetree, `pack612.sh` packs boot,
@@ -55,4 +64,6 @@ which writes the kernel log to the `rawdump` partition. The header is
 - Camera, video and EVA work: the camera HAL lists all four cameras.
   The 6.12 base devicetree has no camera, video, EVA or MMRM nodes, so
   `dt612.sh` adds the 6.6 techpack overlays.
-- Missing: the hall sensor and 144 Hz.
+- 144 Hz, the IR blaster (`/dev/ir_spi`, IR HAL up) and the hardware RNG
+  work. The keyboard cover and hall sensor drivers load and register
+  their input devices; typing on the cover is not tested yet.

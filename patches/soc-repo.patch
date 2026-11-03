@@ -1,0 +1,367 @@
+diff --git a/configs/sun_perf.bzl b/configs/sun_perf.bzl
+index b557cbd..1e1ddd4 100644
+--- a/configs/sun_perf.bzl
++++ b/configs/sun_perf.bzl
+@@ -35,6 +35,7 @@ sun_perf_config = {
+     "CONFIG_CORESIGHT_TRACE_NOC": "m",
+     "CONFIG_CORESIGHT_UETM": "m",
+     "CONFIG_CPU_IDLE_GOV_QCOM_LPM": "m",
++    "CONFIG_CRYPTO_DEV_QCOM_RNG": "m",
+     "CONFIG_DEVFREQ_GOV_QCOM_ADRENO_TZ": "m",
+     "CONFIG_DEVFREQ_GOV_QCOM_GPUBW_MON": "m",
+     "CONFIG_DRM_DISPLAY_DP_HELPER": "y",
+@@ -77,6 +78,7 @@ sun_perf_config = {
+     "CONFIG_IOMMU_IO_PGTABLE_FAST": "y",
+     "CONFIG_IPC_LOGGING": "m",
+     "CONFIG_IPC_LOG_MINIDUMP_BUFFERS": "16",
++    "CONFIG_IR_SPI": "m",
+     "CONFIG_LEDS_QCOM_LPG": "m",
+     "CONFIG_LEDS_QTI_FLASH": "m",
+     "CONFIG_MAC80211": "m",
+@@ -316,7 +318,7 @@ sun_perf_config = {
+     "CONFIG_SM_GPUCC_SUN": "m",
+     "CONFIG_SM_TCSRCC_SUN": "m",
+     "CONFIG_SM_VIDEOCC_SUN": "m",
+-    "CONFIG_SND_USB_AUDIO_QMI": "n",
++    "CONFIG_SND_USB_AUDIO_QMI": "m",
+     "CONFIG_SND_SOC_WCD9335": "n",
+     "CONFIG_SPI_MSM_GENI": "m",
+     "CONFIG_SPMI_MSM_PMIC_ARB": "m",
+diff --git a/drivers/media/rc/ir-spi.c b/drivers/media/rc/ir-spi.c
+new file mode 100644
+index 0000000..88d9505
+--- /dev/null
++++ b/drivers/media/rc/ir-spi.c
+@@ -0,0 +1,296 @@
++/*
++ * Copyright (c) 2016 Samsung Electronics Co., Ltd.
++ * Author: Andi Shyti <andi.shyti@samsung.it>
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++ *
++ * SPI driven IR LED device driver
++ */
++#include <linux/init.h>
++#include <linux/device.h>
++#include <linux/err.h>
++#include <linux/list.h>
++#include <linux/errno.h>
++#include <linux/compat.h>
++#include <linux/delay.h>
++#include <linux/kthread.h>
++
++#include <linux/mm.h>
++#include <linux/slab.h>
++#include <linux/types.h>
++
++#ifdef CONFIG_OF
++#include <linux/of_device.h>
++#include <linux/of.h>
++#endif
++#include <linux/gpio.h>
++
++#include <asm/delay.h>
++#include <linux/fs.h>
++#include <linux/module.h>
++#include <linux/mutex.h>
++#include <linux/of_gpio.h>
++#include <linux/regulator/consumer.h>
++#include <linux/spi/spi.h>
++#include <linux/miscdevice.h>
++#include <uapi/linux/lirc.h>
++#include <asm/uaccess.h>
++
++#define IR_SPI_DRIVER_NAME		"ir-spi"
++
++#define IR_SPI_DEFAULT_FREQUENCY	1920000
++#define IR_SPI_BIT_PER_WORD		    32
++#define IR_SPI_DATA_BUFFER		    150000
++
++struct ir_spi_data *ir_spi_data_g;
++
++struct ir_spi_data {
++	u16 nusers;
++	int power_gpio;
++	int buffer_size;
++
++	u8 *buffer;
++
++	dev_t devt;
++	struct spi_device *spi;
++	struct spi_transfer xfer;
++	struct mutex mutex;
++	struct regulator *regulator;
++};
++
++static ssize_t ir_spi_chardev_write(struct file *file,
++					const char __user *buffer,
++					size_t length, loff_t *offset)
++{
++	struct ir_spi_data *idata = file->private_data;
++	bool please_free = false;
++	int ret = 0;
++
++	if (idata->xfer.len && (idata->xfer.len != length))
++		return -EINVAL;
++
++	mutex_lock(&idata->mutex);
++
++	if (!idata->xfer.len) {
++		idata->buffer = kmalloc(length, GFP_DMA);
++
++		if (!idata->buffer) {
++			ret = -ENOMEM;
++			goto out_unlock;
++		}
++
++		idata->xfer.len = length;
++		please_free = true;
++	}
++
++	if (copy_from_user(idata->buffer, buffer, length)) {
++		ret = -EFAULT;
++		goto out_free;
++	}
++	idata->xfer.tx_buf = idata->buffer;
++	dev_warn(&idata->spi->dev, "xfer.len%d buffer_size %d\n",(int)idata->xfer.len,idata->buffer_size);
++	ret = spi_sync_transfer(idata->spi, &idata->xfer, 1);
++	if (ret)
++		dev_err(&idata->spi->dev, "unable to deliver the signal\n");
++out_free:
++	if (please_free) {
++		kfree(idata->buffer);
++		idata->xfer.len = 0;
++		idata->buffer = NULL;
++	}
++
++out_unlock:
++	mutex_unlock(&idata->mutex);
++
++	return ret ? ret : length;
++}
++
++static int ir_spi_chardev_open(struct inode *inode, struct file *file)
++{
++	struct ir_spi_data *idata;
++	idata = ir_spi_data_g;
++
++	if (unlikely(idata->nusers >= SHRT_MAX)) {
++		dev_err(&idata->spi->dev, "device busy\n");
++		return -EBUSY;
++	}
++
++	file->private_data = idata;
++
++	mutex_lock(&idata->mutex);
++	idata->nusers++;
++	mutex_unlock(&idata->mutex);
++
++	return 0;
++}
++
++static int ir_spi_chardev_close(struct inode *inode, struct file *file)
++{
++	struct ir_spi_data *idata;
++	idata = ir_spi_data_g;
++
++	mutex_lock(&idata->mutex);
++	idata->nusers--;
++
++	/*
++	 * check if someone else is using the driver,
++	 * if not, then:
++	 *
++	 *  - reset length and frequency values to default
++	 *  - shut down the LED
++	 *  - free the buffer (NULL or ZERO_SIZE_PTR are noop)
++	 */
++	if (!idata->nusers) {
++		idata->xfer.len = 0;
++		idata->xfer.speed_hz = IR_SPI_DEFAULT_FREQUENCY;
++	}
++
++	mutex_unlock(&idata->mutex);
++
++	return 0;
++}
++
++static long ir_spi_chardev_ioctl(struct file *file, unsigned int cmd,
++						unsigned long arg)
++{
++	__u32 p;
++	s32 ret;
++	struct ir_spi_data *idata = file->private_data;
++
++	switch (cmd) {
++		case LIRC_SET_SEND_MODE: {
++			void *new;
++
++			ret = get_user(p, (__u32 __user *) arg);
++			if (ret)
++				return ret;
++
++			/*
++			 * the user is trying to set the same
++			 * length of the current value
++			 */
++			if (idata->xfer.len == p)
++				return 0;
++
++			/*
++			 * multiple users should use the driver with the
++			 * length, otherwise return EPERM same data
++			 */
++			if (idata->nusers > 1)
++				return -EPERM;
++
++			/*
++			 * if the buffer is already allocated, reallocate it with the
++			 * desired value. If the desired value is 0, then the buffer is
++			 * freed from krealloc()
++			 */
++			if (idata->xfer.len){
++				new = krealloc(idata->buffer, p, GFP_DMA);
++				}
++			else{
++				if ((p>idata->buffer_size) || (idata->buffer == NULL)){
++					printk ("IR new malloc %d",(int)idata->xfer.len);
++					if (idata->buffer != NULL)
++					{
++						kfree (idata->buffer);
++						idata->buffer = NULL;
++					}
++					new = kmalloc(p, GFP_DMA);
++					if (!new)
++						return -ENOMEM;
++					idata->buffer = new;
++					idata->buffer_size = p;
++				}
++			}
++
++			mutex_lock(&idata->mutex);
++			idata->xfer.len = p;
++			mutex_unlock(&idata->mutex);
++
++			return 0;
++		}
++	}
++
++	return -EINVAL;
++}
++
++static const struct file_operations ir_spi_fops = {
++	.owner   = THIS_MODULE,
++	.write   = ir_spi_chardev_write,
++	.open    = ir_spi_chardev_open,
++	.release = ir_spi_chardev_close,
++	.llseek  = noop_llseek,
++	.unlocked_ioctl = ir_spi_chardev_ioctl,
++	.compat_ioctl   = ir_spi_chardev_ioctl,
++};
++
++static struct miscdevice ir_spi_dev_drv = {
++	.minor = MISC_DYNAMIC_MINOR,
++	.name = "ir_spi",
++	.fops = &ir_spi_fops,
++	.nodename = "ir_spi",
++	.mode = 0666,
++};
++
++static int ir_spi_probe(struct spi_device *spi)
++{
++	struct ir_spi_data *idata;
++	u8 *buffer = NULL;
++	idata = devm_kzalloc(&spi->dev, sizeof(*idata), GFP_KERNEL);
++	if (!idata)
++		return -ENOMEM;
++
++	mutex_init(&idata->mutex);
++
++	idata->spi = spi;
++	spi_set_drvdata(spi, idata);
++	ir_spi_data_g = idata;
++
++	idata->xfer.bits_per_word = IR_SPI_BIT_PER_WORD;
++	idata->xfer.speed_hz = IR_SPI_DEFAULT_FREQUENCY;
++	buffer = kmalloc(IR_SPI_DATA_BUFFER, GFP_DMA);
++	if (!buffer)
++	{
++		return -ENOMEM;
++	}
++	idata->buffer = buffer;
++	idata->buffer_size = IR_SPI_DATA_BUFFER;
++	misc_register(&ir_spi_dev_drv);
++	return 0;
++}
++
++static void ir_spi_remove(struct spi_device *spi)
++{
++	struct ir_spi_data *idata = spi_get_drvdata(spi);
++	if (idata->buffer != NULL){
++		kfree(idata->buffer);
++		idata->buffer = NULL;
++	}
++	misc_deregister(&ir_spi_dev_drv);
++
++	return;
++}
++
++static const struct of_device_id ir_spi_of_match[] = {
++	{ .compatible = "ir-spi" },
++	{},
++};
++MODULE_DEVICE_TABLE(of, ir_spi_of_match);
++
++static struct spi_driver ir_spi_driver = {
++	.probe = ir_spi_probe,
++	.remove = ir_spi_remove,
++	.driver = {
++		.name = IR_SPI_DRIVER_NAME,
++		.of_match_table = ir_spi_of_match,
++	},
++};
++
++module_spi_driver(ir_spi_driver);
++
++MODULE_AUTHOR("Andi Shyti <andi.shyti@samsung.com>");
++MODULE_DESCRIPTION("SPI IR LED");
++MODULE_LICENSE("GPL v2");
++
+diff --git a/drivers/media/rc/modules.bzl b/drivers/media/rc/modules.bzl
+new file mode 100644
+index 0000000..2dd62d7
+--- /dev/null
++++ b/drivers/media/rc/modules.bzl
+@@ -0,0 +1,10 @@
++def register_modules(registry):
++    registry.register(
++        name = "drivers/media/rc/ir-spi",
++        out = "ir-spi.ko",
++        config = "CONFIG_IR_SPI",
++        srcs = [
++            # do not sort
++            "drivers/media/rc/ir-spi.c",
++        ],
++    )
+diff --git a/drivers/modules.bzl b/drivers/modules.bzl
+index 38a4a65..e19a6ce 100644
+--- a/drivers/modules.bzl
++++ b/drivers/modules.bzl
+@@ -38,6 +38,7 @@ load(":drivers/irqchip/modules.bzl", register_irqchip = "register_modules")
+ load(":drivers/leds/modules.bzl", register_leds = "register_modules")
+ load(":drivers/mailbox/modules.bzl", register_mailbox = "register_modules")
+ load(":drivers/mfd/modules.bzl", register_mfd = "register_modules")
++load(":drivers/media/rc/modules.bzl", register_media_rc = "register_modules")
+ load(":drivers/misc/modules.bzl", register_misc = "register_modules")
+ load(":drivers/mmc/host/modules.bzl", register_mmc_host = "register_modules")
+ load(":drivers/net/modules.bzl", register_net = "register_modules")
+@@ -108,6 +109,7 @@ def register_modules(registry):
+     register_leds(registry)
+     register_mailbox(registry)
+     register_mfd(registry)
++    register_media_rc(registry)
+     register_misc(registry)
+     register_mmc_host(registry)
+     register_net(registry)
