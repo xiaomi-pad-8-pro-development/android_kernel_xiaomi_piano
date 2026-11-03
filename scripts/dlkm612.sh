@@ -23,7 +23,7 @@ xargs -n1 basename < $DIST/vendor_dlkm.modules.load | while read -r k; do
 done
 # Techpack modules (stripped staging copies), skipping ones already in
 # vendor_boot.
-find $BIN -path '*sun_perf*' -path '*/staging/*' -name '*.ko' | while read -r k; do
+find $BIN $KP/bazel-bin/vendor/xiaomi -path '*sun_perf*' -path '*/staging/*' -name '*.ko' | while read -r k; do
 	b=$(basename $k)
 	grep -qx "$b" $W/../pack612/dlkm/lib/modules/modules.load 2>/dev/null && continue
 	cp --update=none $k $M/
