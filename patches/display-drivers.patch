@@ -42,8 +42,37 @@ index b98425c..b027aa9 100644
  		if (rc != -EBUSY && rc != -EAGAIN)
  			break;
  
+diff --git a/msm/dsi/dsi_defs.h b/msm/dsi/dsi_defs.h
+index 4700a79..a328b46 100644
+--- a/msm/dsi/dsi_defs.h
++++ b/msm/dsi/dsi_defs.h
+@@ -387,10 +387,13 @@ enum dsi_cmd_set_type {
+  * OEMs can add custom command types before DSI_CUSTOM_CMD_SET_MAX.
+  *
+  * @DSI_CUSTOM_CMD_SET_CMD_TYPE_1:       Custom command type 1
++ * @DSI_CUSTOM_CMD_SET_TIMING_VIDEO_SWITCH: Xiaomi: tell a multi-timing video
++ *                                        panel which timing node is active
+  * @DSI_CUSTOM_CMD_SET_MAX
+  */
+ enum dsi_custom_cmd_set_type {
+ 	DSI_CUSTOM_CMD_SET_CMD_TYPE_1 = DSI_CUSTOM_CMD_SET_START_IDX,
++	DSI_CUSTOM_CMD_SET_TIMING_VIDEO_SWITCH,
+ 	DSI_CUSTOM_CMD_SET_MAX
+ };
+ 
+@@ -793,6 +796,10 @@ struct dsi_display_mode_priv_info {
+ 	u32 *phy_timing_val;
+ 	u32 phy_timing_len;
+ 
++	/* Xiaomi multi-timing: the dfps rates this timing node serves */
++	u32 *mi_per_timing_fps;
++	u32 mi_per_timing_fps_len;
++
+ 	u32 panel_jitter_numer;
+ 	u32 panel_jitter_denom;
+ 	u32 panel_prefill_lines;
 diff --git a/msm/dsi/dsi_display.c b/msm/dsi/dsi_display.c
-index 678b1a7..66ffbb0 100644
+index 678b1a7..f38ebc9 100644
 --- a/msm/dsi/dsi_display.c
 +++ b/msm/dsi/dsi_display.c
 @@ -4,6 +4,7 @@
@@ -62,7 +91,26 @@ index 678b1a7..66ffbb0 100644
  		return -EINVAL;
  	}
  
-@@ -8635,25 +8637,31 @@ int dsi_display_get_default_lms(void *dsi_display, u32 *num_lm)
+@@ -8384,6 +8386,18 @@ static int dsi_display_get_modes_helper(struct dsi_display *display,
+ 				return rc;
+ 			}
+ 
++			/* Multi-timing: only the rates this timing node serves. */
++			if (dfps_caps.dfps_support && display->panel->multi_timing_enable) {
++				u32 j;
++
++				for (j = 0; j < display_mode.priv_info->mi_per_timing_fps_len; j++)
++					if (display_mode.priv_info->mi_per_timing_fps[j] ==
++							dfps_caps.dfps_list[i])
++						break;
++				if (j == display_mode.priv_info->mi_per_timing_fps_len)
++					continue;
++			}
++
+ 			memcpy(sub_mode, &display_mode, sizeof(display_mode));
+ 			array_idx++;
+ 
+@@ -8635,25 +8649,31 @@ int dsi_display_get_default_lms(void *dsi_display, u32 *num_lm)
  
  	*num_lm = 0;
  
@@ -94,6 +142,129 @@ index 678b1a7..66ffbb0 100644
  
  	return rc;
  }
+@@ -9240,6 +9260,21 @@ int dsi_display_set_mode(struct dsi_display *display,
+ 			adj_mode.priv_info->clk_rate_hz);
+ 
+ 	memcpy(display->panel->cur_mode, &adj_mode, sizeof(adj_mode));
++
++	/* Xiaomi multi-timing panels: a VRR switch may change timing node. */
++	if (display->panel->multi_timing_enable &&
++			(adj_mode.dsi_mode_flags & DSI_MODE_FLAG_VRR) &&
++			!dsi_display_clk_ctrl(display->dsi_clk_handle,
++				DSI_ALL_CLKS, DSI_CLK_ON)) {
++		mutex_lock(&display->panel->panel_lock);
++		if (dsi_panel_tx_cmd_set(display->panel,
++				(enum dsi_cmd_set_type)DSI_CUSTOM_CMD_SET_TIMING_VIDEO_SWITCH, false))
++			DSI_ERR("[%s] failed to send timing switch video cmds\n",
++				display->name);
++		mutex_unlock(&display->panel->panel_lock);
++		dsi_display_clk_ctrl(display->dsi_clk_handle,
++				DSI_ALL_CLKS, DSI_CLK_OFF);
++	}
+ error:
+ 	mutex_unlock(&display->display_lock);
+ 	return rc;
+diff --git a/msm/dsi/dsi_panel.c b/msm/dsi/dsi_panel.c
+index e72d408..9ad5085 100644
+--- a/msm/dsi/dsi_panel.c
++++ b/msm/dsi/dsi_panel.c
+@@ -2562,6 +2562,7 @@ const char *cmd_set_prop_map[DSI_CMD_SET_MAX] = {
+  */
+ const char *custom_cmd_set_prop_map[DSI_CUSTOM_CMD_SET_COUNT] = {
+ 	"qcom,mdss-dsi-custom-command-1",
++	"qcom,mdss-dsi-timing-switch-video-command",
+ };
+ 
+ const char *cmd_set_state_map[DSI_CMD_SET_MAX] = {
+@@ -2623,6 +2624,7 @@ const char *cmd_set_state_map[DSI_CMD_SET_MAX] = {
+  */
+ const char *custom_cmd_set_state_map[DSI_CUSTOM_CMD_SET_COUNT] = {
+ 	"qcom,mdss-dsi-custom-command-state-1",
++	"qcom,mdss-dsi-timing-switch-video-command-state",
+ };
+ 
+ int dsi_panel_get_cmd_pkt_count(const char *data, u32 length, u32 *cnt)
+@@ -4974,6 +4976,9 @@ struct dsi_panel *dsi_panel_get(struct device *parent,
+ 		goto error;
+ 	}
+ 
++	panel->multi_timing_enable = utils->read_bool(utils->data,
++				"mi,video-mode-multi-timing");
++
+ 	rc = dsi_panel_parse_caps(panel, of_node);
+ 	if (rc)
+ 		DSI_ERR("failed to parse panel caps, rc=%d\n", rc);
+@@ -5265,7 +5270,8 @@ int dsi_panel_get_mode_count(struct dsi_panel *panel)
+ 		!panel->host_config.ext_bridge_mode &&
+ 		!panel->esync_caps.emsync_switch_enabled &&
+ 		!panel->panel_mode_switch_enabled &&
+-		!panel->dms_vid_caps.type)
++		!panel->dms_vid_caps.type &&
++		!panel->multi_timing_enable)
+ 		count = SINGLE_MODE_SUPPORT;
+ 
+ 	panel->num_timing_nodes = count;
+@@ -5289,6 +5295,10 @@ int dsi_panel_get_mode_count(struct dsi_panel *panel)
+ 	num_dfps_rates = !panel->dfps_caps.dfps_support ? 1 :
+ 					panel->dfps_caps.dfps_list_len;
+ 
++	/* With multi-timing each dfps rate belongs to exactly one timing node. */
++	if (panel->dfps_caps.dfps_support && panel->multi_timing_enable)
++		num_video_modes = 1;
++
+ 	/*
+ 	 * Inflate num_of_modes by fps in dfps.
+ 	 * Single command mode for video mode panels supporting
+@@ -5673,6 +5683,20 @@ int dsi_panel_get_mode(struct dsi_panel *panel,
+ 		if (rc)
+ 			DSI_ERR("failed to partial update caps, rc=%d\n", rc);
+ 
++		if (panel->multi_timing_enable) {
++			int len = utils->count_u32_elems(utils->data,
++					"mi,mdss-dsi-supported-fps-list");
++
++			if (len > 0) {
++				prv_info->mi_per_timing_fps = kcalloc(len, sizeof(u32), GFP_KERNEL);
++				if (prv_info->mi_per_timing_fps &&
++				    !utils->read_u32_array(utils->data,
++						"mi,mdss-dsi-supported-fps-list",
++						prv_info->mi_per_timing_fps, len))
++					prv_info->mi_per_timing_fps_len = len;
++			}
++		}
++
+ 		if (panel->esync_caps.emsync_switch_enabled) {
+ 			rc = dsi_panel_parse_esync_params(panel, &prv_info->esync_params, utils);
+ 			if (rc) {
+@@ -7462,6 +7486,15 @@ int dsi_panel_post_enable(struct dsi_panel *panel)
+ 		       panel->name, rc);
+ 		goto error;
+ 	}
++
++	/* Xiaomi multi-timing panels: select the current timing node. */
++	if (panel->multi_timing_enable) {
++		rc = dsi_panel_tx_cmd_set(panel,
++			(enum dsi_cmd_set_type)DSI_CUSTOM_CMD_SET_TIMING_VIDEO_SWITCH, false);
++		if (rc)
++			DSI_ERR("[%s] failed to send timing switch video cmds, rc=%d\n",
++			       panel->name, rc);
++	}
+ error:
+ 	mutex_unlock(&panel->panel_lock);
+ 	return rc;
+diff --git a/msm/dsi/dsi_panel.h b/msm/dsi/dsi_panel.h
+index f31b4bc..9553f8e 100644
+--- a/msm/dsi/dsi_panel.h
++++ b/msm/dsi/dsi_panel.h
+@@ -379,6 +379,8 @@ struct dsi_panel {
+ 	struct dsi_cmd_engine_cfg cmd_config;
+ 	enum dsi_op_mode panel_mode;
+ 	bool panel_mode_switch_enabled;
++	/* Xiaomi mi,video-mode-multi-timing: one video timing node per fps group */
++	bool multi_timing_enable;
+ 	bool poms_align_vsync;
+ 
+ 	struct dsi_dfps_capabilities dfps_caps;
 diff --git a/msm/msm_drv.c b/msm/msm_drv.c
 index 4f3e0ca..a43d4f1 100644
 --- a/msm/msm_drv.c

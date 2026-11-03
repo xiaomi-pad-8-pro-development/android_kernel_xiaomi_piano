@@ -51,6 +51,19 @@ $HOST/mkfs.erofs -zlz4hc --mount-point=/vendor_dlkm --file-contexts=$FC \
 # system_dlkm_a is 7 MiB: strip the GKI modules and compress harder.
 $HOST/fsck.erofs --extract=$W/system_dlkm $DIST/system_dlkm.flatten.erofs.img >/dev/null
 find $W/system_dlkm -name '*.ko' -exec $STRIP --strip-debug {} +
+# Stripping drops the appended signature, and GKI refuses unsigned
+# system_dlkm modules (EACCES), so sign them again with the build's key.
+# The prebuilt sign-file only does SHA-1, so use openssl and append the
+# same trailer: struct module_signature (PKCS#7, big-endian length), magic.
+CERTS=$KP/bazel-bin/common/kernel_aarch64/certs
+for k in $W/system_dlkm/lib/modules/*.ko; do
+	openssl cms -sign -binary -noattr -nocerts -nosmimecap -md sha256 -outform DER \
+		-signer $CERTS/signing_key.x509 -inkey $CERTS/signing_key.pem \
+		-in $k -out $k.p7s
+	python3 -c 'import struct,sys; k,s=sys.argv[1:]; sig=open(s,"rb").read()
+open(k,"ab").write(sig + struct.pack(">BBBBB3xI", 0, 0, 2, 0, 0, len(sig)) + b"~Module signature appended~\n")' $k $k.p7s
+	rm $k.p7s
+done
 # Drop GKI modules piano has no use for, so the image fits. Nothing
 # depends on them.
 SM=$W/system_dlkm/lib/modules

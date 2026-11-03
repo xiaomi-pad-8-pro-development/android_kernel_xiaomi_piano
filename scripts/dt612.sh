@@ -26,11 +26,11 @@ build() { # src out [extra cpp args]
   $DTC -@ -I dts -O dtb -o $2 -i $(dirname $1) $2.pp 2>&1 | grep -E "rror" | head -20
   ls -la $2 2>/dev/null
 }
-cp /home/alif/kernel/piano-sun-additions.dtsi /home/alif/kernel/sun-synx.dtsi $OUT/qcom/
+cp /home/alif/kernel/piano-sun-additions.dtsi /home/alif/kernel/sun-synx.dtsi /home/alif/kernel/piano-fastrpc.dtsi $OUT/qcom/
 # ABL picks the base by SoC and revision, so build every sun/sunp variant.
 BASES="sun-tp-v2 sun-tp sun-v2 sun sunp-tp-v2 sunp-tp sunp-v2 sunp"
 for v in $BASES; do
-  printf '#include "%s.dts"\n#include "piano-sun-additions.dtsi"\n#include "sun-synx.dtsi"\n' $v > $OUT/qcom/piano-$v.dts
+  printf '#include "%s.dts"\n#include "piano-sun-additions.dtsi"\n#include "sun-synx.dtsi"\n#include "piano-fastrpc.dtsi"\n' $v > $OUT/qcom/piano-$v.dts
   echo "== base $v"; build $OUT/qcom/piano-$v.dts $OUT/$v.dtb
 done
 # 6.12 sun-mtp.dtsi no longer pulls in the USB PHY register names.
