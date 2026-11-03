@@ -72,7 +72,7 @@ index 4700a79..a328b46 100644
  	u32 panel_jitter_denom;
  	u32 panel_prefill_lines;
 diff --git a/msm/dsi/dsi_display.c b/msm/dsi/dsi_display.c
-index 678b1a7..f38ebc9 100644
+index 678b1a7..5974468 100644
 --- a/msm/dsi/dsi_display.c
 +++ b/msm/dsi/dsi_display.c
 @@ -4,6 +4,7 @@
@@ -151,7 +151,7 @@ index 678b1a7..f38ebc9 100644
 +	if (display->panel->multi_timing_enable &&
 +			(adj_mode.dsi_mode_flags & DSI_MODE_FLAG_VRR) &&
 +			!dsi_display_clk_ctrl(display->dsi_clk_handle,
-+				DSI_ALL_CLKS, DSI_CLK_ON)) {
++				DSI_CORE_CLK | DSI_LINK_CLK, DSI_CLK_ON)) {
 +		mutex_lock(&display->panel->panel_lock);
 +		if (dsi_panel_tx_cmd_set(display->panel,
 +				(enum dsi_cmd_set_type)DSI_CUSTOM_CMD_SET_TIMING_VIDEO_SWITCH, false))
@@ -159,7 +159,7 @@ index 678b1a7..f38ebc9 100644
 +				display->name);
 +		mutex_unlock(&display->panel->panel_lock);
 +		dsi_display_clk_ctrl(display->dsi_clk_handle,
-+				DSI_ALL_CLKS, DSI_CLK_OFF);
++				DSI_CORE_CLK | DSI_LINK_CLK, DSI_CLK_OFF);
 +	}
  error:
  	mutex_unlock(&display->display_lock);

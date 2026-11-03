@@ -2,14 +2,17 @@
 /*
  * FastRPC nodes for the 6.12 dsp-kernel driver. CLO's 6.12 sun devicetree
  * has none; these come from the stock piano 6.6 devicetree, with phandles
- * mapped to the 6.12 labels.
+ * mapped to the 6.12 labels. This driver names domains by type (lpass,
+ * nsp) and registers the legacy adsp/cdsp device names from them.
  */
 
 &remoteproc_adsp_glink {
 	qcom,fastrpc {
 		qcom,vmids = <0x16 0x25>;
 		memory-region = <&adsp_mem_heap>;
-		label = "adsp";
+		label = "lpass";
+		dsp-type = <2>;
+		instance-id = <0>;
 		qcom,intents = <0x181 0x40>;
 		qcom,glink-channels = "fastrpcglink-apps-dsp";
 		compatible = "qcom,fastrpc";
@@ -84,7 +87,9 @@
 		qcom,single-core-latency-vote;
 		qcom,rpc-latency-us = <0xeb>;
 		qcom,fastrpc-gids = <0xb5c>;
-		label = "cdsp";
+		label = "nsp";
+		dsp-type = <1>;
+		instance-id = <0>;
 		qcom,intents = <0x3fa 0x40>;
 		qcom,glink-channels = "fastrpcglink-apps-dsp";
 		compatible = "qcom,fastrpc";
