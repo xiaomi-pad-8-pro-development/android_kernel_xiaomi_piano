@@ -72,10 +72,23 @@ TP=$SRC66/arch/arm64/boot/dts/techpack
 echo "== bt/wlan"
 build $TP/bt-devicetree/piano-peach-bt-v8.dts $OUT/piano-bt.dtbo "-I $TP/bt-devicetree"
 build $TP/wlan-devicetree/piano-peach-cnss-v8.dts $OUT/piano-wlan.dtbo "-I $TP/wlan-devicetree"
+# Multimedia: on 6.6 merge_dtbs folds these techpack overlays into the base;
+# the 6.12 base has no camera, video, EVA or MMRM nodes. piano is sun v2.
+echo "== camera/video/eva/mmrm"
+CAM="-I $TP/camera-devicetree -I $KP/vendor/qcom/opensource/camera-kernel"
+build $TP/mmrm-devicetree/sun/sun-mmrm.dts $OUT/sun-mmrm.dtbo "-I $TP/mmrm-devicetree/sun"
+# One overlay for the camera: piano-sm8750-camera-sensor overrides the cci0
+# pinctrl states that sun-camera sets, and fdtoverlaymerge loses the local
+# phandle fixups of such an override (cci0 then fails "invalid phandle").
+printf '/dts-v1/;\n/plugin/;\n#include <dt-bindings/clock/qcom,gcc-sun.h>\n#include <dt-bindings/clock/qcom,camcc-sun.h>\n#include <dt-bindings/clock/qcom,cambistmclkcc-sun.h>\n#include <dt-bindings/interconnect/qcom,sun.h>\n#include <dt-bindings/interrupt-controller/arm-gic.h>\n#include <dt-bindings/regulator/qcom,rpmh-regulator-levels.h>\n#include "sun-camera.dtsi"\n#include "piano-sm8750-camera-sensor.dtsi"\n' > $OUT/piano-camera.dts
+build $OUT/piano-camera.dts $OUT/piano-camera.dtbo "$CAM"
+build $TP/video-devicetree/sun-vidc-v2.dts $OUT/sun-vidc.dtbo "-I $TP/video-devicetree"
+build $TP/eva-devicetree/sun-eva-v2.dts $OUT/sun-eva.dtbo "-I $TP/eva-devicetree"
+MM="$OUT/sun-mmrm.dtbo $OUT/piano-camera.dtbo $OUT/sun-vidc.dtbo $OUT/sun-eva.dtbo"
 H=$KP/kernel_platform/out/msm-kernel-sun-perf/host/bin
-echo "== check"; $H/fdtoverlay -i $OUT/sun-v2.dtb -o $OUT/merged.dtb $OUT/piano-overlay.dtbo $OUT/piano-display-overlay.dtbo $OUT/sun-audio.dtbo $OUT/piano-audio.dtbo $OUT/piano-bt.dtbo $OUT/piano-wlan.dtbo && ls -la $OUT/merged.dtb
+echo "== check"; $H/fdtoverlay -i $OUT/sun-v2.dtb -o $OUT/merged.dtb $OUT/piano-overlay.dtbo $OUT/piano-display-overlay.dtbo $OUT/sun-audio.dtbo $OUT/piano-audio.dtbo $OUT/piano-bt.dtbo $OUT/piano-wlan.dtbo $MM && ls -la $OUT/merged.dtb
 echo "== pack"
-$H/fdtoverlaymerge -i $OUT/piano-overlay.dtbo -o $OUT/piano-all.dtbo $OUT/piano-display-overlay.dtbo $OUT/sun-audio.dtbo $OUT/piano-audio.dtbo $OUT/piano-bt.dtbo $OUT/piano-wlan.dtbo
+$H/fdtoverlaymerge -i $OUT/piano-overlay.dtbo -o $OUT/piano-all.dtbo $OUT/piano-display-overlay.dtbo $OUT/sun-audio.dtbo $OUT/piano-audio.dtbo $OUT/piano-bt.dtbo $OUT/piano-wlan.dtbo $MM
 (cd $OUT && cat $(printf '%s.dtb ' $BASES)) > $OUT/dtb
 $KP/kernel_platform/build/kernel/build-tools/path/linux-x86/mkdtboimg create $OUT/dtbo.img --page_size=4096 $OUT/piano-all.dtbo
 ls -la $OUT/dtb $OUT/dtbo.img

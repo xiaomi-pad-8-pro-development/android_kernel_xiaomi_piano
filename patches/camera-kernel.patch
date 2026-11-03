@@ -1,0 +1,1181 @@
+diff --git a/camera_modules.bzl b/camera_modules.bzl
+index 49df958..ef6ef0c 100644
+--- a/camera_modules.bzl
++++ b/camera_modules.bzl
+@@ -1,13 +1,26 @@
+ load("//build/kernel/kleaf:kernel.bzl", "ddk_module")
+ load("//build/bazel_common_rules/dist:dist.bzl", "copy_to_dist_dir")
+-load("//msm-kernel:target_variants.bzl", "get_all_variants", "get_arch_of_target")
+ load(":project_defconfig.bzl", "get_project_defconfig")
+ 
+ def _define_module(target, variant):
+     tv = "{}_{}".format(target, variant)
++    # KP 5.0 builds the vendor modules against the soc-repo kernel.
+     deps = [
+         ":camera_headers",
+-        "//msm-kernel:all_headers",
++        "//soc-repo:all_headers",
++        "//soc-repo:{}/drivers/firmware/qcom/qcom-scm".format(tv),
++        "//soc-repo:{}/drivers/iommu/qcom_iommu_util".format(tv),
++        "//soc-repo:{}/drivers/soc/qcom/mem_buf/mem_buf_dev".format(tv),
++        "//soc-repo:{}/drivers/soc/qcom/crm-v2".format(tv),
++        "//soc-repo:{}/drivers/clk/qcom/clk-qcom".format(tv),
++        "//soc-repo:{}/drivers/soc/qcom/qcom_rpmh".format(tv),
++        "//soc-repo:{}/drivers/soc/qcom/socinfo".format(tv),
++        "//soc-repo:{}/drivers/soc/qcom/llcc-qcom".format(tv),
++        "//soc-repo:{}/drivers/soc/qcom/mdt_loader".format(tv),
++        "//soc-repo:{}/drivers/leds/flash/leds-qcom-flash".format(tv),
++        "//soc-repo:{}/drivers/soc/qcom/qcom_va_minidump".format(tv),
++        "//soc-repo:{}/drivers/leds/leds-qti-flash".format(tv),
++        "//soc-repo:{}/drivers/video/backlight/qcom-spmi-wled".format(tv),
+     ]
+ 
+     # Generate the defconfig file dynamically
+@@ -252,7 +265,7 @@ def _define_module(target, variant):
+         deps = deps,
+         kconfig = "Kconfig",
+         defconfig = "{}_defconfig_generated".format(tv),
+-        kernel_build = "//msm-kernel:{}".format(tv),
++        kernel_build = "//soc-repo:{}_base_kernel".format(tv),
+     )
+     ddk_module(
+         name = "{}_cameralog".format(tv),
+@@ -261,7 +274,7 @@ def _define_module(target, variant):
+             "drivers/cam_log/cam_log.c",
+         ],
+         deps = deps,
+-        kernel_build = "//msm-kernel:{}".format(tv),
++        kernel_build = "//soc-repo:{}_base_kernel".format(tv),
+     )
+     ddk_module(
+         name = "{}_cameramsger".format(tv),
+@@ -273,8 +286,10 @@ def _define_module(target, variant):
+             "drivers/cam_msger/cam_binder.c",
+             "drivers/cam_msger/cam_msger_common.c",
+         ],
++        # snd_message keeps a 2.4 KiB message on the stack.
++        copts = ["-Wframe-larger-than=4096"],
+         deps = deps,
+-        kernel_build = "//msm-kernel:{}".format(tv),
++        kernel_build = "//soc-repo:{}_base_kernel".format(tv),
+     )
+     copy_to_dist_dir(
+         name = "{}_camera_dist".format(tv),
+@@ -291,10 +306,4 @@ def _define_module(target, variant):
+     )
+ 
+ def define_camera_module():
+-    pairs = []
+-    for target, variant in get_all_variants():
+-        arch = get_arch_of_target(target)
+-        if arch == target:
+-            pairs.append((target, variant))
+-    for (t, v) in pairs:
+-        _define_module(t, v)
++    _define_module("sun", "perf")
+diff --git a/drivers/cam_cdm/cam_cdm_hw_core.c b/drivers/cam_cdm/cam_cdm_hw_core.c
+index 7f33331..5af0b7a 100644
+--- a/drivers/cam_cdm/cam_cdm_hw_core.c
++++ b/drivers/cam_cdm/cam_cdm_hw_core.c
+@@ -2640,10 +2640,9 @@ int cam_hw_cdm_probe(struct platform_device *pdev)
+ 	return rc;
+ }
+ 
+-int cam_hw_cdm_remove(struct platform_device *pdev)
++void cam_hw_cdm_remove(struct platform_device *pdev)
+ {
+ 	component_del(&pdev->dev, &cam_hw_cdm_component_ops);
+-	return 0;
+ }
+ 
+ struct platform_driver cam_hw_cdm_driver = {
+diff --git a/drivers/cam_cdm/cam_cdm_intf.c b/drivers/cam_cdm/cam_cdm_intf.c
+index 119b47c..afee51d 100644
+--- a/drivers/cam_cdm/cam_cdm_intf.c
++++ b/drivers/cam_cdm/cam_cdm_intf.c
+@@ -801,10 +801,9 @@ static int cam_cdm_intf_probe(struct platform_device *pdev)
+ 	return rc;
+ }
+ 
+-static int cam_cdm_intf_remove(struct platform_device *pdev)
++static void cam_cdm_intf_remove(struct platform_device *pdev)
+ {
+ 	component_del(&pdev->dev, &cam_cdm_intf_component_ops);
+-	return 0;
+ }
+ 
+ struct platform_driver cam_cdm_intf_driver = {
+diff --git a/drivers/cam_cpas/cam_cpas_intf.c b/drivers/cam_cpas/cam_cpas_intf.c
+index 0b370a5..42598ba 100644
+--- a/drivers/cam_cpas/cam_cpas_intf.c
++++ b/drivers/cam_cpas/cam_cpas_intf.c
+@@ -2133,10 +2133,9 @@ static int cam_cpas_dev_probe(struct platform_device *pdev)
+ 	return rc;
+ }
+ 
+-static int cam_cpas_dev_remove(struct platform_device *pdev)
++static void cam_cpas_dev_remove(struct platform_device *pdev)
+ {
+ 	component_del(&pdev->dev, &cam_cpas_dev_component_ops);
+-	return 0;
+ }
+ 
+ static const struct of_device_id cam_cpas_dt_match[] = {
+diff --git a/drivers/cam_cre/cam_cre_dev.c b/drivers/cam_cre/cam_cre_dev.c
+index c6f72f8..e449c9b 100644
+--- a/drivers/cam_cre/cam_cre_dev.c
++++ b/drivers/cam_cre/cam_cre_dev.c
+@@ -225,10 +225,9 @@ const static struct component_ops cam_cre_subdev_component_ops = {
+ 	.unbind = cam_cre_subdev_component_unbind,
+ };
+ 
+-static int cam_cre_subdev_remove(struct platform_device *pdev)
++static void cam_cre_subdev_remove(struct platform_device *pdev)
+ {
+ 	component_del(&pdev->dev, &cam_cre_subdev_component_ops);
+-	return 0;
+ }
+ 
+ static int cam_cre_subdev_probe(struct platform_device *pdev)
+diff --git a/drivers/cam_cre/cam_cre_hw_mgr/cre_hw/bus_rd/cre_bus_rd.c b/drivers/cam_cre/cam_cre_hw_mgr/cre_hw/bus_rd/cre_bus_rd.c
+index bdc21e0..d6c168d 100644
+--- a/drivers/cam_cre/cam_cre_hw_mgr/cre_hw/bus_rd/cre_bus_rd.c
++++ b/drivers/cam_cre/cam_cre_hw_mgr/cre_hw/bus_rd/cre_bus_rd.c
+@@ -3,6 +3,7 @@
+  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
+  * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+  */
++#include <linux/vmalloc.h>
+ #include <linux/delay.h>
+ #include "cam_hw.h"
+ #include "cam_hw_intf.h"
+diff --git a/drivers/cam_cre/cam_cre_hw_mgr/cre_hw/bus_wr/cre_bus_wr.c b/drivers/cam_cre/cam_cre_hw_mgr/cre_hw/bus_wr/cre_bus_wr.c
+index e4a01af..7c9c2fa 100644
+--- a/drivers/cam_cre/cam_cre_hw_mgr/cre_hw/bus_wr/cre_bus_wr.c
++++ b/drivers/cam_cre/cam_cre_hw_mgr/cre_hw/bus_wr/cre_bus_wr.c
+@@ -3,6 +3,7 @@
+  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
+  * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+  */
++#include <linux/vmalloc.h>
+ #include <linux/delay.h>
+ #include "cam_io_util.h"
+ #include "cam_hw_intf.h"
+diff --git a/drivers/cam_cust/cam_custom_dev.c b/drivers/cam_cust/cam_custom_dev.c
+index 969077c..899203f 100644
+--- a/drivers/cam_cust/cam_custom_dev.c
++++ b/drivers/cam_cust/cam_custom_dev.c
+@@ -215,10 +215,9 @@ const static struct component_ops cam_custom_component_ops = {
+ 	.unbind = cam_custom_component_unbind,
+ };
+ 
+-static int cam_custom_dev_remove(struct platform_device *pdev)
++static void cam_custom_dev_remove(struct platform_device *pdev)
+ {
+ 	component_del(&pdev->dev, &cam_custom_component_ops);
+-	return 0;
+ }
+ 
+ static int cam_custom_dev_probe(struct platform_device *pdev)
+diff --git a/drivers/cam_cust/cam_custom_hw_mgr/cam_custom_csid/cam_custom_csid_dev.c b/drivers/cam_cust/cam_custom_hw_mgr/cam_custom_csid/cam_custom_csid_dev.c
+index e4fe4ca..9c2cd52 100644
+--- a/drivers/cam_cust/cam_custom_hw_mgr/cam_custom_csid/cam_custom_csid_dev.c
++++ b/drivers/cam_cust/cam_custom_hw_mgr/cam_custom_csid/cam_custom_csid_dev.c
+@@ -168,10 +168,9 @@ static int cam_custom_csid_probe(struct platform_device *pdev)
+ 	return rc;
+ }
+ 
+-static int cam_custom_csid_remove(struct platform_device *pdev)
++static void cam_custom_csid_remove(struct platform_device *pdev)
+ {
+ 	component_del(&pdev->dev, &cam_custom_csid_component_ops);
+-	return 0;
+ }
+ 
+ static const struct of_device_id cam_custom_csid_dt_match[] = {
+diff --git a/drivers/cam_fd/cam_fd_dev.c b/drivers/cam_fd/cam_fd_dev.c
+index fb44167..32591a9 100644
+--- a/drivers/cam_fd/cam_fd_dev.c
++++ b/drivers/cam_fd/cam_fd_dev.c
+@@ -225,10 +225,9 @@ static int cam_fd_dev_probe(struct platform_device *pdev)
+ 	return rc;
+ }
+ 
+-static int cam_fd_dev_remove(struct platform_device *pdev)
++static void cam_fd_dev_remove(struct platform_device *pdev)
+ {
+ 	component_del(&pdev->dev, &cam_fd_dev_component_ops);
+-	return 0;
+ }
+ 
+ static const struct of_device_id cam_fd_dt_match[] = {
+diff --git a/drivers/cam_fd/fd_hw_mgr/fd_hw/cam_fd_hw_dev.c b/drivers/cam_fd/fd_hw_mgr/fd_hw/cam_fd_hw_dev.c
+index 58af20c..45b5c63 100644
+--- a/drivers/cam_fd/fd_hw_mgr/fd_hw/cam_fd_hw_dev.c
++++ b/drivers/cam_fd/fd_hw_mgr/fd_hw/cam_fd_hw_dev.c
+@@ -214,10 +214,9 @@ static int cam_fd_hw_dev_probe(struct platform_device *pdev)
+ 	return rc;
+ }
+ 
+-static int cam_fd_hw_dev_remove(struct platform_device *pdev)
++static void cam_fd_hw_dev_remove(struct platform_device *pdev)
+ {
+ 	component_del(&pdev->dev, &cam_fd_hw_dev_component_ops);
+-	return 0;
+ }
+ 
+ static const struct of_device_id cam_fd_hw_dt_match[] = {
+diff --git a/drivers/cam_icp/cam_icp_subdev.c b/drivers/cam_icp/cam_icp_subdev.c
+index d6746e8..52fbfa9 100644
+--- a/drivers/cam_icp/cam_icp_subdev.c
++++ b/drivers/cam_icp/cam_icp_subdev.c
+@@ -456,10 +456,9 @@ static int cam_icp_probe(struct platform_device *pdev)
+ 	return rc;
+ }
+ 
+-static int cam_icp_remove(struct platform_device *pdev)
++static void cam_icp_remove(struct platform_device *pdev)
+ {
+ 	component_del(&pdev->dev, &cam_icp_component_ops);
+-	return 0;
+ }
+ 
+ struct platform_driver cam_icp_driver = {
+diff --git a/drivers/cam_icp/icp_hw/bps_hw/bps_dev.c b/drivers/cam_icp/icp_hw/bps_hw/bps_dev.c
+index ef21f59..6d4b79a 100644
+--- a/drivers/cam_icp/icp_hw/bps_hw/bps_dev.c
++++ b/drivers/cam_icp/icp_hw/bps_hw/bps_dev.c
+@@ -264,10 +264,9 @@ int cam_bps_probe(struct platform_device *pdev)
+ 	return rc;
+ }
+ 
+-static int cam_bps_remove(struct platform_device *pdev)
++static void cam_bps_remove(struct platform_device *pdev)
+ {
+ 	component_del(&pdev->dev, &cam_bps_component_ops);
+-	return 0;
+ }
+ 
+ static const struct of_device_id cam_bps_dt_match[] = {
+diff --git a/drivers/cam_icp/icp_hw/icp_proc/icp_v1_hw/cam_icp_v1_dev.c b/drivers/cam_icp/icp_hw/icp_proc/icp_v1_hw/cam_icp_v1_dev.c
+index b8d071a..a7b9f50 100644
+--- a/drivers/cam_icp/icp_hw/icp_proc/icp_v1_hw/cam_icp_v1_dev.c
++++ b/drivers/cam_icp/icp_hw/icp_proc/icp_v1_hw/cam_icp_v1_dev.c
+@@ -257,10 +257,9 @@ int cam_icp_v1_probe(struct platform_device *pdev)
+ 	return rc;
+ }
+ 
+-static int cam_icp_v1_remove(struct platform_device *pdev)
++static void cam_icp_v1_remove(struct platform_device *pdev)
+ {
+ 	component_del(&pdev->dev, &cam_icp_v1_component_ops);
+-	return 0;
+ }
+ 
+ static const struct of_device_id cam_icp_v1_dt_match[] = {
+diff --git a/drivers/cam_icp/icp_hw/icp_proc/icp_v2_hw/cam_icp_v2_core.c b/drivers/cam_icp/icp_hw/icp_proc/icp_v2_hw/cam_icp_v2_core.c
+index bdc88e0..2d94f72 100644
+--- a/drivers/cam_icp/icp_hw/icp_proc/icp_v2_hw/cam_icp_v2_core.c
++++ b/drivers/cam_icp/icp_hw/icp_proc/icp_v2_hw/cam_icp_v2_core.c
+@@ -4,6 +4,7 @@
+  * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+  */
+ 
++#include <linux/vmalloc.h>
+ #include <linux/devcoredump.h>
+ #include <linux/of_address.h>
+ #include <linux/soc/qcom/mdt_loader.h>
+diff --git a/drivers/cam_icp/icp_hw/icp_proc/icp_v2_hw/cam_icp_v2_dev.c b/drivers/cam_icp/icp_hw/icp_proc/icp_v2_hw/cam_icp_v2_dev.c
+index 1466bfe..7c6fa97 100644
+--- a/drivers/cam_icp/icp_hw/icp_proc/icp_v2_hw/cam_icp_v2_dev.c
++++ b/drivers/cam_icp/icp_hw/icp_proc/icp_v2_hw/cam_icp_v2_dev.c
+@@ -264,11 +264,9 @@ static int cam_icp_v2_driver_probe(struct platform_device *pdev)
+ 	return rc;
+ }
+ 
+-static int cam_icp_v2_driver_remove(struct platform_device *pdev)
++static void cam_icp_v2_driver_remove(struct platform_device *pdev)
+ {
+ 	component_del(&pdev->dev, &cam_icp_v2_component_ops);
+-
+-	return 0;
+ }
+ 
+ struct platform_driver cam_icp_v2_driver = {
+diff --git a/drivers/cam_icp/icp_hw/ipe_hw/ipe_dev.c b/drivers/cam_icp/icp_hw/ipe_hw/ipe_dev.c
+index 1ef988f..62e501c 100644
+--- a/drivers/cam_icp/icp_hw/ipe_hw/ipe_dev.c
++++ b/drivers/cam_icp/icp_hw/ipe_hw/ipe_dev.c
+@@ -250,10 +250,9 @@ int cam_ipe_probe(struct platform_device *pdev)
+ 	return rc;
+ }
+ 
+-static int cam_ipe_remove(struct platform_device *pdev)
++static void cam_ipe_remove(struct platform_device *pdev)
+ {
+ 	component_del(&pdev->dev, &cam_ipe_component_ops);
+-	return 0;
+ }
+ 
+ static const struct of_device_id cam_ipe_dt_match[] = {
+diff --git a/drivers/cam_icp/icp_hw/ofe_hw/ofe_dev.c b/drivers/cam_icp/icp_hw/ofe_hw/ofe_dev.c
+index 0d0807e..82af0d3 100644
+--- a/drivers/cam_icp/icp_hw/ofe_hw/ofe_dev.c
++++ b/drivers/cam_icp/icp_hw/ofe_hw/ofe_dev.c
+@@ -245,10 +245,9 @@ int cam_ofe_probe(struct platform_device *pdev)
+ 	return rc;
+ }
+ 
+-static int cam_ofe_remove(struct platform_device *pdev)
++static void cam_ofe_remove(struct platform_device *pdev)
+ {
+ 	component_del(&pdev->dev, &cam_ofe_component_ops);
+-	return 0;
+ }
+ 
+ static const struct of_device_id cam_ofe_dt_match[] = {
+diff --git a/drivers/cam_isp/cam_isp_dev.c b/drivers/cam_isp/cam_isp_dev.c
+index 3eef6d6..e0c1770 100644
+--- a/drivers/cam_isp/cam_isp_dev.c
++++ b/drivers/cam_isp/cam_isp_dev.c
+@@ -354,10 +354,9 @@ const static struct component_ops cam_isp_dev_component_ops = {
+ 	.unbind = cam_isp_dev_component_unbind,
+ };
+ 
+-static int cam_isp_dev_remove(struct platform_device *pdev)
++static void cam_isp_dev_remove(struct platform_device *pdev)
+ {
+ 	component_del(&pdev->dev, &cam_isp_dev_component_ops);
+-	return 0;
+ }
+ 
+ static int cam_isp_dev_probe(struct platform_device *pdev)
+diff --git a/drivers/cam_isp/isp_hw_mgr/hw_utils/cam_isp_packet_parser.c b/drivers/cam_isp/isp_hw_mgr/hw_utils/cam_isp_packet_parser.c
+index 9d568d3..a0bc5ea 100644
+--- a/drivers/cam_isp/isp_hw_mgr/hw_utils/cam_isp_packet_parser.c
++++ b/drivers/cam_isp/isp_hw_mgr/hw_utils/cam_isp_packet_parser.c
+@@ -4,6 +4,7 @@
+  * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+  */
+ 
++#include <linux/vmalloc.h>
+ #include <media/cam_defs.h>
+ #include <media/cam_isp.h>
+ #include "cam_mem_mgr.h"
+diff --git a/drivers/cam_isp/isp_hw_mgr/isp_hw/ife_csid_hw/cam_ife_csid_dev.c b/drivers/cam_isp/isp_hw_mgr/isp_hw/ife_csid_hw/cam_ife_csid_dev.c
+index 51b1f10..a37ecda 100644
+--- a/drivers/cam_isp/isp_hw_mgr/isp_hw/ife_csid_hw/cam_ife_csid_dev.c
++++ b/drivers/cam_isp/isp_hw_mgr/isp_hw/ife_csid_hw/cam_ife_csid_dev.c
+@@ -177,10 +177,9 @@ int cam_ife_csid_probe(struct platform_device *pdev)
+ 	return rc;
+ }
+ 
+-int cam_ife_csid_remove(struct platform_device *pdev)
++void cam_ife_csid_remove(struct platform_device *pdev)
+ {
+ 	component_del(&pdev->dev, &cam_ife_csid_component_ops);
+-	return 0;
+ }
+ 
+ int cam_ife_csid_hw_init(struct cam_hw_intf **ife_csid_hw,
+diff --git a/drivers/cam_isp/isp_hw_mgr/isp_hw/ife_csid_hw/cam_ife_csid_dev.h b/drivers/cam_isp/isp_hw_mgr/isp_hw/ife_csid_hw/cam_ife_csid_dev.h
+index e6cf217..e59c057 100644
+--- a/drivers/cam_isp/isp_hw_mgr/isp_hw/ife_csid_hw/cam_ife_csid_dev.h
++++ b/drivers/cam_isp/isp_hw_mgr/isp_hw/ife_csid_hw/cam_ife_csid_dev.h
+@@ -11,7 +11,7 @@
+ irqreturn_t cam_ife_csid_irq(int irq_num, void *data);
+ 
+ int cam_ife_csid_probe(struct platform_device *pdev);
+-int cam_ife_csid_remove(struct platform_device *pdev);
++void cam_ife_csid_remove(struct platform_device *pdev);
+ 
+ /**
+  * @brief : API to register CSID hw to platform framework.
+diff --git a/drivers/cam_isp/isp_hw_mgr/isp_hw/ife_csid_hw/cam_ife_csid_hw_ver2.c b/drivers/cam_isp/isp_hw_mgr/isp_hw/ife_csid_hw/cam_ife_csid_hw_ver2.c
+index b17040e..b943b08 100644
+--- a/drivers/cam_isp/isp_hw_mgr/isp_hw/ife_csid_hw/cam_ife_csid_hw_ver2.c
++++ b/drivers/cam_isp/isp_hw_mgr/isp_hw/ife_csid_hw/cam_ife_csid_hw_ver2.c
+@@ -4,6 +4,7 @@
+  * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
+  */
+ 
++#include <linux/vmalloc.h>
+ #include <linux/iopoll.h>
+ #include <linux/slab.h>
+ 
+diff --git a/drivers/cam_isp/isp_hw_mgr/isp_hw/ppi_hw/cam_csid_ppi_dev.c b/drivers/cam_isp/isp_hw_mgr/isp_hw/ppi_hw/cam_csid_ppi_dev.c
+index 7dba479..9ca4cdb 100644
+--- a/drivers/cam_isp/isp_hw_mgr/isp_hw/ppi_hw/cam_csid_ppi_dev.c
++++ b/drivers/cam_isp/isp_hw_mgr/isp_hw/ppi_hw/cam_csid_ppi_dev.c
+@@ -168,8 +168,7 @@ int cam_csid_ppi_probe(struct platform_device *pdev)
+ 	return rc;
+ }
+ 
+-int cam_csid_ppi_remove(struct platform_device *pdev)
++void cam_csid_ppi_remove(struct platform_device *pdev)
+ {
+ 	component_del(&pdev->dev, &cam_ppi_component_ops);
+-	return 0;
+ }
+diff --git a/drivers/cam_isp/isp_hw_mgr/isp_hw/ppi_hw/cam_csid_ppi_dev.h b/drivers/cam_isp/isp_hw_mgr/isp_hw/ppi_hw/cam_csid_ppi_dev.h
+index d8995f8..b28e7bd 100644
+--- a/drivers/cam_isp/isp_hw_mgr/isp_hw/ppi_hw/cam_csid_ppi_dev.h
++++ b/drivers/cam_isp/isp_hw_mgr/isp_hw/ppi_hw/cam_csid_ppi_dev.h
+@@ -10,6 +10,6 @@
+ 
+ irqreturn_t cam_csid_ppi_irq(int irq_num, void *data);
+ int cam_csid_ppi_probe(struct platform_device *pdev);
+-int cam_csid_ppi_remove(struct platform_device *pdev);
++void cam_csid_ppi_remove(struct platform_device *pdev);
+ 
+ #endif /*_CAM_CSID_PPI_DEV_H_ */
+diff --git a/drivers/cam_isp/isp_hw_mgr/isp_hw/sfe_hw/cam_sfe_dev.c b/drivers/cam_isp/isp_hw_mgr/isp_hw/sfe_hw/cam_sfe_dev.c
+index a68330c..39ad5b8 100644
+--- a/drivers/cam_isp/isp_hw_mgr/isp_hw/sfe_hw/cam_sfe_dev.c
++++ b/drivers/cam_isp/isp_hw_mgr/isp_hw/sfe_hw/cam_sfe_dev.c
+@@ -247,10 +247,9 @@ int cam_sfe_probe(struct platform_device *pdev)
+ 	return rc;
+ }
+ 
+-int cam_sfe_remove(struct platform_device *pdev)
++void cam_sfe_remove(struct platform_device *pdev)
+ {
+ 	component_del(&pdev->dev, &cam_sfe_component_ops);
+-	return 0;
+ }
+ 
+ int cam_sfe_hw_init(struct cam_isp_hw_intf_data **sfe_hw, uint32_t hw_idx)
+diff --git a/drivers/cam_isp/isp_hw_mgr/isp_hw/tfe_csid_hw/cam_tfe_csid_dev.c b/drivers/cam_isp/isp_hw_mgr/isp_hw/tfe_csid_hw/cam_tfe_csid_dev.c
+index 7bf294c..accd493 100644
+--- a/drivers/cam_isp/isp_hw_mgr/isp_hw/tfe_csid_hw/cam_tfe_csid_dev.c
++++ b/drivers/cam_isp/isp_hw_mgr/isp_hw/tfe_csid_hw/cam_tfe_csid_dev.c
+@@ -152,10 +152,9 @@ int cam_tfe_csid_probe(struct platform_device *pdev)
+ 	return rc;
+ }
+ 
+-int cam_tfe_csid_remove(struct platform_device *pdev)
++void cam_tfe_csid_remove(struct platform_device *pdev)
+ {
+ 	component_del(&pdev->dev, &cam_tfe_csid_component_ops);
+-	return 0;
+ }
+ 
+ int cam_tfe_csid_hw_init(struct cam_hw_intf **tfe_csid_hw,
+diff --git a/drivers/cam_isp/isp_hw_mgr/isp_hw/tfe_csid_hw/cam_tfe_csid_dev.h b/drivers/cam_isp/isp_hw_mgr/isp_hw/tfe_csid_hw/cam_tfe_csid_dev.h
+index 3193d64..84298b6 100644
+--- a/drivers/cam_isp/isp_hw_mgr/isp_hw/tfe_csid_hw/cam_tfe_csid_dev.h
++++ b/drivers/cam_isp/isp_hw_mgr/isp_hw/tfe_csid_hw/cam_tfe_csid_dev.h
+@@ -11,6 +11,6 @@
+ irqreturn_t cam_tfe_csid_irq(int irq_num, void *data);
+ 
+ int cam_tfe_csid_probe(struct platform_device *pdev);
+-int cam_tfe_csid_remove(struct platform_device *pdev);
++void cam_tfe_csid_remove(struct platform_device *pdev);
+ 
+ #endif /*_CAM_TFE_CSID_DEV_H_ */
+diff --git a/drivers/cam_isp/isp_hw_mgr/isp_hw/tfe_hw/cam_tfe_dev.c b/drivers/cam_isp/isp_hw_mgr/isp_hw/tfe_hw/cam_tfe_dev.c
+index d67577c..2e12ffe 100644
+--- a/drivers/cam_isp/isp_hw_mgr/isp_hw/tfe_hw/cam_tfe_dev.c
++++ b/drivers/cam_isp/isp_hw_mgr/isp_hw/tfe_hw/cam_tfe_dev.c
+@@ -209,10 +209,9 @@ int cam_tfe_probe(struct platform_device *pdev)
+ 	return rc;
+ }
+ 
+-int cam_tfe_remove(struct platform_device *pdev)
++void cam_tfe_remove(struct platform_device *pdev)
+ {
+ 	component_del(&pdev->dev, &cam_tfe_component_ops);
+-	return 0;
+ }
+ 
+ int cam_tfe_hw_init(struct cam_isp_hw_intf_data **tfe_hw_intf,
+diff --git a/drivers/cam_isp/isp_hw_mgr/isp_hw/tfe_hw/cam_tfe_dev.h b/drivers/cam_isp/isp_hw_mgr/isp_hw/tfe_hw/cam_tfe_dev.h
+index 63ae1b1..932370d 100644
+--- a/drivers/cam_isp/isp_hw_mgr/isp_hw/tfe_hw/cam_tfe_dev.h
++++ b/drivers/cam_isp/isp_hw_mgr/isp_hw/tfe_hw/cam_tfe_dev.h
+@@ -30,7 +30,7 @@ int cam_tfe_probe(struct platform_device *pdev);
+  * @Return:                  0: Success
+  *                           Non-zero: Failure
+  */
+-int cam_tfe_remove(struct platform_device *pdev);
++void cam_tfe_remove(struct platform_device *pdev);
+ 
+ int cam_tfe_init_module(void);
+ void cam_tfe_exit_module(void);
+diff --git a/drivers/cam_isp/isp_hw_mgr/isp_hw/vfe_hw/cam_vfe_dev.c b/drivers/cam_isp/isp_hw_mgr/isp_hw/vfe_hw/cam_vfe_dev.c
+index e3158e5..775ed19 100644
+--- a/drivers/cam_isp/isp_hw_mgr/isp_hw/vfe_hw/cam_vfe_dev.c
++++ b/drivers/cam_isp/isp_hw_mgr/isp_hw/vfe_hw/cam_vfe_dev.c
+@@ -267,10 +267,9 @@ int cam_vfe_probe(struct platform_device *pdev)
+ 	return rc;
+ }
+ 
+-int cam_vfe_remove(struct platform_device *pdev)
++void cam_vfe_remove(struct platform_device *pdev)
+ {
+ 	component_del(&pdev->dev, &cam_vfe_component_ops);
+-	return 0;
+ }
+ 
+ int cam_vfe_hw_init(struct cam_isp_hw_intf_data **vfe_hw_intf,
+diff --git a/drivers/cam_isp/isp_hw_mgr/isp_hw/vfe_hw/cam_vfe_dev.h b/drivers/cam_isp/isp_hw_mgr/isp_hw/vfe_hw/cam_vfe_dev.h
+index c2d78b6..288dd0d 100644
+--- a/drivers/cam_isp/isp_hw_mgr/isp_hw/vfe_hw/cam_vfe_dev.h
++++ b/drivers/cam_isp/isp_hw_mgr/isp_hw/vfe_hw/cam_vfe_dev.h
+@@ -30,6 +30,6 @@ int cam_vfe_probe(struct platform_device *pdev);
+  * @Return:                  0: Success
+  *                           Non-zero: Failure
+  */
+-int cam_vfe_remove(struct platform_device *pdev);
++void cam_vfe_remove(struct platform_device *pdev);
+ 
+ #endif /* _CAM_VFE_DEV_H_ */
+diff --git a/drivers/cam_jpeg/cam_jpeg_dev.c b/drivers/cam_jpeg/cam_jpeg_dev.c
+index a7e86c4..67c2b80 100644
+--- a/drivers/cam_jpeg/cam_jpeg_dev.c
++++ b/drivers/cam_jpeg/cam_jpeg_dev.c
+@@ -253,10 +253,9 @@ const static struct component_ops cam_jpeg_dev_component_ops = {
+ 	.unbind = cam_jpeg_dev_component_unbind,
+ };
+ 
+-static int cam_jpeg_dev_remove(struct platform_device *pdev)
++static void cam_jpeg_dev_remove(struct platform_device *pdev)
+ {
+ 	component_del(&pdev->dev, &cam_jpeg_dev_component_ops);
+-	return 0;
+ }
+ 
+ static int cam_jpeg_dev_probe(struct platform_device *pdev)
+diff --git a/drivers/cam_jpeg/jpeg_hw/jpeg_dma_hw/jpeg_dma_dev.c b/drivers/cam_jpeg/jpeg_hw/jpeg_dma_hw/jpeg_dma_dev.c
+index 61fe700..fab562f 100644
+--- a/drivers/cam_jpeg/jpeg_hw/jpeg_dma_hw/jpeg_dma_dev.c
++++ b/drivers/cam_jpeg/jpeg_hw/jpeg_dma_hw/jpeg_dma_dev.c
+@@ -229,10 +229,9 @@ const static struct component_ops cam_jpeg_dma_component_ops = {
+ 	.unbind = cam_jpeg_dma_component_unbind,
+ };
+ 
+-static int cam_jpeg_dma_remove(struct platform_device *pdev)
++static void cam_jpeg_dma_remove(struct platform_device *pdev)
+ {
+ 	component_del(&pdev->dev, &cam_jpeg_dma_component_ops);
+-	return 0;
+ }
+ 
+ static int cam_jpeg_dma_probe(struct platform_device *pdev)
+diff --git a/drivers/cam_jpeg/jpeg_hw/jpeg_enc_hw/jpeg_enc_dev.c b/drivers/cam_jpeg/jpeg_hw/jpeg_enc_hw/jpeg_enc_dev.c
+index d49e838..7442d64 100644
+--- a/drivers/cam_jpeg/jpeg_hw/jpeg_enc_hw/jpeg_enc_dev.c
++++ b/drivers/cam_jpeg/jpeg_hw/jpeg_enc_hw/jpeg_enc_dev.c
+@@ -230,10 +230,9 @@ const static struct component_ops cam_jpeg_enc_component_ops = {
+ 	.unbind = cam_jpeg_enc_component_unbind,
+ };
+ 
+-static int cam_jpeg_enc_remove(struct platform_device *pdev)
++static void cam_jpeg_enc_remove(struct platform_device *pdev)
+ {
+ 	component_del(&pdev->dev, &cam_jpeg_enc_component_ops);
+-	return 0;
+ }
+ 
+ static int cam_jpeg_enc_probe(struct platform_device *pdev)
+diff --git a/drivers/cam_lrme/cam_lrme_dev.c b/drivers/cam_lrme/cam_lrme_dev.c
+index eaab01e..83e1bd5 100644
+--- a/drivers/cam_lrme/cam_lrme_dev.c
++++ b/drivers/cam_lrme/cam_lrme_dev.c
+@@ -248,10 +248,9 @@ static int cam_lrme_dev_probe(struct platform_device *pdev)
+ 	return rc;
+ }
+ 
+-static int cam_lrme_dev_remove(struct platform_device *pdev)
++static void cam_lrme_dev_remove(struct platform_device *pdev)
+ {
+ 	component_del(&pdev->dev, &cam_lrme_component_ops);
+-	return 0;
+ }
+ 
+ static const struct of_device_id cam_lrme_dt_match[] = {
+diff --git a/drivers/cam_lrme/lrme_hw_mgr/lrme_hw/cam_lrme_hw_dev.c b/drivers/cam_lrme/lrme_hw_mgr/lrme_hw/cam_lrme_hw_dev.c
+index 2a95c21..85ef06e 100644
+--- a/drivers/cam_lrme/lrme_hw_mgr/lrme_hw/cam_lrme_hw_dev.c
++++ b/drivers/cam_lrme/lrme_hw_mgr/lrme_hw/cam_lrme_hw_dev.c
+@@ -301,10 +301,9 @@ static int cam_lrme_hw_dev_probe(struct platform_device *pdev)
+ 	return rc;
+ }
+ 
+-static int cam_lrme_hw_dev_remove(struct platform_device *pdev)
++static void cam_lrme_hw_dev_remove(struct platform_device *pdev)
+ {
+ 	component_del(&pdev->dev, &cam_lrme_hw_dev_component_ops);
+-	return 0;
+ }
+ 
+ static const struct of_device_id cam_lrme_hw_dt_match[] = {
+diff --git a/drivers/cam_ope/cam_ope_subdev.c b/drivers/cam_ope/cam_ope_subdev.c
+index 33f6cd6..f6ca07d 100644
+--- a/drivers/cam_ope/cam_ope_subdev.c
++++ b/drivers/cam_ope/cam_ope_subdev.c
+@@ -306,10 +306,9 @@ static int cam_ope_subdev_probe(struct platform_device *pdev)
+ 	return rc;
+ }
+ 
+-static int cam_ope_subdev_remove(struct platform_device *pdev)
++static void cam_ope_subdev_remove(struct platform_device *pdev)
+ {
+ 	component_del(&pdev->dev, &cam_ope_subdev_component_ops);
+-	return 0;
+ }
+ 
+ static const struct of_device_id cam_ope_dt_match[] = {
+diff --git a/drivers/cam_ope/ope_hw_mgr/ope_hw/bus_rd/ope_bus_rd.c b/drivers/cam_ope/ope_hw_mgr/ope_hw/bus_rd/ope_bus_rd.c
+index 955ab11..f9ba351 100644
+--- a/drivers/cam_ope/ope_hw_mgr/ope_hw/bus_rd/ope_bus_rd.c
++++ b/drivers/cam_ope/ope_hw_mgr/ope_hw/bus_rd/ope_bus_rd.c
+@@ -4,6 +4,7 @@
+  * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+  */
+ 
++#include <linux/vmalloc.h>
+ #include <linux/of.h>
+ #include <linux/debugfs.h>
+ #include <linux/videodev2.h>
+diff --git a/drivers/cam_ope/ope_hw_mgr/ope_hw/bus_wr/ope_bus_wr.c b/drivers/cam_ope/ope_hw_mgr/ope_hw/bus_wr/ope_bus_wr.c
+index 9736e63..19a49c3 100644
+--- a/drivers/cam_ope/ope_hw_mgr/ope_hw/bus_wr/ope_bus_wr.c
++++ b/drivers/cam_ope/ope_hw_mgr/ope_hw/bus_wr/ope_bus_wr.c
+@@ -4,6 +4,7 @@
+  * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+  */
+ 
++#include <linux/vmalloc.h>
+ #include <linux/of.h>
+ #include <linux/debugfs.h>
+ #include <linux/videodev2.h>
+diff --git a/drivers/cam_req_mgr/cam_req_mgr_dev.c b/drivers/cam_req_mgr/cam_req_mgr_dev.c
+index 0fe8248..3337692 100644
+--- a/drivers/cam_req_mgr/cam_req_mgr_dev.c
++++ b/drivers/cam_req_mgr/cam_req_mgr_dev.c
+@@ -1233,10 +1233,9 @@ static const struct component_master_ops cam_req_mgr_component_master_ops = {
+ 	.unbind = cam_req_mgr_component_master_unbind,
+ };
+ 
+-static int cam_req_mgr_remove(struct platform_device *pdev)
++static void cam_req_mgr_remove(struct platform_device *pdev)
+ {
+ 	component_master_del(&pdev->dev, &cam_req_mgr_component_master_ops);
+-	return 0;
+ }
+ 
+ static int cam_req_mgr_probe(struct platform_device *pdev)
+diff --git a/drivers/cam_sensor_module/cam_actuator/cam_actuator_dev.c b/drivers/cam_sensor_module/cam_actuator/cam_actuator_dev.c
+index 58ff9d3..9937504 100644
+--- a/drivers/cam_sensor_module/cam_actuator/cam_actuator_dev.c
++++ b/drivers/cam_sensor_module/cam_actuator/cam_actuator_dev.c
+@@ -599,11 +599,10 @@ const static struct component_ops cam_actuator_platform_component_ops = {
+ 	.unbind = cam_actuator_platform_component_unbind,
+ };
+ 
+-static int32_t cam_actuator_platform_remove(
++static void cam_actuator_platform_remove(
+ 	struct platform_device *pdev)
+ {
+ 	component_del(&pdev->dev, &cam_actuator_platform_component_ops);
+-	return 0;
+ }
+ 
+ static const struct of_device_id cam_actuator_driver_dt_match[] = {
+diff --git a/drivers/cam_sensor_module/cam_cci/cam_cci_debug_util.c b/drivers/cam_sensor_module/cam_cci/cam_cci_debug_util.c
+index 7efac38..6143ff1 100644
+--- a/drivers/cam_sensor_module/cam_cci/cam_cci_debug_util.c
++++ b/drivers/cam_sensor_module/cam_cci/cam_cci_debug_util.c
+@@ -3,6 +3,7 @@
+  * Copyright (c) 2017-2022, The Linux Foundation. All rights reserved.
+  */
+ 
++#include <linux/vmalloc.h>
+ #include "cam_cci_debug_util.h"
+ 
+ static int cam_cci_debug_str_show(struct seq_file *s, void *ignored)
+diff --git a/drivers/cam_sensor_module/cam_cci/cam_cci_dev.c b/drivers/cam_sensor_module/cam_cci/cam_cci_dev.c
+index 3581002..2ffb971 100644
+--- a/drivers/cam_sensor_module/cam_cci/cam_cci_dev.c
++++ b/drivers/cam_sensor_module/cam_cci/cam_cci_dev.c
+@@ -909,10 +909,9 @@ static int cam_cci_platform_probe(struct platform_device *pdev)
+ 	return rc;
+ }
+ 
+-static int cam_cci_device_remove(struct platform_device *pdev)
++static void cam_cci_device_remove(struct platform_device *pdev)
+ {
+ 	component_del(&pdev->dev, &cam_cci_component_ops);
+-	return 0;
+ }
+ 
+ static const struct of_device_id cam_cci_dt_match[] = {
+diff --git a/drivers/cam_sensor_module/cam_csiphy/cam_csiphy_dev.c b/drivers/cam_sensor_module/cam_csiphy/cam_csiphy_dev.c
+index 14efbf6..3b7fc82 100644
+--- a/drivers/cam_sensor_module/cam_csiphy/cam_csiphy_dev.c
++++ b/drivers/cam_sensor_module/cam_csiphy/cam_csiphy_dev.c
+@@ -691,10 +691,9 @@ static int32_t cam_csiphy_platform_probe(struct platform_device *pdev)
+ }
+ 
+ 
+-static int32_t cam_csiphy_device_remove(struct platform_device *pdev)
++static void cam_csiphy_device_remove(struct platform_device *pdev)
+ {
+ 	component_del(&pdev->dev, &cam_csiphy_component_ops);
+-	return 0;
+ }
+ 
+ static const struct of_device_id cam_csiphy_dt_match[] = {
+diff --git a/drivers/cam_sensor_module/cam_eeprom/cam_eeprom_core.c b/drivers/cam_sensor_module/cam_eeprom/cam_eeprom_core.c
+index 4d30f14..29b7838 100644
+--- a/drivers/cam_sensor_module/cam_eeprom/cam_eeprom_core.c
++++ b/drivers/cam_sensor_module/cam_eeprom/cam_eeprom_core.c
+@@ -4,6 +4,7 @@
+  * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
+  */
+ 
++#include <linux/vmalloc.h>
+ #include <linux/module.h>
+ #include <linux/crc32.h>
+ #include <media/cam_sensor.h>
+diff --git a/drivers/cam_sensor_module/cam_eeprom/cam_eeprom_dev.c b/drivers/cam_sensor_module/cam_eeprom/cam_eeprom_dev.c
+index e4d691e..b05e549 100644
+--- a/drivers/cam_sensor_module/cam_eeprom/cam_eeprom_dev.c
++++ b/drivers/cam_sensor_module/cam_eeprom/cam_eeprom_dev.c
+@@ -696,10 +696,9 @@ static int32_t cam_eeprom_platform_driver_probe(
+ 	return rc;
+ }
+ 
+-static int cam_eeprom_platform_driver_remove(struct platform_device *pdev)
++static void cam_eeprom_platform_driver_remove(struct platform_device *pdev)
+ {
+ 	component_del(&pdev->dev, &cam_eeprom_component_ops);
+-	return 0;
+ }
+ 
+ static const struct of_device_id cam_eeprom_dt_match[] = {
+diff --git a/drivers/cam_sensor_module/cam_eeprom/cam_eeprom_soc.c b/drivers/cam_sensor_module/cam_eeprom/cam_eeprom_soc.c
+index 34893dc..1571e50 100644
+--- a/drivers/cam_sensor_module/cam_eeprom/cam_eeprom_soc.c
++++ b/drivers/cam_sensor_module/cam_eeprom/cam_eeprom_soc.c
+@@ -4,6 +4,7 @@
+  * Copyright (c) 2022, 2024 Qualcomm Innovation Center, Inc. All rights reserved.
+  */
+ 
++#include <linux/vmalloc.h>
+ #include <linux/of.h>
+ #include <linux/of_gpio.h>
+ #include <cam_sensor_cmn_header.h>
+diff --git a/drivers/cam_sensor_module/cam_flash/cam_flash_dev.c b/drivers/cam_sensor_module/cam_flash/cam_flash_dev.c
+index 0f08bd8..ecadf89 100644
+--- a/drivers/cam_sensor_module/cam_flash/cam_flash_dev.c
++++ b/drivers/cam_sensor_module/cam_flash/cam_flash_dev.c
+@@ -583,10 +583,9 @@ const static struct component_ops cam_flash_component_ops = {
+ 	.unbind = cam_flash_component_unbind,
+ };
+ 
+-static int cam_flash_platform_remove(struct platform_device *pdev)
++static void cam_flash_platform_remove(struct platform_device *pdev)
+ {
+ 	component_del(&pdev->dev, &cam_flash_component_ops);
+-	return 0;
+ }
+ 
+ static int32_t cam_flash_platform_probe(struct platform_device *pdev)
+diff --git a/drivers/cam_sensor_module/cam_ois/cam_ois_core.c b/drivers/cam_sensor_module/cam_ois/cam_ois_core.c
+index 7d398fa..6d3e9fe 100644
+--- a/drivers/cam_sensor_module/cam_ois/cam_ois_core.c
++++ b/drivers/cam_sensor_module/cam_ois/cam_ois_core.c
+@@ -4,6 +4,7 @@
+  * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+  */
+ 
++#include <linux/vmalloc.h>
+ #include <linux/module.h>
+ #include <linux/firmware.h>
+ 
+diff --git a/drivers/cam_sensor_module/cam_ois/cam_ois_dev.c b/drivers/cam_sensor_module/cam_ois/cam_ois_dev.c
+index 0bf1501..ed6d04a 100644
+--- a/drivers/cam_sensor_module/cam_ois/cam_ois_dev.c
++++ b/drivers/cam_sensor_module/cam_ois/cam_ois_dev.c
+@@ -594,10 +594,9 @@ static int32_t cam_ois_platform_driver_probe(
+ 	return rc;
+ }
+ 
+-static int cam_ois_platform_driver_remove(struct platform_device *pdev)
++static void cam_ois_platform_driver_remove(struct platform_device *pdev)
+ {
+ 	component_del(&pdev->dev, &cam_ois_component_ops);
+-	return 0;
+ }
+ 
+ static const struct of_device_id cam_ois_dt_match[] = {
+diff --git a/drivers/cam_sensor_module/cam_ois/sem1217s.c b/drivers/cam_sensor_module/cam_ois/sem1217s.c
+index 9d02190..40f32c6 100644
+--- a/drivers/cam_sensor_module/cam_ois/sem1217s.c
++++ b/drivers/cam_sensor_module/cam_ois/sem1217s.c
+@@ -1,3 +1,4 @@
++#include <linux/vmalloc.h>
+ #include <linux/module.h>
+ #include <linux/firmware.h>
+ #include <cam_sensor_cmn_header.h>
+diff --git a/drivers/cam_sensor_module/cam_res_mgr/cam_res_mgr.c b/drivers/cam_sensor_module/cam_res_mgr/cam_res_mgr.c
+index d2d0258..f892bb8 100644
+--- a/drivers/cam_sensor_module/cam_res_mgr/cam_res_mgr.c
++++ b/drivers/cam_sensor_module/cam_res_mgr/cam_res_mgr.c
+@@ -979,10 +979,9 @@ static int cam_res_mgr_probe(struct platform_device *pdev)
+ 	return rc;
+ }
+ 
+-static int cam_res_mgr_remove(struct platform_device *pdev)
++static void cam_res_mgr_remove(struct platform_device *pdev)
+ {
+ 	component_del(&pdev->dev, &cam_res_mgr_component_ops);
+-	return 0;
+ }
+ 
+ static const struct of_device_id cam_res_mgr_dt_match[] = {
+diff --git a/drivers/cam_sensor_module/cam_sensor/cam_sensor_dev.c b/drivers/cam_sensor_module/cam_sensor/cam_sensor_dev.c
+index f742f55..c79c2fa 100644
+--- a/drivers/cam_sensor_module/cam_sensor/cam_sensor_dev.c
++++ b/drivers/cam_sensor_module/cam_sensor/cam_sensor_dev.c
+@@ -768,10 +768,9 @@ const static struct component_ops cam_sensor_component_ops = {
+ 	.unbind = cam_sensor_component_unbind,
+ };
+ 
+-static int cam_sensor_platform_remove(struct platform_device *pdev)
++static void cam_sensor_platform_remove(struct platform_device *pdev)
+ {
+ 	component_del(&pdev->dev, &cam_sensor_component_ops);
+-	return 0;
+ }
+ 
+ static const struct of_device_id cam_sensor_driver_dt_match[] = {
+diff --git a/drivers/cam_sensor_module/cam_sensor_utils/cam_sensor_util.c b/drivers/cam_sensor_module/cam_sensor_utils/cam_sensor_util.c
+index 22b622b..0da9816 100644
+--- a/drivers/cam_sensor_module/cam_sensor_utils/cam_sensor_util.c
++++ b/drivers/cam_sensor_module/cam_sensor_utils/cam_sensor_util.c
+@@ -4,6 +4,7 @@
+  * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+  */
+ 
++#include <linux/vmalloc.h>
+ #include <linux/kernel.h>
+ #include <clocksource/arm_arch_timer.h>
+ #include "cam_sensor_util.h"
+diff --git a/drivers/cam_sensor_module/cam_tpg/cam_tpg_dev.c b/drivers/cam_sensor_module/cam_tpg/cam_tpg_dev.c
+index fe9a650..8b5d7ce 100644
+--- a/drivers/cam_sensor_module/cam_tpg/cam_tpg_dev.c
++++ b/drivers/cam_sensor_module/cam_tpg/cam_tpg_dev.c
+@@ -388,10 +388,9 @@ static int32_t cam_tpg_platform_probe(struct platform_device *pdev)
+ }
+ 
+ 
+-static int32_t cam_tpg_device_remove(struct platform_device *pdev)
++static void cam_tpg_device_remove(struct platform_device *pdev)
+ {
+ 	component_del(&pdev->dev, &cam_tpg_component_ops);
+-	return 0;
+ }
+ 
+ static const struct of_device_id cam_tpg_dt_match[] = {
+diff --git a/drivers/cam_smmu/cam_smmu_api.c b/drivers/cam_smmu/cam_smmu_api.c
+index 6491631..d80d2e2 100644
+--- a/drivers/cam_smmu/cam_smmu_api.c
++++ b/drivers/cam_smmu/cam_smmu_api.c
+@@ -5802,7 +5802,7 @@ static int cam_smmu_probe(struct platform_device *pdev)
+ 	return rc;
+ }
+ 
+-static int cam_smmu_remove(struct platform_device *pdev)
++static void cam_smmu_remove(struct platform_device *pdev)
+ {
+ 	struct device *dev = &pdev->dev;
+ 
+@@ -5819,10 +5819,8 @@ static int cam_smmu_remove(struct platform_device *pdev)
+ 		component_del(&pdev->dev, &cam_smmu_fw_dev_component_ops);
+ 	} else {
+ 		CAM_ERR(CAM_SMMU, "Unrecognized child device: %s", pdev->name);
+-		return -ENODEV;
++		return;
+ 	}
+-
+-	return 0;
+ }
+ 
+ struct platform_driver cam_smmu_driver = {
+diff --git a/drivers/cam_sync/cam_sync.c b/drivers/cam_sync/cam_sync.c
+index e2fb8bd..0f37a22 100644
+--- a/drivers/cam_sync/cam_sync.c
++++ b/drivers/cam_sync/cam_sync.c
+@@ -4,6 +4,7 @@
+  * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+  */
+ 
++#include <linux/vmalloc.h>
+ #include <linux/init.h>
+ #include <linux/module.h>
+ #include <linux/irqflags.h>
+@@ -2942,10 +2943,9 @@ static int cam_sync_probe(struct platform_device *pdev)
+ 	return rc;
+ }
+ 
+-static int cam_sync_remove(struct platform_device *pdev)
++static void cam_sync_remove(struct platform_device *pdev)
+ {
+ 	component_del(&pdev->dev, &cam_sync_component_ops);
+-	return 0;
+ }
+ 
+ static const struct of_device_id cam_sync_dt_match[] = {
+diff --git a/drivers/cam_utils/cam_dump_util.c b/drivers/cam_utils/cam_dump_util.c
+index f35463b..5bd22d7 100644
+--- a/drivers/cam_utils/cam_dump_util.c
++++ b/drivers/cam_utils/cam_dump_util.c
+@@ -4,6 +4,7 @@
+ #include "cam_eeprom_dev.h"
+ #include "cam_ois_dev.h"
+ #include "cam_dump_util.h"
++#include <linux/vmalloc.h>
+ #include <media/cam_req_mgr.h>
+ 
+ #define INC_HEAD(head, max_entries, ret) \
+@@ -163,7 +164,7 @@ int cam_debug_record_key_message(int subdev_id,void *ctrl,void *info,uint64_t re
+ 			cam_key_buffer->event_id[EVENT_ISP_SOF][index].opcode = EVENT_ISP_SOF;
+ 			if(soc_info)
+ 			{
+-				strlcpy(cam_key_buffer->event_id[EVENT_ISP_SOF][index].u.frame_info.dev_name,soc_info->dev_name,CAM_SENSOR_NAME_MAX_LENGTH);
++				strscpy(cam_key_buffer->event_id[EVENT_ISP_SOF][index].u.frame_info.dev_name,soc_info->dev_name,CAM_SENSOR_NAME_MAX_LENGTH);
+ 			}
+ 			cam_key_buffer->event_id[EVENT_ISP_SOF][index].u.frame_info.frame_id = ctx_isp->frame_id;
+ 			CAM_CONVERT_TIMESTAMP_FORMAT(ts,cam_key_buffer->event_id[EVENT_ISP_SOF][index].ts_h,
+@@ -206,7 +207,7 @@ int cam_debug_record_key_message(int subdev_id,void *ctrl,void *info,uint64_t re
+ 			soc_info = &s_ctrl->soc_info;
+ 			if(soc_info)
+ 			{
+-				strlcpy(cam_key_buffer->event_id[EVENT_ISP_EOF][index].u.frame_info.dev_name,soc_info->dev_name,CAM_SENSOR_NAME_MAX_LENGTH);
++				strscpy(cam_key_buffer->event_id[EVENT_ISP_EOF][index].u.frame_info.dev_name,soc_info->dev_name,CAM_SENSOR_NAME_MAX_LENGTH);
+ 			}
+ 			cam_key_buffer->event_id[EVENT_ISP_EOF][index].u.frame_info.frame_id = ctx_isp->frame_id;
+ 		}
+@@ -244,7 +245,7 @@ int cam_debug_record_key_message(int subdev_id,void *ctrl,void *info,uint64_t re
+ 			soc_info = &s_ctrl->soc_info;
+ 			if(soc_info)
+ 			{
+-				strlcpy(cam_key_buffer->event_id[EVENT_ISP_EPOCH][index].u.frame_info.dev_name,soc_info->dev_name,CAM_SENSOR_NAME_MAX_LENGTH);
++				strscpy(cam_key_buffer->event_id[EVENT_ISP_EPOCH][index].u.frame_info.dev_name,soc_info->dev_name,CAM_SENSOR_NAME_MAX_LENGTH);
+ 			}
+ 			cam_key_buffer->event_id[EVENT_ISP_EPOCH][index].u.frame_info.frame_id = ctx_isp->frame_id;
+ 		}
+diff --git a/drivers/cam_utils/cam_soc_util.c b/drivers/cam_utils/cam_soc_util.c
+index 4255ebb..e0a3da6 100644
+--- a/drivers/cam_utils/cam_soc_util.c
++++ b/drivers/cam_utils/cam_soc_util.c
+@@ -3050,7 +3050,9 @@ static int cam_soc_util_request_gpio_table(
+ 			}
+ 		}
+ 	} else {
+-		gpio_free_array(gpio_tbl, size);
++		/* gpio_free_array() is gone since 6.11. */
++		for (i = 0; i < size; i++)
++			gpio_free(gpio_tbl[i].gpio);
+ 	}
+ 
+ 	return rc;
+diff --git a/drivers/cam_utils/cam_trace.h b/drivers/cam_utils/cam_trace.h
+index 643c3ea..eb97bfb 100644
+--- a/drivers/cam_utils/cam_trace.h
++++ b/drivers/cam_utils/cam_trace.h
+@@ -34,7 +34,7 @@ TRACE_EVENT(cam_context_state,
+ 	TP_fast_assign(
+ 		__entry->ctx = ctx;
+ 		__entry->state = ctx->state;
+-		__assign_str(name, name);
++		__assign_str(name);
+ 	),
+ 	TP_printk(
+ 		"%s: State ctx=%p ctx_state=%u",
+@@ -81,8 +81,8 @@ TRACE_EVENT(cam_log_event,
+ 		__field(uint64_t, val2)
+ 	),
+ 	TP_fast_assign(
+-		__assign_str(string1, string1);
+-		__assign_str(string2, string2);
++		__assign_str(string1);
++		__assign_str(string2);
+ 		__entry->val1 = val1;
+ 		__entry->val2 = val2;
+ 	),
+@@ -119,9 +119,9 @@ TRACE_EVENT(cam_icp_fw_dbg,
+ 		__string(dev_name, dev_name)
+ 	),
+ 	TP_fast_assign(
+-		__assign_str(dbg_message, dbg_message);
++		__assign_str(dbg_message);
+ 		__entry->timestamp = timestamp;
+-		__assign_str(dev_name, dev_name);
++		__assign_str(dev_name);
+ 	),
+ 	TP_printk(
+ 		"[%s] %llu %s: ",
+@@ -140,7 +140,7 @@ TRACE_EVENT(cam_buf_done,
+ 		__field(uint64_t, request)
+ 	),
+ 	TP_fast_assign(
+-		__assign_str(ctx_type, ctx_type);
++		__assign_str(ctx_type);
+ 		__entry->ctx = ctx;
+ 		__entry->link_hdl = ctx->link_hdl;
+ 		__entry->request = req->request_id;
+@@ -161,7 +161,7 @@ TRACE_EVENT(cam_apply_req,
+ 		__field(int32_t, link_hdl)
+ 	),
+ 	TP_fast_assign(
+-		__assign_str(entity, entity);
++		__assign_str(entity);
+ 		__entry->id = id;
+ 		__entry->req_id = req_id;
+ 		__entry->link_hdl = link_hdl;
+@@ -180,7 +180,7 @@ TRACE_EVENT(cam_notify_frame_skip,
+ 		__field(uint64_t, req_id)
+ 	),
+ 	TP_fast_assign(
+-		__assign_str(entity, entity);
++		__assign_str(entity);
+ 		__entry->req_id = req_id;
+ 	),
+ 	TP_printk(
+@@ -224,7 +224,7 @@ TRACE_EVENT(cam_req_mgr_connect_device,
+ 		__field(void*, session)
+ 	),
+ 	TP_fast_assign(
+-		__assign_str(name, info->name);
++		__assign_str(name);
+ 		__entry->id      = info->dev_id;
+ 		__entry->delay   = info->p_delay;
+ 		__entry->link    = link;
+@@ -251,7 +251,7 @@ TRACE_EVENT(cam_req_mgr_apply_request,
+ 		__field(void*, session)
+ 	),
+ 	TP_fast_assign(
+-		__assign_str(name, dev->dev_info.name);
++		__assign_str(name);
+ 		__entry->dev_id  = dev->dev_info.dev_id;
+ 		__entry->req_id  = req->request_id;
+ 		__entry->link    = link;
+@@ -284,7 +284,7 @@ TRACE_EVENT(cam_req_mgr_add_req,
+ 		__field(int32_t, link_hdl)
+ 	),
+ 	TP_fast_assign(
+-		__assign_str(name, dev->dev_info.name);
++		__assign_str(name);
+ 		__entry->dev_id    = dev->dev_info.dev_id;
+ 		__entry->req_id    = add_req->req_id;
+ 		__entry->slot_id   = idx;
+@@ -321,8 +321,8 @@ TRACE_EVENT(cam_delay_detect,
+ 		__field(int32_t, rc)
+ 	),
+ 	TP_fast_assign(
+-		__assign_str(entity, entity);
+-		__assign_str(text, text);
++		__assign_str(entity);
++		__assign_str(text);
+ 		__entry->req_id      = req_id;
+ 		__entry->ctx_id      = ctx_id;
+ 		__entry->link_hdl    = link_hdl;
+@@ -345,7 +345,7 @@ TRACE_EVENT(cam_submit_to_hw,
+ 		__field(uint64_t, req_id)
+ 	),
+ 	TP_fast_assign(
+-		__assign_str(entity, entity);
++		__assign_str(entity);
+ 		__entry->req_id = req_id;
+ 	),
+ 	TP_printk(
+@@ -362,7 +362,7 @@ TRACE_EVENT(cam_irq_activated,
+ 		__field(uint32_t, irq_type)
+ 	),
+ 	TP_fast_assign(
+-		__assign_str(entity, entity);
++		__assign_str(entity);
+ 		__entry->irq_type = irq_type;
+ 	),
+ 	TP_printk(
+@@ -379,7 +379,7 @@ TRACE_EVENT(cam_irq_handled,
+ 		__field(uint32_t, irq_type)
+ 	),
+ 	TP_fast_assign(
+-		__assign_str(entity, entity);
++		__assign_str(entity);
+ 		__entry->irq_type = irq_type;
+ 	),
+ 	TP_printk(
+@@ -396,7 +396,7 @@ TRACE_EVENT(cam_cdm_cb,
+ 		__field(uint32_t, status)
+ 	),
+ 	TP_fast_assign(
+-		__assign_str(entity, entity);
++		__assign_str(entity);
+ 		__entry->status = status;
+ 	),
+ 	TP_printk(
+@@ -421,7 +421,7 @@ TRACE_EVENT(cam_cci_burst,
+ 		__entry->index = idx;
+ 		__entry->master = m;
+ 		__entry->queue = q;
+-		__assign_str(msg, msg);
++		__assign_str(msg);
+ 		__entry->value = val;
+ 	),
+ 	TP_printk(
+@@ -440,8 +440,8 @@ TRACE_EVENT(cam_perf,
+ 		__field(unsigned long, value)
+ 	),
+ 	TP_fast_assign(
+-		__assign_str(entity, entity);
+-		__assign_str(msg, msg);
++		__assign_str(entity);
++		__assign_str(msg);
+ 		__entry->value = val;
+ 	),
+ 	TP_printk(
+@@ -465,9 +465,9 @@ TRACE_EVENT(cam_i2c_write_log_event,
+ 		__field(uint32_t, reg_data)
+ 	),
+ 	TP_fast_assign(
+-		__assign_str(flag_name, flag_name);
+-		__assign_str(device_name, device_name);
+-		__assign_str(w_r_status, w_r_status);
++		__assign_str(flag_name);
++		__assign_str(device_name);
++		__assign_str(w_r_status);
+ 		__entry->req_id = req_id;
+ 		__entry->j = j;
+ 		__entry->reg_addr = reg_addr;
+@@ -507,7 +507,7 @@ TRACE_EVENT(opcode_name,
+ 	),
+ 	TP_fast_assign(
+ 		__entry->opcode_value = opcode_value;
+-		__assign_str(opcode_name, opcode_name);
++		__assign_str(opcode_name);
+ 	),
+ 	TP_printk(
+ 		"sensor request_id = 0 opcode value = %d opcode_name %s start",
+diff --git a/drivers/cam_vmrm/cam_vmrm.c b/drivers/cam_vmrm/cam_vmrm.c
+index 000ef3e..98d381f 100644
+--- a/drivers/cam_vmrm/cam_vmrm.c
++++ b/drivers/cam_vmrm/cam_vmrm.c
+@@ -2783,11 +2783,10 @@ static int cam_vmrm_intf_probe(struct platform_device *pdev)
+ 	return rc;
+ }
+ 
+-static int cam_vmrm_intf_remove(struct platform_device *pdev)
++static void cam_vmrm_intf_remove(struct platform_device *pdev)
+ {
+ 	CAM_DBG(CAM_VMRM, "Removing the vmrm_intf driver");
+ 	component_del(&pdev->dev, &cam_vmrm_intf_ops);
+-	return 0;
+ }
+ 
+ struct platform_driver cam_vmrm_intf_driver = {

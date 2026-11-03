@@ -37,12 +37,15 @@ $STRIP --strip-debug $M/*.ko
 # mca_qcom_subpmic_proxy exports the same qti_battery_charger_get_prop
 # that the haptics and flash LED modules use, and depmod must pick it.
 rm -f $M/qti_battery_charger.ko
+# video.ko is the alternative video driver for the same nodes; 6.6 loads
+# msm_video only.
+rm -f $M/video.ko
 {
 	xargs -n1 basename < $OUTP/vendor_dlkm/lib/modules/modules.load | while read -r k; do
 		if [ -f $M/$k ]; then echo $k; fi
 	done
 	ls $M | grep '\.ko$'
-} | grep -v -E '^(qcedev-mod_dlkm|qcrypto-msm_dlkm|qti_battery_charger)\.ko$' | awk '!seen[$0]++' > $M/modules.load
+} | grep -v -E '^(qcedev-mod_dlkm|qcrypto-msm_dlkm|qti_battery_charger|video)\.ko$' | awk '!seen[$0]++' > $M/modules.load
 
 depmod -b $W/vendor_dlkm $VER
 # Flatten to /lib/modules like the stock image.

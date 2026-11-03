@@ -21,6 +21,11 @@ source, so piano's own drivers are ported from 6.6.
   `include/miev` as `include/miev`, and apply it there. It builds the
   Xiaomi charging stack out of tree, with Qualcomm's 6.12 fsa4480 USB-C
   switch driver, which the sun build leaves out.
+  `camera-kernel.patch` and `eva-kernel.patch` are against the same
+  commit: copy `techpack/camera-kernel` and `techpack/eva-kernel` to
+  `vendor/qcom/opensource/` and apply them there. Xiaomi's camera driver
+  is kept rather than Qualcomm's 6.12 one, since the HyperOS camera HAL
+  is built against its interface.
 - `scripts/` builds and tests it:
   - build: `./build_with_bazel.py -t sun perf -s abl` in `kernel_platform`
   - `dt612.sh` merges the piano devicetree, `pack612.sh` packs boot,
@@ -47,4 +52,7 @@ which writes the kernel log to the `rawdump` partition. The header is
   and `qcrypto-msm_dlkm` are left out of modules.load for now.
 - Battery and charging work through the Xiaomi mca stack;
   `qti_battery_charger` stays out, as on 6.6.
-- Missing: camera, video, EVA, the hall sensor and 144 Hz. Never leave the tablet idle on 6.12.
+- Camera, video and EVA work: the camera HAL lists all four cameras.
+  The 6.12 base devicetree has no camera, video, EVA or MMRM nodes, so
+  `dt612.sh` adds the 6.6 techpack overlays.
+- Missing: the hall sensor and 144 Hz.

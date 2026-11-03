@@ -1,0 +1,283 @@
+diff --git a/driver/platform/common/src/msm_vidc_platform.c b/driver/platform/common/src/msm_vidc_platform.c
+index 14288ba..8a68dc6 100644
+--- a/driver/platform/common/src/msm_vidc_platform.c
++++ b/driver/platform/common/src/msm_vidc_platform.c
+@@ -25,8 +25,10 @@
+ #if defined(CONFIG_MSM_VIDC_SUN)
+ #include "msm_vidc_sun.h"
+ #include "msm_vidc_iris35.h"
++#if defined(CONFIG_MSM_VIDC_TUNA)
+ #include "msm_vidc_tuna.h"
+ #include "msm_vidc_kera.h"
++#endif
+ #include "msm_vidc_iris33.h"
+ #endif
+ #if defined(CONFIG_MSM_VIDC_PINEAPPLE)
+@@ -228,6 +230,7 @@ static const struct msm_vidc_compat_handle compat_handle[] = {
+ 		.init_platform              = msm_vidc_init_platform_sun,
+ 		.init_iris                  = msm_vidc_init_iris35,
+ 	},
++#if defined(CONFIG_MSM_VIDC_TUNA)
+ 	{
+ 		.compat                     = "qcom,tuna-vidc",
+ 		.init_platform              = msm_vidc_init_platform_tuna,
+@@ -239,6 +242,7 @@ static const struct msm_vidc_compat_handle compat_handle[] = {
+ 		.init_iris                  = msm_vidc_init_iris33,
+ 	},
+ #endif
++#endif
+ };
+ 
+ static int msm_vidc_init_ops(struct msm_vidc_core *core)
+diff --git a/driver/vidc/src/firmware.c b/driver/vidc/src/firmware.c
+index e68a562..52f77fd 100644
+--- a/driver/vidc/src/firmware.c
++++ b/driver/vidc/src/firmware.c
+@@ -2,6 +2,7 @@
+ /*
+  * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+  */
++#include <linux/vmalloc.h>
+ #include <linux/types.h>
+ #include <linux/list.h>
+ #include <linux/of_address.h>
+diff --git a/driver/vidc/src/msm_vidc.c b/driver/vidc/src/msm_vidc.c
+index 220bdbe..8ff6a2b 100644
+--- a/driver/vidc/src/msm_vidc.c
++++ b/driver/vidc/src/msm_vidc.c
+@@ -4,6 +4,7 @@
+  * Copyright (c) 2022-2024, Qualcomm Innovation Center, Inc. All rights reserved.
+  */
+ 
++#include <linux/vmalloc.h>
+ #include <linux/types.h>
+ #include <linux/hash.h>
+ 
+diff --git a/driver/vidc/src/msm_vidc_control.c b/driver/vidc/src/msm_vidc_control.c
+index ed97be9..5adb9e3 100644
+--- a/driver/vidc/src/msm_vidc_control.c
++++ b/driver/vidc/src/msm_vidc_control.c
+@@ -4,6 +4,7 @@
+  * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+  */
+ 
++#include <linux/vmalloc.h>
+ #include "msm_vidc_internal.h"
+ #include "msm_vidc_driver.h"
+ #include "msm_venc.h"
+diff --git a/driver/vidc/src/msm_vidc_debug.c b/driver/vidc/src/msm_vidc_debug.c
+index 9fb32b9..b5f78a7 100644
+--- a/driver/vidc/src/msm_vidc_debug.c
++++ b/driver/vidc/src/msm_vidc_debug.c
+@@ -5,6 +5,7 @@
+  */
+ 
+ #define CREATE_TRACE_POINTS
++#include <linux/vmalloc.h>
+ #include "msm_vidc_debug.h"
+ #include "msm_vidc_driver.h"
+ #include "msm_vidc.h"
+@@ -678,7 +679,7 @@ static ssize_t inst_info_read(struct file *file, char __user *buf,
+ 			"type: %s\n", i == INPUT_PORT ?
+ 			"Output" : "Capture");
+ 		cur += write_str(cur, end - cur, "count: %u\n",
+-				inst->bufq[i].vb2q->num_buffers);
++				vb2_get_num_buffers(inst->bufq[i].vb2q));
+ 
+ 		for (j = 0; j < f->fmt.pix_mp.num_planes; j++)
+ 			cur += write_str(cur, end - cur,
+diff --git a/driver/vidc/src/msm_vidc_driver.c b/driver/vidc/src/msm_vidc_driver.c
+index 6edc8e1..df2e1f0 100644
+--- a/driver/vidc/src/msm_vidc_driver.c
++++ b/driver/vidc/src/msm_vidc_driver.c
+@@ -4,6 +4,7 @@
+  * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+  */
+ 
++#include <linux/vmalloc.h>
+ #include <linux/iommu.h>
+ #include <linux/workqueue.h>
+ #include "msm_media_info.h"
+diff --git a/driver/vidc/src/msm_vidc_fence.c b/driver/vidc/src/msm_vidc_fence.c
+index 9d28bd7..8ad085f 100644
+--- a/driver/vidc/src/msm_vidc_fence.c
++++ b/driver/vidc/src/msm_vidc_fence.c
+@@ -3,6 +3,7 @@
+  * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+  */
+ 
++#include <linux/vmalloc.h>
+ #include "msm_vidc_fence.h"
+ #include "msm_vidc_driver.h"
+ #include "msm_vidc_debug.h"
+diff --git a/driver/vidc/src/msm_vidc_memory.c b/driver/vidc/src/msm_vidc_memory.c
+index 13d34f8..cf0480f 100644
+--- a/driver/vidc/src/msm_vidc_memory.c
++++ b/driver/vidc/src/msm_vidc_memory.c
+@@ -4,6 +4,7 @@
+  * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+  */
+ 
++#include <linux/vmalloc.h>
+ #include <linux/dma-buf.h>
+ #include <linux/dma-heap.h>
+ #include <linux/dma-mapping.h>
+diff --git a/driver/vidc/src/msm_vidc_probe.c b/driver/vidc/src/msm_vidc_probe.c
+index 25f73d8..780322d 100644
+--- a/driver/vidc/src/msm_vidc_probe.c
++++ b/driver/vidc/src/msm_vidc_probe.c
+@@ -721,7 +721,7 @@ static int msm_vidc_remove_context_bank(struct platform_device *pdev)
+ 	return 0;
+ }
+ 
+-static int msm_vidc_remove(struct platform_device *pdev)
++static void msm_vidc_remove(struct platform_device *pdev)
+ {
+ 	/*
+ 	 * Sub devices remove will be triggered by of_platform_depopulate()
+@@ -729,13 +729,12 @@ static int msm_vidc_remove(struct platform_device *pdev)
+ 	 * sub-device remove.
+ 	 */
+ 	if (is_video_device(&pdev->dev))
+-		return msm_vidc_remove_video_device(pdev);
++		msm_vidc_remove_video_device(pdev);
+ 	else if (is_video_context_bank_device(&pdev->dev))
+-		return msm_vidc_remove_context_bank(pdev);
+-
+-	/* How did we end up here? */
+-	WARN_ON(1);
+-	return -EINVAL;
++		msm_vidc_remove_context_bank(pdev);
++	else
++		/* How did we end up here? */
++		WARN_ON(1);
+ }
+ 
+ static int msm_vidc_probe_video_device(struct platform_device *pdev)
+diff --git a/driver/vidc/src/venus_hfi.c b/driver/vidc/src/venus_hfi.c
+index 8e32a76..d9a6488 100644
+--- a/driver/vidc/src/venus_hfi.c
++++ b/driver/vidc/src/venus_hfi.c
+@@ -4,6 +4,7 @@
+  * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+  */
+ 
++#include <linux/vmalloc.h>
+ #include <linux/iommu.h>
+ #include <linux/soc/qcom/smem.h>
+ #include <linux/irqreturn.h>
+diff --git a/target.bzl b/target.bzl
+index 820b1bf..eecc411 100644
+--- a/target.bzl
++++ b/target.bzl
+@@ -1,10 +1,10 @@
+ load(":video_modules.bzl", "video_driver_modules")
+-load(":video_driver_build.bzl", "define_lunch_target_variant_modules")
+-load("//msm-kernel:target_variants.bzl", "get_all_la_variants")
++load(":video_driver_build.bzl", "define_target_variant_modules")
+ 
+ def define_target_modules():
+-    for (target, variant) in get_all_la_variants():
+-        define_lunch_target_variant_modules(
++    # KP 5.0: piano builds sun perf only.
++    for (target, variant) in [("sun", "perf")]:
++        define_target_variant_modules(
+             target = target,
+             variant = variant,
+             registry = video_driver_modules,
+@@ -12,4 +12,16 @@ def define_target_modules():
+                 "msm_video",
+                 "video",
+             ],
++            config_options = [
++                "CONFIG_MSM_MMRM",
++                "CONFIG_MSM_VIDC_SUN",
++                # The soc-repo modules these call are not in the base kernel config, so
++                # without these their headers compile in stubs (no firmware load, LLCC
++                # or mem_buf).
++                "CONFIG_QCOM_MDT_LOADER_MODULE",
++                "CONFIG_QCOM_LLCC_MODULE",
++                "CONFIG_QCOM_MEM_BUF_MODULE",
++                "CONFIG_QCOM_MEM_BUF_DEV_MODULE",
++                "CONFIG_QCOM_MEM_BUF_GH_MODULE",
++            ],
+         )
+diff --git a/video_driver_build.bzl b/video_driver_build.bzl
+index 6c12ccf..e3d375a 100644
+--- a/video_driver_build.bzl
++++ b/video_driver_build.bzl
+@@ -56,12 +56,22 @@ def video_module_entry(hdrs = []):
+ 
+ def define_target_variant_modules(target, variant, registry, modules, config_options = []):
+     kernel_build = "{}_{}".format(target, variant)
+-    kernel_build_label = "//msm-kernel:{}".format(kernel_build)
++    kernel_build_label = "//soc-repo:{}_base_kernel".format(kernel_build)
+     modules = [registry.get(module_name) for module_name in modules]
+     options = _get_kernel_build_options(modules, config_options)
+     build_print = lambda message : print("{}: {}".format(kernel_build, message))
+     formatter = lambda s : s.replace("%b", kernel_build).replace("%t", target)
+-    headers = ["//msm-kernel:all_headers"] +  registry.hdrs + [":{}_headers".format(target)]
++    soc = ["//soc-repo:{}/drivers/{}".format(kernel_build, d) for d in [
++        "firmware/qcom/qcom-scm",
++        "iommu/qcom_iommu_util",
++        "soc/qcom/mem_buf/mem_buf_dev",
++        "soc/qcom/socinfo",
++        "soc/qcom/llcc-qcom",
++        "soc/qcom/mdt_loader",
++        "soc/qcom/qcom_va_minidump",
++        "clk/qcom/clk-qcom",
++    ]]
++    headers = ["//soc-repo:all_headers"] + soc +  registry.hdrs + [":{}_headers".format(target)]
+     print(headers)
+     all_module_rules = []
+ 
+@@ -103,7 +113,7 @@ def define_lunch_target_variant_modules(target, variant, registry, modules, lunc
+     kernel_build = "{}_{}".format(target, variant)
+     print("kernel_build: "+ kernel_build)
+ 
+-    kernel_build_label = "//msm-kernel:{}".format(kernel_build)
++    kernel_build_label = "//soc-repo:{}_base_kernel".format(kernel_build)
+     print(kernel_build_label)
+ 
+     if lunch_target != None:
+@@ -136,7 +146,17 @@ def define_lunch_target_variant_modules(target, variant, registry, modules, lunc
+ 
+     formatter = lambda s : s.replace("%b", kernel_build).replace("%t", target)
+ 
+-    headers = ["//msm-kernel:all_headers"] +  registry.hdrs + [":{}_headers".format(target)]
++    soc = ["//soc-repo:{}/drivers/{}".format(kernel_build, d) for d in [
++        "firmware/qcom/qcom-scm",
++        "iommu/qcom_iommu_util",
++        "soc/qcom/mem_buf/mem_buf_dev",
++        "soc/qcom/socinfo",
++        "soc/qcom/llcc-qcom",
++        "soc/qcom/mdt_loader",
++        "soc/qcom/qcom_va_minidump",
++        "clk/qcom/clk-qcom",
++    ]]
++    headers = ["//soc-repo:all_headers"] + soc +  registry.hdrs + [":{}_headers".format(target)]
+     print(headers)
+ 
+     all_module_rules = []
+diff --git a/video_modules.bzl b/video_modules.bzl
+index 3817bf3..4c3e386 100644
+--- a/video_modules.bzl
++++ b/video_modules.bzl
+@@ -55,8 +55,6 @@ module_entry(
+             "driver/variant/iris33/src/msm_vidc_clock_iris33.c",
+             "driver/variant/iris33/src/msm_vidc_power_iris33.c",
+             "driver/variant/iris33/src/msm_vidc_iris33.c",
+-            "driver/platform/tuna/src/msm_vidc_tuna.c",
+-            "driver/platform/kera/src/msm_vidc_kera.c",
+         ],
+     },
+     deps = [
+@@ -108,8 +106,6 @@ module_entry(
+             "driver/variant/iris35/src/msm_vidc_bus_iris35.c",
+             "driver/variant/iris35/src/msm_vidc_clock_iris35.c",
+             "driver/variant/iris35/src/msm_vidc_iris35.c",
+-            "driver/platform/tuna/src/tuna.c",
+-            "driver/platform/kera/src/kera.c",
+             "driver/variant/iris33/src/msm_vidc_buffer_iris33.c",
+             "driver/variant/iris33/src/msm_vidc_bus_iris33.c",
+             "driver/variant/iris33/src/msm_vidc_clock_iris33.c",
