@@ -59,10 +59,23 @@ done
 # 6.12 sun-mtp.dtsi no longer pulls in the USB PHY register names.
 echo "== piano"; build $OUT/qcom/piano-sm8750-overlay.dts $OUT/piano-overlay.dtbo "-include dt-bindings/phy/qcom,usb3-3nm-qmp-combo.h"
 echo "== display"; build $OUT/display/piano-sde-display-mtp-overlay.dts $OUT/piano-display-overlay.dtbo
+# Audio: Qualcomm's generic sun overlay, then the stock-derived piano one.
+AUD=$SRC66/arch/arm64/boot/dts/techpack/audio-devicetree
+AINC="-I $AUD -I $KP/vendor/qcom/opensource/audio-kernel/include -I $SRC66/arch/arm64/boot/dts/vendor"
+echo "== audio"
+build $AUD/sun-audio.dts $OUT/sun-audio.dtbo "$AINC"
+# 6.12 names the TDM1 data pins sd0/sd1 (6.6: din/dout).
+sed -e 's/tdm1_din_/tdm1_sd0_/g' -e 's/tdm1_dout_/tdm1_sd1_/g' $AUD/piano-audio-mtp.dts > $OUT/piano-audio-mtp.dts
+build $OUT/piano-audio-mtp.dts $OUT/piano-audio.dtbo "$AINC"
+# Bluetooth and WLAN (Peach): the piano board overlays from 6.6.
+TP=$SRC66/arch/arm64/boot/dts/techpack
+echo "== bt/wlan"
+build $TP/bt-devicetree/piano-peach-bt-v8.dts $OUT/piano-bt.dtbo "-I $TP/bt-devicetree"
+build $TP/wlan-devicetree/piano-peach-cnss-v8.dts $OUT/piano-wlan.dtbo "-I $TP/wlan-devicetree"
 H=$KP/kernel_platform/out/msm-kernel-sun-perf/host/bin
-echo "== check"; $H/fdtoverlay -i $OUT/sun-v2.dtb -o $OUT/merged.dtb $OUT/piano-overlay.dtbo $OUT/piano-display-overlay.dtbo && ls -la $OUT/merged.dtb
+echo "== check"; $H/fdtoverlay -i $OUT/sun-v2.dtb -o $OUT/merged.dtb $OUT/piano-overlay.dtbo $OUT/piano-display-overlay.dtbo $OUT/sun-audio.dtbo $OUT/piano-audio.dtbo $OUT/piano-bt.dtbo $OUT/piano-wlan.dtbo && ls -la $OUT/merged.dtb
 echo "== pack"
-$H/fdtoverlaymerge -i $OUT/piano-overlay.dtbo -o $OUT/piano-all.dtbo $OUT/piano-display-overlay.dtbo
+$H/fdtoverlaymerge -i $OUT/piano-overlay.dtbo -o $OUT/piano-all.dtbo $OUT/piano-display-overlay.dtbo $OUT/sun-audio.dtbo $OUT/piano-audio.dtbo $OUT/piano-bt.dtbo $OUT/piano-wlan.dtbo
 (cd $OUT && cat $(printf '%s.dtb ' $BASES)) > $OUT/dtb
 $KP/kernel_platform/build/kernel/build-tools/path/linux-x86/mkdtboimg create $OUT/dtbo.img --page_size=4096 $OUT/piano-all.dtbo
 ls -la $OUT/dtb $OUT/dtbo.img
