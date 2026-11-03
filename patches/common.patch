@@ -365,6 +365,20 @@ index 8185979f0..a9855ad5a 100644
  
  #ifdef CONFIG_ARM64_SW_TTBR0_PAN
  	/*
+diff --git a/arch/arm64/kernel/traps.c b/arch/arm64/kernel/traps.c
+index 7fc9230e0..b7b02856e 100644
+--- a/arch/arm64/kernel/traps.c
++++ b/arch/arm64/kernel/traps.c
+@@ -251,7 +251,8 @@ static void arm64_show_signal(int signo, const char *str)
+ 
+ 	/* Leave if the signal won't be shown */
+ 	if (!show_unhandled_signals ||
+-	    !unhandled_signal(tsk, signo) ||
++	    (!unhandled_signal(tsk, signo) && signo != SIGSEGV &&
++	     signo != SIGBUS && signo != SIGILL) ||
+ 	    !__ratelimit(&rs))
+ 		return;
+ 
 diff --git a/init/main.c b/init/main.c
 index 1b4c90e0a..62439e511 100644
 --- a/init/main.c

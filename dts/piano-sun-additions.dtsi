@@ -1,0 +1,89 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Nodes Xiaomi adds to sun.dtsi on 6.6.
+ * The piano overlays
+ * reference these labels.
+ */
+
+&soc {
+	qcom,pmic_glink {
+		mca_adsp_glink: mca,adsp_glink {
+			compatible = "mca,adsp_glink";
+			status = "disabled";
+		};
+	};
+};
+
+/* Xiaomi also locks GPIOs 48-51; reading them is an external abort. */
+&tlmm {
+	qcom,gpios-reserved = <36 37 38 39 74 48 49 50 51>;
+};
+
+&qupv3_se3_i2c {
+	fsa4480: fsa4480@42 {
+		status = "ok";
+		compatible = "qcom,fsa4480-i2c";
+		reg = <0x42>;
+	};
+};
+
+/*
+ * Bring-up: leave 0xa3500000-0xa35fffff to the early memory console
+ * (piano_memcon). 6.6 only writes there on a panic, so the log survives
+ * the fallback boot into the installed ROM.
+ */
+&ramoops_mem {
+	reg = <0x0 0xa3500000 0x0 0x100000>;
+	/* piano_memcon writes through the linear map. */
+	/delete-property/ no-map;
+	/delete-property/ alloc-ranges;
+	/delete-property/ size;
+};
+
+/*
+ * Bring-up: reserve memory like the working 6.6 piano devicetree. The 6.12
+ * sun map puts a reusable VM pool over piano's hypervisor-owned oem VM and
+ * shared memory, and lacks some of piano's firmware carveouts.
+ */
+&reserved_memory {
+	/delete-node/ cpusys_vm_region@80e00000;
+	/delete-node/ oem_vm_region@f7c00000;
+
+	oem_vm_mem: oem_vm_region@f8800000 {
+		no-map;
+		reg = <0x0 0xf8800000 0x0 0x3800000>;
+	};
+
+	dump_display_region@81cf4000 {
+		no-map;
+		reg = <0x0 0x81cf4000 0x0 0x800>;
+	};
+
+	lost_reg_mem2 {
+		no-map;
+		reg = <0x0 0x9eb80000 0x0 0x80000>;
+	};
+};
+
+&gunyah_hyp_mem {
+	reg = <0x0 0x80000000 0x0 0x1200000>;
+};
+
+&xbl_ramdump_mem {
+	reg = <0x0 0xb8000000 0x0 0x200000>;
+};
+
+&trust_ui_vm_mem {
+	reg = <0x0 0xf3800000 0x0 0x5000000>;
+};
+
+&non_secure_display_memory {
+	size = <0x0 0xfc00000>;
+};
+
+/* The 6.12 interconnect driver has SLAVE_IPA_CFG on cnoc_main, not config_noc. */
+&usb0 {
+	interconnects = <&aggre1_noc MASTER_USB3_0 &mc_virt SLAVE_EBI1>,
+			<&aggre1_noc MASTER_USB3_0 &cnoc_main SLAVE_IPA_CFG>,
+			<&gem_noc MASTER_APPSS_PROC &config_noc SLAVE_USB3_0>;
+};

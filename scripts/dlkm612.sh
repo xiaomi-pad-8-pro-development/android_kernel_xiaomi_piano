@@ -30,13 +30,14 @@ find $BIN -path '*sun_perf*' -path '*/staging/*' -name '*.ko' | while read -r k;
 done
 $STRIP --strip-debug $M/*.ko
 
-# Load order: 6.6 order first, then the rest.
+# Load order: 6.6 order first, then the rest. qcedev-mod_dlkm hangs the SoC
+# about 1.3 s into boot, so it stays out along with qcrypto-msm_dlkm.
 {
 	xargs -n1 basename < $OUTP/vendor_dlkm/lib/modules/modules.load | while read -r k; do
 		if [ -f $M/$k ]; then echo $k; fi
 	done
 	ls $M | grep '\.ko$'
-} | awk '!seen[$0]++' > $M/modules.load
+} | grep -v -E '^(qcedev-mod_dlkm|qcrypto-msm_dlkm)\.ko$' | awk '!seen[$0]++' > $M/modules.load
 
 depmod -b $W/vendor_dlkm $VER
 # Flatten to /lib/modules like the stock image.
@@ -47,7 +48,21 @@ cp -a $OUTP/vendor_dlkm/etc $W/vendor_dlkm/ 2>/dev/null || true
 FC=$(ls $OUTP/obj/ETC/file_contexts.bin_intermediates/file_contexts.bin)
 $HOST/mkfs.erofs -zlz4hc --mount-point=/vendor_dlkm --file-contexts=$FC \
 	-T 0 $W/out/vendor_dlkm.img $W/vendor_dlkm
-cp $DIST/system_dlkm.flatten.erofs.img $W/out/system_dlkm.img
+# system_dlkm_a is 7 MiB: strip the GKI modules and compress harder.
+$HOST/fsck.erofs --extract=$W/system_dlkm $DIST/system_dlkm.flatten.erofs.img >/dev/null
+find $W/system_dlkm -name '*.ko' -exec $STRIP --strip-debug {} +
+# Drop GKI modules piano has no use for, so the image fits. Nothing
+# depends on them.
+SM=$W/system_dlkm/lib/modules
+for k in aes-neon-blk efivarfs exynos-hvm gnss pstore_blk ptp_kvm rust_binder \
+		snd-hda-codec-hdmi tipc_diag xhci-pci-renesas; do
+	rm -f $SM/$k.ko
+	sed -i "/^$k\.ko\$/d" $SM/modules.load
+	sed -i "\#/$k\.ko:#d" $SM/modules.dep
+	sed -i "/ ${k//-/_}\$/d" $SM/modules.alias
+done
+$HOST/mkfs.erofs -zlz4hc,12 -C65536 --mount-point=/system_dlkm --file-contexts=$FC \
+	-T 0 $W/out/system_dlkm.img $W/system_dlkm
 
 echo "vendor modules: $(grep -c . $W/vendor_dlkm/lib/modules/modules.load)"
 ls -l $W/out

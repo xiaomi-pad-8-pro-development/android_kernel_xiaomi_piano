@@ -22,13 +22,18 @@ for k in mm-drivers/msm_ext_display/sun_perf_msm_ext_display/staging/lib/modules
          display-drivers/sun_perf_msm_drm/msm_drm.ko; do
   cp $BIN/$k $M/
 done
-# Load the display stack in first stage, after the board modules.
+# First stage loads the board modules, then the USB suppliers.
 { # UFS_FIRST=1: storage first, so piano_blklog can log the rest of first stage.
   [ "${UFS_FIRST:-0}" = 1 ] && printf "%s\n" qcom_ice.ko phy-qcom-ufs.ko phy-qcom-ufs-qmp-v4-sun.ko ufshcd-crypto-qti.ko ufs-qcom.ko
   xargs -n1 basename < $DIST/vendor_boot.modules.load
-  # Display and USB suppliers, so recovery (vendor_boot only) gets both.
+  # USB suppliers, so recovery (vendor_boot only) gets USB.
   printf "%s\n" nvmem_qfprom.ko smp2p.ko phy-generic.ko phy-msm-ssusb-qmp.ko phy-msm-m31-eusb2.ko repeater.ko repeater-qti-pmic-eusb2.ko dwc3-msm.ko
-  printf "%s\n" msm-mmrm.ko sync_fence.ko msm_ext_display.ko msm_hw_fence.ko ipclite.ko synx-driver.ko
+  # FS_DISPLAY=1: the display stack too. msm_hw_fence and synx-driver need
+  # qcom_q6v5_pas, which then boots the DSPs before /vendor and /odm hold
+  # their firmware; they never retry, leaving no ADSP, USB role or charging.
+  if [ "${FS_DISPLAY:-0}" = 1 ]; then
+    printf "%s\n" msm-mmrm.ko sync_fence.ko msm_ext_display.ko msm_hw_fence.ko ipclite.ko synx-driver.ko
+  fi
 } | awk "!seen[\$0]++" > $M/modules.load
 # The vendor_boot partition is 96 MiB; drop debug info.
 STRIP=$(ls -d $KP/prebuilts/clang/host/linux-x86/clang-r*/bin/llvm-strip | tail -1)
