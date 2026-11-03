@@ -15,6 +15,12 @@ source, so piano's own drivers are ported from 6.6.
   `touch-driver.patch` is against the 6.6 `techpack/touch-driver` of
   this repository (the commit in `BASE`); copy that folder to
   `vendor/xiaomi/touch-driver` and apply it there.
+  `mca.patch` is against the commit in its `BASE` line: copy
+  `drivers/power/supply/mca` to `vendor/xiaomi/mca`, with
+  `drivers/misc/hwid` as `hwid/`, `drivers/staging/miev` as `miev/` and
+  `include/miev` as `include/miev`, and apply it there. It builds the
+  Xiaomi charging stack out of tree, with Qualcomm's 6.12 fsa4480 USB-C
+  switch driver, which the sun build leaves out.
 - `scripts/` builds and tests it:
   - build: `./build_with_bazel.py -t sun perf -s abl` in `kernel_platform`
   - `dt612.sh` merges the piano devicetree, `pack612.sh` packs boot,
@@ -39,5 +45,6 @@ which writes the kernel log to the `rawdump` partition. The header is
 - `qcedev-mod_dlkm` hangs the SoC at about 1.3 s when it loads. Its
   devicetree node matches stock 6.6, so the fault is in the driver. It
   and `qcrypto-msm_dlkm` are left out of modules.load for now.
-- Missing: charging and battery (the Xiaomi mca stack), camera, video,
-  the hall sensor and 144 Hz. Never leave the tablet idle on 6.12.
+- Battery and charging work through the Xiaomi mca stack;
+  `qti_battery_charger` stays out, as on 6.6.
+- Missing: camera, video, EVA, the hall sensor and 144 Hz. Never leave the tablet idle on 6.12.

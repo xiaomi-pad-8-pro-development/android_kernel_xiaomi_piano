@@ -1,0 +1,3738 @@
+diff --git a/BUILD.bazel b/BUILD.bazel
+new file mode 100644
+index 0000000..b7fc0b8
+--- /dev/null
++++ b/BUILD.bazel
+@@ -0,0 +1,81 @@
++# Xiaomi MCA charging stack for the Pad 8 Pro (piano): the 6.6 sources,
++# built with their own Makefiles against the Qualcomm 6.12 kernel.
++load("//build/kernel/kleaf:kernel.bzl", "kernel_module")
++
++package(default_visibility = ["//visibility:public"])
++
++kernel_module(
++    name = "sun_perf_mca",
++    srcs = glob(["**/*.c", "**/*.h", "**/Makefile", "**/Kbuild"]),
++    outs = [
++        "fsa4480/fsa4480_i2c.ko",
++        "hwid/hwid.ko",
++        "mca_business/business_battery/mca_business_battery_comp.ko",
++        "mca_business/business_charger/mca_business_charger_comp.ko",
++        "mca_business/business_misc/mca_business_misc_comp.ko",
++        "mca_common/mca_adsp_glink.ko",
++        "mca_common/mca_charge_interface.ko",
++        "mca_common/mca_charge_mievent.ko",
++        "mca_common/mca_common.ko",
++        "mca_common/mca_event.ko",
++        "mca_common/mca_hwid.ko",
++        "mca_common/mca_log.ko",
++        "mca_common/mca_parse_dts.ko",
++        "mca_common/mca_qcom_panel.ko",
++        "mca_common/mca_qcom_smem.ko",
++        "mca_common/mca_sysfs.ko",
++        "mca_common/mca_workqueue.ko",
++        "mca_hardware_ic/battery_auth/acl16_slg2.ko",
++        "mca_hardware_ic/battery_auth/maxim_ds28e30.ko",
++        "mca_hardware_ic/battery_auth/mca_onewire_auth_core.ko",
++        "mca_hardware_ic/boost_ic/hl7603/hl7603.ko",
++        "mca_hardware_ic/charge_pump_ic/sc8541/sc8541.ko",
++        "mca_hardware_ic/charge_pump_ic/sc8581/sc8581.ko",
++        "mca_hardware_ic/fuelgauge_ic/bq27z561/bq27z561.ko",
++        "mca_hardware_ic/wireless_ic/nuvolta_1652/nuvolta_1652.ko",
++        "mca_hardware_ic/wireless_ic/sc96231/sc96231_tx.ko",
++        "mca_hardware_monitor/mca_bmd.ko",
++        "mca_hardware_monitor/mca_connector_antiburn.ko",
++        "mca_hardware_monitor/mca_ibat_ocp_monitor.ko",
++        "mca_hardware_monitor/mca_lpd_detect.ko",
++        "mca_hardware_monitor/mca_path_control.ko",
++        "mca_hardware_monitor/mca_vbat_ovp_monitor.ko",
++        "mca_platform/mca_platform_base.ko",
++        "mca_platform/mca_platform_bc12_class.ko",
++        "mca_platform/mca_platform_buckchg_class.ko",
++        "mca_platform/mca_platform_cp_class.ko",
++        "mca_platform/mca_platform_fg_ic_ops.ko",
++        "mca_platform/mca_platform_loadsw_class.ko",
++        "mca_platform/mca_platform_wireless_class.ko",
++        "mca_protocol/mca_protocol_class.ko",
++        "mca_protocol/protocol_pd/mca_protocol_pd_class.ko",
++        "mca_protocol/protocol_pd/qcom_tcpc/qcom_adsp_pd_protocol.ko",
++        "mca_protocol/protocol_qc/mca_protocol_qc_class.ko",
++        "mca_qcom_subpmic_proxy/mca_qcom_subpmic_proxy.ko",
++        "mca_qcom_sysfs/mca_qcom_sysfs.ko",
++        "mca_shared_memory/charger_partition.ko",
++        "mca_smart_charge/mca_smart_charge.ko",
++        "mca_strategy/mca_strategy_class.ko",
++        "mca_strategy/strategy_charger/mca_buckchg_jeita.ko",
++        "mca_strategy/strategy_charger/mca_charger_thermal.ko",
++        "mca_strategy/strategy_charger/mca_strategy_buckchg.ko",
++        "mca_strategy/strategy_charger/mca_strategy_quickchg.ko",
++        "mca_strategy/strategy_fg/mca_soc_limit.ko",
++        "mca_strategy/strategy_fg/mca_strategy_fg_class.ko",
++        "mca_strategy/strategy_fg/mca_strategy_fg_comp.ko",
++        "mca_strategy/strategy_pd/mca_pd_auth.ko",
++        "mca_strategy/strategy_wireless/mca_basic_wireless.ko",
++        "mca_strategy/strategy_wireless/mca_quick_wireless.ko",
++        "mca_strategy/strategy_wireless/mca_wireless_revchg.ko",
++        "mca_ut_test/mca_ut_test.ko",
++        "miev/miev.ko",
++    ],
++    kernel_build = "//soc-repo:sun_perf_base_kernel",
++    deps = [
++        "//soc-repo:all_headers",
++        "//soc-repo:sun_perf/drivers/soc/qcom/qti_pmic_glink",
++        "//soc-repo:sun_perf/drivers/soc/qcom/panel_event_notifier",
++        "//soc-repo:sun_perf/drivers/soc/qcom/smem",
++        "//soc-repo:sun_perf/drivers/usb/typec/ucsi/ucsi_qti_glink",
++    ],
++)
+diff --git a/Kbuild b/Kbuild
+new file mode 100644
+index 0000000..80f058c
+--- /dev/null
++++ b/Kbuild
+@@ -0,0 +1,28 @@
++# Xiaomi MCA charging stack for the Pad 8 Pro (piano), built out of tree
++# against the Qualcomm 6.12 kernel. The options match piano_defconfig on 6.6
++# and are exported, since each subfolder is read by its own make.
++MCA_ROOT := $(if $(filter /%,$(KBUILD_EXTMOD)),$(KBUILD_EXTMOD),$(abspath $(srctree)/$(KBUILD_EXTMOD)))
++
++MCA_MODULES := XM_POWER_SUPPLY MCA_PROTOCOL_PD MCA_PROTOCOL_QC \
++	MCA_EXTERNAL_FG MCA_ONEWIRE_AUTH MCA_ONEWIRE_AUTH_ACL16_SLG2 \
++	MCA_ONEWIRE_AUTH_DS28E30 MCA_EXTERNAL_CP MCA_EXTERNAL_CP_SC8541 \
++	MCA_EXTERNAL_WIRELESS MCA_EXTERNAL_WIRELESS_SC96231 MCA_EXTERNAL_BOOST \
++	MCA_QCOM_SUBPMIC MCA_QCOM_ADSP MCA_QCOM_SYSFS MCA_QCOM_SMEM \
++	MCA_QCOM_PANEL MCA_UT_TEST CHARGER_PARTITION MI_HARDWARE_ID MIEV
++$(foreach m,$(MCA_MODULES),$(eval export CONFIG_$(m) := m))
++subdir-ccflags-y += $(foreach m,$(MCA_MODULES),-DCONFIG_$(m)_MODULE=1)
++subdir-ccflags-y += -I$(MCA_ROOT)/include -I$(MCA_ROOT)/hwid -I$(MCA_ROOT)/miev
++# The soc-repo modules these call into are not in the base kernel config, so
++# without these the headers compile in their -ENODEV stubs. The battery
++# charger one is mca_qcom_subpmic_proxy itself: it provides that API, and
++# its symbol versions must match the header the flash LED driver used.
++subdir-ccflags-y += -DCONFIG_QTI_PMIC_GLINK_MODULE=1 \
++	-DCONFIG_QCOM_FSA4480_I2C_MODULE=1 -DCONFIG_QCOM_PANEL_EVENT_NOTIFIER_MODULE=1 \
++	-DCONFIG_QTI_BATTERY_CHARGER_MODULE=1
++
++# fsa4480: the 6.12 sun build leaves out this USB-C switch, which piano has.
++obj-m += hwid/ miev/ fsa4480/
++obj-m += mca_common/ mca_shared_memory/ mca_platform/ mca_protocol/
++obj-m += mca_strategy/ mca_business/ mca_hardware_monitor/
++obj-m += mca_smart_charge/ mca_hardware_ic/
++obj-m += mca_qcom_subpmic_proxy/ mca_qcom_sysfs/ mca_ut_test/
+diff --git a/Makefile b/Makefile
+index c20d288..f37f768 100644
+--- a/Makefile
++++ b/Makefile
+@@ -1,15 +1,7 @@
+-subdir-ccflags-y += -I$(srctree)/drivers/power/supply/mca/include
+-subdir-ccflags-y += -I$(srctree)/drivers/misc/hwid
++# kleaf restores the Module.symvers of the soc-repo dependencies under
++# COMMON_OUT_DIR; hand them to modpost.
++KBUILD_EXTRA_SYMBOLS += $(wildcard $(COMMON_OUT_DIR)/soc-repo/sun_perf/drivers/*/*/*_Module.symvers \
++	$(COMMON_OUT_DIR)/soc-repo/sun_perf/drivers/*/*/*/*_Module.symvers)
+ 
+-obj-$(CONFIG_XM_POWER_SUPPLY)	+= mca_common/
+-obj-$(CONFIG_XM_POWER_SUPPLY)	+= mca_shared_memory/
+-obj-$(CONFIG_XM_POWER_SUPPLY)	+= mca_platform/
+-obj-$(CONFIG_XM_POWER_SUPPLY)	+= mca_protocol/
+-obj-$(CONFIG_XM_POWER_SUPPLY)	+= mca_strategy/
+-obj-$(CONFIG_XM_POWER_SUPPLY)	+= mca_business/
+-obj-$(CONFIG_XM_POWER_SUPPLY)	+= mca_hardware_monitor/
+-obj-$(CONFIG_XM_POWER_SUPPLY)	+= mca_smart_charge/
+-obj-$(CONFIG_XM_POWER_SUPPLY)	+= mca_hardware_ic/
+-obj-$(CONFIG_MCA_QCOM_SUBPMIC)	+= mca_qcom_subpmic_proxy/
+-obj-$(CONFIG_MCA_QCOM_SYSFS)	+= mca_qcom_sysfs/
+-obj-$(CONFIG_MCA_UT_TEST)	+= mca_ut_test/
++modules modules_install clean:
++	$(MAKE) -C $(KERNEL_SRC) M=$(M) $(KBUILD_OPTIONS) KBUILD_EXTRA_SYMBOLS="$(KBUILD_EXTRA_SYMBOLS)" $@
+diff --git a/fsa4480/Makefile b/fsa4480/Makefile
+new file mode 100644
+index 0000000..77c0a62
+--- /dev/null
++++ b/fsa4480/Makefile
+@@ -0,0 +1,2 @@
++obj-m += fsa4480_i2c.o
++fsa4480_i2c-y := fsa4480-i2c.o
+diff --git a/fsa4480/fsa4480-i2c.c b/fsa4480/fsa4480-i2c.c
+new file mode 100644
+index 0000000..aff78cf
+--- /dev/null
++++ b/fsa4480/fsa4480-i2c.c
+@@ -0,0 +1,550 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
++ */
++
++#include <linux/kernel.h>
++#include <linux/usb/typec_altmode.h>
++#include <linux/usb/typec_mux.h>
++#include <linux/module.h>
++#include <linux/power_supply.h>
++#include <linux/regmap.h>
++#include <linux/i2c.h>
++#include <linux/mutex.h>
++#include <linux/usb/typec.h>
++#include <linux/soc/qcom/fsa4480-i2c.h>
++#include <linux/iio/consumer.h>
++#include <linux/qti-regmap-debugfs.h>
++
++#define FSA4480_I2C_NAME	"fsa4480-driver"
++
++#define FSA4480_SWITCH_SETTINGS 0x04
++#define FSA4480_SWITCH_CONTROL  0x05
++#define FSA4480_SWITCH_STATUS1  0x07
++#define FSA4480_SLOW_L          0x08
++#define FSA4480_SLOW_R          0x09
++#define FSA4480_SLOW_MIC        0x0A
++#define FSA4480_SLOW_SENSE      0x0B
++#define FSA4480_SLOW_GND        0x0C
++#define FSA4480_DELAY_L_R       0x0D
++#define FSA4480_DELAY_L_MIC     0x0E
++#define FSA4480_DELAY_L_SENSE   0x0F
++#define FSA4480_DELAY_L_AGND    0x10
++#define FSA4480_RESET           0x1E
++
++struct fsa4480_priv {
++	struct regmap *regmap;
++	struct device *dev;
++	struct typec_mux_dev *mux;
++
++	/* PMIC + power_supply + IIO path */
++	struct power_supply *usb_psy;
++	struct notifier_block nb;
++	struct iio_channel *iio_ch;
++	u32 use_powersupply;
++
++	atomic_t usbc_mode;
++	struct work_struct usbc_analog_work;
++	struct blocking_notifier_head fsa4480_notifier;
++	struct mutex notification_lock;
++};
++
++struct fsa4480_reg_val {
++	u16 reg;
++	u8 val;
++};
++
++static const struct regmap_config fsa4480_regmap_config = {
++	.reg_bits = 8,
++	.val_bits = 8,
++	.max_register = FSA4480_RESET,
++};
++
++static const struct fsa4480_reg_val fsa_reg_i2c_defaults[] = {
++	{FSA4480_SLOW_L, 0x00},
++	{FSA4480_SLOW_R, 0x00},
++	{FSA4480_SLOW_MIC, 0x00},
++	{FSA4480_SLOW_SENSE, 0x00},
++	{FSA4480_SLOW_GND, 0x00},
++	{FSA4480_DELAY_L_R, 0x00},
++	{FSA4480_DELAY_L_MIC, 0x00},
++	{FSA4480_DELAY_L_SENSE, 0x00},
++	{FSA4480_DELAY_L_AGND, 0x09},
++	{FSA4480_SWITCH_SETTINGS, 0x98},
++};
++
++static void fsa4480_usbc_update_settings(struct fsa4480_priv *fsa_priv,
++		u32 switch_control, u32 switch_enable)
++{
++	u32 prev_control, prev_enable;
++
++	if (!fsa_priv->regmap) {
++		dev_err(fsa_priv->dev, "%s: regmap invalid\n", __func__);
++		return;
++	}
++
++	regmap_read(fsa_priv->regmap, FSA4480_SWITCH_CONTROL, &prev_control);
++	regmap_read(fsa_priv->regmap, FSA4480_SWITCH_SETTINGS, &prev_enable);
++	if (prev_control == switch_control && prev_enable == switch_enable) {
++		dev_dbg(fsa_priv->dev, "%s: settings unchanged\n", __func__);
++		return;
++	}
++
++	regmap_write(fsa_priv->regmap, FSA4480_SWITCH_SETTINGS, 0x80);
++	regmap_write(fsa_priv->regmap, FSA4480_SWITCH_CONTROL, switch_control);
++	/* FSA4480 chip hardware requirement */
++	usleep_range(50, 55);
++	regmap_write(fsa_priv->regmap, FSA4480_SWITCH_SETTINGS, switch_enable);
++}
++
++static int fsa4480_usbc_event_changed_psupply(struct fsa4480_priv *fsa_priv,
++				      unsigned long evt, void *ptr)
++{
++	struct device *dev = NULL;
++
++	if (!fsa_priv)
++		return -EINVAL;
++
++	dev = fsa_priv->dev;
++	if (!dev)
++		return -EINVAL;
++	dev_dbg(dev, "%s: queueing usbc_analog_work\n",
++		__func__);
++	pm_stay_awake(fsa_priv->dev);
++	queue_work(system_freezable_wq, &fsa_priv->usbc_analog_work);
++
++	return 0;
++}
++
++static int fsa4480_usbc_event_changed(struct notifier_block *nb_ptr,
++				      unsigned long evt, void *ptr)
++{
++	struct fsa4480_priv *fsa_priv =
++			container_of(nb_ptr, struct fsa4480_priv, nb);
++	struct device *dev;
++
++	if (!fsa_priv)
++		return -EINVAL;
++
++	dev = fsa_priv->dev;
++	if (!dev)
++		return -EINVAL;
++	return fsa4480_usbc_event_changed_psupply(fsa_priv, evt, ptr);
++}
++
++
++
++static int fsa4480_usbc_mux_set(struct typec_mux_dev *mux,
++				 struct typec_mux_state *state)
++{
++	struct fsa4480_priv *fsa_priv = typec_mux_get_drvdata(mux);
++	enum typec_accessory acc;
++
++	if (!fsa_priv)
++		return -EINVAL;
++
++	if (!fsa_priv->dev)
++		return -EINVAL;
++
++	if (state->mode == TYPEC_MODE_AUDIO)
++		acc = TYPEC_ACCESSORY_AUDIO;
++	else if (state->mode == TYPEC_MODE_DEBUG)
++		acc = TYPEC_ACCESSORY_DEBUG;
++	else
++		acc = TYPEC_ACCESSORY_NONE;
++
++	dev_dbg(fsa_priv->dev, "%s: USB change event received, supply mode %d, usbc mode %d, expected %d\n",
++			__func__, acc, fsa_priv->usbc_mode.counter,
++			TYPEC_ACCESSORY_AUDIO);
++
++	if (acc == TYPEC_ACCESSORY_DEBUG)
++		return 0;
++
++	if (atomic_read(&(fsa_priv->usbc_mode)) != acc) {
++		atomic_set(&(fsa_priv->usbc_mode), acc);
++		dev_dbg(fsa_priv->dev, "%s: queueing usbc_analog_work\n", __func__);
++
++		pm_stay_awake(fsa_priv->dev);
++		queue_work(system_freezable_wq, &fsa_priv->usbc_analog_work);
++	}
++
++	return 0;
++}
++
++static int fsa4480_usbc_analog_setup_switches(struct fsa4480_priv *fsa_priv)
++{
++	int rc = 0;
++	int mode;
++	union power_supply_propval iio_val;
++	struct device *dev;
++
++	if (!fsa_priv)
++		return -EINVAL;
++	dev = fsa_priv->dev;
++	if (!dev)
++		return -EINVAL;
++
++	if (fsa_priv->iio_ch) {
++		rc = iio_read_channel_processed(fsa_priv->iio_ch, &iio_val.intval);
++		if (rc < 0) {
++			dev_err(dev, "%s: Unable to read USB TYPEC_MODE: %d\n",
++			__func__, rc);
++			return rc;
++		}
++		atomic_set(&(fsa_priv->usbc_mode), iio_val.intval);
++	}
++
++	mutex_lock(&fsa_priv->notification_lock);
++	/* get latest mode again within locked context */
++	mode = atomic_read(&(fsa_priv->usbc_mode));
++
++	dev_dbg(dev, "%s: setting GPIOs active = %d\n",
++		__func__, mode != TYPEC_ACCESSORY_NONE);
++
++	switch (mode) {
++	/* add all modes FSA should notify for in here */
++	case TYPEC_ACCESSORY_AUDIO:
++		/* activate switches */
++		fsa4480_usbc_update_settings(fsa_priv, 0x00, 0x9F);
++
++		/* notify call chain on event */
++		blocking_notifier_call_chain(&fsa_priv->fsa4480_notifier,
++					     mode, NULL);
++		break;
++	case TYPEC_ACCESSORY_NONE:
++		/* notify call chain on event */
++		blocking_notifier_call_chain(&fsa_priv->fsa4480_notifier,
++				TYPEC_ACCESSORY_NONE, NULL);
++
++		/* deactivate switches */
++		fsa4480_usbc_update_settings(fsa_priv, 0x18, 0x98);
++		break;
++	default:
++		/* ignore other usb connection modes */
++		break;
++	}
++	mutex_unlock(&fsa_priv->notification_lock);
++	return rc;
++}
++
++/*
++ * fsa4480_reg_notifier - register notifier block with fsa driver
++ *
++ * @nb - notifier block of fsa4480
++ * @node - phandle node to fsa4480 device
++ *
++ * Returns 0 on success, or error code
++ */
++int fsa4480_reg_notifier(struct notifier_block *nb,
++			 struct device_node *node)
++{
++	int rc = 0;
++	struct i2c_client *client = of_find_i2c_device_by_node(node);
++	struct fsa4480_priv *fsa_priv;
++
++	if (!client)
++		return -EINVAL;
++
++	fsa_priv = (struct fsa4480_priv *)i2c_get_clientdata(client);
++	if (!fsa_priv)
++		return -EINVAL;
++
++	rc = blocking_notifier_chain_register
++				(&fsa_priv->fsa4480_notifier, nb);
++
++	dev_dbg(fsa_priv->dev, "%s: registered notifier for %s\n",
++		__func__, node->name);
++	if (rc)
++		return rc;
++
++	/*
++	 * as part of the init sequence check if there is a connected
++	 * USB C analog adapter
++	 */
++	if (fsa_priv->use_powersupply) {
++	       /*
++		* reset the cached usbc mode when power supply is used,
++		* to bypass the event filtering logic.
++		*/
++		atomic_set(&(fsa_priv->usbc_mode), TYPEC_ACCESSORY_NONE);
++		fsa4480_usbc_analog_setup_switches(fsa_priv);
++	} else if (atomic_read(&(fsa_priv->usbc_mode)) == TYPEC_ACCESSORY_AUDIO) {
++		dev_dbg(fsa_priv->dev, "%s: analog adapter already inserted\n",
++			__func__);
++		rc = fsa4480_usbc_analog_setup_switches(fsa_priv);
++	}
++
++	return rc;
++}
++EXPORT_SYMBOL_GPL(fsa4480_reg_notifier);
++
++/*
++ * fsa4480_unreg_notifier - unregister notifier block with fsa driver
++ *
++ * @nb - notifier block of fsa4480
++ * @node - phandle node to fsa4480 device
++ *
++ * Returns 0 on pass, or error code
++ */
++int fsa4480_unreg_notifier(struct notifier_block *nb,
++			     struct device_node *node)
++{
++	struct i2c_client *client = of_find_i2c_device_by_node(node);
++	struct fsa4480_priv *fsa_priv;
++
++	if (!client)
++		return -EINVAL;
++
++	fsa_priv = (struct fsa4480_priv *)i2c_get_clientdata(client);
++	if (!fsa_priv)
++		return -EINVAL;
++
++	fsa4480_usbc_update_settings(fsa_priv, 0x18, 0x98);
++	return blocking_notifier_chain_unregister
++					(&fsa_priv->fsa4480_notifier, nb);
++}
++EXPORT_SYMBOL_GPL(fsa4480_unreg_notifier);
++
++static int fsa4480_validate_display_port_settings(struct fsa4480_priv *fsa_priv)
++{
++	u32 switch_status = 0;
++
++	regmap_read(fsa_priv->regmap, FSA4480_SWITCH_STATUS1, &switch_status);
++
++	if ((switch_status != 0x23) && (switch_status != 0x1C)) {
++		pr_err("AUX SBU1/2 switch status is invalid = %u\n",
++				switch_status);
++		return -EIO;
++	}
++
++	return 0;
++}
++/*
++ * fsa4480_switch_event - configure FSA switch position based on event
++ *
++ * @node - phandle node to fsa4480 device
++ * @event - fsa_function enum
++ *
++ * Returns int on whether the switch happened or not
++ */
++int fsa4480_switch_event(struct device_node *node,
++			 enum fsa_function event)
++{
++	int switch_control = 0;
++	struct i2c_client *client = of_find_i2c_device_by_node(node);
++	struct fsa4480_priv *fsa_priv;
++
++	if (!client)
++		return -EINVAL;
++
++	fsa_priv = (struct fsa4480_priv *)i2c_get_clientdata(client);
++	if (!fsa_priv)
++		return -EINVAL;
++	if (!fsa_priv->regmap)
++		return -EINVAL;
++
++	switch (event) {
++	case FSA_MIC_GND_SWAP:
++		regmap_read(fsa_priv->regmap, FSA4480_SWITCH_CONTROL,
++				&switch_control);
++		if ((switch_control & 0x07) == 0x07)
++			switch_control = 0x0;
++		else
++			switch_control = 0x7;
++		fsa4480_usbc_update_settings(fsa_priv, switch_control, 0x9F);
++		break;
++	case FSA_USBC_ORIENTATION_CC1:
++		fsa4480_usbc_update_settings(fsa_priv, 0x18, 0xF8);
++		return fsa4480_validate_display_port_settings(fsa_priv);
++	case FSA_USBC_ORIENTATION_CC2:
++		fsa4480_usbc_update_settings(fsa_priv, 0x78, 0xF8);
++		return fsa4480_validate_display_port_settings(fsa_priv);
++	case FSA_USBC_DISPLAYPORT_DISCONNECTED:
++		fsa4480_usbc_update_settings(fsa_priv, 0x18, 0x98);
++		break;
++	/* Xiaomi: switch settings for USB-C liquid detection */
++	case FSA_USBC_LPD_STATUS_CC1:
++		fsa4480_usbc_update_settings(fsa_priv, 0x19, 0xD9);
++		break;
++	case FSA_USBC_LPD_STATUS_CC2:
++		fsa4480_usbc_update_settings(fsa_priv, 0x78, 0xD9);
++		break;
++	default:
++		break;
++	}
++
++	return 0;
++}
++EXPORT_SYMBOL_GPL(fsa4480_switch_event);
++
++static void fsa4480_usbc_analog_work_fn(struct work_struct *work)
++{
++	struct fsa4480_priv *fsa_priv =
++		container_of(work, struct fsa4480_priv, usbc_analog_work);
++
++	if (!fsa_priv) {
++		pr_err("%s: fsa container invalid\n", __func__);
++		return;
++	}
++	fsa4480_usbc_analog_setup_switches(fsa_priv);
++	pm_relax(fsa_priv->dev);
++}
++
++static void fsa4480_update_reg_defaults(struct regmap *regmap)
++{
++	u8 i;
++
++	for (i = 0; i < ARRAY_SIZE(fsa_reg_i2c_defaults); i++)
++		regmap_write(regmap, fsa_reg_i2c_defaults[i].reg,
++				   fsa_reg_i2c_defaults[i].val);
++}
++
++static int fsa4480_probe(struct i2c_client *i2c)
++{
++	struct typec_mux_desc mux_desc = { };
++	struct fsa4480_priv *fsa_priv;
++	u32 use_powersupply = 0;
++	int rc = 0;
++
++	fsa_priv = devm_kzalloc(&i2c->dev, sizeof(*fsa_priv),
++				GFP_KERNEL);
++	if (!fsa_priv)
++		return -ENOMEM;
++
++	memset(fsa_priv, 0, sizeof(struct fsa4480_priv));
++	fsa_priv->dev = &i2c->dev;
++
++	fsa_priv->regmap = devm_regmap_init_i2c(i2c, &fsa4480_regmap_config);
++	if (IS_ERR_OR_NULL(fsa_priv->regmap)) {
++		dev_err(fsa_priv->dev, "%s: Failed to initialize regmap: %d\n",
++			__func__, rc);
++		if (!fsa_priv->regmap) {
++			rc = -EINVAL;
++			goto err_data;
++		}
++		rc = PTR_ERR(fsa_priv->regmap);
++		goto err_data;
++	}
++
++	fsa4480_update_reg_defaults(fsa_priv->regmap);
++	devm_regmap_qti_debugfs_register(fsa_priv->dev, fsa_priv->regmap);
++
++	// On legacy targets that use PMIC charger path,check use_powersupply prop
++	rc = of_property_read_u32(fsa_priv->dev->of_node,
++			"qcom,use-power-supply", &use_powersupply);
++	if (rc || use_powersupply == 0) {
++		fsa_priv->use_powersupply = 0;
++		mux_desc.drvdata = fsa_priv;
++		mux_desc.fwnode = dev_fwnode(fsa_priv->dev);
++		mux_desc.set = fsa4480_usbc_mux_set;
++
++		fsa_priv->mux = typec_mux_register(fsa_priv->dev, &mux_desc);
++		if (IS_ERR(fsa_priv->mux)) {
++			rc = dev_err_probe(fsa_priv->dev, PTR_ERR(fsa_priv->mux),
++				"failed to register typec mux\n");
++			goto err_data;
++		}
++	} else {
++		fsa_priv->use_powersupply = 1;
++		fsa_priv->nb.notifier_call = fsa4480_usbc_event_changed;
++		fsa_priv->nb.priority = 0;
++		fsa_priv->usb_psy = power_supply_get_by_name("usb");
++		if (!fsa_priv->usb_psy) {
++			rc = -EPROBE_DEFER;
++			dev_err(fsa_priv->dev,
++				"%s: could not get USB psy info: %d\n",
++				__func__, rc);
++			goto err_data;
++		}
++
++		fsa_priv->iio_ch = iio_channel_get(fsa_priv->dev, "typec_mode");
++		if (IS_ERR(fsa_priv->iio_ch)) {
++			rc = PTR_ERR(fsa_priv->iio_ch);
++			dev_err(fsa_priv->dev,
++				"%s: iio_channel_get failed for typec_mode\n",
++				__func__);
++			goto err_supply;
++		}
++		rc = power_supply_reg_notifier(&fsa_priv->nb);
++		if (rc) {
++			dev_err(fsa_priv->dev,
++				"%s: power supply reg failed: %d\n",
++			__func__, rc);
++			goto err_supply;
++		}
++	}
++
++	mutex_init(&fsa_priv->notification_lock);
++	i2c_set_clientdata(i2c, fsa_priv);
++
++	INIT_WORK(&fsa_priv->usbc_analog_work,
++		  fsa4480_usbc_analog_work_fn);
++
++	BLOCKING_INIT_NOTIFIER_HEAD(&fsa_priv->fsa4480_notifier);
++
++	return 0;
++
++err_supply:
++	power_supply_put(fsa_priv->usb_psy);
++err_data:
++	return rc;
++}
++
++static void fsa4480_remove(struct i2c_client *i2c)
++{
++	struct fsa4480_priv *fsa_priv =
++			(struct fsa4480_priv *)i2c_get_clientdata(i2c);
++
++	if (!fsa_priv)
++		return;
++	if (fsa_priv->use_powersupply) {
++		/* deregister from PMI */
++		power_supply_unreg_notifier(&fsa_priv->nb);
++		power_supply_put(fsa_priv->usb_psy);
++	} else {
++		typec_mux_unregister(fsa_priv->mux);
++	}
++	fsa4480_usbc_update_settings(fsa_priv, 0x18, 0x98);
++	cancel_work_sync(&fsa_priv->usbc_analog_work);
++	pm_relax(fsa_priv->dev);
++	mutex_destroy(&fsa_priv->notification_lock);
++	dev_set_drvdata(&i2c->dev, NULL);
++}
++
++static const struct of_device_id fsa4480_i2c_dt_match[] = {
++	{
++		.compatible = "qcom,fsa4480-i2c",
++	},
++	{}
++};
++
++static struct i2c_driver fsa4480_i2c_driver = {
++	.driver = {
++		.name = FSA4480_I2C_NAME,
++		.of_match_table = fsa4480_i2c_dt_match,
++		.probe_type = PROBE_PREFER_ASYNCHRONOUS,
++	},
++	.probe = fsa4480_probe,
++	.remove = fsa4480_remove,
++};
++
++static int __init fsa4480_init(void)
++{
++	int rc;
++
++	rc = i2c_add_driver(&fsa4480_i2c_driver);
++	if (rc)
++		pr_err("fsa4480: Failed to register I2C driver: %d\n", rc);
++
++	return rc;
++}
++module_init(fsa4480_init);
++
++static void __exit fsa4480_exit(void)
++{
++	i2c_del_driver(&fsa4480_i2c_driver);
++}
++module_exit(fsa4480_exit);
++
++MODULE_DESCRIPTION("FSA4480 I2C driver");
++MODULE_LICENSE("GPL");
+diff --git a/include/linux/qti-regmap-debugfs.h b/include/linux/qti-regmap-debugfs.h
+new file mode 100644
+index 0000000..4f3d548
+--- /dev/null
++++ b/include/linux/qti-regmap-debugfs.h
+@@ -0,0 +1,34 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++/*
++ * Copyright (c) 2020, The Linux Foundation. All rights reserved.
++ * Copyright (c) 2023, Qualcomm Innovation Center, Inc. All rights reserved.
++ */
++
++#ifndef _LINUX_QTI_REGMAP_DEBUGFS_H_
++#define _LINUX_QTI_REGMAP_DEBUGFS_H_
++
++#include <linux/device.h>
++#include <linux/regmap.h>
++
++#if IS_ENABLED(CONFIG_REGMAP_QTI_DEBUGFS)
++
++int regmap_qti_debugfs_register(struct device *dev, struct regmap *regmap);
++void regmap_qti_debugfs_unregister(struct regmap *regmap);
++int devm_regmap_qti_debugfs_register(struct device *dev, struct regmap *regmap);
++void devm_regmap_qti_debugfs_unregister(struct regmap *regmap);
++
++#else
++
++static inline int regmap_qti_debugfs_register(struct device *dev,
++					      struct regmap *regmap)
++{ return 0; }
++static inline void regmap_qti_debugfs_unregister(struct regmap *regmap)
++{ }
++static inline int devm_regmap_qti_debugfs_register(struct device *dev,
++						   struct regmap *regmap)
++{ return 0; }
++static inline void devm_regmap_qti_debugfs_unregister(struct regmap *regmap)
++{ }
++
++#endif
++#endif
+diff --git a/include/linux/soc/qcom/battery_charger.h b/include/linux/soc/qcom/battery_charger.h
+new file mode 100644
+index 0000000..878291f
+--- /dev/null
++++ b/include/linux/soc/qcom/battery_charger.h
+@@ -0,0 +1,45 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++/*
++ * Copyright (c) 2020, The Linux Foundation. All rights reserved.
++ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
++ */
++
++#ifndef _BATTERY_CHARGER_H
++#define _BATTERY_CHARGER_H
++
++#include <linux/notifier.h>
++
++enum battery_charger_prop {
++	BATTERY_RESISTANCE,
++	BATTERY_CHARGER_PROP_MAX,
++};
++
++enum bc_hboost_event {
++	VMAX_CLAMP,
++};
++
++#if IS_ENABLED(CONFIG_QTI_BATTERY_CHARGER)
++int qti_battery_charger_get_prop(const char *name,
++				enum battery_charger_prop prop_id, int *val);
++int register_hboost_event_notifier(struct notifier_block *nb);
++int unregister_hboost_event_notifier(struct notifier_block *nb);
++#else
++static inline int
++qti_battery_charger_get_prop(const char *name,
++				enum battery_charger_prop prop_id, int *val)
++{
++	return -EINVAL;
++}
++
++static inline int register_hboost_event_notifier(struct notifier_block *nb)
++{
++	return -EOPNOTSUPP;
++}
++
++static inline int unregister_hboost_event_notifier(struct notifier_block *nb)
++{
++	return -EOPNOTSUPP;
++}
++#endif
++
++#endif
+diff --git a/include/linux/soc/qcom/fsa4480-i2c.h b/include/linux/soc/qcom/fsa4480-i2c.h
+new file mode 100644
+index 0000000..88afead
+--- /dev/null
++++ b/include/linux/soc/qcom/fsa4480-i2c.h
+@@ -0,0 +1,49 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++/*
++ * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
++ */
++#ifndef FSA4480_I2C_H
++#define FSA4480_I2C_H
++
++#include <linux/of.h>
++#include <linux/notifier.h>
++
++enum fsa_function {
++	FSA_MIC_GND_SWAP,
++	FSA_USBC_ORIENTATION_CC1,
++	FSA_USBC_ORIENTATION_CC2,
++	FSA_USBC_DISPLAYPORT_DISCONNECTED,
++	FSA_USBC_LPD_STATUS_CC1,
++	FSA_USBC_LPD_STATUS_CC2,
++	FSA_EVENT_MAX,
++};
++
++#if IS_ENABLED(CONFIG_QCOM_FSA4480_I2C)
++int fsa4480_switch_event(struct device_node *node,
++			 enum fsa_function event);
++int fsa4480_reg_notifier(struct notifier_block *nb,
++			 struct device_node *node);
++int fsa4480_unreg_notifier(struct notifier_block *nb,
++			   struct device_node *node);
++#else
++static inline int fsa4480_switch_event(struct device_node *node,
++				       enum fsa_function event)
++{
++	return 0;
++}
++
++static inline int fsa4480_reg_notifier(struct notifier_block *nb,
++				       struct device_node *node)
++{
++	return 0;
++}
++
++static inline int fsa4480_unreg_notifier(struct notifier_block *nb,
++					 struct device_node *node)
++{
++	return 0;
++}
++#endif /* CONFIG_QCOM_FSA4480_I2C */
++
++#endif /* FSA4480_I2C_H */
++
+diff --git a/include/linux/soc/qcom/panel_event_notifier.h b/include/linux/soc/qcom/panel_event_notifier.h
+new file mode 100644
+index 0000000..bc5fe86
+--- /dev/null
++++ b/include/linux/soc/qcom/panel_event_notifier.h
+@@ -0,0 +1,87 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++/*
++ * Copyright (c) 2021, The Linux Foundation. All rights reserved.
++ * Copyright (c) 2023, Qualcomm Innovation Center, Inc. All rights reserved.
++ */
++
++#ifndef __PANEL_EVENT_NOTIFIER_H
++#define __PANEL_EVENT_NOTIFIER_H
++
++#include <linux/err.h>
++#include <linux/errno.h>
++#include <linux/types.h>
++#include <drm/drm_panel.h>
++
++enum panel_event_notifier_tag {
++	PANEL_EVENT_NOTIFICATION_NONE,
++	PANEL_EVENT_NOTIFICATION_PRIMARY,
++	PANEL_EVENT_NOTIFICATION_SECONDARY,
++	PANEL_EVENT_NOTIFICATION_MAX
++};
++
++enum panel_event_notifier_client {
++	PANEL_EVENT_NOTIFIER_CLIENT_PRIMARY_TOUCH,
++	PANEL_EVENT_NOTIFIER_CLIENT_SECONDARY_TOUCH,
++	PANEL_EVENT_NOTIFIER_CLIENT_ECM,
++	PANEL_EVENT_NOTIFIER_CLIENT_BATTERY_CHARGER,
++	PANEL_EVENT_NOTIFIER_CLIENT_FINGERPRINT,
++	PANEL_EVENT_NOTIFIER_CLIENT_FINGERPRINT_SECOND,
++	PANEL_EVENT_NOTIFIER_CLIENT_KEYBOARD,
++	PANEL_EVENT_NOTIFIER_CLIENT_MAX
++};
++
++enum panel_event_notification_type {
++	DRM_PANEL_EVENT_NONE,
++	DRM_PANEL_EVENT_BLANK,
++	DRM_PANEL_EVENT_UNBLANK,
++	DRM_PANEL_EVENT_BLANK_LP,
++	DRM_PANEL_EVENT_FPS_CHANGE,
++	DRM_PANEL_EVENT_HBM_ON,
++	DRM_PANEL_EVENT_HBM_OFF,
++	DRM_PANEL_EVENT_MAX
++};
++
++struct panel_event_notification_data {
++	u32 old_fps;
++	u32 new_fps;
++	bool early_trigger;
++};
++
++struct panel_event_notification {
++	enum panel_event_notification_type notif_type;
++	struct panel_event_notification_data notif_data;
++	struct drm_panel *panel;
++};
++
++typedef void (*panel_event_notifier_handler)(enum panel_event_notifier_tag tag,
++				struct panel_event_notification *notification,
++					void *pvt_data);
++
++#if IS_ENABLED(CONFIG_QCOM_PANEL_EVENT_NOTIFIER)
++void *panel_event_notifier_register(enum panel_event_notifier_tag tag,
++		enum panel_event_notifier_client client_handle,
++		struct drm_panel *panel,
++		panel_event_notifier_handler notif_handler, void *pvt_data);
++void panel_event_notifier_unregister(void *cookie);
++void panel_event_notification_trigger(enum panel_event_notifier_tag tag,
++		 struct panel_event_notification *notification);
++
++#else
++static inline void *panel_event_notifier_register(enum panel_event_notifier_tag tag,
++		enum panel_event_notifier_client client_handle,
++		struct drm_panel *panel,
++		panel_event_notifier_handler notif_handler, void *pvt_data)
++{
++	return ERR_PTR(-EOPNOTSUPP);
++}
++
++static inline void panel_event_notifier_unregister(void *cookie)
++{
++}
++static inline void panel_event_notification_trigger(
++		enum panel_event_notifier_tag tag,
++		struct panel_event_notification *notification)
++{
++}
++#endif
++#endif
+diff --git a/include/linux/soc/qcom/qti_pmic_glink.h b/include/linux/soc/qcom/qti_pmic_glink.h
+new file mode 100644
+index 0000000..c036d5a
+--- /dev/null
++++ b/include/linux/soc/qcom/qti_pmic_glink.h
+@@ -0,0 +1,76 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++/*
++ * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
++ * Copyright (c) 2023, Qualcomm Innovation Center, Inc. All rights reserved.
++ */
++
++#ifndef __QTI_PMIC_GLINK_H
++#define __QTI_PMIC_GLINK_H
++
++#include <linux/types.h>
++
++struct pmic_glink_client;
++struct device;
++
++enum pmic_glink_state {
++	PMIC_GLINK_STATE_DOWN,
++	PMIC_GLINK_STATE_UP,
++};
++
++/**
++ * struct pmic_glink_client_data - pmic_glink client data
++ * @name:	Client name
++ * @id:		Unique id for client for communication
++ * @priv:	private data for client
++ * @msg_cb:	callback function for client to receive the messages that
++ *		are intended to be delivered to it over PMIC Glink
++ * @state_cb:	callback function to notify pmic glink state in the event of
++ *		a subsystem restart (SSR) or a protection domain restart (PDR)
++ */
++struct pmic_glink_client_data {
++	const char	*name;
++	u32		id;
++	void		*priv;
++	int		(*msg_cb)(void *priv, void *data, size_t len);
++	void		(*state_cb)(void *priv, enum pmic_glink_state state);
++};
++
++/**
++ * struct pmic_glink_hdr - PMIC Glink message header
++ * @owner:	message owner for a client
++ * @type:	message type
++ * @opcode:	message opcode
++ */
++struct pmic_glink_hdr {
++	u32 owner;
++	u32 type;
++	u32 opcode;
++};
++
++#if IS_ENABLED(CONFIG_QTI_PMIC_GLINK)
++struct pmic_glink_client *pmic_glink_register_client(struct device *dev,
++			const struct pmic_glink_client_data *client_data);
++int pmic_glink_unregister_client(struct pmic_glink_client *client);
++int pmic_glink_write(struct pmic_glink_client *client, void *data,
++			size_t len);
++#else
++static inline struct pmic_glink_client *pmic_glink_register_client(
++			struct device *dev,
++			const struct pmic_glink_client_data *client_data)
++{
++	return ERR_PTR(-ENODEV);
++}
++
++static inline int pmic_glink_unregister_client(struct pmic_glink_client *client)
++{
++	return -ENODEV;
++}
++
++static inline int pmic_glink_write(struct pmic_glink_client *client, void *data,
++				size_t len)
++{
++	return -ENODEV;
++}
++#endif
++
++#endif
+diff --git a/include/miev/mievent.h b/include/miev/mievent.h
+new file mode 100644
+index 0000000..91d99c4
+--- /dev/null
++++ b/include/miev/mievent.h
+@@ -0,0 +1,65 @@
++// MIUI ADD: MiSight_LogEnhance
++#ifndef _EVENT_MIEVENT_H_
++#define _EVENT_MIEVENT_H_
++
++#include <linux/module.h>
++#include <linux/kernel.h>
++
++#define FORMAT_COMMA_SIZE 1
++#define FORMAT_COLON_SIZE 1
++#define FORMAT_QUOTES_SIZE 2
++
++
++enum DATA_TYPE { INT_T = 0, STR_T };
++
++/* mievent struct */
++struct misight_mievent {
++	unsigned int eventid;
++	unsigned int para_cnt;
++	unsigned int used_size;
++	long long time;
++	char **buf_ptr;
++};
++
++struct mievent_payload {
++	int type;
++	char *key;
++	char *value;
++};
++
++#if IS_ENABLED(CONFIG_MIEV)
++/* export symbol */
++struct misight_mievent *cdev_tevent_alloc(unsigned int eventid);
++int cdev_tevent_add_int(struct misight_mievent *event, const char *key,
++			long value);
++int cdev_tevent_add_str(struct misight_mievent *event, const char *key,
++			const char *value);
++int cdev_tevent_write(struct misight_mievent *event);
++void cdev_tevent_destroy(struct misight_mievent *event);
++#else
++struct misight_mievent *cdev_tevent_alloc(unsigned int eventid)
++{
++
++	return NULL; 
++}
++int cdev_tevent_add_int(struct misight_mievent *event, const char *key,
++                        long value)
++{
++	return 0;
++}
++int cdev_tevent_add_str(struct misight_mievent *event, const char *key,
++                        const char *value)
++{
++	return 0;
++}
++int cdev_tevent_write(struct misight_mievent *event)
++{
++	return 0;
++}
++void cdev_tevent_destroy(struct misight_mievent *event)
++{
++    return;
++}
++#endif
++#endif // _EVENT_MIEVENT_H_
++// END MiSight_LogEnhance
+diff --git a/mca_business/business_battery/mca_business_battery.c b/mca_business/business_battery/mca_business_battery.c
+index 614045c..c8a52b0 100644
+--- a/mca_business/business_battery/mca_business_battery.c
++++ b/mca_business/business_battery/mca_business_battery.c
+@@ -139,13 +139,13 @@ error:
+ 	return rc;
+ }
+ 
+-static int business_battery_remove(struct platform_device *pdev)
++static void business_battery_remove(struct platform_device *pdev)
+ {
+ 	//struct business_battery *battery = platform_get_drvdata(pdev);
+ 
+ 	//cancel_work_sync(&battery->event_process_work);
+ 
+-	return 0;
++	return;
+ }
+ 
+ static void business_battery_shutdown(struct platform_device *pdev)
+diff --git a/mca_business/business_charger/mca_business_charger.c b/mca_business/business_charger/mca_business_charger.c
+index fcc7dae..bf09143 100644
+--- a/mca_business/business_charger/mca_business_charger.c
++++ b/mca_business/business_charger/mca_business_charger.c
+@@ -2102,10 +2102,10 @@ reg_notify_fail2:
+ 	return rc;
+ }
+ 
+-static int business_charger_remove(struct platform_device *pdev)
++static void business_charger_remove(struct platform_device *pdev)
+ {
+ 	business_charger_sysfs_remove_group(&pdev->dev);
+-	return 0;
++	return;
+ }
+ 
+ static void business_charger_shutdown(struct platform_device *pdev)
+diff --git a/mca_business/business_misc/mca_business_misc.c b/mca_business/business_misc/mca_business_misc.c
+index 53ca271..4410814 100644
+--- a/mca_business/business_misc/mca_business_misc.c
++++ b/mca_business/business_misc/mca_business_misc.c
+@@ -62,9 +62,9 @@ static int business_misc_probe(struct platform_device *pdev)
+ 	return 0;
+ }
+ 
+-static int business_misc_remove(struct platform_device *pdev)
++static void business_misc_remove(struct platform_device *pdev)
+ {
+-	return 0;
++	return;
+ }
+ 
+ static void business_misc_shutdown(struct platform_device *pdev)
+diff --git a/mca_common/mca_adsp_glink.c b/mca_common/mca_adsp_glink.c
+index 1906d8b..2d7606b 100644
+--- a/mca_common/mca_adsp_glink.c
++++ b/mca_common/mca_adsp_glink.c
+@@ -9,6 +9,7 @@
+ #include <linux/list.h>
+ #include <linux/string.h>
+ #include <linux/err.h>
++#include <linux/of.h>
+ #include <linux/of_device.h>
+ #include <linux/soc/qcom/qti_pmic_glink.h>
+ #include <mca/common/mca_log.h>
+@@ -409,8 +410,14 @@ static int mca_adsp_glink_probe(struct platform_device *pdev)
+ 	mca->client = pmic_glink_register_client(&pdev->dev, &client_data);
+ 	if (IS_ERR(mca->client)) {
+ 		ret = PTR_ERR(mca->client);
+-		if (ret == -EPROBE_DEFER)
+-			return ret;
++		/*
++		 * 6.12 pmic_glink populates its children before it lists
++		 * itself, so a client probing that early gets -ENODEV.
++		 */
++		if (ret == -EPROBE_DEFER || ret == -ENODEV) {
++			mca_log_err("pmic_glink not ready (%d), deferring\n", ret);
++			return -EPROBE_DEFER;
++		}
+ 		mca_log_err("Error in registering with pmic_glink %d\n", ret);
+ 		return ret;
+ 	}
+@@ -439,9 +446,9 @@ static int mca_adsp_glink_probe(struct platform_device *pdev)
+ 	return 0;
+ }
+ 
+-static int mca_adsp_glink_remove(struct platform_device *pdev)
++static void mca_adsp_glink_remove(struct platform_device *pdev)
+ {
+-	return 0;
++	return;
+ }
+ 
+ static const struct of_device_id mca_adsp_match_table[] = {
+diff --git a/mca_common/mca_charge_interface.c b/mca_common/mca_charge_interface.c
+index e202252..d2a07db 100644
+--- a/mca_common/mca_charge_interface.c
++++ b/mca_common/mca_charge_interface.c
+@@ -480,11 +480,11 @@ static int mca_charge_if_probe(struct platform_device *pdev)
+ 	return 0;
+ }
+ 
+-static int mca_charge_if_remove(struct platform_device *pdev)
++static void mca_charge_if_remove(struct platform_device *pdev)
+ {
+ 	mca_charge_if_sysfs_remove_group(&pdev->dev);
+ 
+-	return 0;
++	return;
+ }
+ 
+ static const struct of_device_id match_table[] = {
+diff --git a/mca_common/mca_qcom_panel.c b/mca_common/mca_qcom_panel.c
+index 3475975..744a585 100644
+--- a/mca_common/mca_qcom_panel.c
++++ b/mca_common/mca_qcom_panel.c
+@@ -219,7 +219,7 @@ static const struct of_device_id match_table[] = {
+ 	{},
+ };
+ 
+-static int mca_panel_remove(struct platform_device *pdev)
++static void mca_panel_remove(struct platform_device *pdev)
+ {
+ 	struct mca_panel_dev *panel_dev = platform_get_drvdata(pdev);
+ 
+@@ -233,7 +233,7 @@ static int mca_panel_remove(struct platform_device *pdev)
+ 		g_panel = NULL;
+ 
+ 	devm_kfree(&pdev->dev, panel_dev);
+-	return 0;
++	return;
+ }
+ 
+ static void mca_panel_shutdown(struct platform_device *pdev)
+diff --git a/mca_hardware_ic/battery_auth/Makefile b/mca_hardware_ic/battery_auth/Makefile
+index ad18a10..7bd3ed5 100644
+--- a/mca_hardware_ic/battery_auth/Makefile
++++ b/mca_hardware_ic/battery_auth/Makefile
+@@ -1,3 +1,4 @@
+ obj-$(CONFIG_MCA_ONEWIRE_AUTH)			+= mca_onewire_auth_core.o
++mca_onewire_auth_core-y := onewire_auth_core.o piano_ecc.o
+ obj-$(CONFIG_MCA_ONEWIRE_AUTH_ACL16_SLG2)	+= acl16_slg2.o
+ obj-$(CONFIG_MCA_ONEWIRE_AUTH_DS28E30)		+= maxim_ds28e30.o
+diff --git a/mca_hardware_ic/battery_auth/acl16_slg2.c b/mca_hardware_ic/battery_auth/acl16_slg2.c
+index 6f46ebb..3dfb8a7 100644
+--- a/mca_hardware_ic/battery_auth/acl16_slg2.c
++++ b/mca_hardware_ic/battery_auth/acl16_slg2.c
+@@ -563,13 +563,13 @@ static int slg2_probe(struct platform_device *pdev)
+ 	return 0;
+ }
+ 
+-static int slg2_remove(struct platform_device *pdev)
++static void slg2_remove(struct platform_device *pdev)
+ {
+ 	struct slg2_info *info = platform_get_drvdata(pdev);
+ 
+ 	onewire_auth_remove_chip(&info->chip);
+ 
+-	return 0;
++	return;
+ }
+ 
+ static const struct of_device_id slg2_of_match[] = {
+diff --git a/mca_hardware_ic/battery_auth/ecc_curve_defs.h b/mca_hardware_ic/battery_auth/ecc_curve_defs.h
+new file mode 100644
+index 0000000..0ecade7
+--- /dev/null
++++ b/mca_hardware_ic/battery_auth/ecc_curve_defs.h
+@@ -0,0 +1,155 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#ifndef _CRYTO_ECC_CURVE_DEFS_H
++#define _CRYTO_ECC_CURVE_DEFS_H
++
++/* NIST P-192: a = p - 3 */
++static u64 nist_p192_g_x[] = { 0xF4FF0AFD82FF1012ull, 0x7CBF20EB43A18800ull,
++				0x188DA80EB03090F6ull };
++static u64 nist_p192_g_y[] = { 0x73F977A11E794811ull, 0x631011ED6B24CDD5ull,
++				0x07192B95FFC8DA78ull };
++static u64 nist_p192_p[] = { 0xFFFFFFFFFFFFFFFFull, 0xFFFFFFFFFFFFFFFEull,
++				0xFFFFFFFFFFFFFFFFull };
++static u64 nist_p192_n[] = { 0x146BC9B1B4D22831ull, 0xFFFFFFFF99DEF836ull,
++				0xFFFFFFFFFFFFFFFFull };
++static u64 nist_p192_a[] = { 0xFFFFFFFFFFFFFFFCull, 0xFFFFFFFFFFFFFFFEull,
++				0xFFFFFFFFFFFFFFFFull };
++static u64 nist_p192_b[] = { 0xFEB8DEECC146B9B1ull, 0x0FA7E9AB72243049ull,
++				0x64210519E59C80E7ull };
++static struct ecc_curve nist_p192 = {
++	.name = "nist_192",
++	.nbits = 192,
++	.g = {
++		.x = nist_p192_g_x,
++		.y = nist_p192_g_y,
++		.ndigits = 3,
++	},
++	.p = nist_p192_p,
++	.n = nist_p192_n,
++	.a = nist_p192_a,
++	.b = nist_p192_b
++};
++
++/* NIST P-256: a = p - 3 */
++static u64 nist_p256_g_x[] = { 0xF4A13945D898C296ull, 0x77037D812DEB33A0ull,
++				0xF8BCE6E563A440F2ull, 0x6B17D1F2E12C4247ull };
++static u64 nist_p256_g_y[] = { 0xCBB6406837BF51F5ull, 0x2BCE33576B315ECEull,
++				0x8EE7EB4A7C0F9E16ull, 0x4FE342E2FE1A7F9Bull };
++static u64 nist_p256_p[] = { 0xFFFFFFFFFFFFFFFFull, 0x00000000FFFFFFFFull,
++				0x0000000000000000ull, 0xFFFFFFFF00000001ull };
++static u64 nist_p256_n[] = { 0xF3B9CAC2FC632551ull, 0xBCE6FAADA7179E84ull,
++				0xFFFFFFFFFFFFFFFFull, 0xFFFFFFFF00000000ull };
++static u64 nist_p256_a[] = { 0xFFFFFFFFFFFFFFFCull, 0x00000000FFFFFFFFull,
++				0x0000000000000000ull, 0xFFFFFFFF00000001ull };
++static u64 nist_p256_b[] = { 0x3BCE3C3E27D2604Bull, 0x651D06B0CC53B0F6ull,
++				0xB3EBBD55769886BCull, 0x5AC635D8AA3A93E7ull };
++static struct ecc_curve nist_p256 = {
++	.name = "nist_256",
++	.nbits = 256,
++	.g = {
++		.x = nist_p256_g_x,
++		.y = nist_p256_g_y,
++		.ndigits = 4,
++	},
++	.p = nist_p256_p,
++	.n = nist_p256_n,
++	.a = nist_p256_a,
++	.b = nist_p256_b
++};
++
++/* NIST P-384 */
++static u64 nist_p384_g_x[] = { 0x3A545E3872760AB7ull, 0x5502F25DBF55296Cull,
++				0x59F741E082542A38ull, 0x6E1D3B628BA79B98ull,
++				0x8Eb1C71EF320AD74ull, 0xAA87CA22BE8B0537ull };
++static u64 nist_p384_g_y[] = { 0x7A431D7C90EA0E5Full, 0x0A60B1CE1D7E819Dull,
++				0xE9DA3113B5F0B8C0ull, 0xF8F41DBD289A147Cull,
++				0x5D9E98BF9292DC29ull, 0x3617DE4A96262C6Full };
++static u64 nist_p384_p[] = { 0x00000000FFFFFFFFull, 0xFFFFFFFF00000000ull,
++				0xFFFFFFFFFFFFFFFEull, 0xFFFFFFFFFFFFFFFFull,
++				0xFFFFFFFFFFFFFFFFull, 0xFFFFFFFFFFFFFFFFull };
++static u64 nist_p384_n[] = { 0xECEC196ACCC52973ull, 0x581A0DB248B0A77Aull,
++				0xC7634D81F4372DDFull, 0xFFFFFFFFFFFFFFFFull,
++				0xFFFFFFFFFFFFFFFFull, 0xFFFFFFFFFFFFFFFFull };
++static u64 nist_p384_a[] = { 0x00000000FFFFFFFCull, 0xFFFFFFFF00000000ull,
++				0xFFFFFFFFFFFFFFFEull, 0xFFFFFFFFFFFFFFFFull,
++				0xFFFFFFFFFFFFFFFFull, 0xFFFFFFFFFFFFFFFFull };
++static u64 nist_p384_b[] = { 0x2a85c8edd3ec2aefull, 0xc656398d8a2ed19dull,
++				0x0314088f5013875aull, 0x181d9c6efe814112ull,
++				0x988e056be3f82d19ull, 0xb3312fa7e23ee7e4ull };
++static struct ecc_curve nist_p384 = {
++	.name = "nist_384",
++	.nbits = 384,
++	.g = {
++		.x = nist_p384_g_x,
++		.y = nist_p384_g_y,
++		.ndigits = 6,
++	},
++	.p = nist_p384_p,
++	.n = nist_p384_n,
++	.a = nist_p384_a,
++	.b = nist_p384_b
++};
++
++/* NIST P-521 */
++static u64 nist_p521_g_x[] = { 0xf97e7e31c2e5bd66ull, 0x3348b3c1856a429bull,
++				0xfe1dc127a2ffa8deull, 0xa14b5e77efe75928ull,
++				0xf828af606b4d3dbaull, 0x9c648139053fb521ull,
++				0x9e3ecb662395b442ull, 0x858e06b70404e9cdull,
++				0xc6ull };
++static u64 nist_p521_g_y[] = { 0x88be94769fd16650ull, 0x353c7086a272c240ull,
++				0xc550b9013fad0761ull, 0x97ee72995ef42640ull,
++				0x17afbd17273e662cull, 0x98f54449579b4468ull,
++				0x5c8a5fb42c7d1bd9ull, 0x39296a789a3bc004ull,
++				0x118ull };
++static u64 nist_p521_p[] = { 0xffffffffffffffffull, 0xffffffffffffffffull,
++				0xffffffffffffffffull, 0xffffffffffffffffull,
++				0xffffffffffffffffull, 0xffffffffffffffffull,
++				0xffffffffffffffffull, 0xffffffffffffffffull,
++				0x1ffull };
++static u64 nist_p521_n[] = { 0xbb6fb71e91386409ull, 0x3bb5c9b8899c47aeull,
++				0x7fcc0148f709a5d0ull, 0x51868783bf2f966bull,
++				0xfffffffffffffffaull, 0xffffffffffffffffull,
++				0xffffffffffffffffull, 0xffffffffffffffffull,
++				0x1ffull };
++static u64 nist_p521_a[] = { 0xfffffffffffffffcull, 0xffffffffffffffffull,
++				0xffffffffffffffffull, 0xffffffffffffffffull,
++				0xffffffffffffffffull, 0xffffffffffffffffull,
++				0xffffffffffffffffull, 0xffffffffffffffffull,
++				0x1ffull };
++static u64 nist_p521_b[] = { 0xef451fd46b503f00ull, 0x3573df883d2c34f1ull,
++				0x1652c0bd3bb1bf07ull, 0x56193951ec7e937bull,
++				0xb8b489918ef109e1ull, 0xa2da725b99b315f3ull,
++				0x929a21a0b68540eeull, 0x953eb9618e1c9a1full,
++				0x051ull };
++static struct ecc_curve nist_p521 = {
++	.name = "nist_521",
++	.nbits = 521,
++	.g = {
++		.x = nist_p521_g_x,
++		.y = nist_p521_g_y,
++		.ndigits = 9,
++	},
++	.p = nist_p521_p,
++	.n = nist_p521_n,
++	.a = nist_p521_a,
++	.b = nist_p521_b
++};
++
++/* curve25519 */
++static u64 curve25519_g_x[] = { 0x0000000000000009, 0x0000000000000000,
++				0x0000000000000000, 0x0000000000000000 };
++static u64 curve25519_p[] = { 0xffffffffffffffed, 0xffffffffffffffff,
++				0xffffffffffffffff, 0x7fffffffffffffff };
++static u64 curve25519_a[] = { 0x000000000001DB41, 0x0000000000000000,
++				0x0000000000000000, 0x0000000000000000 };
++static const struct ecc_curve ecc_25519 = {
++	.name = "curve25519",
++	.nbits = 255,
++	.g = {
++		.x = curve25519_g_x,
++		.ndigits = 4,
++	},
++	.p = curve25519_p,
++	.a = curve25519_a,
++};
++
++#endif
+diff --git a/mca_hardware_ic/battery_auth/maxim_ds28e30.c b/mca_hardware_ic/battery_auth/maxim_ds28e30.c
+index 95ac54d..8ced40e 100644
+--- a/mca_hardware_ic/battery_auth/maxim_ds28e30.c
++++ b/mca_hardware_ic/battery_auth/maxim_ds28e30.c
+@@ -475,13 +475,13 @@ static int ds28e30_probe(struct platform_device *pdev)
+ 	return 0;
+ }
+ 
+-static int ds28e30_remove(struct platform_device *pdev)
++static void ds28e30_remove(struct platform_device *pdev)
+ {
+ 	struct ds28e30_info *info = platform_get_drvdata(pdev);
+ 
+ 	onewire_auth_remove_chip(&info->chip);
+ 
+-	return 0;
++	return;
+ }
+ 
+ static const struct of_device_id ds28e30_of_match[] = {
+diff --git a/mca_hardware_ic/battery_auth/mca_onewire_auth_core.c b/mca_hardware_ic/battery_auth/onewire_auth_core.c
+similarity index 96%
+rename from mca_hardware_ic/battery_auth/mca_onewire_auth_core.c
+rename to mca_hardware_ic/battery_auth/onewire_auth_core.c
+index 31a1f4e..8ea4662 100644
+--- a/mca_hardware_ic/battery_auth/mca_onewire_auth_core.c
++++ b/mca_hardware_ic/battery_auth/onewire_auth_core.c
+@@ -19,6 +19,7 @@
+ 
+ #include <crypto/ecdh.h>
+ #include <crypto/internal/ecc.h>
++#include <crypto/hash.h>
+ #include <crypto/sha2.h>
+ #include <linux/device.h>
+ #include <linux/gpio/consumer.h>
+@@ -30,11 +31,24 @@
+ #include <linux/slab.h>
+ #include <linux/string.h>
+ #include <linux/workqueue.h>
+-#include <asm/unaligned.h>
++#include <linux/unaligned.h>
+ #include <mca/common/mca_log.h>
+ #include <mca/common/mca_smem.h>
+ #include <mca/hardware/onewire_auth.h>
+ 
++/* GKI does not export the sha256() library helper; use the hash API. */
++static int piano_sha256(const u8 *data, unsigned int len, u8 *out)
++{
++	struct crypto_shash *tfm = crypto_alloc_shash("sha256", 0, 0);
++	int ret;
++
++	if (IS_ERR(tfm))
++		return PTR_ERR(tfm);
++	ret = crypto_shash_tfm_digest(tfm, data, len, out);
++	crypto_free_shash(tfm);
++	return ret;
++}
++
+ #ifndef MCA_LOG_TAG
+ #define MCA_LOG_TAG "onewire_auth_core"
+ #endif
+@@ -108,7 +122,7 @@ int onewire_auth_ecdsa_verify(const u8 *pub_x, const u8 *pub_y,
+ 	    vli_is_zero(s, ndigits) || vli_cmp(s, curve->n, ndigits) >= 0)
+ 		return -EBADMSG;
+ 
+-	sha256(msg, len, digest);
++	piano_sha256(msg, len, digest);
+ 	ow_be_to_vli(digest, hash, ndigits);
+ 
+ 	/* u1 = hash / s, u2 = r / s, then R = u1 * G + u2 * Q */
+@@ -574,7 +588,7 @@ static int onewire_auth_probe(struct platform_device *pdev)
+ 	return 0;
+ }
+ 
+-static int onewire_auth_remove(struct platform_device *pdev)
++static void onewire_auth_remove(struct platform_device *pdev)
+ {
+ 	struct onewire_auth_info *info = platform_get_drvdata(pdev);
+ 
+@@ -584,7 +598,7 @@ static int onewire_auth_remove(struct platform_device *pdev)
+ 
+ 	cancel_delayed_work_sync(&info->detect_work);
+ 
+-	return 0;
++	return;
+ }
+ 
+ static const struct of_device_id onewire_auth_of_match[] = {
+diff --git a/mca_hardware_ic/battery_auth/piano_ecc.c b/mca_hardware_ic/battery_auth/piano_ecc.c
+new file mode 100644
+index 0000000..2aafebf
+--- /dev/null
++++ b/mca_hardware_ic/battery_auth/piano_ecc.c
+@@ -0,0 +1,1698 @@
++// SPDX-License-Identifier: GPL-2.0
++/* Private copy of crypto/ecc.c: GKI builds it in but does not export it. */
++/*
++ * Copyright (c) 2013, 2014 Kenneth MacKay. All rights reserved.
++ * Copyright (c) 2019 Vitaly Chikunov <vt@altlinux.org>
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions are
++ * met:
++ *  * Redistributions of source code must retain the above copyright
++ *   notice, this list of conditions and the following disclaimer.
++ *  * Redistributions in binary form must reproduce the above copyright
++ *    notice, this list of conditions and the following disclaimer in the
++ *    documentation and/or other materials provided with the distribution.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
++ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
++ * HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
++ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
++ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
++ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
++ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
++ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
++ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
++#include <crypto/ecc_curve.h>
++#include <linux/module.h>
++#include <linux/random.h>
++#include <linux/slab.h>
++#include <linux/swab.h>
++#include <linux/fips.h>
++#include <crypto/ecdh.h>
++#include <crypto/rng.h>
++#include <crypto/internal/ecc.h>
++#include <linux/unaligned.h>
++#include <linux/ratelimit.h>
++
++#include "ecc_curve_defs.h"
++
++typedef struct {
++	u64 m_low;
++	u64 m_high;
++} uint128_t;
++
++/* Returns curv25519 curve param */
++const struct ecc_curve *ecc_get_curve25519(void)
++{
++	return &ecc_25519;
++}
++
++const struct ecc_curve *ecc_get_curve(unsigned int curve_id)
++{
++	switch (curve_id) {
++	/* In FIPS mode only allow P256 and higher */
++	case ECC_CURVE_NIST_P192:
++		return fips_enabled ? NULL : &nist_p192;
++	case ECC_CURVE_NIST_P256:
++		return &nist_p256;
++	case ECC_CURVE_NIST_P384:
++		return &nist_p384;
++	case ECC_CURVE_NIST_P521:
++		return &nist_p521;
++	default:
++		return NULL;
++	}
++}
++
++void ecc_digits_from_bytes(const u8 *in, unsigned int nbytes,
++			   u64 *out, unsigned int ndigits)
++{
++	int diff = ndigits - DIV_ROUND_UP_POW2(nbytes, sizeof(u64));
++	unsigned int o = nbytes & 7;
++	__be64 msd = 0;
++
++	/* diff > 0: not enough input bytes: set most significant digits to 0 */
++	if (diff > 0) {
++		ndigits -= diff;
++		memset(&out[ndigits], 0, diff * sizeof(u64));
++	}
++
++	if (o) {
++		memcpy((u8 *)&msd + sizeof(msd) - o, in, o);
++		out[--ndigits] = be64_to_cpu(msd);
++		in += o;
++	}
++	ecc_swap_digits(in, out, ndigits);
++}
++
++static u64 *ecc_alloc_digits_space(unsigned int ndigits)
++{
++	size_t len = ndigits * sizeof(u64);
++
++	if (!len)
++		return NULL;
++
++	return kmalloc(len, GFP_KERNEL);
++}
++
++static void ecc_free_digits_space(u64 *space)
++{
++	kfree_sensitive(space);
++}
++
++struct ecc_point *ecc_alloc_point(unsigned int ndigits)
++{
++	struct ecc_point *p = kmalloc(sizeof(*p), GFP_KERNEL);
++
++	if (!p)
++		return NULL;
++
++	p->x = ecc_alloc_digits_space(ndigits);
++	if (!p->x)
++		goto err_alloc_x;
++
++	p->y = ecc_alloc_digits_space(ndigits);
++	if (!p->y)
++		goto err_alloc_y;
++
++	p->ndigits = ndigits;
++
++	return p;
++
++err_alloc_y:
++	ecc_free_digits_space(p->x);
++err_alloc_x:
++	kfree(p);
++	return NULL;
++}
++
++void ecc_free_point(struct ecc_point *p)
++{
++	if (!p)
++		return;
++
++	kfree_sensitive(p->x);
++	kfree_sensitive(p->y);
++	kfree_sensitive(p);
++}
++
++static void vli_clear(u64 *vli, unsigned int ndigits)
++{
++	int i;
++
++	for (i = 0; i < ndigits; i++)
++		vli[i] = 0;
++}
++
++/* Returns true if vli == 0, false otherwise. */
++bool vli_is_zero(const u64 *vli, unsigned int ndigits)
++{
++	int i;
++
++	for (i = 0; i < ndigits; i++) {
++		if (vli[i])
++			return false;
++	}
++
++	return true;
++}
++
++/* Returns nonzero if bit of vli is set. */
++static u64 vli_test_bit(const u64 *vli, unsigned int bit)
++{
++	return (vli[bit / 64] & ((u64)1 << (bit % 64)));
++}
++
++static bool vli_is_negative(const u64 *vli, unsigned int ndigits)
++{
++	return vli_test_bit(vli, ndigits * 64 - 1);
++}
++
++/* Counts the number of 64-bit "digits" in vli. */
++static unsigned int vli_num_digits(const u64 *vli, unsigned int ndigits)
++{
++	int i;
++
++	/* Search from the end until we find a non-zero digit.
++	 * We do it in reverse because we expect that most digits will
++	 * be nonzero.
++	 */
++	for (i = ndigits - 1; i >= 0 && vli[i] == 0; i--);
++
++	return (i + 1);
++}
++
++/* Counts the number of bits required for vli. */
++unsigned int vli_num_bits(const u64 *vli, unsigned int ndigits)
++{
++	unsigned int i, num_digits;
++	u64 digit;
++
++	num_digits = vli_num_digits(vli, ndigits);
++	if (num_digits == 0)
++		return 0;
++
++	digit = vli[num_digits - 1];
++	for (i = 0; digit; i++)
++		digit >>= 1;
++
++	return ((num_digits - 1) * 64 + i);
++}
++
++/* Set dest from unaligned bit string src. */
++void vli_from_be64(u64 *dest, const void *src, unsigned int ndigits)
++{
++	int i;
++	const u64 *from = src;
++
++	for (i = 0; i < ndigits; i++)
++		dest[i] = get_unaligned_be64(&from[ndigits - 1 - i]);
++}
++
++void vli_from_le64(u64 *dest, const void *src, unsigned int ndigits)
++{
++	int i;
++	const u64 *from = src;
++
++	for (i = 0; i < ndigits; i++)
++		dest[i] = get_unaligned_le64(&from[i]);
++}
++
++/* Sets dest = src. */
++static void vli_set(u64 *dest, const u64 *src, unsigned int ndigits)
++{
++	int i;
++
++	for (i = 0; i < ndigits; i++)
++		dest[i] = src[i];
++}
++
++/* Returns sign of left - right. */
++int vli_cmp(const u64 *left, const u64 *right, unsigned int ndigits)
++{
++	int i;
++
++	for (i = ndigits - 1; i >= 0; i--) {
++		if (left[i] > right[i])
++			return 1;
++		else if (left[i] < right[i])
++			return -1;
++	}
++
++	return 0;
++}
++
++/* Computes result = in << c, returning carry. Can modify in place
++ * (if result == in). 0 < shift < 64.
++ */
++static u64 vli_lshift(u64 *result, const u64 *in, unsigned int shift,
++		      unsigned int ndigits)
++{
++	u64 carry = 0;
++	int i;
++
++	for (i = 0; i < ndigits; i++) {
++		u64 temp = in[i];
++
++		result[i] = (temp << shift) | carry;
++		carry = temp >> (64 - shift);
++	}
++
++	return carry;
++}
++
++/* Computes vli = vli >> 1. */
++static void vli_rshift1(u64 *vli, unsigned int ndigits)
++{
++	u64 *end = vli;
++	u64 carry = 0;
++
++	vli += ndigits;
++
++	while (vli-- > end) {
++		u64 temp = *vli;
++		*vli = (temp >> 1) | carry;
++		carry = temp << 63;
++	}
++}
++
++/* Computes result = left + right, returning carry. Can modify in place. */
++static u64 vli_add(u64 *result, const u64 *left, const u64 *right,
++		   unsigned int ndigits)
++{
++	u64 carry = 0;
++	int i;
++
++	for (i = 0; i < ndigits; i++) {
++		u64 sum;
++
++		sum = left[i] + right[i] + carry;
++		if (sum != left[i])
++			carry = (sum < left[i]);
++
++		result[i] = sum;
++	}
++
++	return carry;
++}
++
++/* Computes result = left + right, returning carry. Can modify in place. */
++static u64 vli_uadd(u64 *result, const u64 *left, u64 right,
++		    unsigned int ndigits)
++{
++	u64 carry = right;
++	int i;
++
++	for (i = 0; i < ndigits; i++) {
++		u64 sum;
++
++		sum = left[i] + carry;
++		if (sum != left[i])
++			carry = (sum < left[i]);
++		else
++			carry = !!carry;
++
++		result[i] = sum;
++	}
++
++	return carry;
++}
++
++/* Computes result = left - right, returning borrow. Can modify in place. */
++u64 vli_sub(u64 *result, const u64 *left, const u64 *right,
++		   unsigned int ndigits)
++{
++	u64 borrow = 0;
++	int i;
++
++	for (i = 0; i < ndigits; i++) {
++		u64 diff;
++
++		diff = left[i] - right[i] - borrow;
++		if (diff != left[i])
++			borrow = (diff > left[i]);
++
++		result[i] = diff;
++	}
++
++	return borrow;
++}
++
++/* Computes result = left - right, returning borrow. Can modify in place. */
++static u64 vli_usub(u64 *result, const u64 *left, u64 right,
++	     unsigned int ndigits)
++{
++	u64 borrow = right;
++	int i;
++
++	for (i = 0; i < ndigits; i++) {
++		u64 diff;
++
++		diff = left[i] - borrow;
++		if (diff != left[i])
++			borrow = (diff > left[i]);
++
++		result[i] = diff;
++	}
++
++	return borrow;
++}
++
++static uint128_t mul_64_64(u64 left, u64 right)
++{
++	uint128_t result;
++#if defined(CONFIG_ARCH_SUPPORTS_INT128)
++	unsigned __int128 m = (unsigned __int128)left * right;
++
++	result.m_low  = m;
++	result.m_high = m >> 64;
++#else
++	u64 a0 = left & 0xffffffffull;
++	u64 a1 = left >> 32;
++	u64 b0 = right & 0xffffffffull;
++	u64 b1 = right >> 32;
++	u64 m0 = a0 * b0;
++	u64 m1 = a0 * b1;
++	u64 m2 = a1 * b0;
++	u64 m3 = a1 * b1;
++
++	m2 += (m0 >> 32);
++	m2 += m1;
++
++	/* Overflow */
++	if (m2 < m1)
++		m3 += 0x100000000ull;
++
++	result.m_low = (m0 & 0xffffffffull) | (m2 << 32);
++	result.m_high = m3 + (m2 >> 32);
++#endif
++	return result;
++}
++
++static uint128_t add_128_128(uint128_t a, uint128_t b)
++{
++	uint128_t result;
++
++	result.m_low = a.m_low + b.m_low;
++	result.m_high = a.m_high + b.m_high + (result.m_low < a.m_low);
++
++	return result;
++}
++
++static void vli_mult(u64 *result, const u64 *left, const u64 *right,
++		     unsigned int ndigits)
++{
++	uint128_t r01 = { 0, 0 };
++	u64 r2 = 0;
++	unsigned int i, k;
++
++	/* Compute each digit of result in sequence, maintaining the
++	 * carries.
++	 */
++	for (k = 0; k < ndigits * 2 - 1; k++) {
++		unsigned int min;
++
++		if (k < ndigits)
++			min = 0;
++		else
++			min = (k + 1) - ndigits;
++
++		for (i = min; i <= k && i < ndigits; i++) {
++			uint128_t product;
++
++			product = mul_64_64(left[i], right[k - i]);
++
++			r01 = add_128_128(r01, product);
++			r2 += (r01.m_high < product.m_high);
++		}
++
++		result[k] = r01.m_low;
++		r01.m_low = r01.m_high;
++		r01.m_high = r2;
++		r2 = 0;
++	}
++
++	result[ndigits * 2 - 1] = r01.m_low;
++}
++
++/* Compute product = left * right, for a small right value. */
++static void vli_umult(u64 *result, const u64 *left, u32 right,
++		      unsigned int ndigits)
++{
++	uint128_t r01 = { 0 };
++	unsigned int k;
++
++	for (k = 0; k < ndigits; k++) {
++		uint128_t product;
++
++		product = mul_64_64(left[k], right);
++		r01 = add_128_128(r01, product);
++		/* no carry */
++		result[k] = r01.m_low;
++		r01.m_low = r01.m_high;
++		r01.m_high = 0;
++	}
++	result[k] = r01.m_low;
++	for (++k; k < ndigits * 2; k++)
++		result[k] = 0;
++}
++
++static void vli_square(u64 *result, const u64 *left, unsigned int ndigits)
++{
++	uint128_t r01 = { 0, 0 };
++	u64 r2 = 0;
++	int i, k;
++
++	for (k = 0; k < ndigits * 2 - 1; k++) {
++		unsigned int min;
++
++		if (k < ndigits)
++			min = 0;
++		else
++			min = (k + 1) - ndigits;
++
++		for (i = min; i <= k && i <= k - i; i++) {
++			uint128_t product;
++
++			product = mul_64_64(left[i], left[k - i]);
++
++			if (i < k - i) {
++				r2 += product.m_high >> 63;
++				product.m_high = (product.m_high << 1) |
++						 (product.m_low >> 63);
++				product.m_low <<= 1;
++			}
++
++			r01 = add_128_128(r01, product);
++			r2 += (r01.m_high < product.m_high);
++		}
++
++		result[k] = r01.m_low;
++		r01.m_low = r01.m_high;
++		r01.m_high = r2;
++		r2 = 0;
++	}
++
++	result[ndigits * 2 - 1] = r01.m_low;
++}
++
++/* Computes result = (left + right) % mod.
++ * Assumes that left < mod and right < mod, result != mod.
++ */
++static void vli_mod_add(u64 *result, const u64 *left, const u64 *right,
++			const u64 *mod, unsigned int ndigits)
++{
++	u64 carry;
++
++	carry = vli_add(result, left, right, ndigits);
++
++	/* result > mod (result = mod + remainder), so subtract mod to
++	 * get remainder.
++	 */
++	if (carry || vli_cmp(result, mod, ndigits) >= 0)
++		vli_sub(result, result, mod, ndigits);
++}
++
++/* Computes result = (left - right) % mod.
++ * Assumes that left < mod and right < mod, result != mod.
++ */
++static void vli_mod_sub(u64 *result, const u64 *left, const u64 *right,
++			const u64 *mod, unsigned int ndigits)
++{
++	u64 borrow = vli_sub(result, left, right, ndigits);
++
++	/* In this case, p_result == -diff == (max int) - diff.
++	 * Since -x % d == d - x, we can get the correct result from
++	 * result + mod (with overflow).
++	 */
++	if (borrow)
++		vli_add(result, result, mod, ndigits);
++}
++
++/*
++ * Computes result = product % mod
++ * for special form moduli: p = 2^k-c, for small c (note the minus sign)
++ *
++ * References:
++ * R. Crandall, C. Pomerance. Prime Numbers: A Computational Perspective.
++ * 9 Fast Algorithms for Large-Integer Arithmetic. 9.2.3 Moduli of special form
++ * Algorithm 9.2.13 (Fast mod operation for special-form moduli).
++ */
++static void vli_mmod_special(u64 *result, const u64 *product,
++			      const u64 *mod, unsigned int ndigits)
++{
++	u64 c = -mod[0];
++	u64 t[ECC_MAX_DIGITS * 2];
++	u64 r[ECC_MAX_DIGITS * 2];
++
++	vli_set(r, product, ndigits * 2);
++	while (!vli_is_zero(r + ndigits, ndigits)) {
++		vli_umult(t, r + ndigits, c, ndigits);
++		vli_clear(r + ndigits, ndigits);
++		vli_add(r, r, t, ndigits * 2);
++	}
++	vli_set(t, mod, ndigits);
++	vli_clear(t + ndigits, ndigits);
++	while (vli_cmp(r, t, ndigits * 2) >= 0)
++		vli_sub(r, r, t, ndigits * 2);
++	vli_set(result, r, ndigits);
++}
++
++/*
++ * Computes result = product % mod
++ * for special form moduli: p = 2^{k-1}+c, for small c (note the plus sign)
++ * where k-1 does not fit into qword boundary by -1 bit (such as 255).
++
++ * References (loosely based on):
++ * A. Menezes, P. van Oorschot, S. Vanstone. Handbook of Applied Cryptography.
++ * 14.3.4 Reduction methods for moduli of special form. Algorithm 14.47.
++ * URL: http://cacr.uwaterloo.ca/hac/about/chap14.pdf
++ *
++ * H. Cohen, G. Frey, R. Avanzi, C. Doche, T. Lange, K. Nguyen, F. Vercauteren.
++ * Handbook of Elliptic and Hyperelliptic Curve Cryptography.
++ * Algorithm 10.25 Fast reduction for special form moduli
++ */
++static void vli_mmod_special2(u64 *result, const u64 *product,
++			       const u64 *mod, unsigned int ndigits)
++{
++	u64 c2 = mod[0] * 2;
++	u64 q[ECC_MAX_DIGITS];
++	u64 r[ECC_MAX_DIGITS * 2];
++	u64 m[ECC_MAX_DIGITS * 2]; /* expanded mod */
++	int carry; /* last bit that doesn't fit into q */
++	int i;
++
++	vli_set(m, mod, ndigits);
++	vli_clear(m + ndigits, ndigits);
++
++	vli_set(r, product, ndigits);
++	/* q and carry are top bits */
++	vli_set(q, product + ndigits, ndigits);
++	vli_clear(r + ndigits, ndigits);
++	carry = vli_is_negative(r, ndigits);
++	if (carry)
++		r[ndigits - 1] &= (1ull << 63) - 1;
++	for (i = 1; carry || !vli_is_zero(q, ndigits); i++) {
++		u64 qc[ECC_MAX_DIGITS * 2];
++
++		vli_umult(qc, q, c2, ndigits);
++		if (carry)
++			vli_uadd(qc, qc, mod[0], ndigits * 2);
++		vli_set(q, qc + ndigits, ndigits);
++		vli_clear(qc + ndigits, ndigits);
++		carry = vli_is_negative(qc, ndigits);
++		if (carry)
++			qc[ndigits - 1] &= (1ull << 63) - 1;
++		if (i & 1)
++			vli_sub(r, r, qc, ndigits * 2);
++		else
++			vli_add(r, r, qc, ndigits * 2);
++	}
++	while (vli_is_negative(r, ndigits * 2))
++		vli_add(r, r, m, ndigits * 2);
++	while (vli_cmp(r, m, ndigits * 2) >= 0)
++		vli_sub(r, r, m, ndigits * 2);
++
++	vli_set(result, r, ndigits);
++}
++
++/*
++ * Computes result = product % mod, where product is 2N words long.
++ * Reference: Ken MacKay's micro-ecc.
++ * Currently only designed to work for curve_p or curve_n.
++ */
++static void vli_mmod_slow(u64 *result, u64 *product, const u64 *mod,
++			  unsigned int ndigits)
++{
++	u64 mod_m[2 * ECC_MAX_DIGITS];
++	u64 tmp[2 * ECC_MAX_DIGITS];
++	u64 *v[2] = { tmp, product };
++	u64 carry = 0;
++	unsigned int i;
++	/* Shift mod so its highest set bit is at the maximum position. */
++	int shift = (ndigits * 2 * 64) - vli_num_bits(mod, ndigits);
++	int word_shift = shift / 64;
++	int bit_shift = shift % 64;
++
++	vli_clear(mod_m, word_shift);
++	if (bit_shift > 0) {
++		for (i = 0; i < ndigits; ++i) {
++			mod_m[word_shift + i] = (mod[i] << bit_shift) | carry;
++			carry = mod[i] >> (64 - bit_shift);
++		}
++	} else
++		vli_set(mod_m + word_shift, mod, ndigits);
++
++	for (i = 1; shift >= 0; --shift) {
++		u64 borrow = 0;
++		unsigned int j;
++
++		for (j = 0; j < ndigits * 2; ++j) {
++			u64 diff = v[i][j] - mod_m[j] - borrow;
++
++			if (diff != v[i][j])
++				borrow = (diff > v[i][j]);
++			v[1 - i][j] = diff;
++		}
++		i = !(i ^ borrow); /* Swap the index if there was no borrow */
++		vli_rshift1(mod_m, ndigits);
++		mod_m[ndigits - 1] |= mod_m[ndigits] << (64 - 1);
++		vli_rshift1(mod_m + ndigits, ndigits);
++	}
++	vli_set(result, v[i], ndigits);
++}
++
++/* Computes result = product % mod using Barrett's reduction with precomputed
++ * value mu appended to the mod after ndigits, mu = (2^{2w} / mod) and have
++ * length ndigits + 1, where mu * (2^w - 1) should not overflow ndigits
++ * boundary.
++ *
++ * Reference:
++ * R. Brent, P. Zimmermann. Modern Computer Arithmetic. 2010.
++ * 2.4.1 Barrett's algorithm. Algorithm 2.5.
++ */
++static void vli_mmod_barrett(u64 *result, u64 *product, const u64 *mod,
++			     unsigned int ndigits)
++{
++	u64 q[ECC_MAX_DIGITS * 2];
++	u64 r[ECC_MAX_DIGITS * 2];
++	const u64 *mu = mod + ndigits;
++
++	vli_mult(q, product + ndigits, mu, ndigits);
++	if (mu[ndigits])
++		vli_add(q + ndigits, q + ndigits, product + ndigits, ndigits);
++	vli_mult(r, mod, q + ndigits, ndigits);
++	vli_sub(r, product, r, ndigits * 2);
++	while (!vli_is_zero(r + ndigits, ndigits) ||
++	       vli_cmp(r, mod, ndigits) != -1) {
++		u64 carry;
++
++		carry = vli_sub(r, r, mod, ndigits);
++		vli_usub(r + ndigits, r + ndigits, carry, ndigits);
++	}
++	vli_set(result, r, ndigits);
++}
++
++/* Computes p_result = p_product % curve_p.
++ * See algorithm 5 and 6 from
++ * http://www.isys.uni-klu.ac.at/PDF/2001-0126-MT.pdf
++ */
++static void vli_mmod_fast_192(u64 *result, const u64 *product,
++			      const u64 *curve_prime, u64 *tmp)
++{
++	const unsigned int ndigits = ECC_CURVE_NIST_P192_DIGITS;
++	int carry;
++
++	vli_set(result, product, ndigits);
++
++	vli_set(tmp, &product[3], ndigits);
++	carry = vli_add(result, result, tmp, ndigits);
++
++	tmp[0] = 0;
++	tmp[1] = product[3];
++	tmp[2] = product[4];
++	carry += vli_add(result, result, tmp, ndigits);
++
++	tmp[0] = tmp[1] = product[5];
++	tmp[2] = 0;
++	carry += vli_add(result, result, tmp, ndigits);
++
++	while (carry || vli_cmp(curve_prime, result, ndigits) != 1)
++		carry -= vli_sub(result, result, curve_prime, ndigits);
++}
++
++/* Computes result = product % curve_prime
++ * from http://www.nsa.gov/ia/_files/nist-routines.pdf
++ */
++static void vli_mmod_fast_256(u64 *result, const u64 *product,
++			      const u64 *curve_prime, u64 *tmp)
++{
++	int carry;
++	const unsigned int ndigits = ECC_CURVE_NIST_P256_DIGITS;
++
++	/* t */
++	vli_set(result, product, ndigits);
++
++	/* s1 */
++	tmp[0] = 0;
++	tmp[1] = product[5] & 0xffffffff00000000ull;
++	tmp[2] = product[6];
++	tmp[3] = product[7];
++	carry = vli_lshift(tmp, tmp, 1, ndigits);
++	carry += vli_add(result, result, tmp, ndigits);
++
++	/* s2 */
++	tmp[1] = product[6] << 32;
++	tmp[2] = (product[6] >> 32) | (product[7] << 32);
++	tmp[3] = product[7] >> 32;
++	carry += vli_lshift(tmp, tmp, 1, ndigits);
++	carry += vli_add(result, result, tmp, ndigits);
++
++	/* s3 */
++	tmp[0] = product[4];
++	tmp[1] = product[5] & 0xffffffff;
++	tmp[2] = 0;
++	tmp[3] = product[7];
++	carry += vli_add(result, result, tmp, ndigits);
++
++	/* s4 */
++	tmp[0] = (product[4] >> 32) | (product[5] << 32);
++	tmp[1] = (product[5] >> 32) | (product[6] & 0xffffffff00000000ull);
++	tmp[2] = product[7];
++	tmp[3] = (product[6] >> 32) | (product[4] << 32);
++	carry += vli_add(result, result, tmp, ndigits);
++
++	/* d1 */
++	tmp[0] = (product[5] >> 32) | (product[6] << 32);
++	tmp[1] = (product[6] >> 32);
++	tmp[2] = 0;
++	tmp[3] = (product[4] & 0xffffffff) | (product[5] << 32);
++	carry -= vli_sub(result, result, tmp, ndigits);
++
++	/* d2 */
++	tmp[0] = product[6];
++	tmp[1] = product[7];
++	tmp[2] = 0;
++	tmp[3] = (product[4] >> 32) | (product[5] & 0xffffffff00000000ull);
++	carry -= vli_sub(result, result, tmp, ndigits);
++
++	/* d3 */
++	tmp[0] = (product[6] >> 32) | (product[7] << 32);
++	tmp[1] = (product[7] >> 32) | (product[4] << 32);
++	tmp[2] = (product[4] >> 32) | (product[5] << 32);
++	tmp[3] = (product[6] << 32);
++	carry -= vli_sub(result, result, tmp, ndigits);
++
++	/* d4 */
++	tmp[0] = product[7];
++	tmp[1] = product[4] & 0xffffffff00000000ull;
++	tmp[2] = product[5];
++	tmp[3] = product[6] & 0xffffffff00000000ull;
++	carry -= vli_sub(result, result, tmp, ndigits);
++
++	if (carry < 0) {
++		do {
++			carry += vli_add(result, result, curve_prime, ndigits);
++		} while (carry < 0);
++	} else {
++		while (carry || vli_cmp(curve_prime, result, ndigits) != 1)
++			carry -= vli_sub(result, result, curve_prime, ndigits);
++	}
++}
++
++#define SL32OR32(x32, y32) (((u64)x32 << 32) | y32)
++#define AND64H(x64)  (x64 & 0xffFFffFF00000000ull)
++#define AND64L(x64)  (x64 & 0x00000000ffFFffFFull)
++
++/* Computes result = product % curve_prime
++ * from "Mathematical routines for the NIST prime elliptic curves"
++ */
++static void vli_mmod_fast_384(u64 *result, const u64 *product,
++				const u64 *curve_prime, u64 *tmp)
++{
++	int carry;
++	const unsigned int ndigits = ECC_CURVE_NIST_P384_DIGITS;
++
++	/* t */
++	vli_set(result, product, ndigits);
++
++	/* s1 */
++	tmp[0] = 0;		// 0 || 0
++	tmp[1] = 0;		// 0 || 0
++	tmp[2] = SL32OR32(product[11], (product[10]>>32));	//a22||a21
++	tmp[3] = product[11]>>32;	// 0 ||a23
++	tmp[4] = 0;		// 0 || 0
++	tmp[5] = 0;		// 0 || 0
++	carry = vli_lshift(tmp, tmp, 1, ndigits);
++	carry += vli_add(result, result, tmp, ndigits);
++
++	/* s2 */
++	tmp[0] = product[6];	//a13||a12
++	tmp[1] = product[7];	//a15||a14
++	tmp[2] = product[8];	//a17||a16
++	tmp[3] = product[9];	//a19||a18
++	tmp[4] = product[10];	//a21||a20
++	tmp[5] = product[11];	//a23||a22
++	carry += vli_add(result, result, tmp, ndigits);
++
++	/* s3 */
++	tmp[0] = SL32OR32(product[11], (product[10]>>32));	//a22||a21
++	tmp[1] = SL32OR32(product[6], (product[11]>>32));	//a12||a23
++	tmp[2] = SL32OR32(product[7], (product[6])>>32);	//a14||a13
++	tmp[3] = SL32OR32(product[8], (product[7]>>32));	//a16||a15
++	tmp[4] = SL32OR32(product[9], (product[8]>>32));	//a18||a17
++	tmp[5] = SL32OR32(product[10], (product[9]>>32));	//a20||a19
++	carry += vli_add(result, result, tmp, ndigits);
++
++	/* s4 */
++	tmp[0] = AND64H(product[11]);	//a23|| 0
++	tmp[1] = (product[10]<<32);	//a20|| 0
++	tmp[2] = product[6];	//a13||a12
++	tmp[3] = product[7];	//a15||a14
++	tmp[4] = product[8];	//a17||a16
++	tmp[5] = product[9];	//a19||a18
++	carry += vli_add(result, result, tmp, ndigits);
++
++	/* s5 */
++	tmp[0] = 0;		//  0|| 0
++	tmp[1] = 0;		//  0|| 0
++	tmp[2] = product[10];	//a21||a20
++	tmp[3] = product[11];	//a23||a22
++	tmp[4] = 0;		//  0|| 0
++	tmp[5] = 0;		//  0|| 0
++	carry += vli_add(result, result, tmp, ndigits);
++
++	/* s6 */
++	tmp[0] = AND64L(product[10]);	// 0 ||a20
++	tmp[1] = AND64H(product[10]);	//a21|| 0
++	tmp[2] = product[11];	//a23||a22
++	tmp[3] = 0;		// 0 || 0
++	tmp[4] = 0;		// 0 || 0
++	tmp[5] = 0;		// 0 || 0
++	carry += vli_add(result, result, tmp, ndigits);
++
++	/* d1 */
++	tmp[0] = SL32OR32(product[6], (product[11]>>32));	//a12||a23
++	tmp[1] = SL32OR32(product[7], (product[6]>>32));	//a14||a13
++	tmp[2] = SL32OR32(product[8], (product[7]>>32));	//a16||a15
++	tmp[3] = SL32OR32(product[9], (product[8]>>32));	//a18||a17
++	tmp[4] = SL32OR32(product[10], (product[9]>>32));	//a20||a19
++	tmp[5] = SL32OR32(product[11], (product[10]>>32));	//a22||a21
++	carry -= vli_sub(result, result, tmp, ndigits);
++
++	/* d2 */
++	tmp[0] = (product[10]<<32);	//a20|| 0
++	tmp[1] = SL32OR32(product[11], (product[10]>>32));	//a22||a21
++	tmp[2] = (product[11]>>32);	// 0 ||a23
++	tmp[3] = 0;		// 0 || 0
++	tmp[4] = 0;		// 0 || 0
++	tmp[5] = 0;		// 0 || 0
++	carry -= vli_sub(result, result, tmp, ndigits);
++
++	/* d3 */
++	tmp[0] = 0;		// 0 || 0
++	tmp[1] = AND64H(product[11]);	//a23|| 0
++	tmp[2] = product[11]>>32;	// 0 ||a23
++	tmp[3] = 0;		// 0 || 0
++	tmp[4] = 0;		// 0 || 0
++	tmp[5] = 0;		// 0 || 0
++	carry -= vli_sub(result, result, tmp, ndigits);
++
++	if (carry < 0) {
++		do {
++			carry += vli_add(result, result, curve_prime, ndigits);
++		} while (carry < 0);
++	} else {
++		while (carry || vli_cmp(curve_prime, result, ndigits) != 1)
++			carry -= vli_sub(result, result, curve_prime, ndigits);
++	}
++
++}
++
++#undef SL32OR32
++#undef AND64H
++#undef AND64L
++
++/*
++ * Computes result = product % curve_prime
++ * from "Recommendations for Discrete Logarithm-Based Cryptography:
++ *       Elliptic Curve Domain Parameters" section G.1.4
++ */
++static void vli_mmod_fast_521(u64 *result, const u64 *product,
++			      const u64 *curve_prime, u64 *tmp)
++{
++	const unsigned int ndigits = ECC_CURVE_NIST_P521_DIGITS;
++	size_t i;
++
++	/* Initialize result with lowest 521 bits from product */
++	vli_set(result, product, ndigits);
++	result[8] &= 0x1ff;
++
++	for (i = 0; i < ndigits; i++)
++		tmp[i] = (product[8 + i] >> 9) | (product[9 + i] << 55);
++	tmp[8] &= 0x1ff;
++
++	vli_mod_add(result, result, tmp, curve_prime, ndigits);
++}
++
++/* Computes result = product % curve_prime for different curve_primes.
++ *
++ * Note that curve_primes are distinguished just by heuristic check and
++ * not by complete conformance check.
++ */
++static bool vli_mmod_fast(u64 *result, u64 *product,
++			  const struct ecc_curve *curve)
++{
++	u64 tmp[2 * ECC_MAX_DIGITS];
++	const u64 *curve_prime = curve->p;
++	const unsigned int ndigits = curve->g.ndigits;
++
++	/* All NIST curves have name prefix 'nist_' */
++	if (strncmp(curve->name, "nist_", 5) != 0) {
++		/* Try to handle Pseudo-Marsenne primes. */
++		if (curve_prime[ndigits - 1] == -1ull) {
++			vli_mmod_special(result, product, curve_prime,
++					 ndigits);
++			return true;
++		} else if (curve_prime[ndigits - 1] == 1ull << 63 &&
++			   curve_prime[ndigits - 2] == 0) {
++			vli_mmod_special2(result, product, curve_prime,
++					  ndigits);
++			return true;
++		}
++		vli_mmod_barrett(result, product, curve_prime, ndigits);
++		return true;
++	}
++
++	switch (ndigits) {
++	case ECC_CURVE_NIST_P192_DIGITS:
++		vli_mmod_fast_192(result, product, curve_prime, tmp);
++		break;
++	case ECC_CURVE_NIST_P256_DIGITS:
++		vli_mmod_fast_256(result, product, curve_prime, tmp);
++		break;
++	case ECC_CURVE_NIST_P384_DIGITS:
++		vli_mmod_fast_384(result, product, curve_prime, tmp);
++		break;
++	case ECC_CURVE_NIST_P521_DIGITS:
++		vli_mmod_fast_521(result, product, curve_prime, tmp);
++		break;
++	default:
++		pr_err_ratelimited("ecc: unsupported digits size!\n");
++		return false;
++	}
++
++	return true;
++}
++
++/* Computes result = (left * right) % mod.
++ * Assumes that mod is big enough curve order.
++ */
++void vli_mod_mult_slow(u64 *result, const u64 *left, const u64 *right,
++		       const u64 *mod, unsigned int ndigits)
++{
++	u64 product[ECC_MAX_DIGITS * 2];
++
++	vli_mult(product, left, right, ndigits);
++	vli_mmod_slow(result, product, mod, ndigits);
++}
++
++/* Computes result = (left * right) % curve_prime. */
++static void vli_mod_mult_fast(u64 *result, const u64 *left, const u64 *right,
++			      const struct ecc_curve *curve)
++{
++	u64 product[2 * ECC_MAX_DIGITS];
++
++	vli_mult(product, left, right, curve->g.ndigits);
++	vli_mmod_fast(result, product, curve);
++}
++
++/* Computes result = left^2 % curve_prime. */
++static void vli_mod_square_fast(u64 *result, const u64 *left,
++				const struct ecc_curve *curve)
++{
++	u64 product[2 * ECC_MAX_DIGITS];
++
++	vli_square(product, left, curve->g.ndigits);
++	vli_mmod_fast(result, product, curve);
++}
++
++#define EVEN(vli) (!(vli[0] & 1))
++/* Computes result = (1 / p_input) % mod. All VLIs are the same size.
++ * See "From Euclid's GCD to Montgomery Multiplication to the Great Divide"
++ * https://labs.oracle.com/techrep/2001/smli_tr-2001-95.pdf
++ */
++void vli_mod_inv(u64 *result, const u64 *input, const u64 *mod,
++			unsigned int ndigits)
++{
++	u64 a[ECC_MAX_DIGITS], b[ECC_MAX_DIGITS];
++	u64 u[ECC_MAX_DIGITS], v[ECC_MAX_DIGITS];
++	u64 carry;
++	int cmp_result;
++
++	if (vli_is_zero(input, ndigits)) {
++		vli_clear(result, ndigits);
++		return;
++	}
++
++	vli_set(a, input, ndigits);
++	vli_set(b, mod, ndigits);
++	vli_clear(u, ndigits);
++	u[0] = 1;
++	vli_clear(v, ndigits);
++
++	while ((cmp_result = vli_cmp(a, b, ndigits)) != 0) {
++		carry = 0;
++
++		if (EVEN(a)) {
++			vli_rshift1(a, ndigits);
++
++			if (!EVEN(u))
++				carry = vli_add(u, u, mod, ndigits);
++
++			vli_rshift1(u, ndigits);
++			if (carry)
++				u[ndigits - 1] |= 0x8000000000000000ull;
++		} else if (EVEN(b)) {
++			vli_rshift1(b, ndigits);
++
++			if (!EVEN(v))
++				carry = vli_add(v, v, mod, ndigits);
++
++			vli_rshift1(v, ndigits);
++			if (carry)
++				v[ndigits - 1] |= 0x8000000000000000ull;
++		} else if (cmp_result > 0) {
++			vli_sub(a, a, b, ndigits);
++			vli_rshift1(a, ndigits);
++
++			if (vli_cmp(u, v, ndigits) < 0)
++				vli_add(u, u, mod, ndigits);
++
++			vli_sub(u, u, v, ndigits);
++			if (!EVEN(u))
++				carry = vli_add(u, u, mod, ndigits);
++
++			vli_rshift1(u, ndigits);
++			if (carry)
++				u[ndigits - 1] |= 0x8000000000000000ull;
++		} else {
++			vli_sub(b, b, a, ndigits);
++			vli_rshift1(b, ndigits);
++
++			if (vli_cmp(v, u, ndigits) < 0)
++				vli_add(v, v, mod, ndigits);
++
++			vli_sub(v, v, u, ndigits);
++			if (!EVEN(v))
++				carry = vli_add(v, v, mod, ndigits);
++
++			vli_rshift1(v, ndigits);
++			if (carry)
++				v[ndigits - 1] |= 0x8000000000000000ull;
++		}
++	}
++
++	vli_set(result, u, ndigits);
++}
++
++/* ------ Point operations ------ */
++
++/* Returns true if p_point is the point at infinity, false otherwise. */
++bool ecc_point_is_zero(const struct ecc_point *point)
++{
++	return (vli_is_zero(point->x, point->ndigits) &&
++		vli_is_zero(point->y, point->ndigits));
++}
++
++/* Point multiplication algorithm using Montgomery's ladder with co-Z
++ * coordinates. From https://eprint.iacr.org/2011/338.pdf
++ */
++
++/* Double in place */
++static void ecc_point_double_jacobian(u64 *x1, u64 *y1, u64 *z1,
++					const struct ecc_curve *curve)
++{
++	/* t1 = x, t2 = y, t3 = z */
++	u64 t4[ECC_MAX_DIGITS];
++	u64 t5[ECC_MAX_DIGITS];
++	const u64 *curve_prime = curve->p;
++	const unsigned int ndigits = curve->g.ndigits;
++
++	if (vli_is_zero(z1, ndigits))
++		return;
++
++	/* t4 = y1^2 */
++	vli_mod_square_fast(t4, y1, curve);
++	/* t5 = x1*y1^2 = A */
++	vli_mod_mult_fast(t5, x1, t4, curve);
++	/* t4 = y1^4 */
++	vli_mod_square_fast(t4, t4, curve);
++	/* t2 = y1*z1 = z3 */
++	vli_mod_mult_fast(y1, y1, z1, curve);
++	/* t3 = z1^2 */
++	vli_mod_square_fast(z1, z1, curve);
++
++	/* t1 = x1 + z1^2 */
++	vli_mod_add(x1, x1, z1, curve_prime, ndigits);
++	/* t3 = 2*z1^2 */
++	vli_mod_add(z1, z1, z1, curve_prime, ndigits);
++	/* t3 = x1 - z1^2 */
++	vli_mod_sub(z1, x1, z1, curve_prime, ndigits);
++	/* t1 = x1^2 - z1^4 */
++	vli_mod_mult_fast(x1, x1, z1, curve);
++
++	/* t3 = 2*(x1^2 - z1^4) */
++	vli_mod_add(z1, x1, x1, curve_prime, ndigits);
++	/* t1 = 3*(x1^2 - z1^4) */
++	vli_mod_add(x1, x1, z1, curve_prime, ndigits);
++	if (vli_test_bit(x1, 0)) {
++		u64 carry = vli_add(x1, x1, curve_prime, ndigits);
++
++		vli_rshift1(x1, ndigits);
++		x1[ndigits - 1] |= carry << 63;
++	} else {
++		vli_rshift1(x1, ndigits);
++	}
++	/* t1 = 3/2*(x1^2 - z1^4) = B */
++
++	/* t3 = B^2 */
++	vli_mod_square_fast(z1, x1, curve);
++	/* t3 = B^2 - A */
++	vli_mod_sub(z1, z1, t5, curve_prime, ndigits);
++	/* t3 = B^2 - 2A = x3 */
++	vli_mod_sub(z1, z1, t5, curve_prime, ndigits);
++	/* t5 = A - x3 */
++	vli_mod_sub(t5, t5, z1, curve_prime, ndigits);
++	/* t1 = B * (A - x3) */
++	vli_mod_mult_fast(x1, x1, t5, curve);
++	/* t4 = B * (A - x3) - y1^4 = y3 */
++	vli_mod_sub(t4, x1, t4, curve_prime, ndigits);
++
++	vli_set(x1, z1, ndigits);
++	vli_set(z1, y1, ndigits);
++	vli_set(y1, t4, ndigits);
++}
++
++/* Modify (x1, y1) => (x1 * z^2, y1 * z^3) */
++static void apply_z(u64 *x1, u64 *y1, u64 *z, const struct ecc_curve *curve)
++{
++	u64 t1[ECC_MAX_DIGITS];
++
++	vli_mod_square_fast(t1, z, curve);		/* z^2 */
++	vli_mod_mult_fast(x1, x1, t1, curve);	/* x1 * z^2 */
++	vli_mod_mult_fast(t1, t1, z, curve);	/* z^3 */
++	vli_mod_mult_fast(y1, y1, t1, curve);	/* y1 * z^3 */
++}
++
++/* P = (x1, y1) => 2P, (x2, y2) => P' */
++static void xycz_initial_double(u64 *x1, u64 *y1, u64 *x2, u64 *y2,
++				u64 *p_initial_z, const struct ecc_curve *curve)
++{
++	u64 z[ECC_MAX_DIGITS];
++	const unsigned int ndigits = curve->g.ndigits;
++
++	vli_set(x2, x1, ndigits);
++	vli_set(y2, y1, ndigits);
++
++	vli_clear(z, ndigits);
++	z[0] = 1;
++
++	if (p_initial_z)
++		vli_set(z, p_initial_z, ndigits);
++
++	apply_z(x1, y1, z, curve);
++
++	ecc_point_double_jacobian(x1, y1, z, curve);
++
++	apply_z(x2, y2, z, curve);
++}
++
++/* Input P = (x1, y1, Z), Q = (x2, y2, Z)
++ * Output P' = (x1', y1', Z3), P + Q = (x3, y3, Z3)
++ * or P => P', Q => P + Q
++ */
++static void xycz_add(u64 *x1, u64 *y1, u64 *x2, u64 *y2,
++			const struct ecc_curve *curve)
++{
++	/* t1 = X1, t2 = Y1, t3 = X2, t4 = Y2 */
++	u64 t5[ECC_MAX_DIGITS];
++	const u64 *curve_prime = curve->p;
++	const unsigned int ndigits = curve->g.ndigits;
++
++	/* t5 = x2 - x1 */
++	vli_mod_sub(t5, x2, x1, curve_prime, ndigits);
++	/* t5 = (x2 - x1)^2 = A */
++	vli_mod_square_fast(t5, t5, curve);
++	/* t1 = x1*A = B */
++	vli_mod_mult_fast(x1, x1, t5, curve);
++	/* t3 = x2*A = C */
++	vli_mod_mult_fast(x2, x2, t5, curve);
++	/* t4 = y2 - y1 */
++	vli_mod_sub(y2, y2, y1, curve_prime, ndigits);
++	/* t5 = (y2 - y1)^2 = D */
++	vli_mod_square_fast(t5, y2, curve);
++
++	/* t5 = D - B */
++	vli_mod_sub(t5, t5, x1, curve_prime, ndigits);
++	/* t5 = D - B - C = x3 */
++	vli_mod_sub(t5, t5, x2, curve_prime, ndigits);
++	/* t3 = C - B */
++	vli_mod_sub(x2, x2, x1, curve_prime, ndigits);
++	/* t2 = y1*(C - B) */
++	vli_mod_mult_fast(y1, y1, x2, curve);
++	/* t3 = B - x3 */
++	vli_mod_sub(x2, x1, t5, curve_prime, ndigits);
++	/* t4 = (y2 - y1)*(B - x3) */
++	vli_mod_mult_fast(y2, y2, x2, curve);
++	/* t4 = y3 */
++	vli_mod_sub(y2, y2, y1, curve_prime, ndigits);
++
++	vli_set(x2, t5, ndigits);
++}
++
++/* Input P = (x1, y1, Z), Q = (x2, y2, Z)
++ * Output P + Q = (x3, y3, Z3), P - Q = (x3', y3', Z3)
++ * or P => P - Q, Q => P + Q
++ */
++static void xycz_add_c(u64 *x1, u64 *y1, u64 *x2, u64 *y2,
++			const struct ecc_curve *curve)
++{
++	/* t1 = X1, t2 = Y1, t3 = X2, t4 = Y2 */
++	u64 t5[ECC_MAX_DIGITS];
++	u64 t6[ECC_MAX_DIGITS];
++	u64 t7[ECC_MAX_DIGITS];
++	const u64 *curve_prime = curve->p;
++	const unsigned int ndigits = curve->g.ndigits;
++
++	/* t5 = x2 - x1 */
++	vli_mod_sub(t5, x2, x1, curve_prime, ndigits);
++	/* t5 = (x2 - x1)^2 = A */
++	vli_mod_square_fast(t5, t5, curve);
++	/* t1 = x1*A = B */
++	vli_mod_mult_fast(x1, x1, t5, curve);
++	/* t3 = x2*A = C */
++	vli_mod_mult_fast(x2, x2, t5, curve);
++	/* t4 = y2 + y1 */
++	vli_mod_add(t5, y2, y1, curve_prime, ndigits);
++	/* t4 = y2 - y1 */
++	vli_mod_sub(y2, y2, y1, curve_prime, ndigits);
++
++	/* t6 = C - B */
++	vli_mod_sub(t6, x2, x1, curve_prime, ndigits);
++	/* t2 = y1 * (C - B) */
++	vli_mod_mult_fast(y1, y1, t6, curve);
++	/* t6 = B + C */
++	vli_mod_add(t6, x1, x2, curve_prime, ndigits);
++	/* t3 = (y2 - y1)^2 */
++	vli_mod_square_fast(x2, y2, curve);
++	/* t3 = x3 */
++	vli_mod_sub(x2, x2, t6, curve_prime, ndigits);
++
++	/* t7 = B - x3 */
++	vli_mod_sub(t7, x1, x2, curve_prime, ndigits);
++	/* t4 = (y2 - y1)*(B - x3) */
++	vli_mod_mult_fast(y2, y2, t7, curve);
++	/* t4 = y3 */
++	vli_mod_sub(y2, y2, y1, curve_prime, ndigits);
++
++	/* t7 = (y2 + y1)^2 = F */
++	vli_mod_square_fast(t7, t5, curve);
++	/* t7 = x3' */
++	vli_mod_sub(t7, t7, t6, curve_prime, ndigits);
++	/* t6 = x3' - B */
++	vli_mod_sub(t6, t7, x1, curve_prime, ndigits);
++	/* t6 = (y2 + y1)*(x3' - B) */
++	vli_mod_mult_fast(t6, t6, t5, curve);
++	/* t2 = y3' */
++	vli_mod_sub(y1, t6, y1, curve_prime, ndigits);
++
++	vli_set(x1, t7, ndigits);
++}
++
++static void ecc_point_mult(struct ecc_point *result,
++			   const struct ecc_point *point, const u64 *scalar,
++			   u64 *initial_z, const struct ecc_curve *curve,
++			   unsigned int ndigits)
++{
++	/* R0 and R1 */
++	u64 rx[2][ECC_MAX_DIGITS];
++	u64 ry[2][ECC_MAX_DIGITS];
++	u64 z[ECC_MAX_DIGITS];
++	u64 sk[2][ECC_MAX_DIGITS];
++	u64 *curve_prime = curve->p;
++	int i, nb;
++	int num_bits;
++	int carry;
++
++	carry = vli_add(sk[0], scalar, curve->n, ndigits);
++	vli_add(sk[1], sk[0], curve->n, ndigits);
++	scalar = sk[!carry];
++	if (curve->nbits == 521)	/* NIST P521 */
++		num_bits = curve->nbits + 2;
++	else
++		num_bits = sizeof(u64) * ndigits * 8 + 1;
++
++	vli_set(rx[1], point->x, ndigits);
++	vli_set(ry[1], point->y, ndigits);
++
++	xycz_initial_double(rx[1], ry[1], rx[0], ry[0], initial_z, curve);
++
++	for (i = num_bits - 2; i > 0; i--) {
++		nb = !vli_test_bit(scalar, i);
++		xycz_add_c(rx[1 - nb], ry[1 - nb], rx[nb], ry[nb], curve);
++		xycz_add(rx[nb], ry[nb], rx[1 - nb], ry[1 - nb], curve);
++	}
++
++	nb = !vli_test_bit(scalar, 0);
++	xycz_add_c(rx[1 - nb], ry[1 - nb], rx[nb], ry[nb], curve);
++
++	/* Find final 1/Z value. */
++	/* X1 - X0 */
++	vli_mod_sub(z, rx[1], rx[0], curve_prime, ndigits);
++	/* Yb * (X1 - X0) */
++	vli_mod_mult_fast(z, z, ry[1 - nb], curve);
++	/* xP * Yb * (X1 - X0) */
++	vli_mod_mult_fast(z, z, point->x, curve);
++
++	/* 1 / (xP * Yb * (X1 - X0)) */
++	vli_mod_inv(z, z, curve_prime, point->ndigits);
++
++	/* yP / (xP * Yb * (X1 - X0)) */
++	vli_mod_mult_fast(z, z, point->y, curve);
++	/* Xb * yP / (xP * Yb * (X1 - X0)) */
++	vli_mod_mult_fast(z, z, rx[1 - nb], curve);
++	/* End 1/Z calculation */
++
++	xycz_add(rx[nb], ry[nb], rx[1 - nb], ry[1 - nb], curve);
++
++	apply_z(rx[0], ry[0], z, curve);
++
++	vli_set(result->x, rx[0], ndigits);
++	vli_set(result->y, ry[0], ndigits);
++}
++
++/* Computes R = P + Q mod p */
++static void ecc_point_add(const struct ecc_point *result,
++		   const struct ecc_point *p, const struct ecc_point *q,
++		   const struct ecc_curve *curve)
++{
++	u64 z[ECC_MAX_DIGITS];
++	u64 px[ECC_MAX_DIGITS];
++	u64 py[ECC_MAX_DIGITS];
++	unsigned int ndigits = curve->g.ndigits;
++
++	vli_set(result->x, q->x, ndigits);
++	vli_set(result->y, q->y, ndigits);
++	vli_mod_sub(z, result->x, p->x, curve->p, ndigits);
++	vli_set(px, p->x, ndigits);
++	vli_set(py, p->y, ndigits);
++	xycz_add(px, py, result->x, result->y, curve);
++	vli_mod_inv(z, z, curve->p, ndigits);
++	apply_z(result->x, result->y, z, curve);
++}
++
++/* Computes R = u1P + u2Q mod p using Shamir's trick.
++ * Based on: Kenneth MacKay's micro-ecc (2014).
++ */
++void ecc_point_mult_shamir(const struct ecc_point *result,
++			   const u64 *u1, const struct ecc_point *p,
++			   const u64 *u2, const struct ecc_point *q,
++			   const struct ecc_curve *curve)
++{
++	u64 z[ECC_MAX_DIGITS];
++	u64 sump[2][ECC_MAX_DIGITS];
++	u64 *rx = result->x;
++	u64 *ry = result->y;
++	unsigned int ndigits = curve->g.ndigits;
++	unsigned int num_bits;
++	struct ecc_point sum = ECC_POINT_INIT(sump[0], sump[1], ndigits);
++	const struct ecc_point *points[4];
++	const struct ecc_point *point;
++	unsigned int idx;
++	int i;
++
++	ecc_point_add(&sum, p, q, curve);
++	points[0] = NULL;
++	points[1] = p;
++	points[2] = q;
++	points[3] = &sum;
++
++	num_bits = max(vli_num_bits(u1, ndigits), vli_num_bits(u2, ndigits));
++	i = num_bits - 1;
++	idx = !!vli_test_bit(u1, i);
++	idx |= (!!vli_test_bit(u2, i)) << 1;
++	point = points[idx];
++
++	vli_set(rx, point->x, ndigits);
++	vli_set(ry, point->y, ndigits);
++	vli_clear(z + 1, ndigits - 1);
++	z[0] = 1;
++
++	for (--i; i >= 0; i--) {
++		ecc_point_double_jacobian(rx, ry, z, curve);
++		idx = !!vli_test_bit(u1, i);
++		idx |= (!!vli_test_bit(u2, i)) << 1;
++		point = points[idx];
++		if (point) {
++			u64 tx[ECC_MAX_DIGITS];
++			u64 ty[ECC_MAX_DIGITS];
++			u64 tz[ECC_MAX_DIGITS];
++
++			vli_set(tx, point->x, ndigits);
++			vli_set(ty, point->y, ndigits);
++			apply_z(tx, ty, z, curve);
++			vli_mod_sub(tz, rx, tx, curve->p, ndigits);
++			xycz_add(tx, ty, rx, ry, curve);
++			vli_mod_mult_fast(z, z, tz, curve);
++		}
++	}
++	vli_mod_inv(z, z, curve->p, ndigits);
++	apply_z(rx, ry, z, curve);
++}
++
++/*
++ * This function performs checks equivalent to Appendix A.4.2 of FIPS 186-5.
++ * Whereas A.4.2 results in an integer in the interval [1, n-1], this function
++ * ensures that the integer is in the range of [2, n-3]. We are slightly
++ * stricter because of the currently used scalar multiplication algorithm.
++ */
++static int __ecc_is_key_valid(const struct ecc_curve *curve,
++			      const u64 *private_key, unsigned int ndigits)
++{
++	u64 one[ECC_MAX_DIGITS] = { 1, };
++	u64 res[ECC_MAX_DIGITS];
++
++	if (!private_key)
++		return -EINVAL;
++
++	if (curve->g.ndigits != ndigits)
++		return -EINVAL;
++
++	/* Make sure the private key is in the range [2, n-3]. */
++	if (vli_cmp(one, private_key, ndigits) != -1)
++		return -EINVAL;
++	vli_sub(res, curve->n, one, ndigits);
++	vli_sub(res, res, one, ndigits);
++	if (vli_cmp(res, private_key, ndigits) != 1)
++		return -EINVAL;
++
++	return 0;
++}
++
++int ecc_is_key_valid(unsigned int curve_id, unsigned int ndigits,
++		     const u64 *private_key, unsigned int private_key_len)
++{
++	int nbytes;
++	const struct ecc_curve *curve = ecc_get_curve(curve_id);
++
++	nbytes = ndigits << ECC_DIGITS_TO_BYTES_SHIFT;
++
++	if (private_key_len != nbytes)
++		return -EINVAL;
++
++	return __ecc_is_key_valid(curve, private_key, ndigits);
++}
++
++/*
++ * ECC private keys are generated using the method of rejection sampling,
++ * equivalent to that described in FIPS 186-5, Appendix A.2.2.
++ *
++ * This method generates a private key uniformly distributed in the range
++ * [2, n-3].
++ */
++int ecc_gen_privkey(unsigned int curve_id, unsigned int ndigits,
++		    u64 *private_key)
++{
++	const struct ecc_curve *curve = ecc_get_curve(curve_id);
++	unsigned int nbytes = ndigits << ECC_DIGITS_TO_BYTES_SHIFT;
++	unsigned int nbits = vli_num_bits(curve->n, ndigits);
++	int err;
++
++	/*
++	 * Step 1 & 2: check that N is included in Table 1 of FIPS 186-5,
++	 * section 6.1.1.
++	 */
++	if (nbits < 224)
++		return -EINVAL;
++
++	/*
++	 * FIPS 186-5 recommends that the private key should be obtained from a
++	 * RBG with a security strength equal to or greater than the security
++	 * strength associated with N.
++	 *
++	 * The maximum security strength identified by NIST SP800-57pt1r4 for
++	 * ECC is 256 (N >= 512).
++	 *
++	 * This condition is met by the default RNG because it selects a favored
++	 * DRBG with a security strength of 256.
++	 */
++	if (crypto_get_default_rng())
++		return -EFAULT;
++
++	/* Step 3: obtain N returned_bits from the DRBG. */
++	err = crypto_rng_get_bytes(crypto_default_rng,
++				   (u8 *)private_key, nbytes);
++	crypto_put_default_rng();
++	if (err)
++		return err;
++
++	/* Step 4: make sure the private key is in the valid range. */
++	if (__ecc_is_key_valid(curve, private_key, ndigits))
++		return -EINVAL;
++
++	return 0;
++}
++
++int ecc_make_pub_key(unsigned int curve_id, unsigned int ndigits,
++		     const u64 *private_key, u64 *public_key)
++{
++	int ret = 0;
++	struct ecc_point *pk;
++	const struct ecc_curve *curve = ecc_get_curve(curve_id);
++
++	if (!private_key) {
++		ret = -EINVAL;
++		goto out;
++	}
++
++	pk = ecc_alloc_point(ndigits);
++	if (!pk) {
++		ret = -ENOMEM;
++		goto out;
++	}
++
++	ecc_point_mult(pk, &curve->g, private_key, NULL, curve, ndigits);
++
++	/* SP800-56A rev 3 5.6.2.1.3 key check */
++	if (ecc_is_pubkey_valid_full(curve, pk)) {
++		ret = -EAGAIN;
++		goto err_free_point;
++	}
++
++	ecc_swap_digits(pk->x, public_key, ndigits);
++	ecc_swap_digits(pk->y, &public_key[ndigits], ndigits);
++
++err_free_point:
++	ecc_free_point(pk);
++out:
++	return ret;
++}
++
++/* SP800-56A section 5.6.2.3.4 partial verification: ephemeral keys only */
++int ecc_is_pubkey_valid_partial(const struct ecc_curve *curve,
++				struct ecc_point *pk)
++{
++	u64 yy[ECC_MAX_DIGITS], xxx[ECC_MAX_DIGITS], w[ECC_MAX_DIGITS];
++
++	if (WARN_ON(pk->ndigits != curve->g.ndigits))
++		return -EINVAL;
++
++	/* Check 1: Verify key is not the zero point. */
++	if (ecc_point_is_zero(pk))
++		return -EINVAL;
++
++	/* Check 2: Verify key is in the range [1, p-1]. */
++	if (vli_cmp(curve->p, pk->x, pk->ndigits) != 1)
++		return -EINVAL;
++	if (vli_cmp(curve->p, pk->y, pk->ndigits) != 1)
++		return -EINVAL;
++
++	/* Check 3: Verify that y^2 == (x^3 + a·x + b) mod p */
++	vli_mod_square_fast(yy, pk->y, curve); /* y^2 */
++	vli_mod_square_fast(xxx, pk->x, curve); /* x^2 */
++	vli_mod_mult_fast(xxx, xxx, pk->x, curve); /* x^3 */
++	vli_mod_mult_fast(w, curve->a, pk->x, curve); /* a·x */
++	vli_mod_add(w, w, curve->b, curve->p, pk->ndigits); /* a·x + b */
++	vli_mod_add(w, w, xxx, curve->p, pk->ndigits); /* x^3 + a·x + b */
++	if (vli_cmp(yy, w, pk->ndigits) != 0) /* Equation */
++		return -EINVAL;
++
++	return 0;
++}
++
++/* SP800-56A section 5.6.2.3.3 full verification */
++int ecc_is_pubkey_valid_full(const struct ecc_curve *curve,
++			     struct ecc_point *pk)
++{
++	struct ecc_point *nQ;
++
++	/* Checks 1 through 3 */
++	int ret = ecc_is_pubkey_valid_partial(curve, pk);
++
++	if (ret)
++		return ret;
++
++	/* Check 4: Verify that nQ is the zero point. */
++	nQ = ecc_alloc_point(pk->ndigits);
++	if (!nQ)
++		return -ENOMEM;
++
++	ecc_point_mult(nQ, pk, curve->n, NULL, curve, pk->ndigits);
++	if (!ecc_point_is_zero(nQ))
++		ret = -EINVAL;
++
++	ecc_free_point(nQ);
++
++	return ret;
++}
++
++int crypto_ecdh_shared_secret(unsigned int curve_id, unsigned int ndigits,
++			      const u64 *private_key, const u64 *public_key,
++			      u64 *secret)
++{
++	int ret = 0;
++	struct ecc_point *product, *pk;
++	u64 rand_z[ECC_MAX_DIGITS];
++	unsigned int nbytes;
++	const struct ecc_curve *curve = ecc_get_curve(curve_id);
++
++	if (!private_key || !public_key || ndigits > ARRAY_SIZE(rand_z)) {
++		ret = -EINVAL;
++		goto out;
++	}
++
++	nbytes = ndigits << ECC_DIGITS_TO_BYTES_SHIFT;
++
++	get_random_bytes(rand_z, nbytes);
++
++	pk = ecc_alloc_point(ndigits);
++	if (!pk) {
++		ret = -ENOMEM;
++		goto out;
++	}
++
++	ecc_swap_digits(public_key, pk->x, ndigits);
++	ecc_swap_digits(&public_key[ndigits], pk->y, ndigits);
++	ret = ecc_is_pubkey_valid_partial(curve, pk);
++	if (ret)
++		goto err_alloc_product;
++
++	product = ecc_alloc_point(ndigits);
++	if (!product) {
++		ret = -ENOMEM;
++		goto err_alloc_product;
++	}
++
++	ecc_point_mult(product, pk, private_key, rand_z, curve, ndigits);
++
++	if (ecc_point_is_zero(product)) {
++		ret = -EFAULT;
++		goto err_validity;
++	}
++
++	ecc_swap_digits(product->x, secret, ndigits);
++
++err_validity:
++	memzero_explicit(rand_z, sizeof(rand_z));
++	ecc_free_point(product);
++err_alloc_product:
++	ecc_free_point(pk);
++out:
++	return ret;
++}
++
+diff --git a/mca_hardware_ic/fuelgauge_ic/qcom_battery_gauge/mca_qcom_battery_gauge.c b/mca_hardware_ic/fuelgauge_ic/qcom_battery_gauge/mca_qcom_battery_gauge.c
+index 10db8b6..b8502b4 100644
+--- a/mca_hardware_ic/fuelgauge_ic/qcom_battery_gauge/mca_qcom_battery_gauge.c
++++ b/mca_hardware_ic/fuelgauge_ic/qcom_battery_gauge/mca_qcom_battery_gauge.c
+@@ -1098,7 +1098,7 @@ static int qbg_probe(struct platform_device *pdev)
+ 	return 0;
+ }
+ 
+-static int qbg_remove(struct platform_device *pdev)
++static void qbg_remove(struct platform_device *pdev)
+ {
+ 	struct qbg_info *info = platform_get_drvdata(pdev);
+ 
+@@ -1106,7 +1106,7 @@ static int qbg_remove(struct platform_device *pdev)
+ 		mca_sysfs_remove_group("xm_power", info->sysfs_dev,
+ 				       &qbg_sysfs_attr_group);
+ 
+-	return 0;
++	return;
+ }
+ 
+ static const struct of_device_id qbg_of_match[] = {
+diff --git a/mca_hardware_monitor/mca_bmd.c b/mca_hardware_monitor/mca_bmd.c
+index 56f0df0..0dfca0d 100644
+--- a/mca_hardware_monitor/mca_bmd.c
++++ b/mca_hardware_monitor/mca_bmd.c
+@@ -532,9 +532,9 @@ static int mca_bmd_probe(struct platform_device *pdev)
+ 	return 0;
+ }
+ 
+-static int mca_bmd_remove(struct platform_device *pdev)
++static void mca_bmd_remove(struct platform_device *pdev)
+ {
+-	return 0;
++	return;
+ }
+ 
+ static void mca_bmd_shutdown(struct platform_device *pdev)
+diff --git a/mca_hardware_monitor/mca_connector_antiburn.c b/mca_hardware_monitor/mca_connector_antiburn.c
+index a9de44e..a14de68 100644
+--- a/mca_hardware_monitor/mca_connector_antiburn.c
++++ b/mca_hardware_monitor/mca_connector_antiburn.c
+@@ -779,7 +779,7 @@ static const struct of_device_id match_table[] = {
+ 	{},
+ };
+ 
+-static int connector_antiburn_remove(struct platform_device *pdev)
++static void connector_antiburn_remove(struct platform_device *pdev)
+ {
+ 	struct connector_antiburn *conn = platform_get_drvdata(pdev);
+ 
+@@ -793,7 +793,7 @@ static int connector_antiburn_remove(struct platform_device *pdev)
+ 	mca_event_block_notify_unregister(MCA_EVENT_TYPE_THERMAL_TEMP,
+ 					  &conn->thermal_board_nb);
+ 	devm_kfree(&pdev->dev, conn);
+-	return 0;
++	return;
+ }
+ 
+ static void connector_antiburn_shutdown(struct platform_device *pdev)
+diff --git a/mca_hardware_monitor/mca_ibat_ocp_monitor.c b/mca_hardware_monitor/mca_ibat_ocp_monitor.c
+index 5943ef5..564c5b7 100644
+--- a/mca_hardware_monitor/mca_ibat_ocp_monitor.c
++++ b/mca_hardware_monitor/mca_ibat_ocp_monitor.c
+@@ -358,9 +358,9 @@ static int mca_ibat_ocp_mon_probe(struct platform_device *pdev)
+ 	return 0;
+ }
+ 
+-static int mca_ibat_ocp_mon_remove(struct platform_device *pdev)
++static void mca_ibat_ocp_mon_remove(struct platform_device *pdev)
+ {
+-	return 0;
++	return;
+ }
+ 
+ static void mca_ibat_ocp_mon_shutdown(struct platform_device *pdev)
+diff --git a/mca_hardware_monitor/mca_lpd_detect.c b/mca_hardware_monitor/mca_lpd_detect.c
+index ce497fd..653d3a3 100644
+--- a/mca_hardware_monitor/mca_lpd_detect.c
++++ b/mca_hardware_monitor/mca_lpd_detect.c
+@@ -226,10 +226,10 @@ static int mca_lpd_detect_probe(struct platform_device *pdev)
+ 	return 0;
+ }
+ 
+-static int mca_lpd_detect_remove(struct platform_device *pdev)
++static void mca_lpd_detect_remove(struct platform_device *pdev)
+ {
+ 	lpd_sysfs_remove_group(&pdev->dev);
+-	return 0;
++	return;
+ }
+ 
+ static void mca_lpd_detect_shutdown(struct platform_device *pdev)
+diff --git a/mca_hardware_monitor/mca_path_control.c b/mca_hardware_monitor/mca_path_control.c
+index 2827304..23748f9 100644
+--- a/mca_hardware_monitor/mca_path_control.c
++++ b/mca_hardware_monitor/mca_path_control.c
+@@ -863,9 +863,9 @@ static const struct of_device_id match_table[] = {
+ 	{},
+ };
+ 
+-static int mca_path_control_remove(struct platform_device *pdev)
++static void mca_path_control_remove(struct platform_device *pdev)
+ {
+-	return 0;
++	return;
+ }
+ 
+ static void mca_path_control_shutdown(struct platform_device *pdev)
+diff --git a/mca_hardware_monitor/mca_vbat_ovp_monitor.c b/mca_hardware_monitor/mca_vbat_ovp_monitor.c
+index ceb4e90..64fd47c 100644
+--- a/mca_hardware_monitor/mca_vbat_ovp_monitor.c
++++ b/mca_hardware_monitor/mca_vbat_ovp_monitor.c
+@@ -348,9 +348,9 @@ static int mca_vbat_ovp_mon_probe(struct platform_device *pdev)
+ 	return 0;
+ }
+ 
+-static int mca_vbat_ovp_mon_remove(struct platform_device *pdev)
++static void mca_vbat_ovp_mon_remove(struct platform_device *pdev)
+ {
+-	return 0;
++	return;
+ }
+ 
+ static void mca_vbat_ovp_mon_shutdown(struct platform_device *pdev)
+diff --git a/mca_platform/mca_platform_bc12_class.c b/mca_platform/mca_platform_bc12_class.c
+index 9ba7874..81fc38b 100644
+--- a/mca_platform/mca_platform_bc12_class.c
++++ b/mca_platform/mca_platform_bc12_class.c
+@@ -167,9 +167,9 @@ static int platform_class_bc12_probe(struct platform_device *pdev)
+ 	return 0;
+ }
+ 
+-static int platform_class_bc12_remove(struct platform_device *pdev)
++static void platform_class_bc12_remove(struct platform_device *pdev)
+ {
+-	return 0;
++	return;
+ }
+ 
+ static void platform_class_bc12_shutdown(struct platform_device *pdev)
+diff --git a/mca_platform/mca_platform_cp_class.c b/mca_platform/mca_platform_cp_class.c
+index b28c417..75a46ec 100644
+--- a/mca_platform/mca_platform_cp_class.c
++++ b/mca_platform/mca_platform_cp_class.c
+@@ -1088,9 +1088,9 @@ static int platform_cp_class_probe(struct platform_device *pdev)
+ 	return 0;
+ }
+ 
+-static int platform_cp_class_remove(struct platform_device *pdev)
++static void platform_cp_class_remove(struct platform_device *pdev)
+ {
+-	return 0;
++	return;
+ }
+ 
+ static void platform_cp_class_shutdown(struct platform_device *pdev)
+diff --git a/mca_platform/mca_platform_loadsw_class.c b/mca_platform/mca_platform_loadsw_class.c
+index 97b8516..7a8b59e 100644
+--- a/mca_platform/mca_platform_loadsw_class.c
++++ b/mca_platform/mca_platform_loadsw_class.c
+@@ -372,9 +372,9 @@ static int platform_loadsw_class_probe(struct platform_device *pdev)
+ 	return 0;
+ }
+ 
+-static int platform_loadsw_class_remove(struct platform_device *pdev)
++static void platform_loadsw_class_remove(struct platform_device *pdev)
+ {
+-	return 0;
++	return;
+ }
+ 
+ static void platform_loadsw_class_shutdown(struct platform_device *pdev)
+diff --git a/mca_platform/mca_platform_wireless_class.c b/mca_platform/mca_platform_wireless_class.c
+index 4c16b9a..fbcdbce 100644
+--- a/mca_platform/mca_platform_wireless_class.c
++++ b/mca_platform/mca_platform_wireless_class.c
+@@ -1423,9 +1423,9 @@ static int platform_wireless_class_probe(struct platform_device *pdev)
+ 	return 0;
+ }
+ 
+-static int platform_wireless_class_remove(struct platform_device *pdev)
++static void platform_wireless_class_remove(struct platform_device *pdev)
+ {
+-	return 0;
++	return;
+ }
+ 
+ static void platform_wireless_class_shutdown(struct platform_device *pdev)
+diff --git a/mca_protocol/protocol_pd/mca_protocol_pd_class.c b/mca_protocol/protocol_pd/mca_protocol_pd_class.c
+index c6a215c..dac7d81 100644
+--- a/mca_protocol/protocol_pd/mca_protocol_pd_class.c
++++ b/mca_protocol/protocol_pd/mca_protocol_pd_class.c
+@@ -1036,9 +1036,9 @@ static int protocol_pd_class_probe(struct platform_device *pdev)
+ 	return ret;
+ }
+ 
+-static int protocol_pd_class_remove(struct platform_device *pdev)
++static void protocol_pd_class_remove(struct platform_device *pdev)
+ {
+-	return 0;
++	return;
+ }
+ 
+ static void protocol_pd_class_shutdown(struct platform_device *pdev)
+diff --git a/mca_protocol/protocol_pd/qcom_tcpc/qcom_adsp_pd_protocol.c b/mca_protocol/protocol_pd/qcom_tcpc/qcom_adsp_pd_protocol.c
+index b50b485..5fd389a 100644
+--- a/mca_protocol/protocol_pd/qcom_tcpc/qcom_adsp_pd_protocol.c
++++ b/mca_protocol/protocol_pd/qcom_tcpc/qcom_adsp_pd_protocol.c
+@@ -582,9 +582,9 @@ static int adsp_pd_protocol_probe(struct platform_device *pdev)
+ 	return 0;
+ }
+ 
+-static int adsp_pd_protocol_remove(struct platform_device *pdev)
++static void adsp_pd_protocol_remove(struct platform_device *pdev)
+ {
+-	return 0;
++	return;
+ }
+ 
+ static void adsp_pd_protocol_shutdown(struct platform_device *pdev)
+diff --git a/mca_protocol/protocol_qc/mca_protocol_qc_class.c b/mca_protocol/protocol_qc/mca_protocol_qc_class.c
+index f36dddf..176ec35 100644
+--- a/mca_protocol/protocol_qc/mca_protocol_qc_class.c
++++ b/mca_protocol/protocol_qc/mca_protocol_qc_class.c
+@@ -137,9 +137,9 @@ static int protocol_qc_class_probe(struct platform_device *pdev)
+ 	return ret;
+ }
+ 
+-static int protocol_qc_class_remove(struct platform_device *pdev)
++static void protocol_qc_class_remove(struct platform_device *pdev)
+ {
+-	return 0;
++	return;
+ }
+ 
+ static void protocol_qc_class_shutdown(struct platform_device *pdev)
+diff --git a/mca_qcom_subpmic_proxy/mca_qcom_subpmic_proxy.c b/mca_qcom_subpmic_proxy/mca_qcom_subpmic_proxy.c
+index c00468c..fe9ba38 100644
+--- a/mca_qcom_subpmic_proxy/mca_qcom_subpmic_proxy.c
++++ b/mca_qcom_subpmic_proxy/mca_qcom_subpmic_proxy.c
+@@ -13,6 +13,7 @@
+ #include <linux/list.h>
+ #include <linux/ktime.h>
+ #include <linux/pm_wakeup.h>
++#include <linux/soc/qcom/battery_charger.h>
+ 
+ #include <mca/common/mca_log.h>
+ #include <mca/common/mca_event.h>
+@@ -174,7 +175,8 @@ int unregister_hboost_event_notifier(struct notifier_block *nb)
+ }
+ EXPORT_SYMBOL(unregister_hboost_event_notifier);
+ 
+-int qti_battery_charger_get_prop(const char *name, int prop_id, int *val)
++int qti_battery_charger_get_prop(const char *name,
++				 enum battery_charger_prop prop_id, int *val)
+ {
+ 	if (!val)
+ 		return -EINVAL;
+@@ -1295,9 +1297,9 @@ err:
+ 	return rc;
+ }
+ 
+-static int qcom_subpmic_remove(struct platform_device *pdev)
++static void qcom_subpmic_remove(struct platform_device *pdev)
+ {
+-	return 0;
++	return;
+ }
+ 
+ static void qcom_subpmic_shutdown(struct platform_device *pdev)
+diff --git a/mca_qcom_sysfs/mca_qcom_sysfs.c b/mca_qcom_sysfs/mca_qcom_sysfs.c
+index 74fb066..1b262a5 100644
+--- a/mca_qcom_sysfs/mca_qcom_sysfs.c
++++ b/mca_qcom_sysfs/mca_qcom_sysfs.c
+@@ -631,12 +631,12 @@ static int mca_qcom_sysfs_probe(struct platform_device *pdev)
+ 	return 0;
+ }
+ 
+-static int mca_qcom_sysfs_remove(struct platform_device *pdev)
++static void mca_qcom_sysfs_remove(struct platform_device *pdev)
+ {
+ 	struct mca_qcom_sysfs_dev *info = platform_get_drvdata(pdev);
+ 
+ 	class_unregister(&info->class);
+-	return 0;
++	return;
+ }
+ 
+ static const struct of_device_id match_table[] = {
+diff --git a/mca_shared_memory/charger_partition.c b/mca_shared_memory/charger_partition.c
+index 9e772ae..be345a3 100644
+--- a/mca_shared_memory/charger_partition.c
++++ b/mca_shared_memory/charger_partition.c
+@@ -1295,12 +1295,12 @@ static int charger_partition_probe(struct platform_device *pdev)
+ 	return 0;
+ }
+ 
+-static int charger_partition_remove(struct platform_device *pdev)
++static void charger_partition_remove(struct platform_device *pdev)
+ {
+ 	cancel_delayed_work(&charger_partition->charger_partition_work);
+ 	charger_partition_sysfs_remove_group(&pdev->dev);
+ 	kfree(charger_partition);
+-	return 0;
++	return;
+ }
+ 
+ static const struct of_device_id match_table[] = {
+diff --git a/mca_smart_charge/mca_smart_charge.c b/mca_smart_charge/mca_smart_charge.c
+index 5911727..b8c4a3c 100644
+--- a/mca_smart_charge/mca_smart_charge.c
++++ b/mca_smart_charge/mca_smart_charge.c
+@@ -1863,7 +1863,7 @@ error1:
+ 	return -1;
+ }
+ 
+-static int smart_charge_remove(struct platform_device *pdev)
++static void smart_charge_remove(struct platform_device *pdev)
+ {
+ 	struct smart_charge_info *info = platform_get_drvdata(pdev);
+ 
+@@ -1875,7 +1875,7 @@ static int smart_charge_remove(struct platform_device *pdev)
+ 	mca_event_block_notify_unregister(MCA_EVENT_TYPE_PANEL,
+ 					  &info->panel_nb);
+ 
+-	return 0;
++	return;
+ }
+ 
+ static const struct of_device_id match_table[] = {
+diff --git a/mca_strategy/strategy_charger/mca_buckchg_jeita.c b/mca_strategy/strategy_charger/mca_buckchg_jeita.c
+index 60c2f39..45f3c8c 100644
+--- a/mca_strategy/strategy_charger/mca_buckchg_jeita.c
++++ b/mca_strategy/strategy_charger/mca_buckchg_jeita.c
+@@ -1287,9 +1287,9 @@ static int mca_buckchg_jeita_probe(struct platform_device *pdev)
+ 	return 0;
+ }
+ 
+-static int mca_buckchg_jeita_remove(struct platform_device *pdev)
++static void mca_buckchg_jeita_remove(struct platform_device *pdev)
+ {
+-	return 0;
++	return;
+ }
+ 
+ static void mca_buckchg_jeita_shutdown(struct platform_device *pdev)
+diff --git a/mca_strategy/strategy_charger/mca_charger_thermal.c b/mca_strategy/strategy_charger/mca_charger_thermal.c
+index 2418298..50ea11c 100644
+--- a/mca_strategy/strategy_charger/mca_charger_thermal.c
++++ b/mca_strategy/strategy_charger/mca_charger_thermal.c
+@@ -1263,10 +1263,10 @@ static int mca_charger_thermal_probe(struct platform_device *pdev)
+ 	return 0;
+ }
+ 
+-static int mca_charger_thermal_remove(struct platform_device *pdev)
++static void mca_charger_thermal_remove(struct platform_device *pdev)
+ {
+ 	mca_charger_thermal_remove_group(&pdev->dev);
+-	return 0;
++	return;
+ }
+ 
+ static const struct of_device_id match_table[] = {
+diff --git a/mca_strategy/strategy_charger/mca_strategy_buckchg.c b/mca_strategy/strategy_charger/mca_strategy_buckchg.c
+index b0343a3..775b58a 100644
+--- a/mca_strategy/strategy_charger/mca_strategy_buckchg.c
++++ b/mca_strategy/strategy_charger/mca_strategy_buckchg.c
+@@ -3475,9 +3475,9 @@ static int strategy_buckchg_class_probe(struct platform_device *pdev)
+ 	return 0;
+ }
+ 
+-static int strategy_buckchg_class_remove(struct platform_device *pdev)
++static void strategy_buckchg_class_remove(struct platform_device *pdev)
+ {
+-	return 0;
++	return;
+ }
+ 
+ static void strategy_buckchg_class_shutdown(struct platform_device *pdev)
+diff --git a/mca_strategy/strategy_charger/mca_strategy_quickchg.c b/mca_strategy/strategy_charger/mca_strategy_quickchg.c
+index 1aec46e..df98135 100644
+--- a/mca_strategy/strategy_charger/mca_strategy_quickchg.c
++++ b/mca_strategy/strategy_charger/mca_strategy_quickchg.c
+@@ -5704,10 +5704,10 @@ static int mca_quick_charge_probe(struct platform_device *pdev)
+ 	return 0;
+ }
+ 
+-static int mca_quick_charge_remove(struct platform_device *pdev)
++static void mca_quick_charge_remove(struct platform_device *pdev)
+ {
+ 	mca_quick_charge_remove_group(&pdev->dev);
+-	return 0;
++	return;
+ }
+ 
+ static const struct of_device_id mca_quick_charge_info_of_match[] = {
+diff --git a/mca_strategy/strategy_fg/mca_soc_limit.c b/mca_strategy/strategy_fg/mca_soc_limit.c
+index 56ebfb3..20a3211 100644
+--- a/mca_strategy/strategy_fg/mca_soc_limit.c
++++ b/mca_strategy/strategy_fg/mca_soc_limit.c
+@@ -86,9 +86,9 @@ static int soc_limit_probe(struct platform_device *pdev)
+ 	return 0;
+ }
+ 
+-static int soc_limit_remove(struct platform_device *pdev)
++static void soc_limit_remove(struct platform_device *pdev)
+ {
+-	return 0;
++	return;
+ }
+ 
+ static const struct of_device_id match_table[] = {
+diff --git a/mca_strategy/strategy_fg/mca_strategy_fg.c b/mca_strategy/strategy_fg/mca_strategy_fg.c
+index 41cf288..f426958 100644
+--- a/mca_strategy/strategy_fg/mca_strategy_fg.c
++++ b/mca_strategy/strategy_fg/mca_strategy_fg.c
+@@ -4168,10 +4168,10 @@ static int strategy_fg_probe(struct platform_device *pdev)
+ 	return ret;
+ }
+ 
+-static int strategy_fg_remove(struct platform_device *pdev)
++static void strategy_fg_remove(struct platform_device *pdev)
+ {
+ 	strategy_fg_auth_remove_group(&pdev->dev);
+-	return 0;
++	return;
+ }
+ 
+ static int strategy_fg_suspend(struct platform_device *pdev, pm_message_t state)
+diff --git a/mca_strategy/strategy_pd/mca_pd_auth.c b/mca_strategy/strategy_pd/mca_pd_auth.c
+index 61f3671..bfa9534 100644
+--- a/mca_strategy/strategy_pd/mca_pd_auth.c
++++ b/mca_strategy/strategy_pd/mca_pd_auth.c
+@@ -401,10 +401,10 @@ static int strategy_pd_auth_probe(struct platform_device *pdev)
+ 	return 0;
+ }
+ 
+-static int strategy_pd_auth_remove(struct platform_device *pdev)
++static void strategy_pd_auth_remove(struct platform_device *pdev)
+ {
+ 	strategy_pd_auth_remove_group(&pdev->dev);
+-	return 0;
++	return;
+ }
+ 
+ static void strategy_pd_auth_shutdown(struct platform_device *pdev)
+diff --git a/mca_strategy/strategy_wireless/mca_basic_wireless.c b/mca_strategy/strategy_wireless/mca_basic_wireless.c
+index cb04523..1c8ddeb 100644
+--- a/mca_strategy/strategy_wireless/mca_basic_wireless.c
++++ b/mca_strategy/strategy_wireless/mca_basic_wireless.c
+@@ -4923,13 +4923,13 @@ static void strategy_wireless_stop_irq_worker(struct strategy_wireless_dev *info
+ 	cancel_delayed_work_sync(&info->process_irq_work);
+ }
+ 
+-static int basic_wireless_class_remove(struct platform_device *pdev)
++static void basic_wireless_class_remove(struct platform_device *pdev)
+ {
+ 	struct strategy_wireless_dev *info = platform_get_drvdata(pdev);
+ 
+ 	strategy_wireless_stop_irq_worker(info);
+ 	strategy_wireless_remove_group(&pdev->dev);
+-	return 0;
++	return;
+ }
+ 
+ static void basic_wireless_class_shutdown(struct platform_device *pdev)
+diff --git a/mca_strategy/strategy_wireless/mca_quick_wireless.c b/mca_strategy/strategy_wireless/mca_quick_wireless.c
+index d9e5808..8bb04a1 100644
+--- a/mca_strategy/strategy_wireless/mca_quick_wireless.c
++++ b/mca_strategy/strategy_wireless/mca_quick_wireless.c
+@@ -3069,9 +3069,9 @@ static int mca_wireless_quick_charge_probe(struct platform_device *pdev)
+ 	return 0;
+ }
+ 
+-static int mca_wireless_quick_charge_remove(struct platform_device *pdev)
++static void mca_wireless_quick_charge_remove(struct platform_device *pdev)
+ {
+-	return 0;
++	return;
+ }
+ 
+ static void mca_wireless_quick_charge_shutdown(struct platform_device *pdev)
+diff --git a/mca_strategy/strategy_wireless/mca_wireless_revchg.c b/mca_strategy/strategy_wireless/mca_wireless_revchg.c
+index 404bede..7c0f828 100644
+--- a/mca_strategy/strategy_wireless/mca_wireless_revchg.c
++++ b/mca_strategy/strategy_wireless/mca_wireless_revchg.c
+@@ -2429,10 +2429,10 @@ static const struct of_device_id match_table[] = {
+ 	{},
+ };
+ 
+-static int mca_wireless_revchg_remove(struct platform_device *pdev)
++static void mca_wireless_revchg_remove(struct platform_device *pdev)
+ {
+ 	strategy_wireless_rev_remove_group(&pdev->dev);
+-	return 0;
++	return;
+ }
+ 
+ static void mca_wireless_revchg_shutdown(struct platform_device *pdev)
+diff --git a/mca_ut_test/mca_ut_test.c b/mca_ut_test/mca_ut_test.c
+index a0dbd2d..2b9f0be 100644
+--- a/mca_ut_test/mca_ut_test.c
++++ b/mca_ut_test/mca_ut_test.c
+@@ -290,12 +290,12 @@ static int ut_test_probe(struct platform_device *pdev)
+ 	return 0;
+ }
+ 
+-static int ut_test_remove(struct platform_device *pdev)
++static void ut_test_remove(struct platform_device *pdev)
+ {
+ 	struct ut_test *ut = platform_get_drvdata(pdev);
+ 
+ 	class_unregister(&ut->class);
+-	return 0;
++	return;
+ }
+ 
+ static const struct of_device_id ut_test_of_match[] = {

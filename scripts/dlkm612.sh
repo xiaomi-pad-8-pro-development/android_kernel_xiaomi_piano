@@ -32,12 +32,17 @@ $STRIP --strip-debug $M/*.ko
 
 # Load order: 6.6 order first, then the rest. qcedev-mod_dlkm hangs the SoC
 # about 1.3 s into boot, so it stays out along with qcrypto-msm_dlkm.
+# Xiaomi's mca stack drives the battery over pmic_glink, so Qualcomm's
+# qti_battery_charger stays out too, as on 6.6. Remove the file as well:
+# mca_qcom_subpmic_proxy exports the same qti_battery_charger_get_prop
+# that the haptics and flash LED modules use, and depmod must pick it.
+rm -f $M/qti_battery_charger.ko
 {
 	xargs -n1 basename < $OUTP/vendor_dlkm/lib/modules/modules.load | while read -r k; do
 		if [ -f $M/$k ]; then echo $k; fi
 	done
 	ls $M | grep '\.ko$'
-} | grep -v -E '^(qcedev-mod_dlkm|qcrypto-msm_dlkm)\.ko$' | awk '!seen[$0]++' > $M/modules.load
+} | grep -v -E '^(qcedev-mod_dlkm|qcrypto-msm_dlkm|qti_battery_charger)\.ko$' | awk '!seen[$0]++' > $M/modules.load
 
 depmod -b $W/vendor_dlkm $VER
 # Flatten to /lib/modules like the stock image.
