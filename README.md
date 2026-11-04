@@ -41,6 +41,14 @@ source, so piano's own drivers are ported from 6.6.
   `soc-repo.patch` goes in `kernel_platform/soc-repo`: it enables the IR
   blaster (Xiaomi's 6.6 `ir-spi`), the hardware RNG and USB audio
   offload.
+  `ksu.patch` is optional and goes in `kernel_platform/common` after
+  `common.patch`: SUSFS v2.3.0 (susfs4ksu `gki-android16-6.12`, with
+  the `show_smaps_rollup` hunk redone for the KP 5.0 loop) and the
+  KernelSU hooks. Check out KernelSU-Next as on 6.6
+  (`pershoot/KernelSU-Next` `dev-susfs`, commit d21e0a66c887) at
+  `kernel_platform/common/KernelSU-Next`. KSU and KSU_SUSFS default to y
+  in its Kconfig, so applying the patch makes the root build, as
+  `piano_ksu.config` does on 6.6.
 - `scripts/` builds and tests it:
   - build: `./build_with_bazel.py -t sun perf -s abl` in `kernel_platform`
   - `dt612.sh` merges the piano devicetree, `pack612.sh` packs boot,
