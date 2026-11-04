@@ -105,6 +105,6 @@ which writes the kernel log to the `rawdump` partition. The header is
   - Xiaomi modules with no source in the 6.6 tree (millet, mi_game,
     mi_power, mist, perf_helper, perf_actuator, rtg, vip_sched,
     sched_penalty, xm_power, ...): 6.6 prebuilts, cannot be rebuilt.
-  - `mi_async_reclaim`: its 5 folio trylock hooks sit at 9 places in
-    the vmscan reclaim path, not in the 6.12 GKI; not added blind.
+  - `mi_async_reclaim` and `mem_reclaim_ctl`: not piano modules; on 6.6
+    only bixi's module list carries mi_async_reclaim.
 - Recovery on boot_a still needs the 6.6 boot images (`round612.sh`).
