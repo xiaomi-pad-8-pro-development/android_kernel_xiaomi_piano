@@ -142,6 +142,14 @@ which writes the kernel log to the `rawdump` partition. The header is
       recovered (argument count only). The stock sched-walt.ko calls
       these wrappers; the KP 5.0 WALT does not, so on 6.12 only module
       callers reach them.
+    - rtg: the five perf_actuator ioctls ('x' 0x02, 0x03, 0x04, 0x07,
+      0x25) that move tasks into WALT related thread groups and set a
+      group's preferred CPUs and util, and the exported os_cpu_* helpers.
+      soc-repo.patch appends mi_prefer_cpus and mi_prefer_util to
+      struct walt_related_thread_group (the stock module wrote them
+      right after start_ktime_ts). The stock sched-walt.ko used the
+      os_cpu_* helpers in task placement; the KP 5.0 WALT does not, so
+      the values are stored but have no effect until WALT is patched.
   - `snd_soc_hdmi_codec`: 6.6 loads it, but its only users are HDMI
     bridge chips piano lacks (adv7511, lt9611, anx7625, ...); DP audio
     goes through `msm_ext_display` and audio-kernel `msm_hdmi_codec_rx`.
