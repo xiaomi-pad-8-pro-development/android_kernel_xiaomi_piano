@@ -157,6 +157,8 @@ which writes the kernel log to the `rawdump` partition. The header is
       (kernel to user 0x90 bytes, user to kernel 0x50 bytes) and the
       module table follow the stock offsets; the three hook prototypes
       match the stock kCFI hashes. Only uids up to 1000 may send.
+    - millet_hs: the HANDSHK type; echoes a daemon message back as an
+      empty MSG_TO_USER message, routed through the SIG monitor.
   - `snd_soc_hdmi_codec`: 6.6 loads it, but its only users are HDMI
     bridge chips piano lacks (adv7511, lt9611, anx7625, ...); DP audio
     goes through `msm_ext_display` and audio-kernel `msm_hdmi_codec_rx`.
