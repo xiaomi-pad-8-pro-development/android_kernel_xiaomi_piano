@@ -110,6 +110,4 @@ which writes the kernel log to the `rawdump` partition. The header is
     the vmscan reclaim path, not in the 6.12 GKI; not added blind.
   - CIFS: builds, but does not fit in system_dlkm (7.84 MB against
     7389184 bytes), so `dlkm612.sh` leaves it out.
-  - bpf small-buffer change (seventeen 0c6cc1d9bcab): 12 of 14 hunks
-    miss on 6.12's syscall.c.
 - Recovery on boot_a still needs the 6.6 boot images (`round612.sh`).
