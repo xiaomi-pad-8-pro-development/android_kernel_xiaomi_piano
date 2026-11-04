@@ -67,7 +67,7 @@ index aaed895..efa2a34 100644
  	return pce_dev;
  err:
 diff --git a/crypto-qti/qcedev.c b/crypto-qti/qcedev.c
-index 47118f8..feb4491 100644
+index 47118f8..cd45d58 100644
 --- a/crypto-qti/qcedev.c
 +++ b/crypto-qti/qcedev.c
 @@ -2780,6 +2780,7 @@ static int qcedev_probe_device(struct platform_device *pdev)
@@ -86,11 +86,26 @@ index 47118f8..feb4491 100644
  	handle = qce_open(pdev, &rc);
  	if (handle == NULL) {
  		rc = -ENODEV;
-@@ -2834,6 +2836,7 @@ static int qcedev_probe_device(struct platform_device *pdev)
+@@ -2834,8 +2836,10 @@ static int qcedev_probe_device(struct platform_device *pdev)
  		goto exit_qce_close;
  	}
  
 +	pr_err("PIANODBG qcedev probe %s\n", "populate_cbs"); msleep(50);
  	rc = of_platform_populate(pdev->dev.of_node, qcedev_match,
  			NULL, &pdev->dev);
++	pr_err("PIANODBG qcedev probe populate_done rc=%d\n", rc); msleep(50);
  	if (rc) {
+ 		pr_err("%s: err: of_platform_populate failed: %d\n",
+ 			__func__, rc);
+diff --git a/crypto-qti/qcedev_smmu.c b/crypto-qti/qcedev_smmu.c
+index f09848c..108947a 100644
+--- a/crypto-qti/qcedev_smmu.c
++++ b/crypto-qti/qcedev_smmu.c
+@@ -71,6 +71,7 @@ int qcedev_parse_context_bank(struct platform_device *pdev)
+ 
+ 	cb->is_secure = of_property_read_bool(np, "qcom,secure-context-bank");
+ 
++	pr_err("PIANODBG qcedev cb %s secure=%d\n", cb->name ? cb->name : "?", cb->is_secure);
+ 	rc = qcedev_setup_context_bank(cb, &pdev->dev);
+ 	if (rc) {
+ 		pr_err("%s err: cannot setup context bank %d\n", __func__, rc);
