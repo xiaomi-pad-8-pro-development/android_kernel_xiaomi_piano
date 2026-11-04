@@ -23,9 +23,14 @@ xargs -n1 basename < $DIST/vendor_dlkm.modules.load | while read -r k; do
 done
 # Techpack modules (stripped staging copies), skipping ones already in
 # vendor_boot.
+# bazel-bin keeps outputs of targets a build did not ask for, and those
+# fail to load against a newer kernel. build612.sh lists what it built in
+# $BUILT; take only those (all of bazel-bin without the list).
+BUILT=$KP/out/piano-modules.list
 find $BIN $KP/bazel-bin/vendor/xiaomi -path '*sun_perf*' -path '*/staging/*' -name '*.ko' | while read -r k; do
 	b=$(basename $k)
 	grep -qx "$b" $W/../pack612/dlkm/lib/modules/modules.load 2>/dev/null && continue
+	if [ -f $BUILT ] && ! grep -q "/$b\$" $BUILT; then echo "not built this round, left out: $b"; continue; fi
 	cp --update=none $k $M/
 done
 $STRIP --strip-debug $M/*.ko
@@ -44,7 +49,11 @@ rm -f $M/video.ko
 # the WCD937x and simple-amp codecs (piano uses WCD9378 and the FS19xx
 # amps). coresight.ko itself stays: msm_kgsl depends on it. Stop if a kept
 # module depends on a dropped one.
-DROP=$(cd $M && ls coresight[-_]*.ko stm[-_]*.ko wcd937x*.ko simple[-_]amp*.ko 2>/dev/null || true)
+# The WLAN host driver builds once per chip; piano has peach v2 (WCN7880),
+# and the others would overflow the 31.8 MB partition. The test drivers
+# are Qualcomm bring-up tools.
+DROP=$(cd $M && ls coresight[-_]*.ko stm[-_]*.ko wcd937x*.ko simple[-_]amp*.ko \
+	qca_cld3_*.ko *_test.ko seccam_test_driver.ko 2>/dev/null | grep -vx qca_cld3_peach_v2.ko || true)
 for k in $DROP; do rm -f $M/$k; done
 for k in $M/*.ko; do
 	for d in $(modinfo -F depends $k | tr , ' '); do

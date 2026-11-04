@@ -53,7 +53,10 @@ source, so piano's own drivers are ported from 6.6.
   in its Kconfig, so applying the patch makes the root build, as
   `piano_ksu.config` does on 6.6.
 - `scripts/` builds and tests it:
-  - build: `./build_with_bazel.py -t sun perf -s abl` in `kernel_platform`
+  - `build612.sh` builds everything: `./build_with_bazel.py -t sun perf -s abl`
+    in `kernel_platform`, every sun_perf techpack and Xiaomi module, then
+    the images. It lists the modules it built so `dlkm612.sh` never packs
+    a stale one left in bazel-bin by an older build
   - `dt612.sh` merges the piano devicetree, `pack612.sh` packs boot,
     vendor_boot and dtbo
   - `dlkm612.sh` builds vendor_dlkm; `dlkm612-first.sh <N>` keeps only
