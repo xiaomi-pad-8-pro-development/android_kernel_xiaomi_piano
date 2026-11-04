@@ -34,8 +34,10 @@ source, so piano's own drivers are ported from 6.6.
   fingerprint drivers out of tree.
   `perf.patch` is against the same commit: copy `drivers/xiaomi/`
   `{boottime,kshrink_slabd,mi_stack,mi_trace,mi_ubt,printk_enhance}`,
-  `drivers/staging/mi_rmap_efficiency` and `include/mi_ubt` (as
-  `include/mi_ubt`) to `vendor/xiaomi/perf`, drop the Kconfig files and
+  `drivers/staging/mi_rmap_efficiency`, `drivers/thermal/xiaomi` (as
+  `mi_thermal/`), `include/mi_ubt` and the mca headers
+  `mca/common/mca_event.h` and `mca/smartchg/smart_chg_class.h` (under
+  `include/`) to `vendor/xiaomi/perf`, drop the Kconfig files and
   `mi_ubt/test`, and apply it there. Build with
   `tools/bazel build //vendor/xiaomi/perf:sun_perf_perf`.
   `soc-repo.patch` goes in `kernel_platform/soc-repo`: it enables the IR
