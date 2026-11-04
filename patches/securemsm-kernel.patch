@@ -9,3 +9,88 @@ index b39a2d9..86bff1a 100644
 +             "CONFIG_MSM_TMECOM_QMP",
           ],
       )
+diff --git a/crypto-qti/qce50.c b/crypto-qti/qce50.c
+index aaed895..efa2a34 100644
+--- a/crypto-qti/qce50.c
++++ b/crypto-qti/qce50.c
+@@ -6451,30 +6451,41 @@ void *qce_open(struct platform_device *pdev, int *rc)
+ 	if (pce_dev->dummyreq_in_buf == NULL)
+ 		goto err_mem;
+ 
++	pr_err("PIANODBG qce_open %s\n", "init_clk"); msleep(50);
+ 	*rc = __qce_init_clk(pce_dev);
+ 	if (*rc)
+ 		goto err_mem;
++	pr_err("PIANODBG qce_open %s\n", "enable_clk"); msleep(50);
+ 	*rc = qce_enable_clk(pce_dev);
+ 	if (*rc)
+ 		goto err_enable_clk;
+ 
++	pr_err("PIANODBG qce_open %s\n", "probe_ce_engine"); msleep(50);
+ 	if (_probe_ce_engine(pce_dev)) {
+ 		*rc = -ENXIO;
+ 		goto err;
+ 	}
+ 	*rc = 0;
+ 
++	pr_err("PIANODBG qce_open %s\n", "core_irq_init"); msleep(50);
+ 	tasklet_init(&pce_dev->core_irq_bottom_half,
+ 		     qce_core_irq_bottom_half, (unsigned long)pce_dev);
+ 	qce_core_irq_init(pce_dev);
++	pr_err("PIANODBG qce_open %s\n", "init_ce_cfg_val"); msleep(50);
+ 	qce_init_ce_cfg_val(pce_dev);
++	pr_err("PIANODBG qce_open %s\n", "parse_soc_revision"); msleep(50);
+ 	qce_parse_soc_revision(pce_dev);
++	pr_err("PIANODBG qce_open %s\n", "sps_init"); msleep(50);
+ 	*rc  = qce_sps_init(pce_dev);
+ 	if (*rc)
+ 		goto err;
++	pr_err("PIANODBG qce_open %s\n", "setup_ce_sps_data"); msleep(50);
+ 	qce_setup_ce_sps_data(pce_dev);
++	pr_err("PIANODBG qce_open %s\n", "disable_clk"); msleep(50);
+ 	qce_disable_clk(pce_dev);
++	pr_err("PIANODBG qce_open %s\n", "setup_recovery_req"); msleep(50);
+ 	setup_recovery_req(pce_dev);
++	pr_err("PIANODBG qce_open %s\n", "setup_dummy_req"); msleep(50);
+ 	setup_dummy_req(pce_dev);
+ 	atomic_set(&pce_dev->no_of_queued_req, 0);
+ 	pce_dev->mode = IN_INTERRUPT_MODE;
+@@ -6486,7 +6497,10 @@ void *qce_open(struct platform_device *pdev, int *rc)
+ 	pce_dev->dev_no = pcedev_no;
+ 	pcedev_no++;
+ 	pce_dev->owner = QCE_OWNER_NONE;
++	pr_err("PIANODBG qce_open %s\n", "enable_clock_gating"); msleep(50);
+ 	qce_enable_clock_gating(pce_dev);
++	pr_err("PIANODBG qce_open done v%d.%d.%d\n", pce_dev->ce_bam_info.major_version,
++	       pce_dev->ce_bam_info.minor_version, pce_dev->ce_bam_info.step_version);
+ 	mutex_unlock(&qce_iomap_mutex);
+ 	return pce_dev;
+ err:
+diff --git a/crypto-qti/qcedev.c b/crypto-qti/qcedev.c
+index 47118f8..feb4491 100644
+--- a/crypto-qti/qcedev.c
++++ b/crypto-qti/qcedev.c
+@@ -2780,6 +2780,7 @@ static int qcedev_probe_device(struct platform_device *pdev)
+ 		podev->icc_peak_bw = CRYPTO_PEAK_BW;
+ 	}
+ 
++	pr_err("PIANODBG qcedev probe %s\n", "icc_vote"); msleep(50);
+ 	rc = icc_set_bw(podev->icc_path, podev->icc_avg_bw,
+ 				podev->icc_peak_bw);
+ 	if (rc) {
+@@ -2787,6 +2788,7 @@ static int qcedev_probe_device(struct platform_device *pdev)
+ 		goto exit_unregister_bus_scale;
+ 	}
+ 
++	pr_err("PIANODBG qcedev probe %s\n", "qce_open"); msleep(50);
+ 	handle = qce_open(pdev, &rc);
+ 	if (handle == NULL) {
+ 		rc = -ENODEV;
+@@ -2834,6 +2836,7 @@ static int qcedev_probe_device(struct platform_device *pdev)
+ 		goto exit_qce_close;
+ 	}
+ 
++	pr_err("PIANODBG qcedev probe %s\n", "populate_cbs"); msleep(50);
+ 	rc = of_platform_populate(pdev->dev.of_node, qcedev_match,
+ 			NULL, &pdev->dev);
+ 	if (rc) {

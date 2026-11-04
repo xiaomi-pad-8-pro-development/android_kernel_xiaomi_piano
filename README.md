@@ -51,7 +51,7 @@ reboot on piano: `piano_memcon` (early RAM console) and `piano_blklog`,
 which writes the kernel log to the `rawdump` partition. The header is
 `PIANOLOG`, then u32 seq and u32 length, with the text at offset 4096.
 
-## State (2026-11-04)
+## State (2026-11-04, r44)
 
 - Android boots to the lock screen on the 6.12 kernel: display, GPU,
   audio (sound card and the four FS19xx speaker amps), Wi-Fi, Bluetooth,
@@ -59,6 +59,13 @@ which writes the kernel log to the `rawdump` partition. The header is
 - `qcedev-mod_dlkm` hangs the SoC at about 1.3 s when it loads. Its
   devicetree node matches stock 6.6, so the fault is in the driver. It
   and `qcrypto-msm_dlkm` are left out of modules.load for now.
+  The KP 5.0 `qce_open` adds a core IRQ, a TCSR SoC revision read and
+  a recovery request; `securemsm-kernel.patch` logs each step as
+  `PIANODBG qce_open <step>` so one boot shows where it stops.
+- `pack612.sh` no longer passes `clk_ignore_unused pd_ignore_unused`
+  (6.6 boots without them; `IGNORE_UNUSED=1` brings them back) and adds
+  the 6.6 `firmware_class.path=/odm/firmware/o8`. The CPU idled at
+  about 72 C with them; the cpuidle devicetree matches 6.6.
 - Battery and charging work through the Xiaomi mca stack;
   `qti_battery_charger` stays out, as on 6.6.
 - Camera, video and EVA work: the camera HAL lists all four cameras.
