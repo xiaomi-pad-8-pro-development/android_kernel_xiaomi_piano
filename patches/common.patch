@@ -1,3 +1,50 @@
+diff --git a/arch/arm64/include/asm/cmpxchg.h b/arch/arm64/include/asm/cmpxchg.h
+index d7a540736..7b52192b1 100644
+--- a/arch/arm64/include/asm/cmpxchg.h
++++ b/arch/arm64/include/asm/cmpxchg.h
+@@ -25,16 +25,8 @@ static inline u##sz __xchg_case_##name##sz(u##sz x, volatile void *ptr)		\
+ 	unsigned long tmp;							\
+ 										\
+ 	asm volatile(ARM64_LSE_ATOMIC_INSN(					\
+-	/* LL/SC */								\
+-	"	prfm	pstl1strm, %2\n"					\
+-	"1:	ld" #acq "xr" #sfx "\t%" #w "0, %2\n"				\
+-	"	st" #rel "xr" #sfx "\t%w1, %" #w "3, %2\n"			\
+-	"	cbnz	%w1, 1b\n"						\
+-	"	" #mb,								\
+ 	/* LSE atomics */							\
+-	"	swp" #acq_lse #rel #sfx "\t%" #w "3, %" #w "0, %2\n"		\
+-		__nops(3)							\
+-	"	" #nop_lse)							\
++	"	swp" #acq_lse #rel #sfx "\t%" #w "3, %" #w "0, %2\n")		\
+ 	: "=&r" (ret), "=&r" (tmp), "+Q" (*(u##sz *)ptr)			\
+ 	: "r" (x)								\
+ 	: cl);									\
+diff --git a/arch/arm64/include/asm/lse.h b/arch/arm64/include/asm/lse.h
+index 4e50768f5..8d5ab9f90 100644
+--- a/arch/arm64/include/asm/lse.h
++++ b/arch/arm64/include/asm/lse.h
+@@ -16,16 +16,10 @@
+ #include <asm/atomic_lse.h>
+ #include <asm/cpucaps.h>
+ 
+-#define __lse_ll_sc_body(op, ...)					\
+-({									\
+-	alternative_has_cap_likely(ARM64_HAS_LSE_ATOMICS) ?		\
+-		__lse_##op(__VA_ARGS__) :				\
+-		__ll_sc_##op(__VA_ARGS__);				\
+-})
+-
+-/* In-line patching at runtime */
+-#define ARM64_LSE_ATOMIC_INSN(llsc, lse)				\
+-	ALTERNATIVE(llsc, __LSE_PREAMBLE lse, ARM64_HAS_LSE_ATOMICS)
++/* Always use LSE atomics: piano's SoC has them. */
++#define __lse_ll_sc_body(op, ...)		__lse_##op(__VA_ARGS__)
++
++#define ARM64_LSE_ATOMIC_INSN(lse)		__LSE_PREAMBLE lse
+ 
+ #else	/* CONFIG_ARM64_LSE_ATOMICS */
+ 
 diff --git a/arch/arm64/include/asm/mte-kasan.h b/arch/arm64/include/asm/mte-kasan.h
 index 2e98028c1..e59456d63 100644
 --- a/arch/arm64/include/asm/mte-kasan.h
@@ -20,6 +67,43 @@ index 2e98028c1..e59456d63 100644
  		: "=r" (addr));
  
  	return mte_get_ptr_tag(addr);
+diff --git a/arch/arm64/include/asm/percpu.h b/arch/arm64/include/asm/percpu.h
+index 9abcc8ef3..734be4c3b 100644
+--- a/arch/arm64/include/asm/percpu.h
++++ b/arch/arm64/include/asm/percpu.h
+@@ -71,14 +71,8 @@ __percpu_##name##_case_##sz(void *ptr, unsigned long val)		\
+ 	u##sz tmp;							\
+ 									\
+ 	asm volatile (ARM64_LSE_ATOMIC_INSN(				\
+-	/* LL/SC */							\
+-	"1:	ldxr" #sfx "\t%" #w "[tmp], %[ptr]\n"			\
+-		#op_llsc "\t%" #w "[tmp], %" #w "[tmp], %" #w "[val]\n"	\
+-	"	stxr" #sfx "\t%w[loop], %" #w "[tmp], %[ptr]\n"		\
+-	"	cbnz	%w[loop], 1b",					\
+ 	/* LSE atomics */						\
+-		#op_lse "\t%" #w "[val], %[ptr]\n"			\
+-		__nops(3))						\
++		#op_lse "\t%" #w "[val], %[ptr]\n")			\
+ 	: [loop] "=&r" (loop), [tmp] "=&r" (tmp),			\
+ 	  [ptr] "+Q"(*(u##sz *)ptr)					\
+ 	: [val] "r" ((u##sz)(val)));					\
+@@ -92,15 +86,9 @@ __percpu_##name##_return_case_##sz(void *ptr, unsigned long val)	\
+ 	u##sz ret;							\
+ 									\
+ 	asm volatile (ARM64_LSE_ATOMIC_INSN(				\
+-	/* LL/SC */							\
+-	"1:	ldxr" #sfx "\t%" #w "[ret], %[ptr]\n"			\
+-		#op_llsc "\t%" #w "[ret], %" #w "[ret], %" #w "[val]\n"	\
+-	"	stxr" #sfx "\t%w[loop], %" #w "[ret], %[ptr]\n"		\
+-	"	cbnz	%w[loop], 1b",					\
+ 	/* LSE atomics */						\
+ 		#op_lse "\t%" #w "[val], %" #w "[ret], %[ptr]\n"	\
+-		#op_llsc "\t%" #w "[ret], %" #w "[ret], %" #w "[val]\n"	\
+-		__nops(2))						\
++		#op_llsc "\t%" #w "[ret], %" #w "[ret], %" #w "[val]\n")\
+ 	: [loop] "=&r" (loop), [ret] "=&r" (ret),			\
+ 	  [ptr] "+Q"(*(u##sz *)ptr)					\
+ 	: [val] "r" ((u##sz)(val)));					\
 diff --git a/arch/arm64/kernel/Makefile b/arch/arm64/kernel/Makefile
 index 2b112f3b7..5792063af 100644
 --- a/arch/arm64/kernel/Makefile
@@ -379,6 +463,103 @@ index 7fc9230e0..b7b02856e 100644
  	    !__ratelimit(&rs))
  		return;
  
+diff --git a/arch/arm64/kvm/hyp/include/nvhe/rwlock.h b/arch/arm64/kvm/hyp/include/nvhe/rwlock.h
+index 797665cba..ed4992275 100644
+--- a/arch/arm64/kvm/hyp/include/nvhe/rwlock.h
++++ b/arch/arm64/kvm/hyp/include/nvhe/rwlock.h
+@@ -40,14 +40,6 @@ static inline void hyp_write_lock(hyp_rwlock_t *lock)
+ 	u32 tmp;
+ 
+ 	asm volatile(ARM64_LSE_ATOMIC_INSN(
+-	/* LL/SC */
+-	"	sevl\n"
+-	"1:	wfe\n"
+-	"2:	ldaxr	%w0, %1\n"
+-	"	cbnz	%w0, 1b\n"
+-	"	stxr	%w0, %w2, %1\n"
+-	"	cbnz	%w0, 2b\n"
+-	__nops(1),
+ 	/* LSE atomics */
+ 	"1:	mov	%w0, wzr\n"
+ 	"2:	casa	%w0, %w2, %1\n"
+@@ -65,7 +57,6 @@ static inline void hyp_write_lock(hyp_rwlock_t *lock)
+ static inline void hyp_write_unlock(hyp_rwlock_t *lock)
+ {
+ 	asm volatile(ARM64_LSE_ATOMIC_INSN(
+-	"	stlr	wzr, %0",
+ 	"	swpl	wzr, wzr, %0")
+ 	: "=Q" (lock->__val) :: "memory");
+ }
+@@ -77,14 +68,6 @@ static inline void hyp_read_lock(hyp_rwlock_t *lock)
+ 	asm volatile(
+ 	"	sevl\n"
+ 	ARM64_LSE_ATOMIC_INSN(
+-	/* LL/SC */
+-	"1:	wfe\n"
+-	"2:	ldaxr	%w0, %2\n"
+-	"	add	%w0, %w0, #1\n"
+-	"	tbnz	%w0, %3, 1b\n"
+-	"	stxr	%w1, %w0, %2\n"
+-	"	cbnz	%w1, 2b\n"
+-	__nops(1),
+ 	/* LSE atomics */
+ 	"1:	wfe\n"
+ 	"2:	ldxr	%w0, %2\n"
+@@ -103,15 +86,9 @@ static inline void hyp_read_unlock(hyp_rwlock_t *lock)
+ 	u32 tmp, tmp2;
+ 
+ 	asm volatile(ARM64_LSE_ATOMIC_INSN(
+-	/* LL/SC */
+-	"1:	ldxr	%w0, %2\n"
+-	"	sub	%w0, %w0, #1\n"
+-	"	stlxr	%w1, %w0, %2\n"
+-	"	cbnz	%w1, 1b",
+ 	/* LSE atomics */
+ 	"	movn	%w0, #0\n"
+-	"	staddl	%w0, %2\n"
+-	__nops(2))
++	"	staddl	%w0, %2\n")
+ 	: "=&r" (tmp), "=&r" (tmp2), "+Q" (lock->__val)
+ 	:
+ 	: "memory");
+diff --git a/arch/arm64/kvm/hyp/include/nvhe/spinlock.h b/arch/arm64/kvm/hyp/include/nvhe/spinlock.h
+index a3003dc9a..f7f66d823 100644
+--- a/arch/arm64/kvm/hyp/include/nvhe/spinlock.h
++++ b/arch/arm64/kvm/hyp/include/nvhe/spinlock.h
+@@ -49,16 +49,9 @@ static inline void hyp_spin_lock(hyp_spinlock_t *lock)
+ 	asm volatile(
+ 	/* Atomically increment the next ticket. */
+ 	ARM64_LSE_ATOMIC_INSN(
+-	/* LL/SC */
+-"	prfm	pstl1strm, %3\n"
+-"1:	ldaxr	%w0, %3\n"
+-"	add	%w1, %w0, #(1 << 16)\n"
+-"	stxr	%w2, %w1, %3\n"
+-"	cbnz	%w2, 1b\n",
+ 	/* LSE atomics */
+ "	mov	%w2, #(1 << 16)\n"
+-"	ldadda	%w2, %w0, %3\n"
+-	__nops(3))
++"	ldadda	%w2, %w0, %3\n")
+ 
+ 	/* Did we get the lock? */
+ "	eor	%w1, %w0, %w0, ror #16\n"
+@@ -85,14 +78,9 @@ static inline void hyp_spin_unlock(hyp_spinlock_t *lock)
+ 
+ 	asm volatile(
+ 	ARM64_LSE_ATOMIC_INSN(
+-	/* LL/SC */
+-	"	ldrh	%w1, %0\n"
+-	"	add	%w1, %w1, #1\n"
+-	"	stlrh	%w1, %0",
+ 	/* LSE atomics */
+ 	"	mov	%w1, #1\n"
+-	"	staddlh	%w1, %0\n"
+-	__nops(1))
++	"	staddlh	%w1, %0\n")
+ 	: "=Q" (lock->owner), "=&r" (tmp)
+ 	:
+ 	: "memory");
 diff --git a/init/main.c b/init/main.c
 index 1b4c90e0a..62439e511 100644
 --- a/init/main.c
