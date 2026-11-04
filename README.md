@@ -161,6 +161,8 @@ which writes the kernel log to the `rawdump` partition. The header is
     - millet_sig: android_vh_do_send_sig_info; reports SIGQUIT, SIGABRT,
       SIGKILL and SIGTERM sent to a frozen or freezing task (once per
       process in a row) so the daemon can thaw it.
+    - millet_oem_cgroup: a can_attach check on the v1 freezer cgroup;
+      only euid 1000 or CAP_SYS_ADMIN may move other tasks into it.
   - `snd_soc_hdmi_codec`: 6.6 loads it, but its only users are HDMI
     bridge chips piano lacks (adv7511, lt9611, anx7625, ...); DP audio
     goes through `msm_ext_display` and audio-kernel `msm_hdmi_codec_rx`.
