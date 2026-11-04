@@ -133,6 +133,15 @@ which writes the kernel log to the `rawdump` partition. The header is
       dispatch tables (43 and 12 entries, ioctl type 'x');
       register_perf_actuator/register_xr_fbt and the unregister calls
       are exported GPL as in the stock module.
+    - plat_common: the "OS-CPU Platform Hook" callback table (41 slots)
+      and its 36 exported plat_* wrappers, the cpu cgroup id lookup,
+      the RT relaxed check and the fork timer-slack hook. Field offsets
+      were named from the stock 6.6 kernel BTF in boot.img. Prototypes
+      come from the kCFI hashes; 34 of 36 match the stock binary.
+      plat_mi_set_next_freq and plat_game_choose_cpu_fastpath are not
+      recovered (argument count only). The stock sched-walt.ko calls
+      these wrappers; the KP 5.0 WALT does not, so on 6.12 only module
+      callers reach them.
   - `snd_soc_hdmi_codec`: 6.6 loads it, but its only users are HDMI
     bridge chips piano lacks (adv7511, lt9611, anx7625, ...); DP audio
     goes through `msm_ext_display` and audio-kernel `msm_hdmi_codec_rx`.
