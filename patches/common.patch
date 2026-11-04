@@ -1,3 +1,15 @@
+diff --git a/arch/arm64/configs/gki_defconfig b/arch/arm64/configs/gki_defconfig
+index ee8096829..2455bab79 100644
+--- a/arch/arm64/configs/gki_defconfig
++++ b/arch/arm64/configs/gki_defconfig
+@@ -349,6 +349,7 @@ CONFIG_ZRAM=m
+ CONFIG_ZRAM_BACKEND_LZ4=y
+ CONFIG_ZRAM_BACKEND_ZSTD=y
+ CONFIG_ZRAM_BACKEND_LZO=y
++CONFIG_ZRAM_DEF_COMP_LZ4=y
+ CONFIG_ZRAM_WRITEBACK=y
+ CONFIG_ZRAM_MULTI_COMP=y
+ CONFIG_ZRAM_ANDROID_IOCTL=y
 diff --git a/arch/arm64/include/asm/cmpxchg.h b/arch/arm64/include/asm/cmpxchg.h
 index d7a540736..7b52192b1 100644
 --- a/arch/arm64/include/asm/cmpxchg.h
