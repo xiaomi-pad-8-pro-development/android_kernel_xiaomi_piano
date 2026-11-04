@@ -126,6 +126,10 @@ which writes the kernel log to the `rawdump` partition. The header is
       picks up by itself;
     - millet_binder/hs/oem_cgroup/pkg, perf_actuator, rtg and
       plat_common import nothing missing on 6.12.
+    The perf modules build with no soc-repo include path, so
+    vendor/xiaomi/perf/include carries copies of the soc-repo headers
+    they use (minidump.h, panel_event_notifier.h, sched/walt.h); keep
+    them in step with soc-repo.patch.
     Rewrites, rebuilt from disassembly of the stock .ko (static only,
     untested on a device), in `vendor/xiaomi/perf`:
     - perf_actuator: /dev/xr_perf_actuator and /dev/xr_fbt ioctl
@@ -144,9 +148,12 @@ which writes the kernel log to the `rawdump` partition. The header is
     - rtg: the five perf_actuator ioctls ('x' 0x02, 0x03, 0x04, 0x07,
       0x25) that move tasks into WALT related thread groups and set a
       group's preferred CPUs and util, and the exported os_cpu_* helpers.
-      soc-repo.patch appends mi_prefer_cpus and mi_prefer_util to
-      struct walt_related_thread_group (the stock module wrote them
-      right after start_ktime_ts). The stock sched-walt.ko used the
+      It needs mi_prefer_cpus and mi_prefer_util appended to struct
+      walt_related_thread_group (the stock module wrote them right after
+      start_ktime_ts). That change is in its own commit, "Give WALT
+      related thread groups the rtg fields", which also turns the rtg
+      build on; revert it to test without the layout change sched-walt
+      depends on. The stock sched-walt.ko used the
       os_cpu_* helpers in task placement; the KP 5.0 WALT does not, so
       the values are stored but have no effect until WALT is patched.
     - millet_core: the NETLINK_MILLET (31) link between the HyperOS

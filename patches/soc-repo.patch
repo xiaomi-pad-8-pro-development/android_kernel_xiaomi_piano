@@ -398,6 +398,24 @@ index 38a4a65..e19a6ce 100644
      register_misc(registry)
      register_mmc_host(registry)
      register_net(registry)
+diff --git a/include/linux/sched/walt.h b/include/linux/sched/walt.h
+index 6f37dc7..d9b19b6 100644
+--- a/include/linux/sched/walt.h
++++ b/include/linux/sched/walt.h
+@@ -68,6 +68,13 @@ struct walt_related_thread_group {
+ 	u64			last_update;
+ 	u64			downmigrate_ts;
+ 	u64			start_ktime_ts;
++	/*
++	 * Xiaomi rtg: preferred CPUs (one mask word) and preferred util of
++	 * the group. The stock 6.6 rtg.ko writes them at offsets 0x58 and
++	 * 0x60, right after start_ktime_ts.
++	 */
++	u64			mi_prefer_cpus;
++	unsigned long		mi_prefer_util;
+ };
+ 
+ struct walt_task_struct {
 diff --git a/include/linux/soc/qcom/panel_event_notifier.h b/include/linux/soc/qcom/panel_event_notifier.h
 index ad4ecf9..31d58ab 100644
 --- a/include/linux/soc/qcom/panel_event_notifier.h
