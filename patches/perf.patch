@@ -1,9 +1,9 @@
 diff --git a/BUILD.bazel b/BUILD.bazel
 new file mode 100644
-index 0000000..0edb674
+index 0000000..dc72da6
 --- /dev/null
 +++ b/BUILD.bazel
-@@ -0,0 +1,28 @@
+@@ -0,0 +1,29 @@
 +# Xiaomi kernel helpers for the Pad 8 Pro (piano) that ship as source in
 +# the 6.6 tree, built out of tree against the Qualcomm 6.12 kernel.
 +load("//build/kernel/kleaf:kernel.bzl", "kernel_module")
@@ -22,6 +22,7 @@ index 0000000..0edb674
 +        "mi_trace/mi_trace.ko",
 +        "mi_ubt/mi_ubt.ko",
 +        "mi_thermal/mi_thermal_interface.ko",
++        "perf_actuator/perf_actuator.ko",
 +        "printk_enhance/printk_enhance.ko",
 +    ],
 +    kernel_build = "//soc-repo:sun_perf_base_kernel",
@@ -34,10 +35,10 @@ index 0000000..0edb674
 +)
 diff --git a/Kbuild b/Kbuild
 new file mode 100644
-index 0000000..30270f1
+index 0000000..1beb35a
 --- /dev/null
 +++ b/Kbuild
-@@ -0,0 +1,20 @@
+@@ -0,0 +1,21 @@
 +# Xiaomi kernel helpers for piano, from the 6.6 tree (seventeen). The
 +# mca headers in include/ are copies; mi_thermal_interface calls into mca.
 +PERF_ROOT := $(if $(filter /%,$(KBUILD_EXTMOD)),$(KBUILD_EXTMOD),$(abspath $(srctree)/$(KBUILD_EXTMOD)))
@@ -51,13 +52,14 @@ index 0000000..30270f1
 +export CONFIG_PRINTK_ENHANCE := m
 +export CONFIG_MI_THERMAL_INTERFACE := m
 +export CONFIG_LZ4ASM := m
++export CONFIG_PERF_ACTUATOR := m
 +subdir-ccflags-y += -I$(PERF_ROOT)/include
 +# minidump and the panel event notifier are soc-repo modules the base
 +# kernel config does not know, so without these their headers compile to
 +# stubs.
 +subdir-ccflags-y += -DCONFIG_QCOM_MINIDUMP_MODULE=1 -DCONFIG_QCOM_PANEL_EVENT_NOTIFIER_MODULE=1
 +
-+obj-m += boottime/ kshrink_slabd/ mi_rmap_efficiency/ mi_stack/ mi_trace/ mi_ubt/ printk_enhance/ mi_thermal/ lz4asm/
++obj-m += boottime/ kshrink_slabd/ mi_rmap_efficiency/ mi_stack/ mi_trace/ mi_ubt/ printk_enhance/ mi_thermal/ lz4asm/ perf_actuator/
 diff --git a/Makefile b/Makefile
 new file mode 100644
 index 0000000..d294d06
@@ -164,6 +166,38 @@ index 0000000..31d58ab
 +{
 +}
 +#endif
++#endif
+diff --git a/include/perf_actuator/perf_actuator.h b/include/perf_actuator/perf_actuator.h
+new file mode 100644
+index 0000000..9c20751
+--- /dev/null
++++ b/include/perf_actuator/perf_actuator.h
+@@ -0,0 +1,26 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++/*
++ * Interface of perf_actuator, rebuilt for 6.12 from the stock HyperOS
++ * OS4.0.5 module (vendor_boot perf_actuator.ko). The names and limits come
++ * from that binary's symbols and code; the header itself is new.
++ */
++#ifndef _PERF_ACTUATOR_H
++#define _PERF_ACTUATOR_H
++
++#include <linux/types.h>
++
++/* ioctl type byte checked by both devices (cmp w1, #0x78). */
++#define PERF_ACTUATOR_MAGIC	'x'
++/* Table sizes: register_perf_actuator rejects nr > 0x2a, register_xr_fbt nr > 0xb. */
++#define PERF_ACTUATOR_MAX_CMD	43
++#define XR_FBT_MAX_CMD		12
++
++/* Handlers get the raw user pointer from the ioctl. */
++typedef int (*perf_actuator_func)(void __user *uarg);
++
++int register_perf_actuator(unsigned int cmd, perf_actuator_func func);
++int unregister_perf_actuator(unsigned int cmd);
++int register_xr_fbt(unsigned int cmd, perf_actuator_func func);
++int unregister_xr_fbt(unsigned int cmd);
++
 +#endif
 diff --git a/include/soc/qcom/minidump.h b/include/soc/qcom/minidump.h
 new file mode 100644
@@ -518,3 +552,224 @@ index 85b4075..61c0f57 100644
  # SPDX-License-Identifier: GPL-2.0
  obj-$(CONFIG_MI_UBT)             += mi_ubt.o
 -obj-y				+= test/
+diff --git a/perf_actuator/Makefile b/perf_actuator/Makefile
+new file mode 100644
+index 0000000..1b3a4b9
+--- /dev/null
++++ b/perf_actuator/Makefile
+@@ -0,0 +1 @@
++obj-$(CONFIG_PERF_ACTUATOR) += perf_actuator.o
+diff --git a/perf_actuator/perf_actuator.c b/perf_actuator/perf_actuator.c
+new file mode 100644
+index 0000000..cef7d71
+--- /dev/null
++++ b/perf_actuator/perf_actuator.c
+@@ -0,0 +1,208 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * perf_actuator: ioctl dispatch devices for Xiaomi performance helpers.
++ *
++ * Rebuilt for 6.12 from static analysis (disassembly) of the stock HyperOS
++ * OS4.0.5 module vendor_boot/lib/modules/perf_actuator.ko. The behaviour
++ * matches that binary function by function; it has not been run on a
++ * device yet.
++ *
++ * Two misc devices, /dev/xr_perf_actuator and /dev/xr_fbt. Other modules
++ * register a handler per ioctl number; an ioctl with type 'x' and a
++ * registered number is passed to the handler with the user pointer.
++ */
++#include <linux/fs.h>
++#include <linux/miscdevice.h>
++#include <linux/module.h>
++#include <linux/rwsem.h>
++#include <perf_actuator/perf_actuator.h>
++
++#define PA_TAG "perf_actuator: "
++#define FBT_TAG "xr_fbt: "
++
++struct actuator_entry {
++	unsigned int cmd;
++	perf_actuator_func func;
++};
++
++static DECLARE_RWSEM(g_table_rwsem);
++static struct actuator_entry g_perf_actuator_table[PERF_ACTUATOR_MAX_CMD];
++static DECLARE_RWSEM(g_fbt_table_rwsem);
++static struct actuator_entry g_xr_fbt_table[XR_FBT_MAX_CMD];
++
++static int table_register(struct rw_semaphore *sem, struct actuator_entry *tbl,
++			  unsigned int max, unsigned int cmd,
++			  perf_actuator_func func, const char *tag)
++{
++	unsigned int nr = _IOC_NR(cmd);
++
++	if (nr >= max || !func) {
++		if (tbl == g_perf_actuator_table)
++			pr_err("%sinvalid cmd:%d or func:%p\n", tag, cmd, func);
++		return -EINVAL;
++	}
++
++	down_write(sem);
++	/* The stock module logs a conflict and overwrites the old entry. */
++	if (tbl[nr].func)
++		pr_err("%sregister %u conflict\n", tag, cmd);
++	tbl[nr].cmd = cmd;
++	tbl[nr].func = func;
++	up_write(sem);
++	return 0;
++}
++
++static int table_unregister(struct rw_semaphore *sem, struct actuator_entry *tbl,
++			    unsigned int max, unsigned int cmd, const char *tag)
++{
++	unsigned int nr = _IOC_NR(cmd);
++
++	if (nr >= max)
++		return -EINVAL;
++
++	down_write(sem);
++	/* Logged but still cleared, as in the stock module. */
++	if (!tbl[nr].func || tbl[nr].cmd != cmd)
++		pr_err("%sunregister %u conflict\n", tag, cmd);
++	tbl[nr].cmd = 0;
++	tbl[nr].func = NULL;
++	up_write(sem);
++	return 0;
++}
++
++static long table_dispatch(struct rw_semaphore *sem, struct actuator_entry *tbl,
++			   unsigned int max, unsigned int cmd, unsigned long arg,
++			   const char *tag)
++{
++	unsigned int nr = _IOC_NR(cmd);
++	void __user *uarg = (void __user *)arg;
++	long ret;
++
++	if (!uarg) {
++		pr_err("%sinvalid user uarg\n", tag);
++		return -EINVAL;
++	}
++	if (_IOC_TYPE(cmd) != PERF_ACTUATOR_MAGIC) {
++		pr_err("%sinvalid magic %u\n", tag, _IOC_TYPE(cmd));
++		return -EINVAL;
++	}
++	if (nr >= max) {
++		pr_err("%sinvalid cmd, %u > %d\n", tag, nr, max);
++		return -ERANGE;
++	}
++
++	down_read(sem);
++	if (tbl[nr].func && tbl[nr].cmd == cmd) {
++		ret = tbl[nr].func(uarg);
++	} else {
++		if (tbl == g_perf_actuator_table)
++			pr_err("%sidx %d, cmd %d not match or not registered!\n",
++			       tag, nr, cmd);
++		else
++			pr_err("%scmd not match or not registered!\n", tag);
++		ret = -ENOENT;
++	}
++	up_read(sem);
++	return ret;
++}
++
++int register_perf_actuator(unsigned int cmd, perf_actuator_func func)
++{
++	return table_register(&g_table_rwsem, g_perf_actuator_table,
++			      PERF_ACTUATOR_MAX_CMD, cmd, func, PA_TAG);
++}
++EXPORT_SYMBOL_GPL(register_perf_actuator);
++
++int unregister_perf_actuator(unsigned int cmd)
++{
++	return table_unregister(&g_table_rwsem, g_perf_actuator_table,
++				PERF_ACTUATOR_MAX_CMD, cmd, PA_TAG);
++}
++EXPORT_SYMBOL_GPL(unregister_perf_actuator);
++
++int register_xr_fbt(unsigned int cmd, perf_actuator_func func)
++{
++	return table_register(&g_fbt_table_rwsem, g_xr_fbt_table,
++			      XR_FBT_MAX_CMD, cmd, func, FBT_TAG);
++}
++EXPORT_SYMBOL_GPL(register_xr_fbt);
++
++int unregister_xr_fbt(unsigned int cmd)
++{
++	return table_unregister(&g_fbt_table_rwsem, g_xr_fbt_table,
++				XR_FBT_MAX_CMD, cmd, FBT_TAG);
++}
++EXPORT_SYMBOL_GPL(unregister_xr_fbt);
++
++static long perf_actuator_ioctl(struct file *file, unsigned int cmd,
++				unsigned long arg)
++{
++	pr_info(PA_TAG "perf_actuator_ioctl idx %d\n", _IOC_NR(cmd));
++	return table_dispatch(&g_table_rwsem, g_perf_actuator_table,
++			      PERF_ACTUATOR_MAX_CMD, cmd, arg, PA_TAG);
++}
++
++static long xr_fbt_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
++{
++	return table_dispatch(&g_fbt_table_rwsem, g_xr_fbt_table,
++			      XR_FBT_MAX_CMD, cmd, arg, FBT_TAG);
++}
++
++static int actuator_open(struct inode *inode, struct file *file)
++{
++	return 0;
++}
++
++static int actuator_release(struct inode *inode, struct file *file)
++{
++	return 0;
++}
++
++static const struct file_operations perf_actuator_fops = {
++	.owner = THIS_MODULE,
++	.unlocked_ioctl = perf_actuator_ioctl,
++	.open = actuator_open,
++	.release = actuator_release,
++};
++
++static const struct file_operations xr_fbt_fops = {
++	.owner = THIS_MODULE,
++	.unlocked_ioctl = xr_fbt_ioctl,
++	.open = actuator_open,
++	.release = actuator_release,
++};
++
++static struct miscdevice perf_actuator_device = {
++	.minor = MISC_DYNAMIC_MINOR,
++	.name = "xr_perf_actuator",
++	.fops = &perf_actuator_fops,
++};
++
++static struct miscdevice xr_fbt_device = {
++	.minor = MISC_DYNAMIC_MINOR,
++	.name = "xr_fbt",
++	.fops = &xr_fbt_fops,
++};
++
++static int __init perf_actuator_init(void)
++{
++	int ret = misc_register(&perf_actuator_device);
++
++	if (ret) {
++		pr_info(PA_TAG "init failed!\n");
++		return ret;
++	}
++	pr_info(PA_TAG "init success!\n");
++	/* As in the stock init, an xr_fbt failure leaves the first device registered. */
++	return misc_register(&xr_fbt_device);
++}
++
++static void __exit perf_actuator_exit(void)
++{
++	misc_deregister(&perf_actuator_device);
++	misc_deregister(&xr_fbt_device);
++}
++
++module_init(perf_actuator_init);
++module_exit(perf_actuator_exit);
++MODULE_LICENSE("GPL");
