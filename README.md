@@ -94,3 +94,21 @@ which writes the kernel log to the `rawdump` partition. The header is
   `qcom_cpuss_sleep_stats_v4` are enabled for sun as on canoe; the first
   two need the 6.6 devicetree nodes that `piano-sun-additions.dtsi` now
   carries. Untested.
+- Not ported, with the reason:
+  - `c1dcvs_scmi_v2`, `dynpf_scmi`, `cpufreq_stats_scmi_v2/v3`,
+    `qfprom_sys`, `phy_msm_snps_eusb2`, `leds_qcom_flash`: no sun or piano
+    devicetree node on 6.6 either, so they loaded and never probed.
+  - `spcom`, `spss_utils`: in `spu-kernel`, which supports sun at
+    LA.VENDOR.16.2.6.r1-10900-kaanapali.0 (13be6e68a838); the 6.12
+    sun.dtsi has their nodes. Check it out in `vendor/qcom/opensource`.
+  - Xiaomi modules with no source in the 6.6 tree (millet, mi_game,
+    mi_power, mist, perf_helper, perf_actuator, rtg, vip_sched,
+    sched_penalty, xm_power, ...): 6.6 prebuilts, cannot be rebuilt.
+  - `mi_async_reclaim` (5 folio trylock hooks) and `lz4asm`
+    (`lz4_decompress_bypass`): their vendor hooks are not in the 6.12 GKI.
+  - `cpq`: the block elevator API changed; needs a real port.
+  - `ntsync`: `depends on BROKEN` in this 6.12; 6.6 carries a backport.
+  - CIFS: needs `fs/smb` plus netfs and dns_resolver as GKI modules.
+  - bpf small-buffer change (seventeen 0c6cc1d9bcab): 12 of 14 hunks
+    miss on 6.12's syscall.c.
+- Recovery on boot_a still needs the 6.6 boot images (`round612.sh`).
