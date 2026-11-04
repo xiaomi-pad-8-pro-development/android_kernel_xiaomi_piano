@@ -53,11 +53,15 @@ $HOST/mkbootimg --header_version 4 --pagesize 0x1000 --base 0 --kernel_offset 0x
   --ramdisk_type 1 --ramdisk_name "" --vendor_ramdisk_fragment $W/out/ramdisk00 \
   --ramdisk_type 3 --ramdisk_name dlkm --vendor_ramdisk_fragment $W/out/dlkm.lz4 \
   --vendor_boot $W/out/vendor_boot.img
+# Bring-up only: IGNORE_UNUSED=1 keeps every clock and power domain the
+# bootloader left on. 6.6 boots without these; with them CX and the CPU
+# subsystem cannot collapse, so the SoC never reaches its deep idle states.
+UNUSED=; [ "${IGNORE_UNUSED:-0}" = 1 ] && UNUSED=" clk_ignore_unused pd_ignore_unused"
 # The kernel from the last bazel build, not dist: dlkm612.sh signs the
 # system_dlkm modules with that build's key, and dist only changes on a
 # full build_with_bazel.py run.
 $HOST/mkbootimg --header_version 4 --kernel $KP/bazel-bin/common/kernel_aarch64/Image --os_version 17.0.0 --os_patch_level 2026-10 \
-  --cmdline "piano_reset_at=${RESET_AT:-0} msm_drm.pianodbg_reset=${PIANODBG:-0} printk.devkmsg=on piano_oneshot=612-qcom panic=${PANIC:-3} softlockup_panic=1 hung_task_panic=1 hung_task_timeout_secs=10 qcom_dload_mode.download_mode=0 ignore_loglevel clk_ignore_unused pd_ignore_unused" \
+  --cmdline "piano_reset_at=${RESET_AT:-0} msm_drm.pianodbg_reset=${PIANODBG:-0} printk.devkmsg=on piano_oneshot=612-qcom panic=${PANIC:-3} softlockup_panic=1 hung_task_panic=1 hung_task_timeout_secs=10 qcom_dload_mode.download_mode=0 ignore_loglevel$UNUSED" \
   -o $W/out/boot.img
 cp $DT/dtbo.img $W/out/dtbo.img
 ls -la $W/out/*.img
