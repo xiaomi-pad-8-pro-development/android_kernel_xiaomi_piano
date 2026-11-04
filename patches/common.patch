@@ -588,6 +588,23 @@ index a3003dc9a..f7f66d823 100644
  	: "=Q" (lock->owner), "=&r" (tmp)
  	:
  	: "memory");
+diff --git a/drivers/android/vendor_hooks.c b/drivers/android/vendor_hooks.c
+index dadbe147b..a366de856 100644
+--- a/drivers/android/vendor_hooks.c
++++ b/drivers/android/vendor_hooks.c
+@@ -58,6 +58,7 @@
+ #include <trace/hooks/rwsem.h>
+ #include <trace/hooks/psi.h>
+ #include <trace/hooks/bl_hib.h>
++#include <trace/hooks/lz4_decompress.h>
+ #include <trace/hooks/futex.h>
+ #include <trace/hooks/bug.h>
+ #include <trace/hooks/logbuf.h>
+@@ -775,3 +776,4 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_override_exec_folio_order);
+ EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_do_swap_page_relax);
+ EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_do_swap_page_start);
+ EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_do_swap_page_done);
++EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_lz4_decompress_bypass);
 diff --git a/drivers/misc/Kconfig b/drivers/misc/Kconfig
 index 5018db96c..b77218c5c 100644
 --- a/drivers/misc/Kconfig
@@ -1742,6 +1759,47 @@ index 4954553b7..999026a1a 100644
  };
  
  module_misc_device(ntsync_misc);
+diff --git a/fs/erofs/decompressor.c b/fs/erofs/decompressor.c
+index dc61a6a8f..8f7aa652f 100644
+--- a/fs/erofs/decompressor.c
++++ b/fs/erofs/decompressor.c
+@@ -6,6 +6,7 @@
+  */
+ #include "compress.h"
+ #include <linux/lz4.h>
++#include <trace/hooks/lz4_decompress.h>
+ 
+ #ifndef LZ4_DISTANCE_MAX	/* history window size */
+ #define LZ4_DISTANCE_MAX 65535	/* set to maximum value by default */
+@@ -212,6 +213,7 @@ static int z_erofs_lz4_decompress_mem(struct z_erofs_lz4_decompress_ctx *ctx,
+ 	unsigned int inputmargin;
+ 	u8 *out, *headpage, *src;
+ 	int ret, maptype;
++	bool lz4_decompression_bypass = false;
+ 
+ 	DBG_BUGON(*rq->in == NULL);
+ 	headpage = kmap_local_page(*rq->in);
+@@ -237,6 +239,12 @@ static int z_erofs_lz4_decompress_mem(struct z_erofs_lz4_decompress_ctx *ctx,
+ 		return PTR_ERR(src);
+ 
+ 	out = dst + rq->pageofs_out;
++	trace_android_vh_lz4_decompress_bypass(src + inputmargin, out,
++		rq->inputsize, rq->outputsize, rq->inplace_io, &ret,
++		&lz4_decompression_bypass);
++	if (lz4_decompression_bypass)
++		goto bypass_decompression;
++
+ 	/* legacy format could compress extra data in a pcluster. */
+ 	if (rq->partial_decoding || !support_0padding)
+ 		ret = LZ4_decompress_safe_partial(src + inputmargin, out,
+@@ -245,6 +253,7 @@ static int z_erofs_lz4_decompress_mem(struct z_erofs_lz4_decompress_ctx *ctx,
+ 		ret = LZ4_decompress_safe(src + inputmargin, out,
+ 					  rq->inputsize, rq->outputsize);
+ 
++bypass_decompression:
+ 	if (ret != rq->outputsize) {
+ 		erofs_err(rq->sb, "failed to decompress %d in[%u, %u] out[%u]",
+ 			  ret, rq->inputsize, inputmargin, rq->outputsize);
 diff --git a/fs/kernfs/file.c b/fs/kernfs/file.c
 index c81cffa72..c282ba0f3 100644
 --- a/fs/kernfs/file.c
@@ -1788,6 +1846,43 @@ index c81cffa72..c282ba0f3 100644
  		kfree(buf);
  	return len;
  }
+diff --git a/gki/aarch64/symbols/xiaomi b/gki/aarch64/symbols/xiaomi
+index c12e700..6109747 100644
+--- a/gki/aarch64/symbols/xiaomi
++++ b/gki/aarch64/symbols/xiaomi
+@@ -663,3 +663,5 @@ __tracepoint_android_vh_folio_end_writeback
+ __traceiter_android_vh_folio_end_writeback
+ __tracepoint_android_vh_folio_start_writeback
+ __traceiter_android_vh_folio_start_writeback
++__traceiter_android_vh_lz4_decompress_bypass
++__tracepoint_android_vh_lz4_decompress_bypass
+diff --git a/include/trace/hooks/lz4_decompress.h b/include/trace/hooks/lz4_decompress.h
+new file mode 100644
+index 000000000..441bc8285
+--- /dev/null
++++ b/include/trace/hooks/lz4_decompress.h
+@@ -0,0 +1,21 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#undef TRACE_SYSTEM
++#define TRACE_SYSTEM lz4_decompress
++
++#define TRACE_INCLUDE_PATH trace/hooks
++
++#if !defined(_TRACE_HOOK_LZ4_DECOMPRESS_H) || defined(TRACE_HEADER_MULTI_READ)
++#define _TRACE_HOOK_LZ4_DECOMPRESS_H
++
++#include <trace/hooks/vendor_hooks.h>
++
++DECLARE_HOOK(android_vh_lz4_decompress_bypass,
++	TP_PROTO(const char *in, char *out,
++			unsigned int inlen, unsigned int outlen,
++			bool dip, int* ret, bool* bypass),
++	TP_ARGS(in, out, inlen, outlen, dip, ret, bypass));
++
++
++#endif /* _TRACE_HOOK_LZ4_DECOMPRESS_H */
++/* This part must be outside protection */
++#include <trace/define_trace.h>
 diff --git a/include/uapi/linux/ntsync.h b/include/uapi/linux/ntsync.h
 index dcfa38fdc..6d0679351 100644
 --- a/include/uapi/linux/ntsync.h
