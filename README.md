@@ -150,6 +150,13 @@ which writes the kernel log to the `rawdump` partition. The header is
       right after start_ktime_ts). The stock sched-walt.ko used the
       os_cpu_* helpers in task placement; the KP 5.0 WALT does not, so
       the values are stored but have no effect until WALT is patched.
+    - millet_core: the NETLINK_MILLET (31) link between the HyperOS
+      millet daemon and the millet modules: per-type handshake, routing
+      and counters, the core_uid/uid_rec hash tables, the black-list
+      counters and /proc/millet/{millet_stat,version}. Message layouts
+      (kernel to user 0x90 bytes, user to kernel 0x50 bytes) and the
+      module table follow the stock offsets; the three hook prototypes
+      match the stock kCFI hashes. Only uids up to 1000 may send.
   - `snd_soc_hdmi_codec`: 6.6 loads it, but its only users are HDMI
     bridge chips piano lacks (adv7511, lt9611, anx7625, ...); DP audio
     goes through `msm_ext_display` and audio-kernel `msm_hdmi_codec_rx`.

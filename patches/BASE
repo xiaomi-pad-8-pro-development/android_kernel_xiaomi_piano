@@ -14,5 +14,5 @@ eva-kernel 049b1543d1ea 13 files
 video-driver 3a4122e9707d 13 files
 input 049b1543d1ea 14 files
 soc-repo d08fc44 5 files
-perf 049b1543d1ea 18 files
+perf 049b1543d1ea 21 files
 ksu 8fc057fab 33 files (after common.patch)
