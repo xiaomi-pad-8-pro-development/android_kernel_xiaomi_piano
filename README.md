@@ -106,6 +106,9 @@ which writes the kernel log to the `rawdump` partition. The header is
   - Xiaomi modules with no source in the 6.6 tree (millet, mi_game,
     mi_power, mist, perf_helper, perf_actuator, rtg, vip_sched,
     sched_penalty, xm_power, ...): 6.6 prebuilts, cannot be rebuilt.
+  - `snd_soc_hdmi_codec`: 6.6 loads it, but its only users are HDMI
+    bridge chips piano lacks (adv7511, lt9611, anx7625, ...); DP audio
+    goes through `msm_ext_display` and audio-kernel `msm_hdmi_codec_rx`.
   - `mi_async_reclaim` and `mem_reclaim_ctl`: not piano modules; on 6.6
     only bixi's module list carries mi_async_reclaim.
   - CIFS: builds, but does not fit in system_dlkm (7.84 MB against
