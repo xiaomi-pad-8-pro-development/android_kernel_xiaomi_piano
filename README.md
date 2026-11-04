@@ -34,7 +34,8 @@ source, so piano's own drivers are ported from 6.6.
   fingerprint drivers out of tree.
   `perf.patch` is against the same commit: copy `drivers/xiaomi/`
   `{boottime,kshrink_slabd,mi_stack,mi_trace,mi_ubt,printk_enhance}`,
-  `drivers/staging/mi_rmap_efficiency`, `drivers/thermal/xiaomi` (as
+  `drivers/staging/mi_rmap_efficiency`, `drivers/xiaomi/lz4asm`,
+  `drivers/thermal/xiaomi` (as
   `mi_thermal/`), `include/mi_ubt` and the mca headers
   `mca/common/mca_event.h` and `mca/smartchg/smart_chg_class.h` (under
   `include/`) to `vendor/xiaomi/perf`, drop the Kconfig files and
@@ -105,10 +106,9 @@ which writes the kernel log to the `rawdump` partition. The header is
   - Xiaomi modules with no source in the 6.6 tree (millet, mi_game,
     mi_power, mist, perf_helper, perf_actuator, rtg, vip_sched,
     sched_penalty, xm_power, ...): 6.6 prebuilts, cannot be rebuilt.
-  - `mi_async_reclaim` (5 folio trylock hooks) and `lz4asm`
-    (`lz4_decompress_bypass`): their vendor hooks are not in the 6.12 GKI.
+  - `mi_async_reclaim`: its 5 folio trylock hooks sit at 9 places in
+    the vmscan reclaim path, not in the 6.12 GKI; not added blind.
   - `cpq`: the block elevator API changed; needs a real port.
-  - `ntsync`: `depends on BROKEN` in this 6.12; 6.6 carries a backport.
   - CIFS: needs `fs/smb` plus netfs and dns_resolver as GKI modules.
   - bpf small-buffer change (seventeen 0c6cc1d9bcab): 12 of 14 hunks
     miss on 6.12's syscall.c.
