@@ -40,6 +40,19 @@ rm -f $M/qti_battery_charger.ko
 # video.ko is the alternative video driver for the same nodes; 6.6 loads
 # msm_video only.
 rm -f $M/video.ko
+# Debug only or not piano hardware: the coresight/STM tracing modules and
+# the WCD937x and simple-amp codecs (piano uses WCD9378 and the FS19xx
+# amps). coresight.ko itself stays: msm_kgsl depends on it. Stop if a kept
+# module depends on a dropped one.
+DROP=$(cd $M && ls coresight[-_]*.ko stm[-_]*.ko wcd937x*.ko simple[-_]amp*.ko 2>/dev/null || true)
+for k in $DROP; do rm -f $M/$k; done
+for k in $M/*.ko; do
+	for d in $(modinfo -F depends $k | tr , ' '); do
+		if ! ls $M/$d.ko $M/${d//_/-}.ko >/dev/null 2>&1 && echo "$DROP" | grep -qE "^(${d}|${d//_/-})\.ko$"; then
+			echo "$(basename $k) needs dropped $d"; exit 1
+		fi
+	done
+done
 {
 	xargs -n1 basename < $OUTP/vendor_dlkm/lib/modules/modules.load | while read -r k; do
 		if [ -f $M/$k ]; then echo $k; fi
