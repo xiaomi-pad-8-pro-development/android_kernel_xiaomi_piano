@@ -74,10 +74,10 @@ index 0000000..d294d06
 +	$(MAKE) -C $(KERNEL_SRC) M=$(M) $(KBUILD_OPTIONS) KBUILD_EXTRA_SYMBOLS="$(KBUILD_EXTRA_SYMBOLS)" $@
 diff --git a/include/linux/soc/qcom/panel_event_notifier.h b/include/linux/soc/qcom/panel_event_notifier.h
 new file mode 100644
-index 0000000..ad4ecf9
+index 0000000..31d58ab
 --- /dev/null
 +++ b/include/linux/soc/qcom/panel_event_notifier.h
-@@ -0,0 +1,82 @@
+@@ -0,0 +1,87 @@
 +/* SPDX-License-Identifier: GPL-2.0-only */
 +/*
 + * Copyright (c) 2021, The Linux Foundation. All rights reserved.
@@ -104,6 +104,11 @@ index 0000000..ad4ecf9
 +	PANEL_EVENT_NOTIFIER_CLIENT_SECONDARY_TOUCH,
 +	PANEL_EVENT_NOTIFIER_CLIENT_ECM,
 +	PANEL_EVENT_NOTIFIER_CLIENT_BATTERY_CHARGER,
++	PANEL_EVENT_NOTIFIER_CLIENT_FINGERPRINT,
++	PANEL_EVENT_NOTIFIER_CLIENT_FINGERPRINT_SECOND,
++	PANEL_EVENT_NOTIFIER_CLIENT_KEYBOARD,
++	PANEL_EVENT_NOTIFIER_CLIENT_THERMAL,
++	PANEL_EVENT_NOTIFIER_CLIENT_THERMAL_SECOND,
 +	PANEL_EVENT_NOTIFIER_CLIENT_MAX
 +};
 +

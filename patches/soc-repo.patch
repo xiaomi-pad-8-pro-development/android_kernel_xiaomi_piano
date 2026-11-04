@@ -398,3 +398,19 @@ index 38a4a65..e19a6ce 100644
      register_misc(registry)
      register_mmc_host(registry)
      register_net(registry)
+diff --git a/include/linux/soc/qcom/panel_event_notifier.h b/include/linux/soc/qcom/panel_event_notifier.h
+index ad4ecf9..31d58ab 100644
+--- a/include/linux/soc/qcom/panel_event_notifier.h
++++ b/include/linux/soc/qcom/panel_event_notifier.h
+@@ -24,6 +24,11 @@ enum panel_event_notifier_client {
+ 	PANEL_EVENT_NOTIFIER_CLIENT_SECONDARY_TOUCH,
+ 	PANEL_EVENT_NOTIFIER_CLIENT_ECM,
+ 	PANEL_EVENT_NOTIFIER_CLIENT_BATTERY_CHARGER,
++	PANEL_EVENT_NOTIFIER_CLIENT_FINGERPRINT,
++	PANEL_EVENT_NOTIFIER_CLIENT_FINGERPRINT_SECOND,
++	PANEL_EVENT_NOTIFIER_CLIENT_KEYBOARD,
++	PANEL_EVENT_NOTIFIER_CLIENT_THERMAL,
++	PANEL_EVENT_NOTIFIER_CLIENT_THERMAL_SECOND,
+ 	PANEL_EVENT_NOTIFIER_CLIENT_MAX
+ };
+ 

@@ -415,7 +415,7 @@ new file mode 100644
 index 0000000..bc5fe86
 --- /dev/null
 +++ b/include/linux/soc/qcom/panel_event_notifier.h
-@@ -0,0 +1,87 @@
+@@ -0,0 +1,89 @@
 +/* SPDX-License-Identifier: GPL-2.0-only */
 +/*
 + * Copyright (c) 2021, The Linux Foundation. All rights reserved.
@@ -445,6 +445,8 @@ index 0000000..bc5fe86
 +	PANEL_EVENT_NOTIFIER_CLIENT_FINGERPRINT,
 +	PANEL_EVENT_NOTIFIER_CLIENT_FINGERPRINT_SECOND,
 +	PANEL_EVENT_NOTIFIER_CLIENT_KEYBOARD,
++	PANEL_EVENT_NOTIFIER_CLIENT_THERMAL,
++	PANEL_EVENT_NOTIFIER_CLIENT_THERMAL_SECOND,
 +	PANEL_EVENT_NOTIFIER_CLIENT_MAX
 +};
 +
