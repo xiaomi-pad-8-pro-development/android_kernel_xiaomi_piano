@@ -35,11 +35,38 @@ done
     printf "%s\n" msm-mmrm.ko sync_fence.ko msm_ext_display.ko msm_hw_fence.ko ipclite.ko synx-driver.ko
   fi
 } | awk "!seen[\$0]++" > $M/modules.load
+# Recovery boots from vendor_boot alone and the 6.12 kernel cannot use
+# the 6.6 vendor_dlkm, so carry the vendor_dlkm modules in the ramdisk and
+# load them all in recovery, as the 6.6 vendor_boot does
+# (vendor_boot.modules.load.recovery). Needs a dlkm612.sh run first;
+# RECOVERY_DLKM=0 leaves recovery with the first-stage set only.
+VD=/home/alif/kernel/dlkm612/vendor_dlkm/lib/modules
+cp $M/modules.load $M/modules.load.recovery
+if [ "${RECOVERY_DLKM:-1}" = 1 ]; then
+  test -f $VD/modules.load || { echo "run dlkm612.sh first, or RECOVERY_DLKM=0"; exit 1; }
+  xargs -n1 basename < $VD/modules.load | while read -r k; do
+    cp --update=none $VD/$k $M/
+    echo $k
+  done >> $M/modules.load.recovery
+  awk '!seen[$0]++' $M/modules.load.recovery > $M/l.tmp && mv $M/l.tmp $M/modules.load.recovery
+fi
 # The vendor_boot partition is 96 MiB; drop debug info.
 STRIP=$(ls -d $KP/prebuilts/clang/host/linux-x86/clang-r*/bin/llvm-strip | tail -1)
 $STRIP --strip-debug $M/*.ko
+# The GKI modules vendor_dlkm needs, from the signed system_dlkm tree
+# dlkm612.sh builds. Copied after the strip: stripping drops the signature
+# and GKI refuses unsigned system_dlkm modules.
+SD=/home/alif/kernel/dlkm612/system_dlkm/lib/modules
+if [ "${RECOVERY_DLKM:-1}" = 1 ]; then
+  { xargs -n1 basename < $SD/modules.load; cat $M/modules.load.recovery; } |
+    awk '!seen[$0]++' > $M/l.tmp
+  xargs -n1 basename < $SD/modules.load | while read -r k; do
+    cp $SD/$k $M/
+  done
+  mv $M/l.tmp $M/modules.load.recovery
+fi
 depmod -b $W/dlkm $VER
-for m in $(cat $M/modules.load); do test -f $M/$m || echo "MISSING $m"; done
+for m in $(cat $M/modules.load $M/modules.load.recovery); do test -f $M/$m || echo "MISSING $m"; done
 # Flatten to /lib/modules like the stock vendor ramdisk.
 mv $M/* $W/dlkm/lib/modules/ && rmdir $M
 sed -i -E "s#(^|[ :])([^ :]+\.ko)#\1/lib/modules/\2#g" $W/dlkm/lib/modules/modules.dep

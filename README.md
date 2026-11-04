@@ -110,4 +110,9 @@ which writes the kernel log to the `rawdump` partition. The header is
     only bixi's module list carries mi_async_reclaim.
   - CIFS: builds, but does not fit in system_dlkm (7.84 MB against
     7389184 bytes), so `dlkm612.sh` leaves it out.
-- Recovery on boot_a still needs the 6.6 boot images (`round612.sh`).
+- Recovery: `pack612.sh` now puts the vendor_dlkm modules and the
+  signed GKI modules they need in vendor_boot and writes
+  `modules.load.recovery`, as the 6.6 vendor_boot does, so recovery on a
+  6.12 slot does not need the dlkm partitions. Run `dlkm612.sh` before
+  `pack612.sh`. Untested; `round612.sh` still restores the 6.6 images
+  for recovery until it is.
