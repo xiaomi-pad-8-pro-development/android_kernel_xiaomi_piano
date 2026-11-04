@@ -49,7 +49,19 @@ if [ "${RECOVERY_DLKM:-1}" = 1 ]; then
     echo $k
   done >> $M/modules.load.recovery
   awk '!seen[$0]++' $M/modules.load.recovery > $M/l.tmp && mv $M/l.tmp $M/modules.load.recovery
+  # First-stage init stops loading at the first module that fails, which
+  # leaves recovery with no display or adb. icnss2 is for the other WLAN
+  # chip type and fails with ENODEV on piano (the 6.6 recovery list leaves
+  # it out too).
+  sed -i '/^icnss2\.ko$/d' $M/modules.load.recovery
 fi
+# The KP dist ships qti_battery_charger, but mca_qcom_subpmic_proxy exports
+# the same qti_battery_charger_get_prop (dlkm612.sh removes it from
+# vendor_dlkm for that reason). Left here, depmod makes the haptics and
+# flash LED modules depend on it, and the proxy then fails with a
+# duplicate symbol, again ending first-stage module loading.
+rm -f $M/qti_battery_charger.ko
+sed -i '/^qti_battery_charger\.ko$/d' $M/modules.load $M/modules.load.recovery
 # The vendor_boot partition is 96 MiB; drop debug info.
 STRIP=$(ls -d $KP/prebuilts/clang/host/linux-x86/clang-r*/bin/llvm-strip | tail -1)
 $STRIP --strip-debug $M/*.ko

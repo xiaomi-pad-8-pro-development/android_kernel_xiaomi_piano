@@ -186,5 +186,8 @@ which writes the kernel log to the `rawdump` partition. The header is
   signed GKI modules they need in vendor_boot and writes
   `modules.load.recovery`, as the 6.6 vendor_boot does, so recovery on a
   6.12 slot does not need the dlkm partitions. Run `dlkm612.sh` before
-  `pack612.sh`. Untested; `round612.sh` still restores the 6.6 images
-  for recovery until it is.
+  `pack612.sh`. Works with YARP on r46: display, touch, adb, the dynamic
+  partitions and `/data` decryption with the PIN. First-stage init stops
+  at the first module that fails to load, so the recovery list leaves out
+  `icnss2` and the ramdisk leaves out `qti_battery_charger`.
+  `round612.sh` still restores the 6.6 images for recovery.
