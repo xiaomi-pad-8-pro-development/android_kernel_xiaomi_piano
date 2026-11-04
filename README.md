@@ -126,6 +126,12 @@ which writes the kernel log to the `rawdump` partition. The header is
       picks up by itself;
     - millet_binder/hs/oem_cgroup/pkg, perf_actuator, rtg and
       plat_common import nothing missing on 6.12.
+    Rewrites, rebuilt from disassembly of the stock .ko (static only,
+    untested on a device), in `vendor/xiaomi/perf`:
+    - perf_actuator: /dev/xr_perf_actuator and /dev/xr_fbt ioctl
+      dispatch tables (43 and 12 entries, ioctl type 'x');
+      register_perf_actuator/register_xr_fbt and the unregister calls
+      are exported GPL as in the stock module.
   - `snd_soc_hdmi_codec`: 6.6 loads it, but its only users are HDMI
     bridge chips piano lacks (adv7511, lt9611, anx7625, ...); DP audio
     goes through `msm_ext_display` and audio-kernel `msm_hdmi_codec_rx`.
