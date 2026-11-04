@@ -510,3 +510,11 @@ index 981d1d4..c504741 100644
  }
  
  static const struct of_device_id mi_trace_match_table[] = {
+diff --git a/mi_ubt/Makefile b/mi_ubt/Makefile
+index 85b4075..61c0f57 100644
+--- a/mi_ubt/Makefile
++++ b/mi_ubt/Makefile
+@@ -1,3 +1,2 @@
+ # SPDX-License-Identifier: GPL-2.0
+ obj-$(CONFIG_MI_UBT)             += mi_ubt.o
+-obj-y				+= test/
