@@ -61,7 +61,7 @@ UNUSED=; [ "${IGNORE_UNUSED:-0}" = 1 ] && UNUSED=" clk_ignore_unused pd_ignore_u
 # system_dlkm modules with that build's key, and dist only changes on a
 # full build_with_bazel.py run.
 $HOST/mkbootimg --header_version 4 --kernel $KP/bazel-bin/common/kernel_aarch64/Image --os_version 17.0.0 --os_patch_level 2026-10 \
-  --cmdline "piano_reset_at=${RESET_AT:-0} msm_drm.pianodbg_reset=${PIANODBG:-0} printk.devkmsg=on piano_oneshot=612-qcom panic=${PANIC:-3} softlockup_panic=1 hung_task_panic=1 hung_task_timeout_secs=10 qcom_dload_mode.download_mode=0 ignore_loglevel firmware_class.path=/odm/firmware/o8$UNUSED" \
+  --cmdline "piano_reset_at=${RESET_AT:-0} printk.devkmsg=on piano_oneshot=612-qcom panic=${PANIC:-3} softlockup_panic=1 hung_task_panic=1 hung_task_timeout_secs=10 qcom_dload_mode.download_mode=0 ignore_loglevel firmware_class.path=/odm/firmware/o8$UNUSED" \
   -o $W/out/boot.img
 cp $DT/dtbo.img $W/out/dtbo.img
 ls -la $W/out/*.img
