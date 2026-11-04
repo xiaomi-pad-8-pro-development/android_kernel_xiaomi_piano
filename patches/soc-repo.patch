@@ -1,5 +1,5 @@
 diff --git a/configs/sun_perf.bzl b/configs/sun_perf.bzl
-index b557cbd..1e1ddd4 100644
+index b557cbd..e4b4a04 100644
 --- a/configs/sun_perf.bzl
 +++ b/configs/sun_perf.bzl
 @@ -35,6 +35,7 @@ sun_perf_config = {
@@ -18,7 +18,32 @@ index b557cbd..1e1ddd4 100644
      "CONFIG_LEDS_QCOM_LPG": "m",
      "CONFIG_LEDS_QTI_FLASH": "m",
      "CONFIG_MAC80211": "m",
-@@ -316,7 +318,7 @@ sun_perf_config = {
+@@ -168,6 +170,7 @@ sun_perf_config = {
+     "CONFIG_QCOM_IRQ_STAT": "y",
+     "CONFIG_QCOM_LAZY_MAPPING": "m",
+     "CONFIG_QCOM_LLCC": "m",
++    "CONFIG_QCOM_LLCC_HEURISTICS": "m",
+     "CONFIG_QCOM_LLCC_PERFMON": "m",
+     "CONFIG_QCOM_LLCC_PMU": "m",
+     "CONFIG_QCOM_LMH": "n",
+@@ -267,6 +270,8 @@ sun_perf_config = {
+     "CONFIG_QTI_GLINK_ADC": "m",
+     "CONFIG_QTI_IOMMU_SUPPORT": "m",
+     "CONFIG_QTI_MPAM": "m",
++    "CONFIG_QTI_MPAM_MSC": "m",
++    "CONFIG_QTI_MPAM_MSC_SLC": "m",
+     "CONFIG_QTI_PLATFORM_MPAM_INTERFACE": "m",
+     "CONFIG_QTI_PMIC_EUSB2_REPEATER": "m",
+     "CONFIG_QTI_PMIC_GLINK": "m",
+@@ -276,6 +281,7 @@ sun_perf_config = {
+     "CONFIG_QTI_QMI_COOLING_DEVICE": "m",
+     "CONFIG_QTI_QMI_SENSOR_V2": "m",
+     "CONFIG_QTI_SCMI_VENDOR_PROTOCOL": "m",
++    "CONFIG_QTI_SLC_MPAM_INTERFACE": "m",
+     "CONFIG_QTI_SYS_PM_VX": "m",
+     "CONFIG_QTI_THERMAL_VENDOR_HOOK": "m",
+     "CONFIG_QTI_THERMALZONE_CONFIG_DEBUG": "m",
+@@ -316,7 +322,7 @@ sun_perf_config = {
      "CONFIG_SM_GPUCC_SUN": "m",
      "CONFIG_SM_TCSRCC_SUN": "m",
      "CONFIG_SM_VIDEOCC_SUN": "m",

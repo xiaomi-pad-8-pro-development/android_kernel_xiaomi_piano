@@ -74,3 +74,8 @@ which writes the kernel log to the `rawdump` partition. The header is
 - 144 Hz, the IR blaster (`/dev/ir_spi`, IR HAL up) and the hardware RNG
   work. The keyboard cover and hall sensor drivers load and register
   their input devices; typing on the cover is not tested yet.
+- LLCC heuristics and SLC MPAM (`mpam_msc`, `mpam_msc_slc`, `slc_mpam`)
+  are enabled for sun as on canoe, with the 6.6 devicetree nodes that
+  `piano-sun-additions.dtsi` now carries; they load and bind (r46).
+  `qcom_cpuss_sleep_stats_v4` stays off: with it, the SoC hard-resets
+  about 1.4 s into boot while vendor_dlkm loads (r45 bisect).
