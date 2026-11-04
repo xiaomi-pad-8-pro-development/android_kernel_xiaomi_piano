@@ -107,4 +107,9 @@ which writes the kernel log to the `rawdump` partition. The header is
     sched_penalty, xm_power, ...): 6.6 prebuilts, cannot be rebuilt.
   - `mi_async_reclaim` and `mem_reclaim_ctl`: not piano modules; on 6.6
     only bixi's module list carries mi_async_reclaim.
-- Recovery on boot_a still needs the 6.6 boot images (`round612.sh`).
+- Recovery: `pack612.sh` now puts the vendor_dlkm modules and the
+  signed GKI modules they need in vendor_boot and writes
+  `modules.load.recovery`, as the 6.6 vendor_boot does, so recovery on a
+  6.12 slot does not need the dlkm partitions. Run `dlkm612.sh` before
+  `pack612.sh`. Untested; `round612.sh` still restores the 6.6 images
+  for recovery until it is.
