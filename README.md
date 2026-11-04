@@ -109,9 +109,23 @@ which writes the kernel log to the `rawdump` partition. The header is
   - `spcom`, `spss_utils`: in `spu-kernel`, which supports sun at
     LA.VENDOR.16.2.6.r1-10900-kaanapali.0 (13be6e68a838); the 6.12
     sun.dtsi has their nodes. Check it out in `vendor/qcom/opensource`.
-  - Xiaomi modules with no source in the 6.6 tree (millet, mi_game,
-    mi_power, mist, perf_helper, perf_actuator, rtg, vip_sched,
-    sched_penalty, xm_power, ...): 6.6 prebuilts, cannot be rebuilt.
+  - Xiaomi modules with no source (not in the 6.6 tree nor in
+    MiCode piano-w-oss): 31 prebuilts in the stock OS4.0.5.0.XPYCNXM
+    vendor_boot (mem_object in vendor_dlkm; sched_penalty and mem_hooks
+    are not in the ROM). A 6.6 .ko cannot load on 6.12 (vermagic,
+    modversions CRCs, 6.6 struct layouts), so each needs a rewrite.
+    Static check of their imports against the 6.12 build:
+    - every vendor hook they use exists in 6.12; only
+      android_vh_filemap_map_pages (io_monitor) changed prototype
+      (adds orig_start_pgoff);
+    - API changes a rewrite must handle: register_shrinker (node_cache;
+      shrinker_alloc since 6.7), check_preempt_curr (vip_sched;
+      wakeup_preempt), kfree_skb_reason (millet_core), log_read_mmio
+      (mi_power; MMIO tracing is off), plus the kmalloc_trace,
+      __kmalloc, cpu_number and fortify_panic renames that a rebuild
+      picks up by itself;
+    - millet_binder/hs/oem_cgroup/pkg, perf_actuator, rtg and
+      plat_common import nothing missing on 6.12.
   - `snd_soc_hdmi_codec`: 6.6 loads it, but its only users are HDMI
     bridge chips piano lacks (adv7511, lt9611, anx7625, ...); DP audio
     goes through `msm_ext_display` and audio-kernel `msm_hdmi_codec_rx`.
