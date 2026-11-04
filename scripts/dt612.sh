@@ -54,7 +54,7 @@ for v in $BASES; do
   # The 6.12 base only has an empty GPU node; Qualcomm fills it from graphics-devicetree.
   case $v in *v2*) gpu=sun-v2-gpu ;; *) gpu=sun-gpu ;; esac
   printf '#include "%s.dts"\n#include "piano-sun-additions.dtsi"\n#include "sun-synx.dtsi"\n#include "piano-fastrpc.dtsi"\n#include "%s.dtsi"\n#include "%s-pwrlevels.dtsi"\n' $v $gpu $gpu > $OUT/qcom/piano-$v.dts
-  echo "== base $v"; build $OUT/qcom/piano-$v.dts $OUT/$v.dtb
+  echo "== base $v"; build $OUT/qcom/piano-$v.dts $OUT/$v.dtb "${QCEDEV_NO_SCB:+-DQCEDEV_NO_SCB}"
 done
 # 6.12 sun-mtp.dtsi no longer pulls in the USB PHY register names.
 echo "== piano"; build $OUT/qcom/piano-sm8750-overlay.dts $OUT/piano-overlay.dtbo "-include dt-bindings/phy/qcom,usb3-3nm-qmp-combo.h"

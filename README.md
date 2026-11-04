@@ -78,7 +78,14 @@ which writes the kernel log to the `rawdump` partition. The header is
   and `qcrypto-msm_dlkm` are left out of modules.load for now.
   The KP 5.0 `qce_open` adds a core IRQ, a TCSR SoC revision read and
   a recovery request; `securemsm-kernel.patch` logs each step as
-  `PIANODBG qce_open <step>` so one boot shows where it stops.
+  `PIANODBG qce_open <step>` so one boot shows where it stops. Static
+  comparison: for a CE 5.x engine, which sun has (6.6 accepts no other),
+  the KP 5.0 qce50/qcedev and the SPS BAM driver behave as on 6.6, and
+  the devicetree and CE0 interconnect BCM match. What is left is the
+  IOMMU attach of the context banks inside `of_platform_populate()`
+  (the secure one, VMID 9, goes through TZ). `PIANODBG qcedev cb <label>`
+  and `populate_done` mark that step, and `QCEDEV_NO_SCB=1 dt612.sh`
+  drops the secure bank to test it.
 - `pack612.sh` no longer passes `clk_ignore_unused pd_ignore_unused`
   (6.6 boots without them; `IGNORE_UNUSED=1` brings them back) and adds
   the 6.6 `firmware_class.path=/odm/firmware/o8`. The CPU idled at

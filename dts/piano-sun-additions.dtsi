@@ -156,3 +156,15 @@
 		};
 	};
 };
+
+/*
+ * Bring-up: QCEDEV_NO_SCB=1 dt612.sh leaves out the qcedev secure context
+ * bank (SID 0x483, VMID 9), to tell an IOMMU/TZ hang from a crypto one.
+ */
+#ifdef QCEDEV_NO_SCB
+&qcom_cedev {
+	qcom_cedev_s_cb {
+		status = "disabled";
+	};
+};
+#endif
