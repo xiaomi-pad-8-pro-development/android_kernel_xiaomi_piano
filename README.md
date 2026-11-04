@@ -107,7 +107,6 @@ which writes the kernel log to the `rawdump` partition. The header is
     sched_penalty, xm_power, ...): 6.6 prebuilts, cannot be rebuilt.
   - `mi_async_reclaim`: its 5 folio trylock hooks sit at 9 places in
     the vmscan reclaim path, not in the 6.12 GKI; not added blind.
-  - `cpq`: the block elevator API changed; needs a real port.
   - CIFS: needs `fs/smb` plus netfs and dns_resolver as GKI modules.
   - bpf small-buffer change (seventeen 0c6cc1d9bcab): 12 of 14 hunks
     miss on 6.12's syscall.c.
