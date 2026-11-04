@@ -1,5 +1,5 @@
 diff --git a/arch/arm64/configs/gki_defconfig b/arch/arm64/configs/gki_defconfig
-index ee8096829..897785e55 100644
+index ee8096829..cdac481b8 100644
 --- a/arch/arm64/configs/gki_defconfig
 +++ b/arch/arm64/configs/gki_defconfig
 @@ -120,6 +120,7 @@ CONFIG_BLK_CGROUP_IOCOST=y
@@ -26,6 +26,14 @@ index ee8096829..897785e55 100644
  CONFIG_VCPU_STALL_DETECTOR=m
  CONFIG_SCSI=y
  # CONFIG_SCSI_PROC_FS is not set
+@@ -718,6 +721,7 @@ CONFIG_PSTORE_BLK=m
+ CONFIG_EROFS_FS=y
+ CONFIG_EROFS_FS_ZIP_ZSTD=y
+ CONFIG_EROFS_FS_PCPU_KTHREAD=y
++CONFIG_CIFS=m
+ CONFIG_NLS_CODEPAGE_437=y
+ CONFIG_NLS_CODEPAGE_737=y
+ CONFIG_NLS_CODEPAGE_775=y
 diff --git a/arch/arm64/include/asm/cmpxchg.h b/arch/arm64/include/asm/cmpxchg.h
 index d7a540736..7b52192b1 100644
 --- a/arch/arm64/include/asm/cmpxchg.h
@@ -3077,6 +3085,18 @@ index c81cffa72..c282ba0f3 100644
  		kfree(buf);
  	return len;
  }
+diff --git a/fs/smb/client/cifsfs.c b/fs/smb/client/cifsfs.c
+index ce3af62dd..cc42aa162 100644
+--- a/fs/smb/client/cifsfs.c
++++ b/fs/smb/client/cifsfs.c
+@@ -2067,6 +2067,7 @@ exit_cifs(void)
+ 
+ MODULE_AUTHOR("Steve French");
+ MODULE_LICENSE("GPL");	/* combination of LGPL + GPL source behaves as GPL */
++MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);
+ MODULE_DESCRIPTION
+ 	("VFS to access SMB3 servers e.g. Samba, Macs, Azure and Windows (and "
+ 	"also older servers complying with the SNIA CIFS Specification)");
 diff --git a/gki/aarch64/symbols/xiaomi b/gki/aarch64/symbols/xiaomi
 index c12e700..6109747 100644
 --- a/gki/aarch64/symbols/xiaomi
@@ -3289,10 +3309,29 @@ index 1a154c425..2b9460082 100644
  				return -ENOMEM;
  
 diff --git a/modules.bzl b/modules.bzl
-index 51b30732c..ec98328f8 100644
+index 51b30732c..fa9ea8c6c 100644
 --- a/modules.bzl
 +++ b/modules.bzl
-@@ -104,9 +104,11 @@ _ARM64_GKI_MODULES_LIST = [
+@@ -53,6 +53,10 @@ _COMMON_GKI_MODULES_LIST = [
+     "drivers/virtio/virtio_pci_legacy_dev.ko",
+     "drivers/virtio/virtio_pci_modern_dev.ko",
+     "fs/netfs/netfs.ko",
++    "fs/nls/nls_ucs2_utils.ko",
++    "fs/smb/client/cifs.ko",
++    "fs/smb/common/cifs_arc4.ko",
++    "fs/smb/common/cifs_md4.ko",
+     "kernel/kheaders.ko",
+     "lib/crypto/libarc4.ko",
+     "mm/zsmalloc.ko",
+@@ -74,6 +78,7 @@ _COMMON_GKI_MODULES_LIST = [
+     "net/can/can-bcm.ko",
+     "net/can/can-gw.ko",
+     "net/can/can-raw.ko",
++    "net/dns_resolver/dns_resolver.ko",
+     "net/ieee802154/6lowpan/ieee802154_6lowpan.ko",
+     "net/ieee802154/ieee802154.ko",
+     "net/ieee802154/ieee802154_socket.ko",
+@@ -104,9 +109,11 @@ _ARM64_GKI_MODULES_LIST = [
      # keep sorted
      "arch/arm64/crypto/aes-neon-blk.ko",
      "arch/arm64/geniezone/gzvm.ko",

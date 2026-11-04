@@ -108,7 +108,8 @@ which writes the kernel log to the `rawdump` partition. The header is
     sched_penalty, xm_power, ...): 6.6 prebuilts, cannot be rebuilt.
   - `mi_async_reclaim`: its 5 folio trylock hooks sit at 9 places in
     the vmscan reclaim path, not in the 6.12 GKI; not added blind.
-  - CIFS: needs `fs/smb` plus netfs and dns_resolver as GKI modules.
+  - CIFS: builds, but does not fit in system_dlkm (7.84 MB against
+    7389184 bytes), so `dlkm612.sh` leaves it out.
   - bpf small-buffer change (seventeen 0c6cc1d9bcab): 12 of 14 hunks
     miss on 6.12's syscall.c.
 - Recovery on boot_a still needs the 6.6 boot images (`round612.sh`).

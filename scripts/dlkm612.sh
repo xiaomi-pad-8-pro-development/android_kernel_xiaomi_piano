@@ -86,9 +86,11 @@ open(k,"ab").write(sig + struct.pack(">BBBBB3xI", 0, 0, 2, 0, 0, len(sig)) + b"~
 	rm $k.p7s
 done
 # Drop GKI modules piano has no use for, so the image fits. Nothing
-# depends on them.
+# depends on them. The CIFS set (cifs, cifs_arc4, cifs_md4, dns_resolver,
+# nls_ucs2_utils) builds, but with it system_dlkm is 7.84 MB against the
+# 7389184-byte partition, so it stays out too.
 SM=$W/system_dlkm/lib/modules
-for k in aes-neon-blk efivarfs exynos-hvm gnss pstore_blk ptp_kvm rust_binder \
+for k in cifs cifs_arc4 cifs_md4 dns_resolver nls_ucs2_utils aes-neon-blk efivarfs exynos-hvm gnss pstore_blk ptp_kvm rust_binder \
 		snd-hda-codec-hdmi tipc_diag xhci-pci-renesas; do
 	rm -f $SM/$k.ko
 	sed -i "/^$k\.ko\$/d" $SM/modules.load
