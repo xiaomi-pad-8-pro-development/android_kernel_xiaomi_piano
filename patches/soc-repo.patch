@@ -1,5 +1,5 @@
 diff --git a/configs/sun_perf.bzl b/configs/sun_perf.bzl
-index b557cbd..e4b4a04 100644
+index b557cbd..e42a2c3 100644
 --- a/configs/sun_perf.bzl
 +++ b/configs/sun_perf.bzl
 @@ -35,6 +35,7 @@ sun_perf_config = {
@@ -10,15 +10,17 @@ index b557cbd..e4b4a04 100644
      "CONFIG_DEVFREQ_GOV_QCOM_ADRENO_TZ": "m",
      "CONFIG_DEVFREQ_GOV_QCOM_GPUBW_MON": "m",
      "CONFIG_DRM_DISPLAY_DP_HELPER": "y",
-@@ -77,6 +78,7 @@ sun_perf_config = {
+@@ -75,8 +76,7 @@ sun_perf_config = {
+     "CONFIG_INTERCONNECT_QCOM_RPMH": "m",
+     "CONFIG_INTERCONNECT_QCOM_SUN": "m",
      "CONFIG_IOMMU_IO_PGTABLE_FAST": "y",
-     "CONFIG_IPC_LOGGING": "m",
-     "CONFIG_IPC_LOG_MINIDUMP_BUFFERS": "16",
+-    "CONFIG_IPC_LOGGING": "m",
+-    "CONFIG_IPC_LOG_MINIDUMP_BUFFERS": "16",
 +    "CONFIG_IR_SPI": "m",
      "CONFIG_LEDS_QCOM_LPG": "m",
      "CONFIG_LEDS_QTI_FLASH": "m",
      "CONFIG_MAC80211": "m",
-@@ -168,6 +170,7 @@ sun_perf_config = {
+@@ -168,6 +168,7 @@ sun_perf_config = {
      "CONFIG_QCOM_IRQ_STAT": "y",
      "CONFIG_QCOM_LAZY_MAPPING": "m",
      "CONFIG_QCOM_LLCC": "m",
@@ -26,7 +28,7 @@ index b557cbd..e4b4a04 100644
      "CONFIG_QCOM_LLCC_PERFMON": "m",
      "CONFIG_QCOM_LLCC_PMU": "m",
      "CONFIG_QCOM_LMH": "n",
-@@ -267,6 +270,8 @@ sun_perf_config = {
+@@ -267,6 +268,8 @@ sun_perf_config = {
      "CONFIG_QTI_GLINK_ADC": "m",
      "CONFIG_QTI_IOMMU_SUPPORT": "m",
      "CONFIG_QTI_MPAM": "m",
@@ -35,7 +37,7 @@ index b557cbd..e4b4a04 100644
      "CONFIG_QTI_PLATFORM_MPAM_INTERFACE": "m",
      "CONFIG_QTI_PMIC_EUSB2_REPEATER": "m",
      "CONFIG_QTI_PMIC_GLINK": "m",
-@@ -276,6 +281,7 @@ sun_perf_config = {
+@@ -276,6 +279,7 @@ sun_perf_config = {
      "CONFIG_QTI_QMI_COOLING_DEVICE": "m",
      "CONFIG_QTI_QMI_SENSOR_V2": "m",
      "CONFIG_QTI_SCMI_VENDOR_PROTOCOL": "m",
@@ -43,7 +45,7 @@ index b557cbd..e4b4a04 100644
      "CONFIG_QTI_SYS_PM_VX": "m",
      "CONFIG_QTI_THERMAL_VENDOR_HOOK": "m",
      "CONFIG_QTI_THERMALZONE_CONFIG_DEBUG": "m",
-@@ -316,7 +322,7 @@ sun_perf_config = {
+@@ -316,7 +320,7 @@ sun_perf_config = {
      "CONFIG_SM_GPUCC_SUN": "m",
      "CONFIG_SM_TCSRCC_SUN": "m",
      "CONFIG_SM_VIDEOCC_SUN": "m",
@@ -52,6 +54,14 @@ index b557cbd..e4b4a04 100644
      "CONFIG_SND_SOC_WCD9335": "n",
      "CONFIG_SPI_MSM_GENI": "m",
      "CONFIG_SPMI_MSM_PMIC_ARB": "m",
+@@ -337,7 +341,6 @@ sun_perf_config = {
+     "CONFIG_USB_DWC3_MSM": "m",
+     "CONFIG_USB_F_CCID": "m",
+     "CONFIG_USB_F_CDEV": "m",
+-    "CONFIG_USB_F_FS_IPC_LOGGING": "m",
+     "CONFIG_USB_F_GSI": "m",
+     "CONFIG_USB_F_QDSS": "m",
+     "CONFIG_USB_M31_MSM_EUSB2_PHY": "m",
 diff --git a/drivers/media/rc/ir-spi.c b/drivers/media/rc/ir-spi.c
 new file mode 100644
 index 0000000..88d9505
@@ -424,3 +434,15 @@ index ad4ecf9..31d58ab 100644
  	PANEL_EVENT_NOTIFIER_CLIENT_MAX
  };
  
+diff --git a/modules-lists/modules.list.msm.sun b/modules-lists/modules.list.msm.sun
+index 58867f1..7f6fd31 100644
+--- a/modules-lists/modules.list.msm.sun
++++ b/modules-lists/modules.list.msm.sun
+@@ -76,7 +76,6 @@ qcom-pmu-lib.ko
+ qcom-ipcc.ko
+ qnoc-qos.ko
+ qnoc-sun.ko
+-qcom_ipc_logging.ko
+ qcom_hwspinlock.ko
+ qrtr.ko
+ qcom_aoss.ko

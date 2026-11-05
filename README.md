@@ -71,8 +71,10 @@ reboot on piano: `piano_memcon` (early RAM console) and `piano_blklog`,
 which writes the kernel log to the `rawdump` partition. The header is
 `PIANOLOG`, then u32 seq and u32 length, with the text at offset 4096.
 
-## State (2026-11-04, r44)
+## State (2026-11-05, r50)
 
+- IPC logging is off (no `qcom_ipc_logging`, as on 6.6); Wi-Fi, Bluetooth
+  and charging work with it off.
 - Android boots to the lock screen on the 6.12 kernel: display, GPU,
   audio (sound card and the four FS19xx speaker amps), Wi-Fi, Bluetooth,
   USB, touch and pen.

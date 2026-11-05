@@ -29,7 +29,7 @@ index 0000000..7a90c4d
 +)
 diff --git a/Kbuild b/Kbuild
 new file mode 100644
-index 0000000..5da9874
+index 0000000..4ff2eae
 --- /dev/null
 +++ b/Kbuild
 @@ -0,0 +1,15 @@
@@ -45,7 +45,7 @@ index 0000000..5da9874
 +subdir-ccflags-y += -I$(INPUT_ROOT)/include -DCONFIG_MACH_XIAOMI_PIANO=1
 +# The soc-repo modules these call are not in the base kernel config, so
 +# without these their headers compile in stubs.
-+subdir-ccflags-y += -DCONFIG_QCOM_PANEL_EVENT_NOTIFIER_MODULE=1 -DCONFIG_IPC_LOGGING_MODULE=1
++subdir-ccflags-y += -DCONFIG_QCOM_PANEL_EVENT_NOTIFIER_MODULE=1
 +
 +obj-m += nanosic/ hall/ ntag/ mi_fp/
 diff --git a/Makefile b/Makefile
@@ -412,7 +412,7 @@ index 0000000..1f2ce20
 +#endif
 diff --git a/include/linux/soc/qcom/panel_event_notifier.h b/include/linux/soc/qcom/panel_event_notifier.h
 new file mode 100644
-index 0000000..bc5fe86
+index 0000000..7270d23
 --- /dev/null
 +++ b/include/linux/soc/qcom/panel_event_notifier.h
 @@ -0,0 +1,89 @@
