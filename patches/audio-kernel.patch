@@ -7445,34 +7445,6 @@ index 45ea693..baac546 100644
  	card = populate_snd_card_dailinks(&pdev->dev, pdata->wsa_max_devs);
  	if (!card) {
  		dev_err(&pdev->dev, "%s: Card uninitialized\n", __func__);
-@@ -2374,6 +2509,27 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
- 	/* parse upd configuration */
- 	msm_parse_upd_configuration(pdev, pdata);
- 
-+	/* PIANODBG: name every DAI the card is still waiting for. */
-+	{
-+		int i, j;
-+
-+		for (i = 0; i < card->num_links; i++) {
-+			struct snd_soc_dai_link *l = &card->dai_link[i];
-+
-+			for (j = 0; j < l->num_cpus; j++)
-+				if (!snd_soc_find_dai(&l->cpus[j]))
-+					dev_err(&pdev->dev, "PIANOSND link %s cpu %s/%s missing\n",
-+						l->name, l->cpus[j].name ?: "(of)",
-+						l->cpus[j].dai_name ?: "-");
-+			for (j = 0; j < l->num_codecs; j++)
-+				if (!snd_soc_find_dai(&l->codecs[j]))
-+					dev_err(&pdev->dev, "PIANOSND link %s codec %s/%s missing\n",
-+						l->name, l->codecs[j].name ?: (l->codecs[j].of_node ?
-+						l->codecs[j].of_node->full_name : "-"),
-+						l->codecs[j].dai_name ?: "-");
-+		}
-+	}
-+
- 	ret = devm_snd_soc_register_card(&pdev->dev, card);
- 	if (ret == -EPROBE_DEFER) {
- 		if (codec_reg_done)
 diff --git a/audio_modules.bzl b/audio_modules.bzl
 index 6f5ab0a..a109a6f 100644
 --- a/audio_modules.bzl
