@@ -87,7 +87,7 @@ index 9fb32b9..b5f78a7 100644
  		for (j = 0; j < f->fmt.pix_mp.num_planes; j++)
  			cur += write_str(cur, end - cur,
 diff --git a/driver/vidc/src/msm_vidc_driver.c b/driver/vidc/src/msm_vidc_driver.c
-index 6edc8e1..df2e1f0 100644
+index 6edc8e1..c784a44 100644
 --- a/driver/vidc/src/msm_vidc_driver.c
 +++ b/driver/vidc/src/msm_vidc_driver.c
 @@ -4,6 +4,7 @@
@@ -98,6 +98,42 @@ index 6edc8e1..df2e1f0 100644
  #include <linux/iommu.h>
  #include <linux/workqueue.h>
  #include "msm_media_info.h"
+@@ -1638,6 +1639,7 @@ int msm_vidc_set_auto_framerate(struct msm_vidc_inst *inst, u64 timestamp)
+ 	struct msm_vidc_timestamp *ts;
+ 	struct msm_vidc_timestamp *prev = NULL;
+ 	u32 counter = 0, prev_fr = 0, curr_fr = 0;
++	u32 max_fr, mbpf;
+ 	u64 time_us = 0;
+ 	int rc = 0;
+ 
+@@ -1651,14 +1653,25 @@ int msm_vidc_set_auto_framerate(struct msm_vidc_inst *inst, u64 timestamp)
+ 	if (rc)
+ 		goto exit;
+ 
++	/*
++	 * Clamp the measured rate to what the firmware can encode at this
++	 * resolution: full-panel screen recording at 3200x2136 gets frame
++	 * bursts ~6.75 ms apart, and 148 fps there is a fatal session error.
++	 */
++	max_fr = inst->capabilities[FRAME_RATE].max;
++	mbpf = msm_vidc_get_mbs_per_frame(inst);
++	if (mbpf)
++		max_fr = min_t(u32, max_fr,
++			(core->capabilities[MAX_MBPS].value * 4 / 5 / mbpf) << 16);
++
+ 	list_for_each_entry(ts, &inst->timestamps.list, sort.list) {
+ 		if (prev) {
+ 			time_us = ts->sort.val - prev->sort.val;
+ 			prev_fr = curr_fr;
+ 			curr_fr = time_us ? DIV64_U64_ROUND_CLOSEST(USEC_PER_SEC, time_us) << 16 :
+ 					inst->auto_framerate;
+-			if (curr_fr > inst->capabilities[FRAME_RATE].max)
+-				curr_fr = inst->capabilities[FRAME_RATE].max;
++			if (curr_fr > max_fr)
++				curr_fr = max_fr;
+ 			if (curr_fr < inst->capabilities[FRAME_RATE].min)
+ 				curr_fr = inst->capabilities[FRAME_RATE].min;
+ 		}
 diff --git a/driver/vidc/src/msm_vidc_fence.c b/driver/vidc/src/msm_vidc_fence.c
 index 9d28bd7..8ad085f 100644
 --- a/driver/vidc/src/msm_vidc_fence.c
