@@ -78,19 +78,18 @@ which writes the kernel log to the `rawdump` partition. The header is
 - Android boots to the lock screen on the 6.12 kernel: display, GPU,
   audio (sound card and the four FS19xx speaker amps), Wi-Fi, Bluetooth,
   USB, touch and pen.
-- `qcedev-mod_dlkm` hangs the SoC at about 1.3 s when it loads. Its
-  devicetree node matches stock 6.6, so the fault is in the driver. It
-  and `qcrypto-msm_dlkm` are left out of modules.load for now.
-  The KP 5.0 `qce_open` adds a core IRQ, a TCSR SoC revision read and
-  a recovery request; `securemsm-kernel.patch` logs each step as
-  `PIANODBG qce_open <step>` so one boot shows where it stops. Static
-  comparison: for a CE 5.x engine, which sun has (6.6 accepts no other),
-  the KP 5.0 qce50/qcedev and the SPS BAM driver behave as on 6.6, and
-  the devicetree and CE0 interconnect BCM match. What is left is the
-  IOMMU attach of the context banks inside `of_platform_populate()`
-  (the secure one, VMID 9, goes through TZ). `PIANODBG qcedev cb <label>`
-  and `populate_done` mark that step, and `QCEDEV_NO_SCB=1 dt612.sh`
-  drops the secure bank to test it.
+- `qcedev-mod_dlkm` hangs the SoC at about 1.3 s when it loads, so it
+  and `qcrypto-msm_dlkm` stay out of modules.load. Likely cause (static,
+  not yet tested on a device): the 6.12 SPS driver changed what
+  `qcom,msm-sps-4k` means. In 6.6 it is the only 4K register table, with
+  the pipe registers at 0x13000 (`P_CTRL`), which is what sun's crypto
+  BAM uses. In 6.12 `qcom,msm-sps-4k` selects a new table with `P_CTRL`
+  at 0xC000, and the 0x13000 layout moved to `qcom,msm-sps-v1_7-4k`
+  (`soc-repo/drivers/soc/qcom/sps/bam.c`, `sps.c`). sun.dtsi still says
+  `qcom,msm-sps-4k`, so `qce_sps_init()` writes pipe registers inside
+  another execution environment's space, which fits the SError there.
+  Fix to test: switch the sun SPS node to `qcom,msm-sps-v1_7-4k` in
+  `dt612.sh`, then load qcedev and qcrypto again (`QCE_EXCLUDE=`).
 - `pack612.sh` no longer passes `clk_ignore_unused pd_ignore_unused`
   (6.6 boots without them; `IGNORE_UNUSED=1` brings them back) and adds
   the 6.6 `firmware_class.path=/odm/firmware/o8`. The CPU idled at
