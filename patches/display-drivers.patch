@@ -918,6 +918,22 @@ index d083947..d75d020 100644
  
  	int initial_lines;
  	int pkt_per_line;
+diff --git a/msm/sde_dbg_evtlog.c b/msm/sde_dbg_evtlog.c
+index 907b090..f67fc10 100644
+--- a/msm/sde_dbg_evtlog.c
++++ b/msm/sde_dbg_evtlog.c
+@@ -251,11 +251,7 @@ struct sde_dbg_reglog *sde_reglog_init(void)
+ 
+ 	atomic64_set(&reglog->curr, 0);
+ 	atomic64_set(&reglog->last, 0);
+-#if IS_ENABLED(CONFIG_DEBUG_FS)
+-	reglog->enable = true;
+-#else
+ 	reglog->enable = false;
+-#endif
+ 
+ 	return reglog;
+ }
 diff --git a/msm/sde_dsc_helper.c b/msm/sde_dsc_helper.c
 index bfad634..9213b71 100644
 --- a/msm/sde_dsc_helper.c
