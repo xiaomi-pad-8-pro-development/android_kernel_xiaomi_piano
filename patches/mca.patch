@@ -3765,10 +3765,21 @@ index 56ebfb3..20a3211 100644
  
  static const struct of_device_id match_table[] = {
 diff --git a/mca_strategy/strategy_fg/mca_strategy_fg.c b/mca_strategy/strategy_fg/mca_strategy_fg.c
-index 41cf288..f426958 100644
+index c4390c9..f426958 100644
 --- a/mca_strategy/strategy_fg/mca_strategy_fg.c
 +++ b/mca_strategy/strategy_fg/mca_strategy_fg.c
-@@ -4168,10 +4168,10 @@ static int strategy_fg_probe(struct platform_device *pdev)
+@@ -3511,6 +3511,10 @@ static int strategy_fg_check_battery_adapt_power(void *data, int *match)
+ 				if (adapt_power == 55 &&
+ 				    adapt_power_slave == 15)
+ 					adapt_power = 67;
++			} else if (fg->cfg.base_flip_same) {
++				if (adapt_power == 33 &&
++				    adapt_power_slave == 33)
++					adapt_power = 67;
+ 			} else {
+ 				if (adapt_power != adapt_power_slave)
+ 					adapt_power = -1;
+@@ -4164,10 +4168,10 @@ static int strategy_fg_probe(struct platform_device *pdev)
  	return ret;
  }
  
