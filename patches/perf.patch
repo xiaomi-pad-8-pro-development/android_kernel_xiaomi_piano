@@ -1,0 +1,3109 @@
+diff --git a/BUILD.bazel b/BUILD.bazel
+new file mode 100644
+index 0000000..53f9ec8
+--- /dev/null
++++ b/BUILD.bazel
+@@ -0,0 +1,36 @@
++# Xiaomi kernel helpers for the Pad 8 Pro (piano) that ship as source in
++# the 6.6 tree, built out of tree against the Qualcomm 6.12 kernel.
++load("//build/kernel/kleaf:kernel.bzl", "kernel_module")
++
++package(default_visibility = ["//visibility:public"])
++
++kernel_module(
++    name = "sun_perf_perf",
++    srcs = glob(["**/*.c", "**/*.h", "**/*.S", "**/Makefile", "**/Kbuild"]),
++    outs = [
++        "boottime/boottime.ko",
++        "kshrink_slabd/kshrink_slabd.ko",
++        "lz4asm/lz4asm.ko",
++        "mi_rmap_efficiency/mi_rmap_efficiency.ko",
++        "mi_stack/mi_stack.ko",
++        "mi_trace/mi_trace.ko",
++        "mi_ubt/mi_ubt.ko",
++        "mi_thermal/mi_thermal_interface.ko",
++        "perf_actuator/perf_actuator.ko",
++        "plat_common/plat_common.ko",
++        "rtg/rtg.ko",
++        "millet/millet_core.ko",
++        "millet/millet_hs.ko",
++        "millet/millet_sig.ko",
++        "millet/millet_oem_cgroup.ko",
++        "rt_mod/rt_mod.ko",
++        "printk_enhance/printk_enhance.ko",
++    ],
++    kernel_build = "//soc-repo:sun_perf_base_kernel",
++    deps = [
++        "//soc-repo:all_headers",
++        "//soc-repo:sun_perf/drivers/soc/qcom/minidump",
++        "//soc-repo:sun_perf/drivers/soc/qcom/panel_event_notifier",
++        "//vendor/xiaomi/mca:sun_perf_mca",
++    ],
++)
+diff --git a/Kbuild b/Kbuild
+new file mode 100644
+index 0000000..a13ec2a
+--- /dev/null
++++ b/Kbuild
+@@ -0,0 +1,25 @@
++# Xiaomi kernel helpers for piano, from the 6.6 tree (seventeen). The
++# mca headers in include/ are copies; mi_thermal_interface calls into mca.
++PERF_ROOT := $(if $(filter /%,$(KBUILD_EXTMOD)),$(KBUILD_EXTMOD),$(abspath $(srctree)/$(KBUILD_EXTMOD)))
++
++export CONFIG_MI_BOOT_TIME := m
++export CONFIG_KSHRINK_SLABD := m
++export CONFIG_MI_RMAP_EFFICIENCY := m
++export CONFIG_MI_STACK := m
++export CONFIG_MI_TRACE := m
++export CONFIG_MI_UBT := m
++export CONFIG_PRINTK_ENHANCE := m
++export CONFIG_MI_THERMAL_INTERFACE := m
++export CONFIG_LZ4ASM := m
++export CONFIG_PERF_ACTUATOR := m
++export CONFIG_PLAT_COMMON := m
++export CONFIG_MI_RTG := m
++export CONFIG_MILLET_CORE := m
++export CONFIG_MI_RT_MOD := m
++subdir-ccflags-y += -I$(PERF_ROOT)/include
++# minidump and the panel event notifier are soc-repo modules the base
++# kernel config does not know, so without these their headers compile to
++# stubs.
++subdir-ccflags-y += -DCONFIG_QCOM_MINIDUMP_MODULE=1 -DCONFIG_QCOM_PANEL_EVENT_NOTIFIER_MODULE=1
++
++obj-m += boottime/ kshrink_slabd/ mi_rmap_efficiency/ mi_stack/ mi_trace/ mi_ubt/ printk_enhance/ mi_thermal/ lz4asm/ perf_actuator/ plat_common/ rtg/ millet/ rt_mod/
+diff --git a/Makefile b/Makefile
+new file mode 100644
+index 0000000..d294d06
+--- /dev/null
++++ b/Makefile
+@@ -0,0 +1,8 @@
++# kleaf restores the Module.symvers of the soc-repo dependencies under
++# COMMON_OUT_DIR; hand them to modpost. mi_trace uses minidump, mi_thermal_interface uses mca.
++KBUILD_EXTRA_SYMBOLS += $(wildcard $(COMMON_OUT_DIR)/soc-repo/sun_perf/*/*/*_Module.symvers \
++	$(COMMON_OUT_DIR)/soc-repo/sun_perf/*/*/*/*_Module.symvers \
++	$(COMMON_OUT_DIR)/vendor/xiaomi/mca/*Module.symvers)
++
++modules modules_install clean:
++	$(MAKE) -C $(KERNEL_SRC) M=$(M) $(KBUILD_OPTIONS) KBUILD_EXTRA_SYMBOLS="$(KBUILD_EXTRA_SYMBOLS)" $@
+diff --git a/include/linux/sched/walt.h b/include/linux/sched/walt.h
+new file mode 100644
+index 0000000..d9b19b6
+--- /dev/null
++++ b/include/linux/sched/walt.h
+@@ -0,0 +1,347 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++/*
++ * Copyright (c) 2021, The Linux Foundation. All rights reserved.
++ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
++ */
++
++#ifndef _LINUX_SCHED_WALT_H
++#define _LINUX_SCHED_WALT_H
++
++#include <linux/types.h>
++#include <linux/spinlock_types.h>
++#include <linux/cpumask.h>
++#include <linux/sched/task.h>
++
++enum pause_client {
++	PAUSE_CORE_CTL	= 0x01,
++	PAUSE_THERMAL	= 0x02,
++	PAUSE_HYP	= 0x04,
++	PAUSE_SBT	= 0x08,
++};
++
++#define NO_BOOST 0
++#define FULL_THROTTLE_BOOST 1
++#define CONSERVATIVE_BOOST 2
++#define RESTRAINED_BOOST 3
++#define STORAGE_BOOST 4
++#define BALANCE_BOOST 5
++#define FULL_THROTTLE_BOOST_DISABLE -1
++#define CONSERVATIVE_BOOST_DISABLE -2
++#define RESTRAINED_BOOST_DISABLE -3
++#define STORAGE_BOOST_DISABLE -4
++#define BALANCE_BOOST_DISABLE -5
++#define MAX_NUM_BOOST_TYPE (BALANCE_BOOST+1)
++
++#if IS_ENABLED(CONFIG_SCHED_WALT)
++
++#define MAX_CPUS_PER_CLUSTER 6
++#define MAX_CLUSTERS 4
++
++struct core_ctl_notif_data {
++	unsigned int nr_big;
++	unsigned int coloc_load_pct;
++	unsigned int ta_util_pct[MAX_CLUSTERS];
++	unsigned int cur_cap_pct[MAX_CLUSTERS];
++};
++
++enum task_boost_type {
++	TASK_BOOST_NONE = 0,
++	TASK_BOOST_ON_MID,
++	TASK_BOOST_ON_MAX,
++	TASK_BOOST_STRICT_MAX,
++	TASK_BOOST_END,
++};
++
++#define WALT_NR_CPUS CONFIG_SCHED_WALT_NR_CPUS
++#define RAVG_HIST_SIZE 5
++/* wts->bucket_bitmask needs to be updated if NUM_BUSY_BUCKETS > 16 */
++#define NUM_BUSY_BUCKETS 16
++#define NUM_BUSY_BUCKETS_SHIFT 4
++
++struct walt_related_thread_group {
++	int			id;
++	raw_spinlock_t		lock;
++	struct list_head	tasks;
++	struct list_head	list;
++	bool			skip_min;
++	struct rcu_head		rcu;
++	u64			last_update;
++	u64			downmigrate_ts;
++	u64			start_ktime_ts;
++	/*
++	 * Xiaomi rtg: preferred CPUs (one mask word) and preferred util of
++	 * the group. The stock 6.6 rtg.ko writes them at offsets 0x58 and
++	 * 0x60, right after start_ktime_ts.
++	 */
++	u64			mi_prefer_cpus;
++	unsigned long		mi_prefer_util;
++};
++
++struct walt_task_struct {
++	/*
++	 * 'mark_start' marks the beginning of an event (task waking up, task
++	 * starting to execute, task being preempted) within a window
++	 *
++	 * 'sum' represents how runnable a task has been within current
++	 * window. It incorporates both running time and wait time and is
++	 * frequency scaled.
++	 *
++	 * 'sum_history' keeps track of history of 'sum' seen over previous
++	 * RAVG_HIST_SIZE windows. Windows where task was entirely sleeping are
++	 * ignored.
++	 *
++	 * 'demand' represents maximum sum seen over previous
++	 * sysctl_sched_ravg_hist_size windows. 'demand' could drive frequency
++	 * demand for tasks.
++	 *
++	 * 'curr_window_cpu' represents task's contribution to cpu busy time on
++	 * various CPUs in the current window
++	 *
++	 * 'prev_window_cpu' represents task's contribution to cpu busy time on
++	 * various CPUs in the previous window
++	 *
++	 * 'curr_window' represents the sum of all entries in curr_window_cpu
++	 *
++	 * 'prev_window' represents the sum of all entries in prev_window_cpu
++	 *
++	 * 'pred_demand_scaled' represents task's current predicted cpu busy time
++	 * in terms of 1024 units
++	 *
++	 * 'busy_buckets' groups historical busy time into different buckets
++	 * used for prediction
++	 *
++	 * 'demand_scaled' represents task's demand scaled to 1024
++	 *
++	 * 'prev_on_rq' tracks enqueue/dequeue of a task for error conditions
++	 * 0 = nothing, 1 = enqueued, 2 = dequeued
++	 *
++	 * 'lib_app_state' tracks if task is a lib based application
++	 * <bit 7>: result of lib evaluation, <bit 6-0>: lib name update count
++	 */
++	u32				flags;
++	u64				mark_start;
++	u64				window_start;
++	u32				sum, demand;
++	u32				coloc_demand;
++	u32				sum_history[RAVG_HIST_SIZE];
++	u16				sum_history_util[RAVG_HIST_SIZE];
++	u32				curr_window_cpu[WALT_NR_CPUS];
++	u32				prev_window_cpu[WALT_NR_CPUS];
++	u32				curr_window, prev_window;
++	u8				busy_buckets[NUM_BUSY_BUCKETS];
++	u16				bucket_bitmask;
++	u16				demand_scaled;
++	u16				pred_demand_scaled;
++	u64				active_time;
++	u64				last_win_size;
++	int				boost;
++	bool				wake_up_idle;
++	bool				misfit;
++	bool				rtg_high_prio;
++	u8				low_latency;
++	u64				boost_period;
++	u64				boost_expires;
++	u64				last_sleep_ts;
++	u32				init_load_pct;
++	u32				unfilter;
++	u64				last_wake_ts;
++	u64				last_enqueued_ts;
++	struct walt_related_thread_group __rcu	*grp;
++	struct list_head		grp_list;
++	u64				cpu_cycles;
++	bool				iowaited;
++	int				prev_on_rq;
++	int				prev_on_rq_cpu;
++	struct list_head		mvp_list;
++	u64				sum_exec_snapshot_for_slice;
++	u64				sum_exec_snapshot_for_total;
++	u64				total_exec;
++	int				mvp_prio;
++	int				cidx;
++	int				load_boost;
++	int64_t				boosted_task_load;
++	int				prev_cpu;
++	int				new_cpu;
++	u8				enqueue_after_migration;
++	u8				hung_detect_status;
++	int				pipeline_cpu;
++	cpumask_t			reduce_mask;
++	u64				mark_start_birth_ts;
++	u8				high_util_history;
++	u8				mpam_part_id;
++	u8				yield_state;
++	u16				busy_bitmap;
++	u32				period_contrib_run;
++	u64				yield_ts;
++	u64				yield_total_sleep_usec;
++	s64				lst_tgt_ns;
++	int				lst_state_counter;
++	bool				lst;
++	int				pipeline_activity_cnt;
++	atomic_t			event_windows;
++	u8				lib_app_state;
++
++	/*
++	 * Smart Freq misfit delay timer (per-task).
++	 *   0       = no pending sf_misfit
++	 *   non-zero = sf_misfit pending; value is the wallclock timestamp
++	 *              when misfit was first detected under smart_freq limiting.
++	 */
++	u64				sf_misfit_time;
++};
++
++#define wts_to_ts(wts) ({ \
++		void *__mptr = (void *)(wts); \
++		(u64 *)wts == &vendor_data_pad[0] ? &init_task :\
++		((struct task_struct *)(__mptr - \
++			sizeof(struct task_struct))); })
++
++static inline bool sched_get_wake_up_idle(struct task_struct *p)
++{
++	struct walt_task_struct *wts = (struct walt_task_struct *)android_task_vendor_data(p);
++
++	return wts->wake_up_idle;
++}
++
++static inline int sched_set_wake_up_idle(struct task_struct *p, bool wake_up_idle)
++{
++	struct walt_task_struct *wts = (struct walt_task_struct *)android_task_vendor_data(p);
++
++	wts->wake_up_idle = wake_up_idle;
++	return 0;
++}
++
++static inline void set_wake_up_idle(bool wake_up_idle)
++{
++	struct walt_task_struct *wts = (struct walt_task_struct *)android_task_vendor_data(current);
++
++	wts->wake_up_idle = wake_up_idle;
++}
++
++extern int sched_lpm_disallowed_time(int cpu, u64 *timeout);
++extern int set_task_boost(int boost, u64 period);
++
++struct notifier_block;
++extern void core_ctl_notifier_register(struct notifier_block *n);
++extern void core_ctl_notifier_unregister(struct notifier_block *n);
++extern int core_ctl_set_boost(bool boost);
++extern int walt_set_cpus_taken(struct cpumask *set);
++extern int walt_unset_cpus_taken(struct cpumask *unset);
++extern cpumask_t walt_get_cpus_taken(void);
++extern int walt_get_cpus_in_state1(struct cpumask *cpus);
++extern int walt_set_enforce_high_irq_cpus(struct cpumask *set);
++extern int walt_unset_enforce_high_irq_cpus(struct cpumask *unset);
++cpumask_t walt_get_enforce_high_irq_cpus(void);
++
++extern void sched_walt_oscillate(unsigned int busy_cpu);
++extern int walt_pause_cpus(struct cpumask *cpus, enum pause_client client);
++extern int walt_resume_cpus(struct cpumask *cpus, enum pause_client client);
++extern int walt_partial_pause_cpus(struct cpumask *cpus, enum pause_client client);
++extern int walt_partial_resume_cpus(struct cpumask *cpus, enum pause_client client);
++extern int sched_set_boost(int type);
++extern bool should_boost_bus_dcvs(void);
++extern cpumask_t walt_get_halted_cpus(void);
++#else
++static inline void sched_walt_oscillate(unsigned int busy_cpu) { }
++static inline int sched_lpm_disallowed_time(int cpu, u64 *timeout)
++{
++	return INT_MAX;
++}
++static inline int set_task_boost(int boost, u64 period)
++{
++	return 0;
++}
++
++static inline bool sched_get_wake_up_idle(struct task_struct *p)
++{
++	return false;
++}
++
++static inline int sched_set_wake_up_idle(struct task_struct *p, bool wake_up_idle)
++{
++	return 0;
++}
++
++static inline void set_wake_up_idle(bool wake_up_idle)
++{
++}
++
++static inline int core_ctl_set_boost(bool boost)
++{
++	return 0;
++}
++
++static inline void core_ctl_notifier_register(struct notifier_block *n)
++{
++}
++
++static inline void core_ctl_notifier_unregister(struct notifier_block *n)
++{
++}
++
++static inline int walt_pause_cpus(struct cpumask *cpus, enum pause_client client)
++{
++	return 0;
++}
++static inline int walt_resume_cpus(struct cpumask *cpus, enum pause_client client)
++{
++	return 0;
++}
++
++inline int walt_partial_pause_cpus(struct cpumask *cpus, enum pause_client client)
++{
++	return 0;
++}
++inline int walt_partial_resume_cpus(struct cpumask *cpus, enum pause_client client)
++{
++	return 0;
++}
++
++static inline void walt_set_cpus_taken(struct cpumask *set)
++{
++}
++
++static inline void walt_unset_cpus_taken(struct cpumask *unset)
++{
++}
++
++static inline cpumask_t walt_get_cpus_taken(void)
++{
++	cpumask_t t = { CPU_BITS_NONE };
++	return t;
++}
++
++static inline int sched_set_boost(int type)
++{
++	return -EINVAL;
++}
++
++static inline bool should_boost_bus_dcvs(void)
++{
++	return false;
++}
++
++static inline cpumask_t walt_get_halted_cpus(void)
++{
++	cpumask_t t = { CPU_BITS_NONE };
++	return t;
++}
++
++static inline int walt_set_enforce_high_irq_cpus(struct cpumask *set)
++{
++	return -EINVAL;
++}
++
++static inline int walt_unset_enforce_high_irq_cpus(struct cpumask *unset)
++{
++	return -EINVAL;
++}
++
++static inline cpumask_t walt_get_enforce_high_irq_cpus(void)
++{
++	cpumask_t t = { CPU_BITS_NONE };
++	return t;
++}
++#endif
++
++#endif /* _LINUX_SCHED_WALT_H */
+diff --git a/include/linux/soc/qcom/panel_event_notifier.h b/include/linux/soc/qcom/panel_event_notifier.h
+new file mode 100644
+index 0000000..31d58ab
+--- /dev/null
++++ b/include/linux/soc/qcom/panel_event_notifier.h
+@@ -0,0 +1,87 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++/*
++ * Copyright (c) 2021, The Linux Foundation. All rights reserved.
++ * Copyright (c) 2023, Qualcomm Innovation Center, Inc. All rights reserved.
++ */
++
++#ifndef __PANEL_EVENT_NOTIFIER_H
++#define __PANEL_EVENT_NOTIFIER_H
++
++#include <linux/err.h>
++#include <linux/errno.h>
++#include <linux/types.h>
++#include <drm/drm_panel.h>
++
++enum panel_event_notifier_tag {
++	PANEL_EVENT_NOTIFICATION_NONE,
++	PANEL_EVENT_NOTIFICATION_PRIMARY,
++	PANEL_EVENT_NOTIFICATION_SECONDARY,
++	PANEL_EVENT_NOTIFICATION_MAX
++};
++
++enum panel_event_notifier_client {
++	PANEL_EVENT_NOTIFIER_CLIENT_PRIMARY_TOUCH,
++	PANEL_EVENT_NOTIFIER_CLIENT_SECONDARY_TOUCH,
++	PANEL_EVENT_NOTIFIER_CLIENT_ECM,
++	PANEL_EVENT_NOTIFIER_CLIENT_BATTERY_CHARGER,
++	PANEL_EVENT_NOTIFIER_CLIENT_FINGERPRINT,
++	PANEL_EVENT_NOTIFIER_CLIENT_FINGERPRINT_SECOND,
++	PANEL_EVENT_NOTIFIER_CLIENT_KEYBOARD,
++	PANEL_EVENT_NOTIFIER_CLIENT_THERMAL,
++	PANEL_EVENT_NOTIFIER_CLIENT_THERMAL_SECOND,
++	PANEL_EVENT_NOTIFIER_CLIENT_MAX
++};
++
++enum panel_event_notification_type {
++	DRM_PANEL_EVENT_NONE,
++	DRM_PANEL_EVENT_BLANK,
++	DRM_PANEL_EVENT_UNBLANK,
++	DRM_PANEL_EVENT_BLANK_LP,
++	DRM_PANEL_EVENT_FPS_CHANGE,
++	DRM_PANEL_EVENT_MAX
++};
++
++struct panel_event_notification_data {
++	u32 old_fps;
++	u32 new_fps;
++	bool early_trigger;
++};
++
++struct panel_event_notification {
++	enum panel_event_notification_type notif_type;
++	struct panel_event_notification_data notif_data;
++	struct drm_panel *panel;
++};
++
++typedef void (*panel_event_notifier_handler)(enum panel_event_notifier_tag tag,
++				struct panel_event_notification *notification,
++					void *pvt_data);
++
++#if IS_ENABLED(CONFIG_QCOM_PANEL_EVENT_NOTIFIER)
++void *panel_event_notifier_register(enum panel_event_notifier_tag tag,
++		enum panel_event_notifier_client client_handle,
++		struct drm_panel *panel,
++		panel_event_notifier_handler notif_handler, void *pvt_data);
++void panel_event_notifier_unregister(void *cookie);
++void panel_event_notification_trigger(enum panel_event_notifier_tag tag,
++		 struct panel_event_notification *notification);
++
++#else
++static inline void *panel_event_notifier_register(enum panel_event_notifier_tag tag,
++		enum panel_event_notifier_client client_handle,
++		struct drm_panel *panel,
++		panel_event_notifier_handler notif_handler, void *pvt_data)
++{
++	return ERR_PTR(-EOPNOTSUPP);
++}
++
++static inline void panel_event_notifier_unregister(void *cookie)
++{
++}
++static inline void panel_event_notification_trigger(
++		enum panel_event_notifier_tag tag,
++		struct panel_event_notification *notification)
++{
++}
++#endif
++#endif
+diff --git a/include/millet/millet.h b/include/millet/millet.h
+new file mode 100644
+index 0000000..08092d2
+--- /dev/null
++++ b/include/millet/millet.h
+@@ -0,0 +1,136 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++/*
++ * Millet ("smart frozen control subsystem") core interface, rebuilt for
++ * 6.12 from static analysis of the stock HyperOS OS4.0.5 millet_core.ko
++ * and its users. Offsets in the comments are the stock 6.6 ones; the
++ * hook prototypes match the kCFI type hashes in the stock binaries.
++ */
++#ifndef _MILLET_H
++#define _MILLET_H
++
++#include <linux/seq_file.h>
++#include <linux/spinlock.h>
++#include <linux/time64.h>
++#include <linux/types.h>
++
++/* Module types, from the stock name table at .rodata+0x9f8. */
++enum MILLET_TYPE {
++	O_TYPE = 0,	/* "NULL" */
++	SIG_TYPE,	/* "SIG" */
++	BINDER_TYPE,	/* "BINDER" */
++	BINDER_ST_TYPE,	/* "BINDER_STAT" */
++	MEM_TYPE,	/* "MEM" */
++	PKG_TYPE,	/* "PKG" */
++	HANDSHK_TYPE,	/* "HANDSHK" */
++	MILLET_TYPES_NUM,
++};
++
++/* msg_type values: the core accepts 1..3 when sending. */
++enum MILLET_MSG_TYPE {
++	MSG_NONE = 0,
++	LOOPBACK_MSG = 1,	/* handshake reply */
++	MSG_TO_USER = 2,
++	MSG_TO_KERN = 3,
++};
++
++#define NETLINK_MILLET		31
++#define MILLET_KERNEL_PORT	0x12341234UL
++#define MILLET_USER_PORT	0xabcddcbaUL
++#define MILLET_PRIV_UID_MAX	1000	/* recv_handler rejects uid > 1000 */
++
++/* Kernel -> user message, 0x90 bytes. */
++struct millet_data {
++	u32 owner;			/* 0x00 sending module type */
++	u32 monitor;			/* 0x04 module type it was routed to */
++	u32 msg_type;			/* 0x08 */
++	u32 reserved;			/* 0x0c */
++	u64 src_port;			/* 0x10 MILLET_KERNEL_PORT */
++	u64 dst_port;			/* 0x18 MILLET_USER_PORT */
++	u32 uid;			/* 0x20 */
++	u32 reserved2;			/* 0x24 */
++	struct timespec64 tm;		/* 0x28 set by the core */
++	union {				/* 0x38 module specific */
++		u64 sig;
++		struct {		/* SIG_TYPE, from millet_sig.ko */
++			u64 sig;		/* 0x38 */
++			u64 reserved[5];
++			u64 sig_mask;		/* 0x68 1 << sig */
++			struct task_struct *task;	/* 0x70 */
++			u32 pid;		/* 0x78 tgid */
++		} sig_info;
++		u8 data[0x58];
++	} mod;
++};
++static_assert(sizeof(struct millet_data) == 0x90);
++static_assert(offsetof(struct millet_data, mod.sig_info.pid) == 0x78);
++
++/* User -> kernel message, 0x50 bytes. */
++struct millet_userconf {
++	u32 owner;			/* 0x00 module type */
++	u32 msg_type;			/* 0x04 LOOPBACK_MSG or MSG_TO_KERN */
++	u64 src_port;			/* 0x08 MILLET_USER_PORT */
++	u64 dst_port;			/* 0x10 MILLET_KERNEL_PORT */
++	u8 data[0x38];			/* 0x18 module specific */
++};
++static_assert(sizeof(struct millet_userconf) == 0x50);
++
++struct millet_sock;
++typedef void (*recv_from_user)(void *data, unsigned int len);
++typedef int (*send_to_user)(struct task_struct *tsk, struct millet_data *data,
++			    struct millet_sock *sk);
++typedef void (*init_millet)(struct millet_sock *sk);
++
++/* One per module type, 0x78 bytes on 6.6. */
++struct millet_mod {
++	u32 id;				/* 0x00 */
++	u32 monitor;			/* 0x04 route messages to this type */
++	u32 port;			/* 0x08 netlink portid after handshake */
++	u32 handshake;			/* 0x0c */
++	recv_from_user recv_from;	/* 0x10 */
++	send_to_user send_to;		/* 0x18 */
++	init_millet init;		/* 0x20 */
++	spinlock_t lock;		/* 0x28 protects the counters */
++	u64 send_suc;			/* 0x30 */
++	u64 send_fail;			/* 0x38 */
++	u64 runtime;			/* 0x40 us */
++	char name[32];			/* 0x48 */
++	void *priv;			/* 0x68 module data (millet_sig) */
++	u32 enable;			/* 0x70 */
++};
++
++static_assert(sizeof(struct millet_mod) == 0x78);
++
++struct millet_sock {
++	struct sock *sock;
++	struct millet_mod mod[MILLET_TYPES_NUM];
++};
++
++extern unsigned int millet_debug;
++extern unsigned int frozen_uid_min;
++extern unsigned long binder_warn_ahead_space;
++extern bool millet_binder_switch;
++extern int freezebinder_enable;
++extern atomic_t core_black_pid_rec[10];
++extern atomic_t core_black_uid_rec[10];
++
++int register_millet_hook(int type, recv_from_user recv_from,
++			 send_to_user send_to, init_millet init);
++int unregister_millet_hook(int type);
++int init_millet_subsystem(int type);
++int millet_sendmsg(int type, struct task_struct *tsk, struct millet_data *data);
++int millet_sendto_user(struct task_struct *tsk, struct millet_data *data,
++		       struct millet_sock *sk);
++
++int core_uid_hash_add(uid_t uid);
++int core_uid_hash_del(uid_t uid);
++bool core_uid_hash_find(uid_t uid);
++void core_uid_hash_clear(void);
++void core_uid_hash_show(struct seq_file *m, const char *sep);
++int uid_rec_hash_add(uid_t uid);
++int uid_rec_hash_del(uid_t uid);
++bool uid_rec_hash_find(uid_t uid);
++bool uid_rec_hash_find_and_clear(uid_t uid);
++void uid_rec_hash_clear(void);
++void uid_rec_hash_show(struct seq_file *m, const char *sep);
++
++#endif
+diff --git a/include/perf_actuator/perf_actuator.h b/include/perf_actuator/perf_actuator.h
+new file mode 100644
+index 0000000..9c20751
+--- /dev/null
++++ b/include/perf_actuator/perf_actuator.h
+@@ -0,0 +1,26 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++/*
++ * Interface of perf_actuator, rebuilt for 6.12 from the stock HyperOS
++ * OS4.0.5 module (vendor_boot perf_actuator.ko). The names and limits come
++ * from that binary's symbols and code; the header itself is new.
++ */
++#ifndef _PERF_ACTUATOR_H
++#define _PERF_ACTUATOR_H
++
++#include <linux/types.h>
++
++/* ioctl type byte checked by both devices (cmp w1, #0x78). */
++#define PERF_ACTUATOR_MAGIC	'x'
++/* Table sizes: register_perf_actuator rejects nr > 0x2a, register_xr_fbt nr > 0xb. */
++#define PERF_ACTUATOR_MAX_CMD	43
++#define XR_FBT_MAX_CMD		12
++
++/* Handlers get the raw user pointer from the ioctl. */
++typedef int (*perf_actuator_func)(void __user *uarg);
++
++int register_perf_actuator(unsigned int cmd, perf_actuator_func func);
++int unregister_perf_actuator(unsigned int cmd);
++int register_xr_fbt(unsigned int cmd, perf_actuator_func func);
++int unregister_xr_fbt(unsigned int cmd);
++
++#endif
+diff --git a/include/plat_common/plat_common.h b/include/plat_common/plat_common.h
+new file mode 100644
+index 0000000..299403d
+--- /dev/null
++++ b/include/plat_common/plat_common.h
+@@ -0,0 +1,116 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++/*
++ * Interface of plat_common ("OS-CPU Platform Hook"), rebuilt for 6.12 from
++ * the stock HyperOS OS4.0.5 module vendor_boot plat_common.ko.
++ *
++ * Slot numbers: the g_plat_hook_table offset each exported wrapper loads,
++ * divided by the 16-byte entry size. Prototypes: recovered from the kCFI
++ * type hash the wrapper checks before its indirect call (xxhash64 of the
++ * Itanium-mangled function type), except the two marked UNRESOLVED, whose
++ * argument count and widths come from the sched-walt.ko call sites only.
++ */
++#ifndef _PLAT_COMMON_H
++#define _PLAT_COMMON_H
++
++#include <linux/types.h>
++
++struct task_struct;
++struct cpumask;
++struct rq;
++struct walt_related_thread_group;
++struct cgroup_subsys_state;
++
++enum plat_func_slot {
++	PLAT_SCHED_SET_GROUP_ID = 1,
++	PLAT_SCHED_GET_GROUP_ID = 2,
++	PLAT_TASK_UTIL = 3,
++	PLAT_CPU_HALTED = 4,
++	PLAT_CPU_HALT_MASK = 5,
++	PLAT_CAPACITY_ORIG_OF = 6,
++	PLAT_IS_MAX_POSSIBLE_CLUSTER_CPU = 7,
++	PLAT_FIND_IDLE_CPU_IN_FREQ_DOMAIN = 8,
++	PLAT_GET_GROUP_PREFER_CPUS = 9,
++	PLAT_GET_GROUP_PREFER_UTIL = 10,
++	PLAT_CORE_CTL_UPDATE = 11,
++	PLAT_LOOKUP_RELATED_THREAD_GROUP = 12,
++	PLAT_MI_GAME_FIND_ENERGY_HOOK = 13,
++	PLAT_UPDATE_PKG_LOAD = 14,
++	PLAT_MI_GAME_WALT_GET_INDICIES = 15,
++	PLAT_GAME_GET_RAVG_WINDOW = 16,
++	PLAT_MI_SET_NEXT_FREQ = 17,
++	PLAT_MI_GAME_TASK_FORK = 18,
++	PLAT_MI_GAME_SCHEDULER_TICK = 19,
++	PLAT_GAME_CHOOSE_CPU_FASTPATH = 20,
++	PLAT_FREE_MI_TASK_STRUCT = 21,
++	PLAT_GAME_CHOOSE_EXCLUSIVE_CPUS = 22,
++	PLAT_GAME_CHOOSE_CPU = 23,
++	PLAT_GAME_SKIP_CPUS = 24,
++	PLAT_GAME_SKIP_CPUS_RT = 25,
++	PLAT_GAME_SHOULD_SKIP_CPU_RT = 26,
++	PLAT_GAME_SHOULD_SKIP_MIGRATE = 27,
++	PLAT_GAME_CHECK_RT = 28,
++	PLAT_GAME_VIP_CHECK = 29,
++	PLAT_MIGT_ENABLE = 30,
++	PLAT_UPDATE_FRAME_LOAD = 35,
++	PLAT_FLT_ENABLE = 36,
++	PLAT_GET_WAKEUP_INFO = 37,
++	PLAT_MI_FORCE_UPDATE_FREQ = 38,
++	PLAT_ENABLE_GPSYNC = 39,
++	PLAT_MI_GAME_SCHEDULE = 40,
++	PLAT_FUNC_MAX = 41,	/* register_plat_func rejects nr > 0x28 */
++};
++
++int register_plat_func(unsigned int cmd, void *func);
++int unregister_plat_func(unsigned int cmd);
++
++int plat_sched_set_group_id(struct task_struct *p, unsigned int id);
++unsigned int plat_sched_get_group_id(struct task_struct *p);
++unsigned long plat_task_util(struct task_struct *p);
++bool plat_cpu_halted(int cpu);
++struct cpumask *plat_cpu_halt_mask(void);
++unsigned long plat_capacity_orig_of(int cpu);
++bool plat_is_max_possible_cluster_cpu(int cpu);
++int plat_find_idle_cpu_in_freq_domain(int cpu);
++void plat_get_group_prefer_cpus(struct task_struct *p, struct cpumask *mask);
++unsigned long plat_get_group_prefer_util(struct task_struct *p);
++void plat_core_ctl_update(void);
++struct walt_related_thread_group *plat_lookup_related_thread_group(unsigned int id);
++void plat_mi_game_find_energy_hook(struct task_struct *p, bool *out);
++void plat_update_pkg_load(struct task_struct *p, int a, int b, u64 c, u64 d);
++void plat_mi_game_walt_get_indicies(struct task_struct *p, int *order_index,
++				    int *end_index, int nr_clusters,
++				    bool *a, bool *b);
++void plat_game_get_ravg_window(unsigned int window);
++/* UNRESOLVED prototype: 7 register and 2 stack arguments at the call site. */
++void plat_mi_set_next_freq(void *a0, void *a1, unsigned int a2, u64 a3,
++			   u64 *a4, void *a5, void *a6, unsigned int a7,
++			   unsigned int a8);
++void plat_mi_game_task_fork(struct task_struct *p);
++void plat_mi_game_scheduler_tick(struct rq *rq);
++/* UNRESOLVED prototype: returns a CPU (negative for none) at the call site. */
++int plat_game_choose_cpu_fastpath(struct task_struct *p, struct cpumask *mask,
++				  bool *out);
++void plat_free_mi_task_struct(struct task_struct *p);
++int plat_game_choose_exclusive_cpus(struct task_struct *p);
++int plat_game_choose_cpu(struct task_struct *p);
++bool plat_game_skip_cpus(struct cpumask *mask);
++bool plat_game_skip_cpus_rt(struct task_struct *p, struct cpumask *mask);
++bool plat_game_should_skip_cpu_rt(struct task_struct *p, int cpu);
++bool plat_game_should_skip_migrate(struct task_struct *p, int cpu);
++bool plat_game_check_rt(struct task_struct *p);
++bool plat_game_vip_check(struct task_struct *p);
++int plat_migt_enable(void);
++void plat_update_frame_load(struct task_struct *p, struct rq *rq,
++			    unsigned int event, u64 wallclock, u64 delta,
++			    int flag);
++int plat_flt_enable(void);
++void plat_get_wakeup_info(struct task_struct *p);
++void plat_mi_force_update_freq(unsigned int arg);
++bool plat_enable_gpsync(void);
++void plat_mi_game_schedule(struct task_struct *prev, struct task_struct *next,
++			   struct rq *rq);
++
++void plat_init_sched_cgroup_id(struct cgroup_subsys_state *css);
++bool plat_is_relaxed_rt(struct task_struct *p);
++
++#endif
+diff --git a/include/soc/qcom/minidump.h b/include/soc/qcom/minidump.h
+new file mode 100644
+index 0000000..4f6987e
+--- /dev/null
++++ b/include/soc/qcom/minidump.h
+@@ -0,0 +1,133 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++/*
++ * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
++ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
++ */
++
++#ifndef __MINIDUMP_H
++#define __MINIDUMP_H
++
++#include <linux/types.h>
++#include <linux/workqueue.h>
++
++enum minidump_entry_cmd {
++	MINIDUMP_ADD,
++	MINIDUMP_REMOVE,
++	MINIDUMP_UPDATE,
++	MINIDUMP_NO_CMD
++};
++
++#if IS_ENABLED(CONFIG_ARCH_QTI_VM)
++#define MAX_NAME_LENGTH		9
++#else
++#define MAX_NAME_LENGTH		12
++#endif
++
++/* md_region -  Minidump table entry
++ * @name:	Entry name, Minidump will dump binary with this name.
++ * @id:		Entry ID, used only for SDI dumps.
++ * @virt_addr:  Address of the entry.
++ * @phys_addr:	Physical address of the entry to dump.
++ * @size:	Number of byte to dump from @address location
++ *		it should be 4 byte aligned.
++ */
++struct md_region {
++	char	name[MAX_NAME_LENGTH + 1];
++	u32	id;
++	u64	virt_addr;
++	u64	phys_addr;
++	u64	size;
++};
++
++struct md_pending_region {
++	struct list_head	list;
++	struct md_region	entry;
++};
++
++
++struct md_rm_request {
++	struct md_region	entry;
++	struct work_struct	work;
++	enum minidump_entry_cmd	work_cmd;
++};
++
++/*
++ * Register an entry in Minidump table
++ * Returns:
++ *	region number: entry position in minidump table.
++ *	Negative error number on failures.
++ */
++#if IS_ENABLED(CONFIG_QCOM_MINIDUMP)
++extern int msm_minidump_add_region(const struct md_region *entry);
++extern int msm_minidump_remove_region(const struct md_region *entry);
++/*
++ * Update registered region address in Minidump table.
++ * It does not hold any locks, so strictly serialize the region updates.
++ * Returns:
++ *	Zero: on successfully update
++ *	Negetive error number on failures.
++ */
++extern int msm_minidump_update_region(int regno, const struct md_region *entry);
++extern bool msm_minidump_enabled(void);
++extern struct md_region md_get_region(char *name);
++extern void dump_stack_minidump(u64 sp);
++extern int msm_minidump_get_available_region(void);
++#else
++static inline int msm_minidump_add_region(const struct md_region *entry)
++{
++	/* Return quietly, if minidump is not supported */
++	return 0;
++}
++static inline int msm_minidump_remove_region(const struct md_region *entry)
++{
++	return 0;
++}
++static inline bool msm_minidump_enabled(void) { return false; }
++static inline struct md_region md_get_region(char *name)
++{
++	struct md_region mdr = {0};
++	return mdr;
++}
++static inline void dump_stack_minidump(u64 sp) {}
++static inline void add_trace_event(char *buf, size_t size) {}
++#endif
++
++#if IS_ENABLED(CONFIG_QCOM_MINIDUMP_PANIC_DUMP)
++extern void md_dump_process(void);
++#else
++static inline void md_dump_process(void) {}
++#endif
++
++
++#define MAX_OWNER_STRING	32
++struct va_md_entry {
++	unsigned long vaddr;
++	unsigned char owner[MAX_OWNER_STRING];
++	unsigned int size;
++	void (*cb)(void *dst, unsigned long size);
++};
++
++#if IS_ENABLED(CONFIG_QCOM_VA_MINIDUMP)
++extern bool qcom_va_md_enabled(void);
++extern int qcom_va_md_register(const char *name, struct notifier_block *nb);
++extern int qcom_va_md_unregister(const char *name, struct notifier_block *nb);
++extern int qcom_va_md_add_region(struct va_md_entry *entry);
++#else
++static inline bool qcom_va_md_enabled(void) { return false; }
++static inline int qcom_va_md_register(const char *name, struct notifier_block *nb)
++{
++	return -ENODEV;
++}
++
++static inline int qcom_va_md_unregister(const char *name, struct notifier_block *nb)
++{
++	return -ENODEV;
++}
++
++static inline int qcom_va_md_add_region(struct va_md_entry *entry)
++{
++	return -ENODEV;
++}
++#endif
++
++#endif
+diff --git a/lz4asm/lz4.c b/lz4asm/lz4.c
+index 16b83e3..4eb9bc3 100644
+--- a/lz4asm/lz4.c
++++ b/lz4asm/lz4.c
+@@ -44,7 +44,7 @@
+  *	Sven Schmidt <4sschmid@informatik.uni-hamburg.de>
+  */
+ 
+-#include <asm/unaligned.h>
++#include <linux/unaligned.h>
+ #include <linux/string.h>	 /* memset, memcpy */
+ #include <linux/delay.h>
+ #include <linux/types.h>
+diff --git a/mi_thermal/Makefile b/mi_thermal/Makefile
+index fa6fced..1243aa8 100644
+--- a/mi_thermal/Makefile
++++ b/mi_thermal/Makefile
+@@ -1,10 +1 @@
+-# SPDX-License-Identifier: GPL-2.0
+-#
+-# Makefile for sensor chip drivers.
+-#
+-
+-#xiaomi thermal control interface
+-ifdef CONFIG_XM_POWER_SUPPLY
+-ccflags-y += -I$(srctree)/drivers/power/supply/mca/include
+-endif
+-obj-$(CONFIG_MI_THERMAL_INTERFACE)	+= mi_thermal_interface.o
++obj-m += mi_thermal_interface.o
+diff --git a/mi_thermal/mi_thermal_interface.c b/mi_thermal/mi_thermal_interface.c
+index 663fd92..f45e846 100644
+--- a/mi_thermal/mi_thermal_interface.c
++++ b/mi_thermal/mi_thermal_interface.c
+@@ -23,9 +23,7 @@
+ #include <mca/common/mca_event.h>
+ #include <mca/smartchg/smart_chg_class.h>
+ #endif
+-#include "../../base/base.h"
+ 
+-#include "../thermal_core.h"
+ 
+ #if defined(CONFIG_DRM_PANEL)
+ static struct drm_panel *prim_panel;
+@@ -1254,47 +1252,60 @@ out:
+ 	return 0;
+ }
+ 
++/*
++ * The thermal class is private to the thermal core. A cooling device is
++ * a member of it, so register a throwaway one to find it.
++ */
++static int mi_class_probe_get_state(struct thermal_cooling_device *cdev,
++				    unsigned long *state)
++{
++	*state = 0;
++	return 0;
++}
++
++static int mi_class_probe_set_state(struct thermal_cooling_device *cdev,
++				    unsigned long state)
++{
++	return 0;
++}
++
++static const struct thermal_cooling_device_ops mi_class_probe_ops = {
++	.get_max_state = mi_class_probe_get_state,
++	.get_cur_state = mi_class_probe_get_state,
++	.set_cur_state = mi_class_probe_set_state,
++};
++
++static const struct class *mi_thermal_get_class(void)
++{
++	static const struct class *cls;
++	struct thermal_cooling_device *cdev;
++
++	if (cls)
++		return cls;
++	cdev = thermal_cooling_device_register("mi_thermal_probe", NULL,
++					       &mi_class_probe_ops);
++	if (IS_ERR(cdev)) {
++		pr_err("%s: cannot find the thermal class: %ld\n", __func__,
++		       PTR_ERR(cdev));
++		return NULL;
++	}
++	cls = cdev->device.class;
++	thermal_cooling_device_unregister(cdev);
++	return cls;
++}
++
+ static void create_thermal_message_node(void)
+ {
+ 	int ret = 0;
+-	struct kernfs_node *sysfs_sd = NULL;
+-	struct kernfs_node *thermal_sd = NULL;
+-	struct kernfs_node *class_sd = NULL;
+-	const struct class *cls = NULL;
+-	struct subsys_private *cp = NULL;
+-	struct kobject *kobj_tmp = NULL;
+-
+-	sysfs_sd = kernel_kobj->sd->parent;
+-	if (!sysfs_sd) {
+-		printk(KERN_ERR "%s: sysfs_sd is NULL\n", __func__);
+-	} else {
+-		class_sd = kernfs_find_and_get(sysfs_sd, "class");
+-		if (!class_sd) {
+-			printk(KERN_ERR "%s:can not find class_sd\n", __func__);
+-		} else {
+-			thermal_sd = kernfs_find_and_get(class_sd, "thermal");
+-			if (thermal_sd) {
+-				kobj_tmp = (struct kobject *)thermal_sd->priv;
+-				if (kobj_tmp) {
+-					cp = to_subsys_private(kobj_tmp);
+-					cls = cp->class;
+-				} else {
+-					printk(KERN_ERR
+-					       "%s:can not find thermal kobj\n",
+-					       __func__);
+-				}
+-			} else {
+-				printk(KERN_ERR "%s:can not find thermal_sd\n",
+-				       __func__);
+-			}
+-		}
+-	}
++	const struct class *cls = mi_thermal_get_class();
++
+ 	if (!mi_thermal_dev.class && cls) {
+ 		mi_thermal_dev.class = cls;
+ 		mi_thermal_dev.dev = device_create(mi_thermal_dev.class, NULL,
+ 						   'H', NULL,
+ 						   "thermal_message");
+-		if (!mi_thermal_dev.dev) {
++		if (IS_ERR_OR_NULL(mi_thermal_dev.dev)) {
++			mi_thermal_dev.dev = NULL;
+ 			pr_err("%s create device dev err\n", __func__);
+ 			return;
+ 		}
+@@ -1312,43 +1323,14 @@ static void create_thermal_message_node(void)
+ static void create_mi_powersave_node(void)
+ {
+ 	int ret = 0;
+-	struct kernfs_node *sysfs_sd = NULL;
+-	struct kernfs_node *thermal_sd = NULL;
+-	struct kernfs_node *class_sd = NULL;
+-	const struct class *cls = NULL;
+-	struct subsys_private *cp = NULL;
+-	struct kobject *kobj_tmp = NULL;
+-
+-	sysfs_sd = kernel_kobj->sd->parent;
+-	if (!sysfs_sd) {
+-		printk(KERN_ERR "%s: sysfs_sd is NULL\n", __func__);
+-	} else {
+-		class_sd = kernfs_find_and_get(sysfs_sd, "class");
+-		if (!class_sd) {
+-			printk(KERN_ERR "%s:can not find class_sd\n", __func__);
+-		} else {
+-			thermal_sd = kernfs_find_and_get(class_sd, "thermal");
+-			if (thermal_sd) {
+-				kobj_tmp = (struct kobject *)thermal_sd->priv;
+-				if (kobj_tmp) {
+-					cp = to_subsys_private(kobj_tmp);
+-					cls = cp->class;
+-				} else {
+-					printk(KERN_ERR
+-					       "%s:can not find thermal kobj\n",
+-					       __func__);
+-				}
+-			} else {
+-				printk(KERN_ERR "%s:can not find thermal_sd\n",
+-				       __func__);
+-			}
+-		}
+-	}
++	const struct class *cls = mi_thermal_get_class();
++
+ 	if (!mi_powersave_dev.class && cls) {
+ 		mi_powersave_dev.class = cls;
+ 		mi_powersave_dev.dev = device_create(mi_powersave_dev.class, NULL,
+ 						     'H', NULL, "power_save");
+-		if (!mi_powersave_dev.dev) {
++		if (IS_ERR_OR_NULL(mi_powersave_dev.dev)) {
++			mi_powersave_dev.dev = NULL;
+ 			pr_err("%s create device dev err\n", __func__);
+ 			return;
+ 		}
+diff --git a/mi_trace/mi_trace.c b/mi_trace/mi_trace.c
+index 981d1d4..c504741 100644
+--- a/mi_trace/mi_trace.c
++++ b/mi_trace/mi_trace.c
+@@ -423,7 +423,7 @@ hook_events_fail:
+ 	return ret;
+ }
+ 
+-static int mi_trace_remove(struct platform_device *pdev)
++static void mi_trace_remove(struct platform_device *pdev)
+ {
+ 	enabled = 0;
+ 	mi_trace_destory_procfs();
+@@ -433,7 +433,6 @@ static int mi_trace_remove(struct platform_device *pdev)
+ 		msm_minidump_remove_region(&mtp.md_entry[i]);
+ 
+ 	pr_err("%s\n", __func__);
+-	return 0;
+ }
+ 
+ static const struct of_device_id mi_trace_match_table[] = {
+diff --git a/mi_ubt/Makefile b/mi_ubt/Makefile
+index 85b4075..61c0f57 100644
+--- a/mi_ubt/Makefile
++++ b/mi_ubt/Makefile
+@@ -1,3 +1,2 @@
+ # SPDX-License-Identifier: GPL-2.0
+ obj-$(CONFIG_MI_UBT)             += mi_ubt.o
+-obj-y				+= test/
+diff --git a/millet/Makefile b/millet/Makefile
+new file mode 100644
+index 0000000..a4aa04c
+--- /dev/null
++++ b/millet/Makefile
+@@ -0,0 +1,4 @@
++obj-$(CONFIG_MILLET_CORE) += millet_core.o
++obj-$(CONFIG_MILLET_CORE) += millet_hs.o
++obj-$(CONFIG_MILLET_CORE) += millet_sig.o
++obj-$(CONFIG_MILLET_CORE) += millet_oem_cgroup.o
+diff --git a/millet/millet_core.c b/millet/millet_core.c
+new file mode 100644
+index 0000000..5651920
+--- /dev/null
++++ b/millet/millet_core.c
+@@ -0,0 +1,620 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * millet_core: "Millet smart frozen control subsystem".
++ *
++ * Rebuilt for 6.12 from static analysis (disassembly, kCFI type hashes and
++ * the stock 6.6 kernel BTF) of the HyperOS OS4.0.5 module
++ * vendor_boot/lib/modules/millet_core.ko. Not yet run on a device.
++ *
++ * A NETLINK_MILLET (31) socket links the HyperOS millet daemon with the
++ * millet modules (sig, binder, pkg, hs, ...). The daemon handshakes per
++ * module type; afterwards the modules report events with millet_sendmsg()
++ * and get the daemon's commands through their recv_from hook. Two uid
++ * hash tables and /proc/millet/{millet_stat,version} complete it.
++ */
++#include <linux/hash.h>
++#include <linux/hashtable.h>
++#include <linux/ktime.h>
++#include <linux/module.h>
++#include <linux/netlink.h>
++#include <linux/proc_fs.h>
++#include <linux/sched.h>
++#include <linux/slab.h>
++#include <linux/uaccess.h>
++#include <net/net_namespace.h>
++#include <net/sock.h>
++#include <millet/millet.h>
++
++#undef pr_fmt
++#define pr_fmt(fmt) "millet_millet-core: " fmt
++
++struct millet_sock millet_sk;
++
++unsigned int millet_debug;
++module_param(millet_debug, uint, 0644);
++EXPORT_SYMBOL(millet_debug);
++unsigned int frozen_uid_min = 10000;
++module_param(frozen_uid_min, uint, 0644);
++EXPORT_SYMBOL(frozen_uid_min);
++unsigned long binder_warn_ahead_space = 0x20000;
++module_param(binder_warn_ahead_space, ulong, 0644);
++EXPORT_SYMBOL(binder_warn_ahead_space);
++static int millet_freeze_switch;
++module_param(millet_freeze_switch, int, 0660);
++bool millet_binder_switch = true;
++module_param(millet_binder_switch, bool, 0644);
++EXPORT_SYMBOL(millet_binder_switch);
++int millet_v = 1;
++/* Exported like the stock module; nothing in it writes the value. */
++int freezebinder_enable;
++EXPORT_SYMBOL(freezebinder_enable);
++
++struct proc_dir_entry *millet_rootdir;
++atomic_t core_black_pid_rec[10];
++EXPORT_SYMBOL(core_black_pid_rec);
++atomic_t core_black_uid_rec[10];
++EXPORT_SYMBOL(core_black_uid_rec);
++
++static const char *const millet_type_name[] = {
++	"NULL", "SIG", "BINDER", "BINDER_STAT", "MEM", "PKG", "HANDSHK", "invalid",
++};
++
++static inline bool type_valid(int type)
++{
++	return type >= SIG_TYPE && type < MILLET_TYPES_NUM;
++}
++
++bool judge_millet_freeze_switch(void)
++{
++	return millet_freeze_switch == 1;
++}
++
++/* ---- uid hash tables (64 buckets, hash_32) ---- */
++
++struct uid_node {
++	uid_t uid;
++	struct hlist_node node;
++};
++
++#define DEFINE_UID_HASH(prefix)						\
++static DEFINE_SPINLOCK(prefix##_hash_lock);				\
++static DEFINE_HASHTABLE(prefix##_hashtable, 6);			\
++									\
++static struct uid_node *prefix##_lookup(uid_t uid)			\
++{									\
++	struct uid_node *n;						\
++									\
++	hash_for_each_possible(prefix##_hashtable, n, node, uid)	\
++		if (n->uid == uid)					\
++			return n;					\
++	return NULL;							\
++}									\
++									\
++int prefix##_hash_add(uid_t uid)					\
++{									\
++	struct uid_node *n;						\
++	unsigned long flags;						\
++									\
++	if (!uid)							\
++		return -EINVAL;						\
++	spin_lock_irqsave(&prefix##_hash_lock, flags);			\
++	n = prefix##_lookup(uid);					\
++	spin_unlock_irqrestore(&prefix##_hash_lock, flags);		\
++	if (n)								\
++		return 0;						\
++	n = kmalloc(sizeof(*n), GFP_KERNEL);				\
++	if (!n)								\
++		return -ENOMEM;						\
++	n->uid = uid;							\
++	spin_lock_irqsave(&prefix##_hash_lock, flags);			\
++	hash_add(prefix##_hashtable, &n->node, uid);			\
++	spin_unlock_irqrestore(&prefix##_hash_lock, flags);		\
++	return 0;							\
++}									\
++EXPORT_SYMBOL(prefix##_hash_add);					\
++									\
++int prefix##_hash_del(uid_t uid)					\
++{									\
++	struct uid_node *n;						\
++	unsigned long flags;						\
++									\
++	spin_lock_irqsave(&prefix##_hash_lock, flags);			\
++	n = prefix##_lookup(uid);					\
++	if (n)								\
++		hash_del(&n->node);					\
++	spin_unlock_irqrestore(&prefix##_hash_lock, flags);		\
++	if (!n)								\
++		return -ENOENT;						\
++	kfree(n);							\
++	return 0;							\
++}									\
++EXPORT_SYMBOL(prefix##_hash_del);					\
++									\
++bool prefix##_hash_find(uid_t uid)					\
++{									\
++	unsigned long flags;						\
++	bool found;							\
++									\
++	if (!uid)							\
++		return false;						\
++	spin_lock_irqsave(&prefix##_hash_lock, flags);			\
++	found = prefix##_lookup(uid) != NULL;				\
++	spin_unlock_irqrestore(&prefix##_hash_lock, flags);		\
++	return found;							\
++}									\
++EXPORT_SYMBOL(prefix##_hash_find);					\
++									\
++bool prefix##_hash_find_and_clear(uid_t uid)				\
++{									\
++	struct uid_node *n;						\
++	unsigned long flags;						\
++									\
++	if (!uid)							\
++		return false;						\
++	spin_lock_irqsave(&prefix##_hash_lock, flags);			\
++	n = prefix##_lookup(uid);					\
++	if (n)								\
++		hash_del(&n->node);					\
++	spin_unlock_irqrestore(&prefix##_hash_lock, flags);		\
++	kfree(n);							\
++	return n != NULL;						\
++}									\
++									\
++void prefix##_hash_clear(void)						\
++{									\
++	struct uid_node *n;						\
++	struct hlist_node *tmp;						\
++	unsigned long flags;						\
++	int bkt;							\
++									\
++	spin_lock_irqsave(&prefix##_hash_lock, flags);			\
++	hash_for_each_safe(prefix##_hashtable, bkt, tmp, n, node) {	\
++		hash_del(&n->node);					\
++		kfree(n);						\
++	}								\
++	spin_unlock_irqrestore(&prefix##_hash_lock, flags);		\
++}									\
++EXPORT_SYMBOL(prefix##_hash_clear);					\
++									\
++/* Up to 128 uids are copied out under the lock, then printed. */	\
++void prefix##_hash_show(struct seq_file *m, const char *sep)		\
++{									\
++	uid_t uids[128];						\
++	struct uid_node *n;						\
++	unsigned long flags;						\
++	int bkt, cnt = 0, i;						\
++									\
++	spin_lock_irqsave(&prefix##_hash_lock, flags);			\
++	hash_for_each(prefix##_hashtable, bkt, n, node)			\
++		if (cnt < ARRAY_SIZE(uids))				\
++			uids[cnt++] = n->uid;				\
++	spin_unlock_irqrestore(&prefix##_hash_lock, flags);		\
++	for (i = 0; i < cnt; i++)					\
++		seq_printf(m, "%d%s", uids[i], sep);			\
++}									\
++EXPORT_SYMBOL(prefix##_hash_show)
++
++DEFINE_UID_HASH(core_uid);
++DEFINE_UID_HASH(uid_rec);
++EXPORT_SYMBOL(uid_rec_hash_find_and_clear);
++
++/* ---- hooks ---- */
++
++int register_millet_hook(int type, recv_from_user recv_from,
++			 send_to_user send_to, init_millet init)
++{
++	struct millet_mod *mod;
++
++	if (!type_valid(type)) {
++		pr_err("%s: type is invalid! %d\n", __func__, type);
++		return -1;
++	}
++	mod = &millet_sk.mod[type];
++	/* Same order as the stock module: init, recv_from, send_to. */
++	if (mod->init) {
++		pr_err("%s: init has been registered %d\n", __func__, type);
++		return -1;
++	}
++	mod->init = init;
++	if (mod->recv_from) {
++		pr_err("%s: recv_from has been registered %d\n", __func__, type);
++		return -1;
++	}
++	mod->recv_from = recv_from;
++	if (mod->send_to) {
++		pr_err("%s: send_to has been registered %d\n", __func__, type);
++		return -1;
++	}
++	mod->send_to = send_to;
++	if (millet_debug) {
++		pr_info("type %d register hook\n", type);
++		dump_stack();
++	}
++	return 0;
++}
++EXPORT_SYMBOL(register_millet_hook);
++
++int unregister_millet_hook(int type)
++{
++	if (!type_valid(type)) {
++		pr_err("%s: type is invalid! %d\n", __func__, type);
++		return -1;
++	}
++	millet_sk.mod[type].recv_from = NULL;
++	millet_sk.mod[type].send_to = NULL;
++	millet_sk.mod[type].init = NULL;
++	return 0;
++}
++EXPORT_SYMBOL(unregister_millet_hook);
++
++int init_millet_subsystem(int type)
++{
++	struct millet_mod *mod;
++
++	if (!type_valid(type)) {
++		pr_err("%s: type is invalid! %d\n", __func__, type);
++		return -1;
++	}
++	mod = &millet_sk.mod[type];
++	mod->port = 0;
++	mod->handshake = 0;
++	spin_lock_init(&mod->lock);
++	if (mod->init)
++		mod->init(&millet_sk);
++	strscpy(mod->name, millet_type_name[type], sizeof(mod->name));
++	return 0;
++}
++EXPORT_SYMBOL(init_millet_subsystem);
++
++/* ---- netlink ---- */
++
++static void dump_up_msg(const struct millet_data *msg)
++{
++	pr_info("-----up-report msg-head dump-----\n");
++	pr_info("up msg: %d\n", msg->msg_type);
++	pr_info("up type: %d\n", msg->owner);
++	pr_info("up src_port: 0x%lu\n", (unsigned long)msg->src_port);
++	pr_info("up dest_port: 0x%lu\n", (unsigned long)msg->dst_port);
++	pr_info("up uid: %d\n", msg->uid);
++	if (msg->owner == SIG_TYPE)
++		pr_info("up sig: 0x%lu\n", (unsigned long)msg->mod.sig);
++}
++
++int millet_sendto_user(struct task_struct *tsk, struct millet_data *msg,
++		       struct millet_sock *sk)
++{
++	struct millet_data *payload;
++	struct nlmsghdr *nlh;
++	struct sk_buff *skb;
++	struct millet_mod *mod;
++	struct timespec64 ts;
++	unsigned int dest;
++	int ret;
++
++	if (!msg || msg->msg_type < LOOPBACK_MSG || msg->msg_type > MSG_TO_KERN) {
++		pr_err("%s:msg or  msg type is invalid! %d\n", __func__,
++		       msg ? msg->msg_type : 0);
++		return -1;
++	}
++
++	skb = alloc_skb(NLMSG_SPACE(sizeof(*msg)), GFP_ATOMIC);
++	if (!skb) {
++		pr_err("%s alloc_skb failed! %d\n", __func__, msg->owner);
++		return -1;
++	}
++	nlh = nlmsg_put(skb, 0, 0, 0, sizeof(*msg), 0);
++	if (!nlh)
++		goto free;
++
++	payload = nlmsg_data(nlh);
++	memcpy(payload, msg, sizeof(*msg));
++	payload->src_port = MILLET_KERNEL_PORT;
++	payload->dst_port = MILLET_USER_PORT;
++
++	if (payload->owner >= MILLET_TYPES_NUM)
++		goto free;
++	dest = sk->mod[payload->owner].monitor;
++	if (!type_valid(dest))
++		dest = payload->owner;
++	mod = &sk->mod[dest];
++
++	if (!READ_ONCE(mod->enable))
++		goto free;
++	if (!READ_ONCE(mod->handshake)) {
++		if (millet_debug)
++			pr_err("monitor %d no hand shake!!", dest);
++		goto free;
++	}
++
++	payload->monitor = dest;
++	ktime_get_ts64(&ts);
++	payload->tm = ts;
++	if (millet_debug)
++		dump_up_msg(payload);
++
++	ret = netlink_unicast(sk->sock, skb, READ_ONCE(mod->port), MSG_DONTWAIT);
++	if (ret < 0) {
++		if (millet_debug)
++			pr_err("nlmsg_unicast failed! %s errno %d\n", __func__, ret);
++		return -1;
++	}
++	if (millet_debug)
++		pr_info("nlmsg_unicast snd msg success to %d\n", mod->port);
++	return 0;
++free:
++	kfree_skb(skb);
++	return -1;
++}
++EXPORT_SYMBOL(millet_sendto_user);
++
++int millet_sendmsg(int type, struct task_struct *tsk, struct millet_data *data)
++{
++	struct millet_mod *mod;
++	unsigned long flags;
++	s64 start;
++	int ret;
++
++	if (!type_valid(type)) {
++		pr_err("wrong type valid %d\n", type);
++		return -1;
++	}
++	mod = &millet_sk.mod[type];
++	if (!mod->send_to) {
++		pr_err("mod %d send_to interface is NULL\n", type);
++		return -1;
++	}
++
++	start = ktime_get();
++	ret = mod->send_to(tsk, data, &millet_sk);
++	if (READ_ONCE(mod->enable)) {
++		spin_lock_irqsave(&mod->lock, flags);
++		/* As in the stock module: >0 counts as sent, <0 as failed. */
++		if (ret < 0)
++			mod->send_fail++;
++		else if (ret > 0)
++			mod->send_suc++;
++		mod->runtime += ktime_to_us(ktime_get()) - ktime_to_us(start);
++		spin_unlock_irqrestore(&mod->lock, flags);
++	}
++	return ret;
++}
++EXPORT_SYMBOL(millet_sendmsg);
++
++static void dump_recv_msg(const struct millet_userconf *uc)
++{
++	if (!millet_debug)
++		return;
++	pr_info("-----recv msg from user-----\n");
++	pr_info("msg: %d\n", uc->msg_type);
++	pr_info("type: %d\n", uc->owner);
++	pr_info("src_port: 0x%lu\n", (unsigned long)uc->src_port);
++	pr_info("dest_port: 0x%lu\n", (unsigned long)uc->dst_port);
++}
++
++static void recv_handler(struct sk_buff *skb)
++{
++	struct millet_userconf *uc;
++	struct millet_data ack = {};
++	struct nlmsghdr *nlh;
++	struct millet_mod *mod;
++	uid_t uid;
++
++	if (!skb) {
++		pr_err("recv_handler %s: skb is\tNULL!\n", __func__);
++		return;
++	}
++	uid = from_kuid(&init_user_ns, NETLINK_CB(skb).creds.uid);
++	if (uid > MILLET_PRIV_UID_MAX) {
++		pr_err("uid: %d, permission denied\n", uid);
++		return;
++	}
++	if (millet_debug)
++		pr_info("kernel millet receive msg now\n");
++	if (skb->len < NLMSG_HDRLEN) {
++		pr_err("msg len is invalid\n");
++		return;
++	}
++	nlh = nlmsg_hdr(skb);
++	if (nlh->nlmsg_len < NLMSG_SPACE(sizeof(*uc))) {
++		pr_err("msg len err %d need %d\n", nlh->nlmsg_len,
++		       (int)NLMSG_SPACE(sizeof(*uc)));
++		return;
++	}
++
++	uc = nlmsg_data(nlh);
++	if (uc->src_port != MILLET_USER_PORT) {
++		if (millet_debug) {
++			pr_err("src_port %lu invalid! from %d need len %d len %d\n",
++			       (unsigned long)uc->src_port, nlh->nlmsg_pid,
++			       nlh->nlmsg_len, (int)NLMSG_SPACE(sizeof(*uc)));
++			pr_err("-------invalid msg dump------");
++			pr_err("**current pid %d****\n", current->pid);
++		}
++		return;
++	}
++	if (uc->dst_port != MILLET_KERNEL_PORT) {
++		pr_err("dst_port is %lu not kernel!\n", (unsigned long)uc->dst_port);
++		return;
++	}
++	if (!type_valid(uc->owner)) {
++		pr_err("mod %d is not valid!\n", uc->owner);
++		return;
++	}
++	mod = &millet_sk.mod[uc->owner];
++
++	switch (uc->msg_type) {
++	case LOOPBACK_MSG:
++		WRITE_ONCE(mod->port, nlh->nlmsg_pid);
++		WRITE_ONCE(mod->handshake, 1);
++		dump_recv_msg(uc);
++		ack.owner = uc->owner;
++		ack.msg_type = LOOPBACK_MSG;
++		millet_sendto_user(NULL, &ack, &millet_sk);
++		break;
++	case MSG_TO_KERN:
++		if (mod->recv_from)
++			mod->recv_from(uc, sizeof(*uc));
++		dump_recv_msg(uc);
++		break;
++	default:
++		pr_err("msg type is valid %d\n", uc->msg_type);
++		break;
++	}
++}
++
++/* ---- /proc/millet ---- */
++
++static int millet_sock_show(struct seq_file *m, void *v)
++{
++	u64 suc[MILLET_TYPES_NUM], fail[MILLET_TYPES_NUM], rt[MILLET_TYPES_NUM];
++	u64 tsuc = 0, tfail = 0, trt = 0;
++	unsigned long flags;
++	int i;
++
++	for (i = SIG_TYPE; i < MILLET_TYPES_NUM; i++) {
++		struct millet_mod *mod = &millet_sk.mod[i];
++
++		spin_lock_irqsave(&mod->lock, flags);
++		suc[i] = mod->send_suc;
++		fail[i] = mod->send_fail;
++		rt[i] = mod->runtime;
++		spin_unlock_irqrestore(&mod->lock, flags);
++	}
++
++	seq_puts(m, "-----------------------------\n\n");
++	for (i = SIG_TYPE; i < MILLET_TYPES_NUM; i++) {
++		if (!suc[i] && !fail[i])
++			continue;
++		seq_printf(m, "name: %s mod id %d:\n", millet_sk.mod[i].name, i);
++		seq_printf(m, "send suc: %llu\n", suc[i]);
++		seq_printf(m, "send fail: %llu\n", fail[i]);
++		seq_printf(m, "runtime: %llu us\n\n", rt[i]);
++		tsuc += suc[i];
++		tfail += fail[i];
++		trt += rt[i];
++	}
++	seq_puts(m, "---------total info--------------------\n");
++	seq_printf(m, "send_suc: %llu\n", tsuc);
++	seq_printf(m, "send_fail: %llu\n", tfail);
++	seq_printf(m, "runtime: %llu us\n", trt);
++
++	seq_puts(m, "core_uid_rec:\n");
++	core_uid_hash_show(m, ",");
++	seq_puts(m, "\nuid_rec:\n");
++	uid_rec_hash_show(m, "\t");
++	seq_puts(m, "\ncore_black_pid_rec:\n");
++	for (i = 0; i < ARRAY_SIZE(core_black_pid_rec); i++)
++		if (atomic_read(&core_black_pid_rec[i]))
++			seq_printf(m, "%d,", atomic_read(&core_black_pid_rec[i]));
++	seq_puts(m, "\ncore_black_uid_rec:\n");
++	for (i = 0; i < ARRAY_SIZE(core_black_uid_rec); i++)
++		if (atomic_read(&core_black_uid_rec[i]))
++			seq_printf(m, "%d,", atomic_read(&core_black_uid_rec[i]));
++	seq_puts(m, "\n");
++	return 0;
++}
++
++static int millet_stat_open(struct inode *inode, struct file *file)
++{
++	return single_open(file, millet_sock_show, NULL);
++}
++
++/* Writing "1" resets the per-module counters. */
++static ssize_t millet_stat_write(struct file *file, const char __user *buf,
++				 size_t count, loff_t *ppos)
++{
++	char c[2] = {};
++	unsigned long flags;
++	long val;
++	int i;
++
++	if (get_user(c[0], buf))
++		return count;
++	val = simple_strtol(c, NULL, 10);
++	pr_info("input value number: %d\n", (int)val);
++	if (val == 1) {
++		for (i = SIG_TYPE; i < MILLET_TYPES_NUM; i++) {
++			struct millet_mod *mod = &millet_sk.mod[i];
++
++			spin_lock_irqsave(&mod->lock, flags);
++			mod->send_suc = 0;
++			mod->send_fail = 0;
++			mod->runtime = 0;
++			spin_unlock_irqrestore(&mod->lock, flags);
++		}
++		pr_warn("stat reset now\n");
++	}
++	return count;
++}
++
++static int millet_version_show(struct seq_file *m, void *v)
++{
++	seq_printf(m, "%d\n", millet_v);
++	return 0;
++}
++
++static int millet_version_open(struct inode *inode, struct file *file)
++{
++	return single_open(file, millet_version_show, NULL);
++}
++
++static const struct proc_ops millet_stat_fops = {
++	.proc_open = millet_stat_open,
++	.proc_read = seq_read,
++	.proc_write = millet_stat_write,
++	.proc_lseek = seq_lseek,
++	.proc_release = single_release,
++};
++
++static const struct proc_ops millet_version_fops = {
++	.proc_open = millet_version_open,
++	.proc_read = seq_read,
++	.proc_lseek = seq_lseek,
++	.proc_release = single_release,
++};
++
++static int __init millet_init(void)
++{
++	struct netlink_kernel_cfg cfg = {
++		.input = recv_handler,
++	};
++
++	pr_err("enter millet_init func!\n");
++	millet_sk.sock = netlink_kernel_create(&init_net, NETLINK_MILLET, &cfg);
++	if (!millet_sk.sock) {
++		pr_err("%s: create socket error!\n", __func__);
++		return -1;
++	}
++
++	/* The stock init logs proc failures and still succeeds. */
++	millet_rootdir = proc_mkdir("millet", NULL);
++	if (!millet_rootdir) {
++		pr_err("create /proc/millet failed\n");
++		return 0;
++	}
++	if (!proc_create("millet_stat", 0644, millet_rootdir, &millet_stat_fops))
++		pr_err("create millet stat failed\n");
++	if (!proc_create("version", 0644, millet_rootdir, &millet_version_fops))
++		pr_err("create millet version failed\n");
++	return 0;
++}
++
++static void __exit millet_exit(void)
++{
++	if (millet_rootdir) {
++		remove_proc_entry("millet_stat", millet_rootdir);
++		remove_proc_entry("version", millet_rootdir);
++		remove_proc_entry("millet", NULL);
++	}
++	if (millet_sk.sock) {
++		netlink_kernel_release(millet_sk.sock);
++		millet_sk.sock = NULL;
++	}
++	uid_rec_hash_clear();
++	core_uid_hash_clear();
++}
++
++module_init(millet_init);
++module_exit(millet_exit);
++MODULE_DESCRIPTION("Millet smart frozen control subsystem");
++MODULE_LICENSE("GPL");
+diff --git a/millet/millet_hs.c b/millet/millet_hs.c
+new file mode 100644
+index 0000000..5f0a9ba
+--- /dev/null
++++ b/millet/millet_hs.c
+@@ -0,0 +1,65 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * millet_hs: the millet HANDSHK module type.
++ *
++ * Rebuilt for 6.12 from the disassembly of the stock HyperOS OS4.0.5
++ * module vendor_boot/lib/modules/millet_hs.ko (every instruction is
++ * accounted for). Not yet run on a device.
++ *
++ * A MSG_TO_KERN message for this type is echoed back to the daemon as an
++ * empty MSG_TO_USER message, which lets the daemon check the link.
++ */
++#include <linux/module.h>
++#include <millet/millet.h>
++
++#undef pr_fmt
++#define pr_fmt(fmt) "millet-millet_hs: " fmt
++
++static void hs_recv_hook(void *data, unsigned int len)
++{
++	struct millet_data msg = {};
++
++	/*
++	 * The stock code passes the len register through as the task
++	 * argument; hs_sendmsg never reads it, so pass NULL.
++	 */
++	millet_sendmsg(HANDSHK_TYPE, NULL, &msg);
++}
++
++static int hs_sendmsg(struct task_struct *tsk, struct millet_data *data,
++		      struct millet_sock *sk)
++{
++	if (!data || !sk) {
++		pr_err("%s input invalid\n", __func__);
++		return -1;
++	}
++	data->msg_type = MSG_TO_USER;
++	data->owner = HANDSHK_TYPE;
++	return millet_sendto_user(tsk, data, sk);
++}
++
++static void hs_init_millet(struct millet_sock *sk)
++{
++	if (!sk)
++		return;
++	sk->mod[HANDSHK_TYPE].monitor = SIG_TYPE;
++	sk->mod[HANDSHK_TYPE].enable = 1;
++}
++
++static int __init millet_hs_init(void)
++{
++	pr_err("enter millet_hs_init func!\n");
++	register_millet_hook(HANDSHK_TYPE, hs_recv_hook, hs_sendmsg,
++			     hs_init_millet);
++	init_millet_subsystem(HANDSHK_TYPE);
++	return 0;
++}
++
++static void __exit millet_hs_exit(void)
++{
++	unregister_millet_hook(HANDSHK_TYPE);
++}
++
++module_init(millet_hs_init);
++module_exit(millet_hs_exit);
++MODULE_LICENSE("GPL");
+diff --git a/millet/millet_oem_cgroup.c b/millet/millet_oem_cgroup.c
+new file mode 100644
+index 0000000..63ee8d7
+--- /dev/null
++++ b/millet/millet_oem_cgroup.c
+@@ -0,0 +1,70 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * millet_oem_cgroup: permission check for the cgroup v1 freezer.
++ *
++ * Rebuilt for 6.12 from the disassembly of the stock HyperOS OS4.0.5
++ * module vendor_boot/lib/modules/millet_oem_cgroup.ko (every instruction
++ * is accounted for; cred offsets named from the stock 6.6 BTF). Not yet
++ * run on a device.
++ *
++ * It points freezer_cgrp_subsys.can_attach/cancel_attach at wrappers
++ * that call a local hook table, and puts millet_can_attach in it: a task
++ * that is neither euid 1000 (system) nor CAP_SYS_ADMIN may only move
++ * itself into a freezer cgroup.
++ */
++#include <linux/capability.h>
++#include <linux/cgroup.h>
++#include <linux/cred.h>
++#include <linux/module.h>
++#include <linux/sched.h>
++
++#undef pr_fmt
++#define pr_fmt(fmt) "millet-oem_cgroup: " fmt
++
++static struct cgroup_subsys oem_cgroup_hook;
++
++static int millet_can_attach(struct cgroup_taskset *tset)
++{
++	const struct cred *cred = current_cred();
++	struct cgroup_subsys_state *css;
++	struct task_struct *task;
++
++	cgroup_taskset_for_each(task, css, tset) {
++		if (task == current)
++			continue;
++		if (__kuid_val(cred->euid) == 1000)
++			continue;
++		if (capable(CAP_SYS_ADMIN))
++			continue;
++		pr_err("Permission problem\n");
++		/* The stock module returns 1, not -EPERM; cgroup core treats it as failure. */
++		return 1;
++	}
++	return 0;
++}
++
++static int freezer_can_attach(struct cgroup_taskset *tset)
++{
++	if (oem_cgroup_hook.can_attach)
++		return oem_cgroup_hook.can_attach(tset);
++	return 0;
++}
++
++static void freezer_cancel_attach(struct cgroup_taskset *tset)
++{
++	if (oem_cgroup_hook.cancel_attach)
++		oem_cgroup_hook.cancel_attach(tset);
++}
++
++static int __init oem_cgrp_init(void)
++{
++	pr_err("enter oem_cgrp_init func!\n");
++	oem_cgroup_hook.can_attach = millet_can_attach;
++	freezer_cgrp_subsys.can_attach = freezer_can_attach;
++	freezer_cgrp_subsys.cancel_attach = freezer_cancel_attach;
++	return 0;
++}
++
++/* No exit: the freezer subsystem keeps pointers into this module. */
++module_init(oem_cgrp_init);
++MODULE_LICENSE("GPL");
+diff --git a/millet/millet_sig.c b/millet/millet_sig.c
+new file mode 100644
+index 0000000..ca399f3
+--- /dev/null
++++ b/millet/millet_sig.c
+@@ -0,0 +1,104 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * millet_sig: the millet SIG module type.
++ *
++ * Rebuilt for 6.12 from the disassembly of the stock HyperOS OS4.0.5
++ * module vendor_boot/lib/modules/millet_sig.ko (every instruction is
++ * accounted for; task_struct offsets named from the stock 6.6 BTF).
++ * Not yet run on a device.
++ *
++ * Reports SIGQUIT, SIGABRT, SIGKILL and SIGTERM sent to a frozen or
++ * freezing task to the millet daemon, once per target process in a row,
++ * so the daemon can thaw it.
++ */
++#include <linux/cgroup.h>
++#include <linux/cred.h>
++#include <linux/freezer.h>
++#include <linux/module.h>
++#include <linux/sched.h>
++#include <trace/hooks/signal.h>
++#include <millet/millet.h>
++
++#undef pr_fmt
++#define pr_fmt(fmt) "millet_millet-sig: " fmt
++
++#define MILLET_SIG_MASK (BIT(SIGQUIT) | BIT(SIGABRT) | BIT(SIGKILL) | BIT(SIGTERM))
++
++static int last_report_task;
++
++static void millet_sig(void *unused, int sig, struct task_struct *killer,
++		       struct task_struct *dst)
++{
++	struct millet_data msg = {};
++
++	if (sig < 0 || sig > 15 || !(BIT(sig) & MILLET_SIG_MASK))
++		return;
++	msg.mod.sig_info.sig = sig;
++	msg.mod.sig_info.sig_mask = BIT(sig);
++	msg.mod.sig_info.task = dst;
++	millet_sendmsg(SIG_TYPE, dst, &msg);
++}
++
++static bool task_frozen_or_freezing(struct task_struct *p)
++{
++	bool frozen = false;
++
++	if (freezing(p))
++		return true;
++	if (!(p->flags & PF_KTHREAD)) {
++		rcu_read_lock();
++		frozen = test_bit(CGRP_FREEZE, &task_dfl_cgroup(p)->flags);
++		rcu_read_unlock();
++		if (frozen)
++			return true;
++	}
++	return p->frozen;
++}
++
++static int signals_sendmsg(struct task_struct *tsk, struct millet_data *data,
++			   struct millet_sock *sk)
++{
++	int *last;
++
++	if (!tsk || !data || !sk) {
++		pr_err("%s input invalid\n", __func__);
++		return -1;
++	}
++
++	data->mod.sig_info.pid = tsk->tgid;
++	rcu_read_lock();
++	data->uid = __kuid_val(rcu_dereference(tsk->real_cred)->uid);
++	rcu_read_unlock();
++	data->msg_type = MSG_TO_USER;
++	data->owner = SIG_TYPE;
++
++	if (!task_frozen_or_freezing(tsk))
++		return 0;
++
++	last = sk->mod[SIG_TYPE].priv;
++	if (data->mod.sig_info.pid == *last)
++		return 0;
++	*last = data->mod.sig_info.pid;
++	return millet_sendto_user(tsk, data, sk);
++}
++
++static void signas_init_millet(struct millet_sock *sk)
++{
++	if (!sk)
++		return;
++	sk->mod[SIG_TYPE].priv = &last_report_task;
++	sk->mod[SIG_TYPE].monitor = SIG_TYPE;
++	sk->mod[SIG_TYPE].enable = 1;
++}
++
++static int __init sig_mod_init(void)
++{
++	pr_err("enter sig_mod_init func!\n");
++	register_millet_hook(SIG_TYPE, NULL, signals_sendmsg, signas_init_millet);
++	init_millet_subsystem(SIG_TYPE);
++	/* Vendor hooks cannot be safely removed, so like the stock module there is no exit. */
++	return register_trace_android_vh_do_send_sig_info(millet_sig, NULL);
++}
++
++module_init(sig_mod_init);
++MODULE_LICENSE("GPL");
+diff --git a/perf_actuator/Makefile b/perf_actuator/Makefile
+new file mode 100644
+index 0000000..1b3a4b9
+--- /dev/null
++++ b/perf_actuator/Makefile
+@@ -0,0 +1 @@
++obj-$(CONFIG_PERF_ACTUATOR) += perf_actuator.o
+diff --git a/perf_actuator/perf_actuator.c b/perf_actuator/perf_actuator.c
+new file mode 100644
+index 0000000..cef7d71
+--- /dev/null
++++ b/perf_actuator/perf_actuator.c
+@@ -0,0 +1,208 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * perf_actuator: ioctl dispatch devices for Xiaomi performance helpers.
++ *
++ * Rebuilt for 6.12 from static analysis (disassembly) of the stock HyperOS
++ * OS4.0.5 module vendor_boot/lib/modules/perf_actuator.ko. The behaviour
++ * matches that binary function by function; it has not been run on a
++ * device yet.
++ *
++ * Two misc devices, /dev/xr_perf_actuator and /dev/xr_fbt. Other modules
++ * register a handler per ioctl number; an ioctl with type 'x' and a
++ * registered number is passed to the handler with the user pointer.
++ */
++#include <linux/fs.h>
++#include <linux/miscdevice.h>
++#include <linux/module.h>
++#include <linux/rwsem.h>
++#include <perf_actuator/perf_actuator.h>
++
++#define PA_TAG "perf_actuator: "
++#define FBT_TAG "xr_fbt: "
++
++struct actuator_entry {
++	unsigned int cmd;
++	perf_actuator_func func;
++};
++
++static DECLARE_RWSEM(g_table_rwsem);
++static struct actuator_entry g_perf_actuator_table[PERF_ACTUATOR_MAX_CMD];
++static DECLARE_RWSEM(g_fbt_table_rwsem);
++static struct actuator_entry g_xr_fbt_table[XR_FBT_MAX_CMD];
++
++static int table_register(struct rw_semaphore *sem, struct actuator_entry *tbl,
++			  unsigned int max, unsigned int cmd,
++			  perf_actuator_func func, const char *tag)
++{
++	unsigned int nr = _IOC_NR(cmd);
++
++	if (nr >= max || !func) {
++		if (tbl == g_perf_actuator_table)
++			pr_err("%sinvalid cmd:%d or func:%p\n", tag, cmd, func);
++		return -EINVAL;
++	}
++
++	down_write(sem);
++	/* The stock module logs a conflict and overwrites the old entry. */
++	if (tbl[nr].func)
++		pr_err("%sregister %u conflict\n", tag, cmd);
++	tbl[nr].cmd = cmd;
++	tbl[nr].func = func;
++	up_write(sem);
++	return 0;
++}
++
++static int table_unregister(struct rw_semaphore *sem, struct actuator_entry *tbl,
++			    unsigned int max, unsigned int cmd, const char *tag)
++{
++	unsigned int nr = _IOC_NR(cmd);
++
++	if (nr >= max)
++		return -EINVAL;
++
++	down_write(sem);
++	/* Logged but still cleared, as in the stock module. */
++	if (!tbl[nr].func || tbl[nr].cmd != cmd)
++		pr_err("%sunregister %u conflict\n", tag, cmd);
++	tbl[nr].cmd = 0;
++	tbl[nr].func = NULL;
++	up_write(sem);
++	return 0;
++}
++
++static long table_dispatch(struct rw_semaphore *sem, struct actuator_entry *tbl,
++			   unsigned int max, unsigned int cmd, unsigned long arg,
++			   const char *tag)
++{
++	unsigned int nr = _IOC_NR(cmd);
++	void __user *uarg = (void __user *)arg;
++	long ret;
++
++	if (!uarg) {
++		pr_err("%sinvalid user uarg\n", tag);
++		return -EINVAL;
++	}
++	if (_IOC_TYPE(cmd) != PERF_ACTUATOR_MAGIC) {
++		pr_err("%sinvalid magic %u\n", tag, _IOC_TYPE(cmd));
++		return -EINVAL;
++	}
++	if (nr >= max) {
++		pr_err("%sinvalid cmd, %u > %d\n", tag, nr, max);
++		return -ERANGE;
++	}
++
++	down_read(sem);
++	if (tbl[nr].func && tbl[nr].cmd == cmd) {
++		ret = tbl[nr].func(uarg);
++	} else {
++		if (tbl == g_perf_actuator_table)
++			pr_err("%sidx %d, cmd %d not match or not registered!\n",
++			       tag, nr, cmd);
++		else
++			pr_err("%scmd not match or not registered!\n", tag);
++		ret = -ENOENT;
++	}
++	up_read(sem);
++	return ret;
++}
++
++int register_perf_actuator(unsigned int cmd, perf_actuator_func func)
++{
++	return table_register(&g_table_rwsem, g_perf_actuator_table,
++			      PERF_ACTUATOR_MAX_CMD, cmd, func, PA_TAG);
++}
++EXPORT_SYMBOL_GPL(register_perf_actuator);
++
++int unregister_perf_actuator(unsigned int cmd)
++{
++	return table_unregister(&g_table_rwsem, g_perf_actuator_table,
++				PERF_ACTUATOR_MAX_CMD, cmd, PA_TAG);
++}
++EXPORT_SYMBOL_GPL(unregister_perf_actuator);
++
++int register_xr_fbt(unsigned int cmd, perf_actuator_func func)
++{
++	return table_register(&g_fbt_table_rwsem, g_xr_fbt_table,
++			      XR_FBT_MAX_CMD, cmd, func, FBT_TAG);
++}
++EXPORT_SYMBOL_GPL(register_xr_fbt);
++
++int unregister_xr_fbt(unsigned int cmd)
++{
++	return table_unregister(&g_fbt_table_rwsem, g_xr_fbt_table,
++				XR_FBT_MAX_CMD, cmd, FBT_TAG);
++}
++EXPORT_SYMBOL_GPL(unregister_xr_fbt);
++
++static long perf_actuator_ioctl(struct file *file, unsigned int cmd,
++				unsigned long arg)
++{
++	pr_info(PA_TAG "perf_actuator_ioctl idx %d\n", _IOC_NR(cmd));
++	return table_dispatch(&g_table_rwsem, g_perf_actuator_table,
++			      PERF_ACTUATOR_MAX_CMD, cmd, arg, PA_TAG);
++}
++
++static long xr_fbt_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
++{
++	return table_dispatch(&g_fbt_table_rwsem, g_xr_fbt_table,
++			      XR_FBT_MAX_CMD, cmd, arg, FBT_TAG);
++}
++
++static int actuator_open(struct inode *inode, struct file *file)
++{
++	return 0;
++}
++
++static int actuator_release(struct inode *inode, struct file *file)
++{
++	return 0;
++}
++
++static const struct file_operations perf_actuator_fops = {
++	.owner = THIS_MODULE,
++	.unlocked_ioctl = perf_actuator_ioctl,
++	.open = actuator_open,
++	.release = actuator_release,
++};
++
++static const struct file_operations xr_fbt_fops = {
++	.owner = THIS_MODULE,
++	.unlocked_ioctl = xr_fbt_ioctl,
++	.open = actuator_open,
++	.release = actuator_release,
++};
++
++static struct miscdevice perf_actuator_device = {
++	.minor = MISC_DYNAMIC_MINOR,
++	.name = "xr_perf_actuator",
++	.fops = &perf_actuator_fops,
++};
++
++static struct miscdevice xr_fbt_device = {
++	.minor = MISC_DYNAMIC_MINOR,
++	.name = "xr_fbt",
++	.fops = &xr_fbt_fops,
++};
++
++static int __init perf_actuator_init(void)
++{
++	int ret = misc_register(&perf_actuator_device);
++
++	if (ret) {
++		pr_info(PA_TAG "init failed!\n");
++		return ret;
++	}
++	pr_info(PA_TAG "init success!\n");
++	/* As in the stock init, an xr_fbt failure leaves the first device registered. */
++	return misc_register(&xr_fbt_device);
++}
++
++static void __exit perf_actuator_exit(void)
++{
++	misc_deregister(&perf_actuator_device);
++	misc_deregister(&xr_fbt_device);
++}
++
++module_init(perf_actuator_init);
++module_exit(perf_actuator_exit);
++MODULE_LICENSE("GPL");
+diff --git a/plat_common/Makefile b/plat_common/Makefile
+new file mode 100644
+index 0000000..7542602
+--- /dev/null
++++ b/plat_common/Makefile
+@@ -0,0 +1 @@
++obj-$(CONFIG_PLAT_COMMON) += plat_common.o
+diff --git a/plat_common/plat_common.c b/plat_common/plat_common.c
+new file mode 100644
+index 0000000..3ec4068
+--- /dev/null
++++ b/plat_common/plat_common.c
+@@ -0,0 +1,284 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * plat_common: "OS-CPU Platform Hook".
++ *
++ * Rebuilt for 6.12 from static analysis (disassembly, kCFI type hashes and
++ * the stock 6.6 kernel BTF) of the HyperOS OS4.0.5 module
++ * vendor_boot/lib/modules/plat_common.ko. Not yet run on a device.
++ *
++ * It holds a table of callbacks that a game/scheduler module (stock:
++ * mi_game.ko) fills with register_plat_func(); the exported plat_*
++ * wrappers call the callback in their slot or return a default. The stock
++ * sched-walt.ko calls these wrappers from WALT; the KP 5.0 WALT on 6.12
++ * does not, so on 6.12 only the module callers (rtg, ...) reach them.
++ *
++ * It also sets a default timer slack on fork and identifies the top-app,
++ * foreground, background and audio cpu cgroups.
++ */
++#include <linux/cgroup.h>
++#include <linux/cpumask.h>
++#include <linux/kernfs.h>
++#include <linux/module.h>
++#include <linux/plist.h>
++#include <linux/rwsem.h>
++#include <linux/sched.h>
++#include <trace/hooks/sched.h>
++#include <plat_common/plat_common.h>
++
++#define TAG "plat_hook: "
++
++struct plat_hook_entry {
++	unsigned int cmd;
++	void *func;
++};
++
++static DECLARE_RWSEM(g_table_rwsem);
++static struct plat_hook_entry g_plat_hook_table[PLAT_FUNC_MAX];
++
++/* Module parameters; defaults from the stock .data/.bss, mode 0644. */
++static unsigned int plat_sched_relaxed;
++module_param_named(sched_relaxed, plat_sched_relaxed, uint, 0644);
++static unsigned int plat_critical_rt_prio = 96;
++module_param_named(critical_rt_prio, plat_critical_rt_prio, uint, 0644);
++
++static int plat_cgroup_ta_id = -1;
++static int plat_cgroup_fg_id = -1;
++static int plat_cgroup_bg_id = -1;
++static int plat_cgroup_au_id = -1;
++
++static struct cpumask empty_mask;
++
++int register_plat_func(unsigned int cmd, void *func)
++{
++	unsigned int nr = cmd & 0xff;
++
++	if (nr >= PLAT_FUNC_MAX || !func)
++		return -EINVAL;
++
++	down_write(&g_table_rwsem);
++	/* Stock behaviour: log the conflict, then overwrite. */
++	if (g_plat_hook_table[nr].func)
++		pr_err(TAG "perf_actuator: register %u conflict\n", cmd);
++	g_plat_hook_table[nr].cmd = cmd;
++	WRITE_ONCE(g_plat_hook_table[nr].func, func);
++	up_write(&g_table_rwsem);
++	return 0;
++}
++EXPORT_SYMBOL(register_plat_func);
++
++int unregister_plat_func(unsigned int cmd)
++{
++	unsigned int nr = cmd & 0xff;
++
++	if (nr >= PLAT_FUNC_MAX)
++		return -EINVAL;
++
++	down_write(&g_table_rwsem);
++	/* Stock behaviour: log a mismatch, then clear anyway. */
++	if (!g_plat_hook_table[nr].func || g_plat_hook_table[nr].cmd != cmd)
++		pr_err(TAG "perf_actuator: unregister %u conflict\n", cmd);
++	g_plat_hook_table[nr].cmd = 0;
++	WRITE_ONCE(g_plat_hook_table[nr].func, NULL);
++	up_write(&g_table_rwsem);
++	return 0;
++}
++EXPORT_SYMBOL(unregister_plat_func);
++
++/* The stock wrappers read the slot without taking the rwsem. */
++#define SLOT(n, type) ((type)READ_ONCE(g_plat_hook_table[n].func))
++
++#define PLAT_RET(name, slot, ret, def, proto, args)			\
++ret name proto								\
++{									\
++	ret (*fn) proto = SLOT(slot, ret (*) proto);			\
++	return fn ? fn args : (def);					\
++}									\
++EXPORT_SYMBOL(name)
++
++#define PLAT_VOID(name, slot, proto, args)				\
++void name proto								\
++{									\
++	void (*fn) proto = SLOT(slot, void (*) proto);			\
++	if (fn)								\
++		fn args;						\
++}									\
++EXPORT_SYMBOL(name)
++
++PLAT_RET(plat_sched_set_group_id, PLAT_SCHED_SET_GROUP_ID, int, 0,
++	 (struct task_struct *p, unsigned int id), (p, id));
++PLAT_RET(plat_sched_get_group_id, PLAT_SCHED_GET_GROUP_ID, unsigned int, 0,
++	 (struct task_struct *p), (p));
++PLAT_RET(plat_task_util, PLAT_TASK_UTIL, unsigned long, 0,
++	 (struct task_struct *p), (p));
++PLAT_RET(plat_cpu_halted, PLAT_CPU_HALTED, bool, false, (int cpu), (cpu));
++PLAT_RET(plat_cpu_halt_mask, PLAT_CPU_HALT_MASK, struct cpumask *,
++	 &empty_mask, (void), ());
++PLAT_RET(plat_capacity_orig_of, PLAT_CAPACITY_ORIG_OF, unsigned long, 0,
++	 (int cpu), (cpu));
++PLAT_RET(plat_is_max_possible_cluster_cpu, PLAT_IS_MAX_POSSIBLE_CLUSTER_CPU,
++	 bool, false, (int cpu), (cpu));
++PLAT_RET(plat_find_idle_cpu_in_freq_domain, PLAT_FIND_IDLE_CPU_IN_FREQ_DOMAIN,
++	 int, -1, (int cpu), (cpu));
++
++void plat_get_group_prefer_cpus(struct task_struct *p, struct cpumask *mask)
++{
++	void (*fn)(struct task_struct *, struct cpumask *) =
++		SLOT(PLAT_GET_GROUP_PREFER_CPUS,
++		     void (*)(struct task_struct *, struct cpumask *));
++
++	if (fn)
++		fn(p, mask);
++	else
++		/* Stock default: all of the first nr_cpu_ids bits. */
++		cpumask_setall(mask);
++}
++EXPORT_SYMBOL(plat_get_group_prefer_cpus);
++
++PLAT_RET(plat_get_group_prefer_util, PLAT_GET_GROUP_PREFER_UTIL,
++	 unsigned long, 0, (struct task_struct *p), (p));
++PLAT_VOID(plat_core_ctl_update, PLAT_CORE_CTL_UPDATE, (void), ());
++PLAT_RET(plat_lookup_related_thread_group, PLAT_LOOKUP_RELATED_THREAD_GROUP,
++	 struct walt_related_thread_group *, NULL, (unsigned int id), (id));
++PLAT_VOID(plat_mi_game_find_energy_hook, PLAT_MI_GAME_FIND_ENERGY_HOOK,
++	  (struct task_struct *p, bool *out), (p, out));
++PLAT_VOID(plat_update_pkg_load, PLAT_UPDATE_PKG_LOAD,
++	  (struct task_struct *p, int a, int b, u64 c, u64 d), (p, a, b, c, d));
++PLAT_VOID(plat_mi_game_walt_get_indicies, PLAT_MI_GAME_WALT_GET_INDICIES,
++	  (struct task_struct *p, int *order_index, int *end_index,
++	   int nr_clusters, bool *a, bool *b),
++	  (p, order_index, end_index, nr_clusters, a, b));
++PLAT_VOID(plat_game_get_ravg_window, PLAT_GAME_GET_RAVG_WINDOW,
++	  (unsigned int window), (window));
++PLAT_VOID(plat_mi_set_next_freq, PLAT_MI_SET_NEXT_FREQ,
++	  (void *a0, void *a1, unsigned int a2, u64 a3, u64 *a4, void *a5,
++	   void *a6, unsigned int a7, unsigned int a8),
++	  (a0, a1, a2, a3, a4, a5, a6, a7, a8));
++PLAT_VOID(plat_mi_game_task_fork, PLAT_MI_GAME_TASK_FORK,
++	  (struct task_struct *p), (p));
++PLAT_VOID(plat_mi_game_scheduler_tick, PLAT_MI_GAME_SCHEDULER_TICK,
++	  (struct rq *rq), (rq));
++PLAT_RET(plat_game_choose_cpu_fastpath, PLAT_GAME_CHOOSE_CPU_FASTPATH, int, 0,
++	 (struct task_struct *p, struct cpumask *mask, bool *out),
++	 (p, mask, out));
++PLAT_VOID(plat_free_mi_task_struct, PLAT_FREE_MI_TASK_STRUCT,
++	  (struct task_struct *p), (p));
++PLAT_RET(plat_game_choose_exclusive_cpus, PLAT_GAME_CHOOSE_EXCLUSIVE_CPUS,
++	 int, -1, (struct task_struct *p), (p));
++PLAT_RET(plat_game_choose_cpu, PLAT_GAME_CHOOSE_CPU, int, -1,
++	 (struct task_struct *p), (p));
++PLAT_RET(plat_game_skip_cpus, PLAT_GAME_SKIP_CPUS, bool, false,
++	 (struct cpumask *mask), (mask));
++PLAT_RET(plat_game_skip_cpus_rt, PLAT_GAME_SKIP_CPUS_RT, bool, false,
++	 (struct task_struct *p, struct cpumask *mask), (p, mask));
++PLAT_RET(plat_game_should_skip_cpu_rt, PLAT_GAME_SHOULD_SKIP_CPU_RT, bool,
++	 false, (struct task_struct *p, int cpu), (p, cpu));
++PLAT_RET(plat_game_should_skip_migrate, PLAT_GAME_SHOULD_SKIP_MIGRATE, bool,
++	 false, (struct task_struct *p, int cpu), (p, cpu));
++PLAT_RET(plat_game_check_rt, PLAT_GAME_CHECK_RT, bool, false,
++	 (struct task_struct *p), (p));
++PLAT_RET(plat_game_vip_check, PLAT_GAME_VIP_CHECK, bool, false,
++	 (struct task_struct *p), (p));
++PLAT_RET(plat_migt_enable, PLAT_MIGT_ENABLE, int, 0, (void), ());
++PLAT_VOID(plat_update_frame_load, PLAT_UPDATE_FRAME_LOAD,
++	  (struct task_struct *p, struct rq *rq, unsigned int event,
++	   u64 wallclock, u64 delta, int flag),
++	  (p, rq, event, wallclock, delta, flag));
++PLAT_RET(plat_flt_enable, PLAT_FLT_ENABLE, int, 0, (void), ());
++PLAT_VOID(plat_get_wakeup_info, PLAT_GET_WAKEUP_INFO,
++	  (struct task_struct *p), (p));
++PLAT_VOID(plat_mi_force_update_freq, PLAT_MI_FORCE_UPDATE_FREQ,
++	  (unsigned int arg), (arg));
++PLAT_RET(plat_enable_gpsync, PLAT_ENABLE_GPSYNC, bool, false, (void), ());
++PLAT_VOID(plat_mi_game_schedule, PLAT_MI_GAME_SCHEDULE,
++	  (struct task_struct *prev, struct task_struct *next, struct rq *rq),
++	  (prev, next, rq));
++
++/*
++ * Called by the cgroup side for each new cpu cgroup css. Only first-level
++ * groups are looked at (css->cgroup->level == 1); the id is css->id.
++ */
++void plat_init_sched_cgroup_id(struct cgroup_subsys_state *css)
++{
++	const char *name;
++
++	if (css->cgroup->level != 1)
++		return;
++
++	rcu_read_lock();
++	name = css->cgroup->kn->name;
++	if (!strcmp(name, "top-app"))
++		plat_cgroup_ta_id = css->id;
++	else if (!strcmp(name, "foreground"))
++		plat_cgroup_fg_id = css->id;
++	else if (!strcmp(name, "background"))
++		plat_cgroup_bg_id = css->id;
++	else if (!strcmp(name, "audio"))
++		plat_cgroup_au_id = css->id;
++	rcu_read_unlock();
++
++	pr_info(TAG "Identified sched cgroup: level=%d, name=%s, id=%d(ta=%d fg=%d bg=%d au=%d)\n",
++		css->cgroup->level, css->cgroup->kn->name, css->id,
++		plat_cgroup_ta_id, plat_cgroup_fg_id, plat_cgroup_bg_id,
++		plat_cgroup_au_id);
++}
++EXPORT_SYMBOL(plat_init_sched_cgroup_id);
++
++/*
++ * True for a queued (pushable) RT task at or below critical_rt_prio in
++ * the audio cpu cgroup, when sched_relaxed is set.
++ */
++bool plat_is_relaxed_rt(struct task_struct *p)
++{
++	struct cgroup_subsys_state *css;
++	int id = -1;
++
++	if (!plat_sched_relaxed)
++		return false;
++	if (p->prio >= MAX_RT_PRIO || (unsigned int)p->prio > plat_critical_rt_prio)
++		return false;
++	if (plist_node_empty(&p->pushable_tasks))
++		return false;
++
++	rcu_read_lock();
++	css = task_css(p, cpu_cgrp_id);
++	if (css)
++		id = css->id;
++	rcu_read_unlock();
++
++	return id != -1 && id == plat_cgroup_au_id;
++}
++EXPORT_SYMBOL(plat_is_relaxed_rt);
++
++/*
++ * android_rvh_finish_prio_fork: give a task a 50 us default slack if it
++ * has none, and copy it to timer_slack_ns for non-RT/DL tasks that have
++ * no slack.
++ */
++static void plat_fix_timer_slack_fork(void *unused, struct task_struct *p)
++{
++	if (!p->default_timer_slack_ns)
++		p->default_timer_slack_ns = 50000;
++	if (p->timer_slack_ns)
++		return;
++	if (p->policy == SCHED_FIFO || p->policy == SCHED_RR ||
++	    p->policy == SCHED_DEADLINE)
++		return;
++	p->timer_slack_ns = p->default_timer_slack_ns;
++}
++
++static int __init plat_common_init(void)
++{
++	pr_info(TAG "plat_task_struct size: %zu/%d bytes\n", (size_t)120, 1024);
++	return register_trace_android_rvh_finish_prio_fork(plat_fix_timer_slack_fork,
++							   NULL);
++}
++
++static void __exit plat_common_exit(void)
++{
++	/* Restricted hooks cannot be unregistered; the stock exit is empty. */
++}
++
++module_init(plat_common_init);
++module_exit(plat_common_exit);
++MODULE_DESCRIPTION("OS-CPU Platform Hook");
++MODULE_LICENSE("GPL");
+diff --git a/rt_mod/Makefile b/rt_mod/Makefile
+new file mode 100644
+index 0000000..b1bd29b
+--- /dev/null
++++ b/rt_mod/Makefile
+@@ -0,0 +1 @@
++obj-$(CONFIG_MI_RT_MOD) += rt_mod.o
+diff --git a/rt_mod/rt_mod.c b/rt_mod/rt_mod.c
+new file mode 100644
+index 0000000..88201b3
+--- /dev/null
++++ b/rt_mod/rt_mod.c
+@@ -0,0 +1,167 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * rt_mod: per-CPU RT/DL task load for userspace.
++ *
++ * Rebuilt for 6.12 from the disassembly of the stock HyperOS OS4.0.5
++ * module vendor_boot/lib/modules/rt_mod.ko (author string "Samuel
++ * <huangshuai1@xiaomi.com>"; every instruction accounted for, task
++ * offsets named from the stock 6.6 BTF). Not yet run on a device.
++ *
++ * /dev/rt_load ioctl 0x4c01 copies out one {min prio, count} pair per
++ * possible CPU for the SCHED_FIFO, SCHED_RR and SCHED_DEADLINE tasks
++ * whose task_cpu() is that CPU. The stock module also plants a kprobe on
++ * __sched_setscheduler whose handlers do nothing; it is kept so that the
++ * module behaves the same (it fails to load if the probe cannot be set).
++ */
++#include <linux/cpumask.h>
++#include <linux/fs.h>
++#include <linux/kprobes.h>
++#include <linux/miscdevice.h>
++#include <linux/module.h>
++#include <linux/sched.h>
++#include <linux/sched/signal.h>
++#include <linux/slab.h>
++#include <linux/uaccess.h>
++
++#define RTLOAD_GET	0x4c01
++
++struct rt_load_stat {
++	int min_prio;	/* starts at 0, so only a negative (DL) prio lowers it */
++	int count;
++};
++
++/* The stock audit table; nothing in the stock module fills it. */
++struct whitelist_entry {
++	char comm[TASK_COMM_LEN];
++	int limit;
++	int count;
++};
++static struct whitelist_entry whitelist[1024];
++
++int sandbox_whitelist_audit(struct task_struct *p)
++{
++	int i;
++
++	for (i = 0; i < ARRAY_SIZE(whitelist); i++) {
++		if (strncmp(p->comm, whitelist[i].comm, TASK_COMM_LEN))
++			continue;
++		if (++whitelist[i].count > whitelist[i].limit)
++			return -1;
++	}
++	return 0;
++}
++
++static int handler_pre(struct kprobe *p, struct pt_regs *regs)
++{
++	return 0;
++}
++
++static void handler_post(struct kprobe *p, struct pt_regs *regs,
++			 unsigned long flags)
++{
++}
++
++static struct kprobe kp = {
++	.symbol_name = "__sched_setscheduler",
++	.pre_handler = handler_pre,
++	.post_handler = handler_post,
++};
++
++static long rtload_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
++{
++	struct rt_load_stat *stat;
++	struct task_struct *p;
++	size_t size;
++	long ret;
++
++	if (!file) {
++		pr_err("invalid file!\n");
++		return -EFAULT;
++	}
++	if (cmd != RTLOAD_GET)
++		return 0;
++
++	/* The stock module sizes it from the first word of the possible mask. */
++	size = hweight64(cpumask_bits(cpu_possible_mask)[0]) * sizeof(*stat);
++	stat = kzalloc(size, GFP_ATOMIC);
++	if (!stat) {
++		pr_err("rtmod load stat malloc failure.\n");
++		return -EFAULT;
++	}
++
++	rcu_read_lock();
++	for_each_process(p) {
++		unsigned int cpu;
++
++		if (p->policy != SCHED_FIFO && p->policy != SCHED_RR &&
++		    p->policy != SCHED_DEADLINE)
++			continue;
++		cpu = task_cpu(p);
++		if ((cpu + 1) * sizeof(*stat) > size)
++			continue;
++		stat[cpu].count++;
++		stat[cpu].min_prio = min(p->prio, stat[cpu].min_prio);
++	}
++	rcu_read_unlock();
++
++	ret = copy_to_user((void __user *)arg, stat, size);
++	if (ret)
++		pr_err("%s : copy_to_user failed!\n", "rtload_get");
++	kfree(stat);
++	return ret ? -EFAULT : 0;
++}
++
++static int rtload_open(struct inode *inode, struct file *file)
++{
++	__module_get(THIS_MODULE);
++	return 0;
++}
++
++static int rtload_release(struct inode *inode, struct file *file)
++{
++	module_put(THIS_MODULE);
++	return 0;
++}
++
++static const struct file_operations rtload_fops = {
++	.owner = THIS_MODULE,
++	.unlocked_ioctl = rtload_ioctl,
++	.open = rtload_open,
++	.release = rtload_release,
++};
++
++static struct miscdevice rtload_miscdev = {
++	.minor = MISC_DYNAMIC_MINOR,
++	.name = "rt_load",
++	.fops = &rtload_fops,
++};
++
++static int __init rt_mod_init(void)
++{
++	int ret = register_kprobe(&kp);
++
++	if (ret < 0) {
++		pr_info("register_kprobe failed, returned %d\n", ret);
++		return ret;
++	}
++	pr_info("rt_mod planted kprobe at %p = %s\n", kp.addr, kp.symbol_name);
++
++	if (misc_register(&rtload_miscdev))
++		pr_err("%s : register error.\n", "rtload_miscdev_init");
++	else
++		pr_info("%s : register complete.\n", "rtload_miscdev_init");
++	return 0;
++}
++
++static void __exit rt_mod_exit(void)
++{
++	unregister_kprobe(&kp);
++	pr_info("kprobe at %p unregistered\n", kp.addr);
++	misc_deregister(&rtload_miscdev);
++	pr_info("%s : exit complete.\n", "rtload_miscdev_exit");
++}
++
++module_init(rt_mod_init);
++module_exit(rt_mod_exit);
++MODULE_AUTHOR("Samuel <huangshuai1@xiaomi.com>");
++MODULE_LICENSE("GPL");
+diff --git a/rtg/Makefile b/rtg/Makefile
+new file mode 100644
+index 0000000..aed837e
+--- /dev/null
++++ b/rtg/Makefile
+@@ -0,0 +1,5 @@
++# WALT is a soc-repo module the base kernel config does not know. The
++# CPU count is the kernel/sched/walt/Kconfig default (sun_perf.bzl does
++# not set it); it changes struct walt_task_struct, so it must match.
++ccflags-y += -DCONFIG_SCHED_WALT_MODULE=1 -DCONFIG_SCHED_WALT_NR_CPUS=8
++obj-$(CONFIG_MI_RTG) += rtg.o
+diff --git a/rtg/rtg.c b/rtg/rtg.c
+new file mode 100644
+index 0000000..6c43774
+--- /dev/null
++++ b/rtg/rtg.c
+@@ -0,0 +1,319 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * rtg: Xiaomi related-thread-group control.
++ *
++ * Rebuilt for 6.12 from static analysis (disassembly and the stock 6.6
++ * kernel BTF) of the HyperOS OS4.0.5 module vendor_boot/lib/modules/rtg.ko.
++ * Not yet run on a device.
++ *
++ * It registers five perf_actuator ioctls that move tasks into WALT
++ * related thread groups (through plat_sched_set_group_id) and set a
++ * group's preferred CPUs and util, and exports the os_cpu_* helpers that
++ * Xiaomi's 6.6 sched-walt.ko called during task placement. The KP 5.0
++ * WALT on 6.12 does not call those helpers, so the preferred CPUs and
++ * util are stored but not acted on until WALT is patched to use them.
++ */
++#include <linux/cpumask.h>
++#include <linux/module.h>
++#include <linux/rcupdate.h>
++#include <linux/sched.h>
++#include <linux/sched/task.h>
++#include <linux/sched/walt.h>
++#include <linux/uaccess.h>
++#include <perf_actuator/perf_actuator.h>
++#include <plat_common/plat_common.h>
++
++#define TAG "rtg: "
++
++/* Group ids accepted by the ioctls: not 1 (DEFAULT_CGROUP_COLOC_ID), at most 0x13. */
++#define RTG_MAX_ID		0x13
++#define RTG_INIT_GRP		13
++#define RTG_MAX_UTIL		1024
++#define RTG_ARRAY_MAX		15
++#define RTG_CLEAR_MAX_LOOP	200
++
++struct rtg_task_arg {
++	int pid;
++	int grp_id;
++};
++
++struct rtg_task_array_arg {
++	int grp_id;
++	int count;
++	int pids[RTG_ARRAY_MAX];
++};
++
++struct rtg_value_arg {
++	int grp_id;
++	unsigned int value;
++};
++
++#define CMD_SET_TASK_RTG	_IOW(PERF_ACTUATOR_MAGIC, 0x02, struct rtg_task_arg)
++#define CMD_SET_RTG_CPUS	_IOW(PERF_ACTUATOR_MAGIC, 0x03, struct rtg_value_arg)
++#define CMD_SET_RTG_UTIL	_IOW(PERF_ACTUATOR_MAGIC, 0x04, struct rtg_value_arg)
++#define CMD_CLEAR_RTG		_IOW(PERF_ACTUATOR_MAGIC, 0x07, int)
++#define CMD_SET_TASK_ARRAY_RTG	_IOW(PERF_ACTUATOR_MAGIC, 0x25, struct rtg_task_array_arg)
++
++static_assert(CMD_SET_TASK_RTG == 0x40087802);
++static_assert(CMD_SET_RTG_CPUS == 0x40087803);
++static_assert(CMD_SET_RTG_UTIL == 0x40087804);
++static_assert(CMD_CLEAR_RTG == 0x40047807);
++static_assert(CMD_SET_TASK_ARRAY_RTG == 0x40447825);
++
++static inline struct walt_related_thread_group *task_rtg(struct task_struct *p)
++{
++	struct walt_task_struct *wts =
++		(struct walt_task_struct *)android_task_vendor_data(p);
++
++	/* The stock helpers read wts->grp without rcu_dereference. */
++	return rcu_dereference_raw(wts->grp);
++}
++
++static inline bool rtg_id_valid(int id)
++{
++	return id != 1 && (unsigned int)id <= RTG_MAX_ID;
++}
++
++struct walt_related_thread_group *get_related_thread_group(unsigned int id)
++{
++	if (!rtg_id_valid(id))
++		return NULL;
++	return plat_lookup_related_thread_group(id);
++}
++EXPORT_SYMBOL(get_related_thread_group);
++
++void os_cpu_get_group_prefer_cpus(struct task_struct *p, struct cpumask *mask)
++{
++	struct walt_related_thread_group *grp = task_rtg(p);
++
++	if (grp && grp->mi_prefer_cpus)
++		cpumask_bits(mask)[0] = grp->mi_prefer_cpus;
++	else
++		cpumask_setall(mask);
++}
++EXPORT_SYMBOL(os_cpu_get_group_prefer_cpus);
++
++unsigned long os_cpu_get_group_prefer_util(struct task_struct *p)
++{
++	struct walt_related_thread_group *grp = task_rtg(p);
++
++	return grp ? grp->mi_prefer_util : 0;
++}
++EXPORT_SYMBOL(os_cpu_get_group_prefer_util);
++
++bool os_cpu_is_task_prefer_cpu(struct task_struct *p, int cpu)
++{
++	struct walt_related_thread_group *grp = task_rtg(p);
++
++	if (!grp || !grp->mi_prefer_cpus)
++		return true;
++	return test_bit(cpu, (unsigned long *)&grp->mi_prefer_cpus);
++}
++EXPORT_SYMBOL(os_cpu_is_task_prefer_cpu);
++
++bool os_cpu_can_migrate_task(struct task_struct *p, int src_cpu, int dst_cpu)
++{
++	struct walt_related_thread_group *grp = task_rtg(p);
++
++	if (!grp || !grp->mi_prefer_cpus)
++		return true;
++	/* Only a task on a preferred CPU is held to the preferred set. */
++	if (!test_bit(src_cpu, (unsigned long *)&grp->mi_prefer_cpus))
++		return true;
++	return test_bit(dst_cpu, (unsigned long *)&grp->mi_prefer_cpus);
++}
++EXPORT_SYMBOL(os_cpu_can_migrate_task);
++
++void os_cpu_init_rtg_grp_prefer_cpus(unsigned int cpus)
++{
++	struct walt_related_thread_group *grp =
++		plat_lookup_related_thread_group(RTG_INIT_GRP);
++
++	if (!grp) {
++		pr_warn(TAG "init grp %u prefer_cpus 0x%x failed: grp not found\n",
++			RTG_INIT_GRP, cpus & 0xff);
++		return;
++	}
++	grp->mi_prefer_cpus = cpus & 0xff;
++	pr_info(TAG "init grp %u prefer_cpus 0x%x\n", RTG_INIT_GRP, cpus & 0xff);
++}
++EXPORT_SYMBOL(os_cpu_init_rtg_grp_prefer_cpus);
++
++static int set_task_rtg(int pid, int grp_id)
++{
++	struct task_struct *p;
++	int ret;
++
++	rcu_read_lock();
++	p = find_task_by_vpid(pid);
++	if (!p) {
++		pr_info(TAG "task == NULL %d", pid);
++		rcu_read_unlock();
++		return -ENOENT;
++	}
++	ret = plat_sched_set_group_id(p, grp_id);
++	rcu_read_unlock();
++	return ret;
++}
++
++static int perf_actuator_set_task_rtg(void __user *uarg)
++{
++	struct rtg_task_arg arg = {};
++	int ret;
++
++	if (!uarg)
++		return -EINVAL;
++	if (copy_from_user(&arg, uarg, sizeof(arg)))
++		return -EFAULT;
++
++	ret = set_task_rtg(arg.pid, arg.grp_id);
++	if (ret)
++		pr_info(TAG "set task %d to rtg %d failed", arg.pid, arg.grp_id);
++	return ret;
++}
++
++static int perf_actuator_set_task_array_rtg(void __user *uarg)
++{
++	struct rtg_task_array_arg arg = {};
++	struct task_struct *p;
++	int i, ret = 0;
++
++	if (!uarg)
++		return -EINVAL;
++	if (copy_from_user(&arg, uarg, sizeof(arg)) ||
++	    (unsigned int)arg.count > RTG_ARRAY_MAX)
++		return -EFAULT;
++
++	for (i = 0; i < arg.count; i++) {
++		int pid = arg.pids[i];
++
++		if (!pid)
++			continue;
++		rcu_read_lock();
++		p = find_task_by_vpid(pid);
++		if (!p) {
++			rcu_read_unlock();
++			pr_err(TAG " task %d is not exist\n", pid);
++			continue;
++		}
++		ret = plat_sched_set_group_id(p, arg.grp_id);
++		rcu_read_unlock();
++		if (ret)
++			pr_err(TAG "set task %d to rtg %d failed", pid, arg.grp_id);
++	}
++	/* As in the stock module, the result of the last move is returned. */
++	return ret;
++}
++
++static int perf_actuator_set_rtg_cpus(void __user *uarg)
++{
++	struct rtg_value_arg arg = {};
++	struct walt_related_thread_group *grp = NULL;
++
++	if (!uarg)
++		return -EINVAL;
++	if (copy_from_user(&arg, uarg, sizeof(arg)))
++		return -EFAULT;
++
++	if (rtg_id_valid(arg.grp_id))
++		grp = plat_lookup_related_thread_group(arg.grp_id);
++	if (!grp) {
++		pr_err(TAG "set preferred cpus for group %d fail\n", arg.grp_id);
++		return -ENODEV;
++	}
++	grp->mi_prefer_cpus = arg.value;
++	plat_core_ctl_update();
++	return 0;
++}
++
++static int perf_actuator_set_rtg_util(void __user *uarg)
++{
++	struct rtg_value_arg arg = {};
++	struct walt_related_thread_group *grp = NULL;
++
++	if (!uarg)
++		return -EINVAL;
++	if (copy_from_user(&arg, uarg, sizeof(arg)))
++		return -EFAULT;
++
++	if (rtg_id_valid(arg.grp_id))
++		grp = plat_lookup_related_thread_group(arg.grp_id);
++	if (!grp) {
++		pr_err(TAG "set prefer util for group %d fail\n", arg.grp_id);
++		return -ENODEV;
++	}
++	grp->mi_prefer_util = min_t(unsigned int, arg.value, RTG_MAX_UTIL);
++	return 0;
++}
++
++/*
++ * Move every task out of the group, one at a time under the group lock,
++ * giving up after 200 tasks (-EAGAIN if the group is still not empty).
++ */
++static int perf_actuator_clear_rtg(void __user *uarg)
++{
++	struct walt_related_thread_group *grp;
++	struct walt_task_struct *wts;
++	struct task_struct *p;
++	unsigned long flags;
++	bool left = false;
++	int grp_id = 0, i;
++
++	if (!uarg)
++		return -EINVAL;
++	if (copy_from_user(&grp_id, uarg, sizeof(grp_id)))
++		return -EFAULT;
++	if (!rtg_id_valid(grp_id))
++		return -ENOENT;
++
++	grp = plat_lookup_related_thread_group(grp_id);
++	if (!grp)
++		return -ENOENT;
++
++	local_irq_save(flags);
++	preempt_disable();
++	for (i = 0; i < RTG_CLEAR_MAX_LOOP; i++) {
++		raw_spin_lock(&grp->lock);
++		wts = list_first_entry_or_null(&grp->tasks,
++					       struct walt_task_struct, grp_list);
++		left = wts != NULL;
++		if (!wts) {
++			raw_spin_unlock(&grp->lock);
++			break;
++		}
++		p = wts_to_ts(wts);
++		get_task_struct(p);
++		raw_spin_unlock(&grp->lock);
++
++		plat_sched_set_group_id(p, 0);
++		put_task_struct(p);
++	}
++	local_irq_restore(flags);
++	preempt_enable();
++
++	return left ? -EAGAIN : 0;
++}
++
++static const struct {
++	unsigned int cmd;
++	perf_actuator_func func;
++} rtg_cmds[] = {
++	{ CMD_SET_TASK_RTG, perf_actuator_set_task_rtg },
++	{ CMD_SET_TASK_ARRAY_RTG, perf_actuator_set_task_array_rtg },
++	{ CMD_SET_RTG_CPUS, perf_actuator_set_rtg_cpus },
++	{ CMD_SET_RTG_UTIL, perf_actuator_set_rtg_util },
++	{ CMD_CLEAR_RTG, perf_actuator_clear_rtg },
++};
++
++static int __init rtg_init(void)
++{
++	int i;
++
++	for (i = 0; i < ARRAY_SIZE(rtg_cmds); i++)
++		register_perf_actuator(rtg_cmds[i].cmd, rtg_cmds[i].func);
++	return 0;
++}
++
++/* No exit: the stock module cannot be unloaded either. */
++module_init(rtg_init);
++MODULE_LICENSE("GPL v2");
