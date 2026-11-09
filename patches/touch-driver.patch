@@ -363,6 +363,14 @@ diff -ruN -x .git /tmp/td-a/touch-driver/p81/nt36532/nt36xxx.c touch-driver/p81/
  		NVT_ERR("Full duplex not supported by master\n");
  		ret = -EIO;
  		goto err_ckeck_full_duplex;
+@@ -5007,7 +5007,6 @@
+ 		input_set_abs_params(ts->pen_input_dev_p81c, ABS_DISTANCE, 0, PEN_DISTANCE_MAX, 0, 0);
+ 		input_set_abs_params(ts->pen_input_dev_p81c, ABS_TILT_X, PEN_TILT_MIN, PEN_TILT_MAX, 0, 0);
+ 		input_set_abs_params(ts->pen_input_dev_p81c, ABS_TILT_Y, PEN_TILT_MIN, PEN_TILT_MAX, 0, 0);
+-		input_set_abs_params(ts->pen_input_dev_p81c, ABS_BRAKE, 0, 360, 0, 0);
+
+ #if WAKEUP_GESTURE
+ 		input_set_capability(ts->pen_input_dev_p81c, EV_KEY, KEY_WAKEUP);
 diff -ruN -x .git /tmp/td-a/touch-driver/p81/nt36532/piano_compat.c touch-driver/p81/nt36532/piano_compat.c
 --- /dev/null
 +++ b/p81/nt36532/piano_compat.c
