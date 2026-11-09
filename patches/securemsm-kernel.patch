@@ -1,0 +1,11 @@
+diff --git a/build/sun.bzl b/build/sun.bzl
+index b39a2d9..86bff1a 100644
+--- a/build/sun.bzl
++++ b/build/sun.bzl
+@@ -24,5 +24,6 @@ def define_sun():
+              "CONFIG_QCOM_SMCINVOKE",
+              "CONFIG_QSEECOM_COMPAT",
+              "CONFIG_QCOM_SI_CORE",
++             "CONFIG_MSM_TMECOM_QMP",
+          ],
+      )

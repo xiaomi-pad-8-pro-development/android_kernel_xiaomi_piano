@@ -1,0 +1,19 @@
+diff --git a/synx_module_build.bzl b/synx_module_build.bzl
+index dd09e0f..3fafd7c 100644
+--- a/synx_module_build.bzl
++++ b/synx_module_build.bzl
+@@ -85,12 +85,12 @@ def define_target_variant_modules(target, variant, registry, modules, config_opt
+             "//soc-repo:{}/drivers/remoteproc/rproc_qcom_common".format(kernel_build),
+         ],
+         "//build/kernel/kleaf:socrepo_false": [
+-            "//msm-kernel:all_headers",
++            "//soc-repo:all_headers",
+         ],
+     })
+     kernel_build_label = select({
+         "//build/kernel/kleaf:socrepo_true": "//soc-repo:{}_base_kernel".format(kernel_build),
+-        "//build/kernel/kleaf:socrepo_false": "//msm-kernel:{}".format(kernel_build),
++        "//build/kernel/kleaf:socrepo_false": "//soc-repo:{}".format(kernel_build),
+     })
+ 
+     modules = [registry.get(module_name) for module_name in modules]
