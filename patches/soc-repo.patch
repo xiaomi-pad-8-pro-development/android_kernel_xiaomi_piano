@@ -510,7 +510,7 @@ index 6f37dc7..d9b19b6 100644
  
  struct walt_task_struct {
 diff --git a/include/linux/soc/qcom/panel_event_notifier.h b/include/linux/soc/qcom/panel_event_notifier.h
-index ad4ecf9..31d58ab 100644
+index ad4ecf9..7270d23 100644
 --- a/include/linux/soc/qcom/panel_event_notifier.h
 +++ b/include/linux/soc/qcom/panel_event_notifier.h
 @@ -24,6 +24,11 @@ enum panel_event_notifier_client {
@@ -523,6 +523,15 @@ index ad4ecf9..31d58ab 100644
 +	PANEL_EVENT_NOTIFIER_CLIENT_THERMAL,
 +	PANEL_EVENT_NOTIFIER_CLIENT_THERMAL_SECOND,
  	PANEL_EVENT_NOTIFIER_CLIENT_MAX
+ };
+ 
+@@ -33,6 +38,8 @@ enum panel_event_notification_type {
+ 	DRM_PANEL_EVENT_UNBLANK,
+ 	DRM_PANEL_EVENT_BLANK_LP,
+ 	DRM_PANEL_EVENT_FPS_CHANGE,
++	DRM_PANEL_EVENT_HBM_ON,
++	DRM_PANEL_EVENT_HBM_OFF,
+ 	DRM_PANEL_EVENT_MAX
  };
  
 diff --git a/modules-lists/modules.list.msm.sun b/modules-lists/modules.list.msm.sun
