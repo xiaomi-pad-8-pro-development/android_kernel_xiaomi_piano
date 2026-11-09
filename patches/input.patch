@@ -1,0 +1,603 @@
+diff --git a/BUILD.bazel b/BUILD.bazel
+new file mode 100644
+index 0000000..7a90c4d
+--- /dev/null
++++ b/BUILD.bazel
+@@ -0,0 +1,23 @@
++# Xiaomi input drivers for the Pad 8 Pro (piano): the 6.6 sources, built
++# with their own Makefiles against the Qualcomm 6.12 kernel.
++load("//build/kernel/kleaf:kernel.bzl", "kernel_module")
++
++package(default_visibility = ["//visibility:public"])
++
++kernel_module(
++    name = "sun_perf_input",
++    srcs = glob(["**/*.c", "**/*.h", "**/Makefile", "**/Kbuild"]),
++    outs = [
++        "hall/xiaomi_hall.ko",
++        "mi_fp/mi_fp.ko",
++        "nanosic/nanosic_driver.ko",
++        "ntag/fm_ntag_i2c.ko",
++    ],
++    kernel_build = "//soc-repo:sun_perf_base_kernel",
++    deps = [
++        "//soc-repo:all_headers",
++        "//soc-repo:sun_perf/drivers/soc/qcom/panel_event_notifier",
++        "//soc-repo:sun_perf/kernel/trace/qcom_ipc_logging",
++        "//vendor/xiaomi/mca:sun_perf_mca",
++    ],
++)
+diff --git a/Kbuild b/Kbuild
+new file mode 100644
+index 0000000..4ff2eae
+--- /dev/null
++++ b/Kbuild
+@@ -0,0 +1,15 @@
++# Xiaomi input drivers for the Pad 8 Pro (piano): the keyboard cover
++# (Nanosic 803), its hall sensors, the FM19511 NFC tag and the
++# fingerprint glue, built out of tree against the Qualcomm 6.12 kernel.
++INPUT_ROOT := $(if $(filter /%,$(KBUILD_EXTMOD)),$(KBUILD_EXTMOD),$(abspath $(srctree)/$(KBUILD_EXTMOD)))
++
++export CONFIG_KEYBOARD_NANO_8030 := m
++export CONFIG_INPUT_XIAOMI_HALL := m
++export CONFIG_FM_NTAG_I2C := m
++export CONFIG_MACH_XIAOMI_PIANO := y
++subdir-ccflags-y += -I$(INPUT_ROOT)/include -DCONFIG_MACH_XIAOMI_PIANO=1
++# The soc-repo modules these call are not in the base kernel config, so
++# without these their headers compile in stubs.
++subdir-ccflags-y += -DCONFIG_QCOM_PANEL_EVENT_NOTIFIER_MODULE=1
++
++obj-m += nanosic/ hall/ ntag/ mi_fp/
+diff --git a/Makefile b/Makefile
+new file mode 100644
+index 0000000..da5f4ab
+--- /dev/null
++++ b/Makefile
+@@ -0,0 +1,8 @@
++# kleaf restores the Module.symvers of the soc-repo dependencies under
++# COMMON_OUT_DIR; hand them to modpost. mi_fp uses hwid from mca.
++KBUILD_EXTRA_SYMBOLS += $(wildcard $(COMMON_OUT_DIR)/soc-repo/sun_perf/*/*/*_Module.symvers \
++	$(COMMON_OUT_DIR)/soc-repo/sun_perf/*/*/*/*_Module.symvers \
++	$(COMMON_OUT_DIR)/vendor/xiaomi/mca/*Module.symvers)
++
++modules modules_install clean:
++	$(MAKE) -C $(KERNEL_SRC) M=$(M) $(KBUILD_OPTIONS) KBUILD_EXTRA_SYMBOLS="$(KBUILD_EXTRA_SYMBOLS)" $@
+diff --git a/hall/Makefile b/hall/Makefile
+new file mode 100644
+index 0000000..cc27e95
+--- /dev/null
++++ b/hall/Makefile
+@@ -0,0 +1 @@
++obj-m += xiaomi_hall.o
+diff --git a/include/hwid.h b/include/hwid.h
+new file mode 100644
+index 0000000..19ef80a
+--- /dev/null
++++ b/include/hwid.h
+@@ -0,0 +1,41 @@
++/*
++ * Copyright (C) 2021 XiaoMi, Inc.
++ *               2022 The LineageOS Project
++ *
++ * SPDX-License-Identifier: GPL-2.0
++ */
++
++#ifndef __HWID_H__
++#define __HWID_H__
++
++#include <linux/types.h>
++
++#define HARDWARE_PROJECT_UNKNOWN    0
++#define HARDWARE_PROJECT_O1   4 //xuanyuan
++#define HARDWARE_PROJECT_O10U 7 //onyx
++#define HARDWARE_PROJECT_O2   1 //haotian
++#define HARDWARE_PROJECT_O3   2 //dada
++#define HARDWARE_PROJECT_O8   5 //bixi
++#define HARDWARE_PROJECT_O9   8 //luming
++#define HARDWARE_PROJECT_P82  10 //yupei
++
++typedef enum {
++	CountryCN = 0x00,
++	CountryGlobal = 0x01,
++	CountryIndia = 0x02,
++	CountryJapan = 0x03,
++	INVALID = 0x04,
++	CountryIDMax = 0x7FFFFFFF
++} CountryType;
++
++const char *product_name_get(void);
++uint32_t get_hw_version_platform(void);
++uint32_t get_hw_id_value(void);
++uint32_t get_hw_country_version(void);
++uint32_t get_hw_version_major(void);
++uint32_t get_hw_version_minor(void);
++uint32_t get_hw_version_build(void);
++uint32_t get_hw_project_adc(void);
++uint32_t get_hw_build_adc(void);
++
++#endif /* __HWID_H__ */
+diff --git a/include/linux/ipc_logging.h b/include/linux/ipc_logging.h
+new file mode 100644
+index 0000000..1f2ce20
+--- /dev/null
++++ b/include/linux/ipc_logging.h
+@@ -0,0 +1,288 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++/*
++ * Copyright (c) 2012-2015,2017-2021 The Linux Foundation. All rights reserved.
++ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
++ */
++
++#ifndef _IPC_LOGGING_H
++#define _IPC_LOGGING_H
++
++#include <linux/errno.h>
++#include <linux/types.h>
++
++#define MAX_MSG_SIZE 255
++
++enum {
++	TSV_TYPE_MSG_START = 1,
++	TSV_TYPE_SKB = TSV_TYPE_MSG_START,
++	TSV_TYPE_STRING,
++	TSV_TYPE_MSG_END = TSV_TYPE_STRING,
++};
++
++struct tsv_header {
++	unsigned char type;
++	unsigned char size; /* size of data field */
++};
++
++struct encode_context {
++	struct tsv_header hdr;
++	char buff[MAX_MSG_SIZE];
++	int offset;
++};
++
++struct decode_context {
++	int output_format;      /* 0 = debugfs */
++	char *buff;             /* output buffer */
++	int size;               /* size of output buffer */
++};
++
++#if IS_ENABLED(CONFIG_IPC_LOGGING)
++/*
++ * ipc_log_context_create: Create a debug log context
++ *                         Should not be called from atomic context
++ *
++ * @max_num_pages: Number of pages of logging space required (max. 10)
++ * @mod_name     : Name of the directory entry under DEBUGFS
++ * @feature_version : First 16 bit for version number of user-defined message
++ *		      formats and next 16 bit for enabling minidump
++ *
++ * returns context id on success, NULL on failure
++ */
++void *ipc_log_context_create(int max_num_pages, const char *modname,
++		uint32_t feature_version);
++
++/*
++ * msg_encode_start: Start encoding a log message
++ *
++ * @ectxt: Temporary storage to hold the encoded message
++ * @type:  Root event type defined by the module which is logging
++ */
++void msg_encode_start(struct encode_context *ectxt, uint32_t type);
++
++/*
++ * tsv_timestamp_write: Writes the current timestamp count
++ *
++ * @ectxt: Context initialized by calling msg_encode_start()
++ */
++int tsv_timestamp_write(struct encode_context *ectxt);
++
++/*
++ * tsv_qtimer_write: Writes the current QTimer timestamp count
++ *
++ * @ectxt: Context initialized by calling msg_encode_start()
++ */
++int tsv_qtimer_write(struct encode_context *ectxt);
++
++/*
++ * tsv_pointer_write: Writes a data pointer
++ *
++ * @ectxt:   Context initialized by calling msg_encode_start()
++ * @pointer: Pointer value to write
++ */
++int tsv_pointer_write(struct encode_context *ectxt, void *pointer);
++
++/*
++ * tsv_int32_write: Writes a 32-bit integer value
++ *
++ * @ectxt: Context initialized by calling msg_encode_start()
++ * @n:     Integer to write
++ */
++int tsv_int32_write(struct encode_context *ectxt, int32_t n);
++
++/*
++ * tsv_byte_array_write: Writes a byte array
++ *
++ * @ectxt:     Context initialized by calling msg_encode_start()
++ * @data:      Pointer to byte array
++ * @data_size: Size of byte array
++ */
++int tsv_byte_array_write(struct encode_context *ectxt,
++			 void *data, int data_size);
++
++/*
++ * msg_encode_end: Complete the message encode process
++ *
++ * @ectxt: Temporary storage which holds the encoded message
++ */
++void msg_encode_end(struct encode_context *ectxt);
++
++/*
++ * ipc_log_write: Commits message to logging ring buffer
++ *
++ * @ctxt:  Logging context
++ * @ectxt: Temporary storage which holds the encoded message
++ */
++void ipc_log_write(void *ctxt, struct encode_context *ectxt);
++
++/*
++ * ipc_log_string: Helper function to log a string
++ *
++ * @ilctxt: Debug Log Context created using ipc_log_context_create()
++ * @fmt:    Data specified using format specifiers
++ */
++int ipc_log_string(void *ilctxt, const char *fmt, ...) __printf(2, 3);
++
++/**
++ * ipc_log_extract - Reads and deserializes log
++ *
++ * @ilctxt:  logging context
++ * @buff:    buffer to receive the data
++ * @size:    size of the buffer
++ * @returns: 0 if no data read; >0 number of bytes read; < 0 error
++ *
++ * If no data is available to be read, then the ilctxt::read_avail
++ * completion is reinitialized.  This allows clients to block
++ * until new log data is save.
++ */
++int ipc_log_extract(void *ilctxt, char *buff, int size);
++
++/*
++ * Print a string to decode context.
++ * @dctxt   Decode context
++ * @args   printf args
++ */
++#define IPC_SPRINTF_DECODE(dctxt, args...) \
++do { \
++	int i; \
++	i = scnprintf(dctxt->buff, dctxt->size, args); \
++	dctxt->buff += i; \
++	dctxt->size -= i; \
++} while (0)
++
++/*
++ * tsv_timestamp_read: Reads a timestamp
++ *
++ * @ectxt:  Context retrieved by reading from log space
++ * @dctxt:  Temporary storage to hold the decoded message
++ * @format: Output format while dumping through DEBUGFS
++ */
++void tsv_timestamp_read(struct encode_context *ectxt,
++			struct decode_context *dctxt, const char *format);
++
++/*
++ * tsv_qtimer_read: Reads a QTimer timestamp
++ *
++ * @ectxt:  Context retrieved by reading from log space
++ * @dctxt:  Temporary storage to hold the decoded message
++ * @format: Output format while dumping through DEBUGFS
++ */
++void tsv_qtimer_read(struct encode_context *ectxt,
++		     struct decode_context *dctxt, const char *format);
++
++/*
++ * tsv_pointer_read: Reads a data pointer
++ *
++ * @ectxt:  Context retrieved by reading from log space
++ * @dctxt:  Temporary storage to hold the decoded message
++ * @format: Output format while dumping through DEBUGFS
++ */
++void tsv_pointer_read(struct encode_context *ectxt,
++		      struct decode_context *dctxt, const char *format);
++
++/*
++ * tsv_int32_read: Reads a 32-bit integer value
++ *
++ * @ectxt:  Context retrieved by reading from log space
++ * @dctxt:  Temporary storage to hold the decoded message
++ * @format: Output format while dumping through DEBUGFS
++ */
++int32_t tsv_int32_read(struct encode_context *ectxt,
++		       struct decode_context *dctxt, const char *format);
++
++/*
++ * tsv_byte_array_read: Reads a byte array
++ *
++ * @ectxt:  Context retrieved by reading from log space
++ * @dctxt:  Temporary storage to hold the decoded message
++ * @format: Output format while dumping through DEBUGFS
++ */
++void tsv_byte_array_read(struct encode_context *ectxt,
++			 struct decode_context *dctxt, const char *format);
++
++/*
++ * add_deserialization_func: Register a deserialization function to
++ *                           unpack the subevents of a main event
++ *
++ * @ctxt: Debug log context to which the deserialization function has
++ *        to be registered
++ * @type: Main/Root event, defined by the module which is logging, to
++ *        which this deserialization function has to be registered.
++ * @dfune: Deserialization function to be registered
++ *
++ * return 0 on success, -ve value on FAILURE
++ */
++int add_deserialization_func(void *ctxt, int type,
++			void (*dfunc)(struct encode_context *,
++				      struct decode_context *));
++
++/*
++ * ipc_log_context_destroy: Destroy debug log context
++ *
++ * @ctxt: debug log context created by calling ipc_log_context_create API.
++ */
++int ipc_log_context_destroy(void *ctxt);
++
++#else
++
++static inline void *ipc_log_context_create(int max_num_pages,
++	const char *modname, uint32_t feature_version)
++{ return NULL; }
++
++static inline void msg_encode_start(struct encode_context *ectxt,
++	uint32_t type) { }
++
++static inline int tsv_timestamp_write(struct encode_context *ectxt)
++{ return -EINVAL; }
++
++static inline int tsv_qtimer_write(struct encode_context *ectxt)
++{ return -EINVAL; }
++
++static inline int tsv_pointer_write(struct encode_context *ectxt, void *pointer)
++{ return -EINVAL; }
++
++static inline int tsv_int32_write(struct encode_context *ectxt, int32_t n)
++{ return -EINVAL; }
++
++static inline int tsv_byte_array_write(struct encode_context *ectxt,
++			 void *data, int data_size)
++{ return -EINVAL; }
++
++static inline void msg_encode_end(struct encode_context *ectxt) { }
++
++static inline void ipc_log_write(void *ctxt, struct encode_context *ectxt) { }
++
++static inline int ipc_log_string(void *ilctxt, const char *fmt, ...)
++{ return -EINVAL; }
++
++static inline int ipc_log_extract(void *ilctxt, char *buff, int size)
++{ return -EINVAL; }
++
++#define IPC_SPRINTF_DECODE(dctxt, args...) do { } while (0)
++
++static inline void tsv_timestamp_read(struct encode_context *ectxt,
++			struct decode_context *dctxt, const char *format) { }
++
++static inline void tsv_qtimer_read(struct encode_context *ectxt,
++			struct decode_context *dctxt, const char *format) { }
++
++static inline void tsv_pointer_read(struct encode_context *ectxt,
++		      struct decode_context *dctxt, const char *format) { }
++
++static inline int32_t tsv_int32_read(struct encode_context *ectxt,
++		       struct decode_context *dctxt, const char *format)
++{ return 0; }
++
++static inline void tsv_byte_array_read(struct encode_context *ectxt,
++			 struct decode_context *dctxt, const char *format) { }
++
++static inline int add_deserialization_func(void *ctxt, int type,
++			void (*dfunc)(struct encode_context *,
++				      struct decode_context *))
++{ return 0; }
++
++static inline int ipc_log_context_destroy(void *ctxt)
++{ return 0; }
++
++#endif
++
++#endif
+diff --git a/include/linux/soc/qcom/panel_event_notifier.h b/include/linux/soc/qcom/panel_event_notifier.h
+new file mode 100644
+index 0000000..7270d23
+--- /dev/null
++++ b/include/linux/soc/qcom/panel_event_notifier.h
+@@ -0,0 +1,89 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++/*
++ * Copyright (c) 2021, The Linux Foundation. All rights reserved.
++ * Copyright (c) 2023, Qualcomm Innovation Center, Inc. All rights reserved.
++ */
++
++#ifndef __PANEL_EVENT_NOTIFIER_H
++#define __PANEL_EVENT_NOTIFIER_H
++
++#include <linux/err.h>
++#include <linux/errno.h>
++#include <linux/types.h>
++#include <drm/drm_panel.h>
++
++enum panel_event_notifier_tag {
++	PANEL_EVENT_NOTIFICATION_NONE,
++	PANEL_EVENT_NOTIFICATION_PRIMARY,
++	PANEL_EVENT_NOTIFICATION_SECONDARY,
++	PANEL_EVENT_NOTIFICATION_MAX
++};
++
++enum panel_event_notifier_client {
++	PANEL_EVENT_NOTIFIER_CLIENT_PRIMARY_TOUCH,
++	PANEL_EVENT_NOTIFIER_CLIENT_SECONDARY_TOUCH,
++	PANEL_EVENT_NOTIFIER_CLIENT_ECM,
++	PANEL_EVENT_NOTIFIER_CLIENT_BATTERY_CHARGER,
++	PANEL_EVENT_NOTIFIER_CLIENT_FINGERPRINT,
++	PANEL_EVENT_NOTIFIER_CLIENT_FINGERPRINT_SECOND,
++	PANEL_EVENT_NOTIFIER_CLIENT_KEYBOARD,
++	PANEL_EVENT_NOTIFIER_CLIENT_THERMAL,
++	PANEL_EVENT_NOTIFIER_CLIENT_THERMAL_SECOND,
++	PANEL_EVENT_NOTIFIER_CLIENT_MAX
++};
++
++enum panel_event_notification_type {
++	DRM_PANEL_EVENT_NONE,
++	DRM_PANEL_EVENT_BLANK,
++	DRM_PANEL_EVENT_UNBLANK,
++	DRM_PANEL_EVENT_BLANK_LP,
++	DRM_PANEL_EVENT_FPS_CHANGE,
++	DRM_PANEL_EVENT_HBM_ON,
++	DRM_PANEL_EVENT_HBM_OFF,
++	DRM_PANEL_EVENT_MAX
++};
++
++struct panel_event_notification_data {
++	u32 old_fps;
++	u32 new_fps;
++	bool early_trigger;
++};
++
++struct panel_event_notification {
++	enum panel_event_notification_type notif_type;
++	struct panel_event_notification_data notif_data;
++	struct drm_panel *panel;
++};
++
++typedef void (*panel_event_notifier_handler)(enum panel_event_notifier_tag tag,
++				struct panel_event_notification *notification,
++					void *pvt_data);
++
++#if IS_ENABLED(CONFIG_QCOM_PANEL_EVENT_NOTIFIER)
++void *panel_event_notifier_register(enum panel_event_notifier_tag tag,
++		enum panel_event_notifier_client client_handle,
++		struct drm_panel *panel,
++		panel_event_notifier_handler notif_handler, void *pvt_data);
++void panel_event_notifier_unregister(void *cookie);
++void panel_event_notification_trigger(enum panel_event_notifier_tag tag,
++		 struct panel_event_notification *notification);
++
++#else
++static inline void *panel_event_notifier_register(enum panel_event_notifier_tag tag,
++		enum panel_event_notifier_client client_handle,
++		struct drm_panel *panel,
++		panel_event_notifier_handler notif_handler, void *pvt_data)
++{
++	return ERR_PTR(-EOPNOTSUPP);
++}
++
++static inline void panel_event_notifier_unregister(void *cookie)
++{
++}
++static inline void panel_event_notification_trigger(
++		enum panel_event_notifier_tag tag,
++		struct panel_event_notification *notification)
++{
++}
++#endif
++#endif
+diff --git a/mi_fp/fp_driver.c b/mi_fp/fp_driver.c
+index 0f55eef..b298356 100644
+--- a/mi_fp/fp_driver.c
++++ b/mi_fp/fp_driver.c
+@@ -1850,7 +1850,7 @@ err_dts:
+ #ifdef CONFIG_FP_MTK_PLATFORM
+ static int fp_remove(struct spi_device *driver_device)
+ #else
+-static int fp_remove(struct platform_device *driver_device)
++static void fp_remove(struct platform_device *driver_device)
+ #endif
+ {
+ 	struct fp_device *fp_dev = &fp;
+@@ -1924,7 +1924,9 @@ static int fp_remove(struct platform_device *driver_device)
+ 	xiaomifp_evdev_remove();
+ #endif
+ 	FUNC_EXIT();
++#ifdef CONFIG_FP_MTK_PLATFORM
+ 	return 0;
++#endif
+ }
+ 
+ #ifdef FP_ULTRA_QCOM
+diff --git a/mi_fp/fp_driver.h b/mi_fp/fp_driver.h
+index 76c85e3..2c5eee4 100644
+--- a/mi_fp/fp_driver.h
++++ b/mi_fp/fp_driver.h
+@@ -12,6 +12,7 @@
+ #include <linux/cdev.h>
+ #include <linux/input.h>
+ #include <linux/device.h>
++#include <linux/platform_device.h>
+ #include <linux/mutex.h>
+ #include <linux/io.h>
+ #include <linux/gpio.h>
+diff --git a/mi_fp/fp_platform.c b/mi_fp/fp_platform.c
+index 5231811..32e8780 100644
+--- a/mi_fp/fp_platform.c
++++ b/mi_fp/fp_platform.c
+@@ -1,5 +1,5 @@
+ #include "fp_driver.h"
+-#include "../../../misc/hwid/hwid.h"
++#include <hwid.h>
+ 
+ /* -------------------------------------------------------------------- */
+ /* fingerprint chip hardware configuration				*/
+diff --git a/nanosic/nano_chardev.c b/nanosic/nano_chardev.c
+index e1d93a0..439689b 100644
+--- a/nanosic/nano_chardev.c
++++ b/nanosic/nano_chardev.c
+@@ -502,7 +502,6 @@ static char *Nanosic_chardev_devnode(const struct device *dev, umode_t *mode)
+  ** */
+ static const struct file_operations nanosic_cdev_fops = {
+ 	.owner = THIS_MODULE,
+-	.llseek = no_llseek, /* We're a pipe, dude. */
+ 	.open = Nanosic_chardev_fops_open,
+ 	.release = Nanosic_chardev_fops_release,
+ 	.write = Nanosic_chardev_fops_write,
+diff --git a/nanosic/nano_edge_filter.c b/nanosic/nano_edge_filter.c
+index ee4925c..bfc8a6f 100644
+--- a/nanosic/nano_edge_filter.c
++++ b/nanosic/nano_edge_filter.c
+@@ -11,7 +11,7 @@
+ #include <linux/module.h>
+ #include <linux/of.h>
+ #include <linux/spinlock.h>
+-#include <asm/unaligned.h>
++#include <linux/unaligned.h>
+ #include "nano_macro.h"
+ 
+ #define CONTACTS 3
+diff --git a/nanosic/nano_firmware.c b/nanosic/nano_firmware.c
+index 269a12a..58197ab 100644
+--- a/nanosic/nano_firmware.c
++++ b/nanosic/nano_firmware.c
+@@ -14,7 +14,7 @@
+ #include <linux/i2c.h>
+ #include <linux/slab.h>
+ #include <linux/string.h>
+-#include <asm/unaligned.h>
++#include <linux/unaligned.h>
+ #include "nano_macro.h"
+ 
+ #define FW_NAME "MCU_Upgrade.bin"
+diff --git a/ntag/ntag_i2c_drv.c b/ntag/ntag_i2c_drv.c
+index 0b442ce..93b6a06 100644
+--- a/ntag/ntag_i2c_drv.c
++++ b/ntag/ntag_i2c_drv.c
+@@ -190,7 +190,6 @@ ssize_t ntag_i2c_dev_write(struct file *filp, const char __user *buf,
+ 
+ static const struct file_operations ntag_i2c_dev_fops = {
+ 	.owner = THIS_MODULE,
+-	.llseek = no_llseek,
+ 	.read = ntag_i2c_dev_read,
+ 	.write = ntag_i2c_dev_write,
+ 	.open = ntag_dev_open,
