@@ -1,0 +1,3764 @@
+diff --git a/arch/arm64/Kconfig.debug b/arch/arm64/Kconfig.debug
+index 265c4461031f..0a4e2fd1396e 100644
+--- a/arch/arm64/Kconfig.debug
++++ b/arch/arm64/Kconfig.debug
+@@ -20,4 +20,12 @@ config ARM64_RELOC_TEST
+ 	depends on m
+ 	tristate "Relocation testing module"
+ 
++config PIANO_BRINGUP
++	bool "Xiaomi Pad 8 Pro (piano) bring-up debug tools"
++	help
++	  Builds the piano bring-up aids: the memcon RAM console that
++	  survives a warm reset, the block-device kernel log, the
++	  piano_reset_at= boot checkpoints and the extra unhandled-signal
++	  reports. Test builds only; leave it off for releases.
++
+ source "drivers/hwtracing/coresight/Kconfig"
+diff --git a/arch/arm64/configs/gki_defconfig b/arch/arm64/configs/gki_defconfig
+index ee8096829..cdac481b8 100644
+--- a/arch/arm64/configs/gki_defconfig
++++ b/arch/arm64/configs/gki_defconfig
+@@ -120,6 +120,7 @@ CONFIG_BLK_CGROUP_IOCOST=y
+ CONFIG_BLK_CGROUP_IOPRIO=y
+ CONFIG_BLK_INLINE_ENCRYPTION=y
+ CONFIG_BLK_INLINE_ENCRYPTION_FALLBACK=y
++CONFIG_CPQ_IOSCHED=m
+ CONFIG_GKI_TASK_STRUCT_VENDOR_SIZE_MAX=1280
+ CONFIG_GKI_HACKS_TO_FIX=y
+ # CONFIG_CORE_DUMP_DEFAULT_ELF_HEADERS is not set
+@@ -349,6 +350,7 @@ CONFIG_ZRAM=m
+ CONFIG_ZRAM_BACKEND_LZ4=y
+ CONFIG_ZRAM_BACKEND_ZSTD=y
+ CONFIG_ZRAM_BACKEND_LZO=y
++CONFIG_ZRAM_DEF_COMP_LZ4=y
+ CONFIG_ZRAM_WRITEBACK=y
+ CONFIG_ZRAM_MULTI_COMP=y
+ CONFIG_ZRAM_ANDROID_IOCTL=y
+@@ -363,6 +365,7 @@ CONFIG_NVME_MULTIPATH=y
+ CONFIG_SRAM=y
+ CONFIG_UID_SYS_STATS=y
+ CONFIG_OPEN_DICE=m
++CONFIG_NTSYNC=m
+ CONFIG_VCPU_STALL_DETECTOR=m
+ CONFIG_SCSI=y
+ # CONFIG_SCSI_PROC_FS is not set
+@@ -718,6 +721,7 @@ CONFIG_PSTORE_BLK=m
+ CONFIG_EROFS_FS=y
+ CONFIG_EROFS_FS_ZIP_ZSTD=y
+ CONFIG_EROFS_FS_PCPU_KTHREAD=y
++CONFIG_CIFS=m
+ CONFIG_NLS_CODEPAGE_437=y
+ CONFIG_NLS_CODEPAGE_737=y
+ CONFIG_NLS_CODEPAGE_775=y
+diff --git a/arch/arm64/include/asm/cmpxchg.h b/arch/arm64/include/asm/cmpxchg.h
+index d7a540736..7b52192b1 100644
+--- a/arch/arm64/include/asm/cmpxchg.h
++++ b/arch/arm64/include/asm/cmpxchg.h
+@@ -25,16 +25,8 @@ static inline u##sz __xchg_case_##name##sz(u##sz x, volatile void *ptr)		\
+ 	unsigned long tmp;							\
+ 										\
+ 	asm volatile(ARM64_LSE_ATOMIC_INSN(					\
+-	/* LL/SC */								\
+-	"	prfm	pstl1strm, %2\n"					\
+-	"1:	ld" #acq "xr" #sfx "\t%" #w "0, %2\n"				\
+-	"	st" #rel "xr" #sfx "\t%w1, %" #w "3, %2\n"			\
+-	"	cbnz	%w1, 1b\n"						\
+-	"	" #mb,								\
+ 	/* LSE atomics */							\
+-	"	swp" #acq_lse #rel #sfx "\t%" #w "3, %" #w "0, %2\n"		\
+-		__nops(3)							\
+-	"	" #nop_lse)							\
++	"	swp" #acq_lse #rel #sfx "\t%" #w "3, %" #w "0, %2\n")		\
+ 	: "=&r" (ret), "=&r" (tmp), "+Q" (*(u##sz *)ptr)			\
+ 	: "r" (x)								\
+ 	: cl);									\
+diff --git a/arch/arm64/include/asm/lse.h b/arch/arm64/include/asm/lse.h
+index 4e50768f5..8d5ab9f90 100644
+--- a/arch/arm64/include/asm/lse.h
++++ b/arch/arm64/include/asm/lse.h
+@@ -16,16 +16,10 @@
+ #include <asm/atomic_lse.h>
+ #include <asm/cpucaps.h>
+ 
+-#define __lse_ll_sc_body(op, ...)					\
+-({									\
+-	alternative_has_cap_likely(ARM64_HAS_LSE_ATOMICS) ?		\
+-		__lse_##op(__VA_ARGS__) :				\
+-		__ll_sc_##op(__VA_ARGS__);				\
+-})
+-
+-/* In-line patching at runtime */
+-#define ARM64_LSE_ATOMIC_INSN(llsc, lse)				\
+-	ALTERNATIVE(llsc, __LSE_PREAMBLE lse, ARM64_HAS_LSE_ATOMICS)
++/* Always use LSE atomics: piano's SoC has them. */
++#define __lse_ll_sc_body(op, ...)		__lse_##op(__VA_ARGS__)
++
++#define ARM64_LSE_ATOMIC_INSN(lse)		__LSE_PREAMBLE lse
+ 
+ #else	/* CONFIG_ARM64_LSE_ATOMICS */
+ 
+diff --git a/arch/arm64/include/asm/mte-kasan.h b/arch/arm64/include/asm/mte-kasan.h
+index 2e98028c1..e59456d63 100644
+--- a/arch/arm64/include/asm/mte-kasan.h
++++ b/arch/arm64/include/asm/mte-kasan.h
+@@ -98,7 +98,7 @@ static inline u8 mte_get_ptr_tag(void *ptr)
+ /* Get allocation tag for the address. */
+ static inline u8 mte_get_mem_tag(void *addr)
+ {
+-	asm(__MTE_PREAMBLE "ldg %0, [%0]"
++	asm volatile(__MTE_PREAMBLE "ldg %0, [%0]"
+ 		: "+r" (addr));
+ 
+ 	return mte_get_ptr_tag(addr);
+@@ -109,7 +109,7 @@ static inline u8 mte_get_random_tag(void)
+ {
+ 	void *addr;
+ 
+-	asm(__MTE_PREAMBLE "irg %0, %0"
++	asm volatile(__MTE_PREAMBLE "irg %0, %0"
+ 		: "=r" (addr));
+ 
+ 	return mte_get_ptr_tag(addr);
+diff --git a/arch/arm64/include/asm/percpu.h b/arch/arm64/include/asm/percpu.h
+index 9abcc8ef3..734be4c3b 100644
+--- a/arch/arm64/include/asm/percpu.h
++++ b/arch/arm64/include/asm/percpu.h
+@@ -71,14 +71,8 @@ __percpu_##name##_case_##sz(void *ptr, unsigned long val)		\
+ 	u##sz tmp;							\
+ 									\
+ 	asm volatile (ARM64_LSE_ATOMIC_INSN(				\
+-	/* LL/SC */							\
+-	"1:	ldxr" #sfx "\t%" #w "[tmp], %[ptr]\n"			\
+-		#op_llsc "\t%" #w "[tmp], %" #w "[tmp], %" #w "[val]\n"	\
+-	"	stxr" #sfx "\t%w[loop], %" #w "[tmp], %[ptr]\n"		\
+-	"	cbnz	%w[loop], 1b",					\
+ 	/* LSE atomics */						\
+-		#op_lse "\t%" #w "[val], %[ptr]\n"			\
+-		__nops(3))						\
++		#op_lse "\t%" #w "[val], %[ptr]\n")			\
+ 	: [loop] "=&r" (loop), [tmp] "=&r" (tmp),			\
+ 	  [ptr] "+Q"(*(u##sz *)ptr)					\
+ 	: [val] "r" ((u##sz)(val)));					\
+@@ -92,15 +86,9 @@ __percpu_##name##_return_case_##sz(void *ptr, unsigned long val)	\
+ 	u##sz ret;							\
+ 									\
+ 	asm volatile (ARM64_LSE_ATOMIC_INSN(				\
+-	/* LL/SC */							\
+-	"1:	ldxr" #sfx "\t%" #w "[ret], %[ptr]\n"			\
+-		#op_llsc "\t%" #w "[ret], %" #w "[ret], %" #w "[val]\n"	\
+-	"	stxr" #sfx "\t%w[loop], %" #w "[ret], %[ptr]\n"		\
+-	"	cbnz	%w[loop], 1b",					\
+ 	/* LSE atomics */						\
+ 		#op_lse "\t%" #w "[val], %" #w "[ret], %[ptr]\n"	\
+-		#op_llsc "\t%" #w "[ret], %" #w "[ret], %" #w "[val]\n"	\
+-		__nops(2))						\
++		#op_llsc "\t%" #w "[ret], %" #w "[ret], %" #w "[val]\n")\
+ 	: [loop] "=&r" (loop), [ret] "=&r" (ret),			\
+ 	  [ptr] "+Q"(*(u##sz *)ptr)					\
+ 	: [val] "r" ((u##sz)(val)));					\
+diff --git a/arch/arm64/kernel/Makefile b/arch/arm64/kernel/Makefile
+index 2b112f3b7510..4f0901d43f76 100644
+--- a/arch/arm64/kernel/Makefile
++++ b/arch/arm64/kernel/Makefile
+@@ -85,3 +85,4 @@ endif
+ 
+ # for cleaning
+ subdir- += vdso vdso32
++obj-$(CONFIG_PIANO_BRINGUP) += piano_memcon.o piano_blklog.o
+diff --git a/arch/arm64/kernel/piano_blklog.c b/arch/arm64/kernel/piano_blklog.c
+new file mode 100644
+index 000000000..8e46697e2
+--- /dev/null
++++ b/arch/arm64/kernel/piano_blklog.c
+@@ -0,0 +1,136 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * Bring-up only: copy the kernel log to the start of the rawdump partition
++ * every few seconds and on reboot, so a boot that never reaches adb can be
++ * read back later from recovery without the log being overwritten.
++ *
++ * Layout: 4K header ("PIANOLOG", u32 sequence, u32 length), then the log.
++ */
++
++#include <linux/bio.h>
++#include <linux/blkdev.h>
++#include <linux/init.h>
++#include <linux/kmsg_dump.h>
++#include <linux/mutex.h>
++#include <linux/reboot.h>
++#include <linux/string.h>
++#include <linux/vmalloc.h>
++#include <linux/workqueue.h>
++
++#define BLKLOG_PART	"rawdump"
++#define BLKLOG_SIZE	SZ_1M
++#define BLKLOG_HDR	SZ_4K
++/*
++ * The board can lock up hard about a second into boot, so write every
++ * 100 ms for the first 10 s, then every 10 s, and on reboot.
++ */
++#define BLKLOG_FAST	(HZ / 10)
++#define BLKLOG_FAST_FOR	(10 * HZ)
++#define BLKLOG_PERIOD	(HZ / 10)
++
++static struct file *blklog_file;
++static char *blklog_buf;
++static u32 blklog_seq;
++static DEFINE_MUTEX(blklog_lock);
++static struct delayed_work blklog_work;
++
++static int blklog_match(struct device *dev, const void *name)
++{
++	struct block_device *bdev = dev_to_bdev(dev);
++
++	return bdev->bd_meta_info &&
++	       !strcmp((char *)bdev->bd_meta_info->volname, name);
++}
++
++/* The partition shows up only once the UFS driver has probed. */
++static struct block_device *blklog_bdev(void)
++{
++	struct device *dev;
++	struct file *f;
++
++	if (blklog_file)
++		return file_bdev(blklog_file);
++
++	dev = class_find_device(&block_class, NULL, BLKLOG_PART, blklog_match);
++	if (!dev)
++		return NULL;
++	f = bdev_file_open_by_dev(dev->devt, BLK_OPEN_READ | BLK_OPEN_WRITE,
++				  NULL, NULL);
++	put_device(dev);
++	if (IS_ERR(f)) {
++		pr_err("piano_blklog: cannot open %s: %ld\n", BLKLOG_PART,
++		       PTR_ERR(f));
++		return NULL;
++	}
++	blklog_file = f;
++	pr_info("piano_blklog: logging to %s\n", BLKLOG_PART);
++	return file_bdev(f);
++}
++
++static void blklog_flush(void)
++{
++	struct kmsg_dump_iter iter;
++	struct block_device *bdev;
++	struct bio *bio;
++	size_t len = 0;
++	u32 *hdr = (u32 *)blklog_buf;
++	int i, n, ret;
++
++	mutex_lock(&blklog_lock);
++	bdev = blklog_bdev();
++	if (!bdev)
++		goto out;
++
++	kmsg_dump_rewind(&iter);
++	kmsg_dump_get_buffer(&iter, false, blklog_buf + BLKLOG_HDR,
++			     BLKLOG_SIZE - BLKLOG_HDR, &len);
++	memset(blklog_buf, 0, BLKLOG_HDR);
++	memcpy(blklog_buf, "PIANOLOG", 8);
++	hdr[2] = ++blklog_seq;
++	hdr[3] = len;
++
++	n = DIV_ROUND_UP(BLKLOG_HDR + len, PAGE_SIZE);
++	bio = bio_alloc(bdev, n, REQ_OP_WRITE | REQ_SYNC, GFP_KERNEL);
++	bio->bi_iter.bi_sector = 0;
++	for (i = 0; i < n; i++)
++		__bio_add_page(bio, vmalloc_to_page(blklog_buf + i * PAGE_SIZE),
++			       PAGE_SIZE, 0);
++	ret = submit_bio_wait(bio);
++	bio_put(bio);
++	if (ret)
++		pr_err("piano_blklog: write failed: %d\n", ret);
++out:
++	mutex_unlock(&blklog_lock);
++}
++
++static void blklog_work_fn(struct work_struct *work)
++{
++	blklog_flush();
++	schedule_delayed_work(&blklog_work,
++			      time_before(jiffies, INITIAL_JIFFIES + BLKLOG_FAST_FOR) ?
++			      BLKLOG_FAST : BLKLOG_PERIOD);
++}
++
++/* Reboot notifiers run before device_shutdown(), while UFS still works. */
++static int blklog_reboot(struct notifier_block *nb, unsigned long action,
++			 void *data)
++{
++	blklog_flush();
++	return NOTIFY_DONE;
++}
++
++static struct notifier_block blklog_reboot_nb = {
++	.notifier_call = blklog_reboot,
++};
++
++static int __init blklog_init(void)
++{
++	blklog_buf = vzalloc(BLKLOG_SIZE);
++	if (!blklog_buf)
++		return -ENOMEM;
++	INIT_DELAYED_WORK(&blklog_work, blklog_work_fn);
++	schedule_delayed_work(&blklog_work, 0);
++	register_reboot_notifier(&blklog_reboot_nb);
++	return 0;
++}
++late_initcall(blklog_init);
+diff --git a/arch/arm64/kernel/piano_memcon.c b/arch/arm64/kernel/piano_memcon.c
+new file mode 100644
+index 000000000..d86c7e88d
+--- /dev/null
++++ b/arch/arm64/kernel/piano_memcon.c
+@@ -0,0 +1,114 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * Bring-up only: copy the kernel log into the unused ramoops dmesg zone from
++ * right after paging_init(), before ramoops itself is up. Each write is
++ * cleaned to PoC so it survives a warm reset.
++ */
++
++#include <linux/console.h>
++#include <linux/init.h>
++#include <linux/io.h>
++#include <linux/string.h>
++#include <asm/cacheflush.h>
++#include <asm/early_ioremap.h>
++
++/*
++ * Two rings, used in turn on each boot, so a boot that falls back to
++ * recovery does not overwrite the log of the boot that failed. The boot
++ * counter is stored 32 times and read by a per-bit majority vote, because
++ * the memory gets bit flips over a warm reset.
++ */
++#define MEMCON_RING0	0xa3501000
++#define MEMCON_RING1	0xa3541000
++#define MEMCON_COUNT	0xa35c0000
++#define MEMCON_COUNT_COPIES	32
++#define MEMCON_SIZE	0xff000
++#define MEMCON_MAGIC	0x4d454d43	/* "MEMC" */
++/* early_memremap() maps at most 256K per slot. */
++#define MEMCON_EARLY_SIZE	0x3f000
++
++static u8 *memcon;
++static phys_addr_t memcon_base;
++static u32 memcon_size = MEMCON_EARLY_SIZE;
++
++static void memcon_write(struct console *con, const char *s, unsigned int n)
++{
++	/* Bring-up: keep userspace (init) lines and kernel errors only. */
++	if (con && !strnstr(s, "init", n) && !strnstr(s, "rror", n) &&
++	    !strnstr(s, "ail", n) && !strnstr(s, "anic", n))
++		return;
++	u32 *hdr = (u32 *)memcon;
++	u32 pos = hdr[1];
++
++	while (n--) {
++		memcon[16 + pos % (memcon_size - 16)] = *s++;
++		pos++;
++	}
++	hdr[0] = MEMCON_MAGIC;
++	hdr[1] = pos;
++	dcache_clean_poc((unsigned long)memcon,
++			 (unsigned long)memcon + memcon_size);
++}
++
++static struct console memcon_console = {
++	.name	= "memcon",
++	.write	= memcon_write,
++	.flags	= CON_PRINTBUFFER | CON_ANYTIME | CON_ENABLED,
++	.index	= -1,
++};
++
++static u32 __init memcon_next_boot(void)
++{
++	u32 *cnt, boot = 0;
++	int i, bit;
++
++	cnt = early_memremap(MEMCON_COUNT, PAGE_SIZE);
++	if (!cnt)
++		return 0;
++	for (bit = 0; bit < 32; bit++) {
++		int votes = 0;
++
++		for (i = 0; i < MEMCON_COUNT_COPIES; i++)
++			votes += (cnt[i] >> bit) & 1;
++		if (votes * 2 > MEMCON_COUNT_COPIES)
++			boot |= 1U << bit;
++	}
++	boot++;
++	for (i = 0; i < MEMCON_COUNT_COPIES; i++)
++		cnt[i] = boot;
++	dcache_clean_poc((unsigned long)cnt,
++			 (unsigned long)(cnt + MEMCON_COUNT_COPIES));
++	early_memunmap(cnt, PAGE_SIZE);
++	return boot;
++}
++
++/* Right after early_ioremap_init(), through a temporary fixmap mapping. */
++void __init piano_memcon_early_init(void)
++{
++	static const char hello[] = "memcon: early\n";
++	u32 boot = memcon_next_boot();
++
++	memcon_base = (boot & 1) ? MEMCON_RING1 : MEMCON_RING0;
++	memcon = early_memremap(memcon_base, MEMCON_EARLY_SIZE);
++	if (!memcon)
++		return;
++	memset(memcon, 0, 16);
++	((u32 *)memcon)[2] = boot;
++	memcon_write(NULL, hello, sizeof(hello) - 1);
++	register_console(&memcon_console);
++}
++
++/* After paging_init(): move to the linear map, keeping what was written. */
++void __init piano_memcon_init(void)
++{
++	static const char hello[] = "memcon: linear map\n";
++	u8 *early = memcon;
++
++	if (!early)
++		return;
++	console_lock();
++	memcon = phys_to_virt(memcon_base);
++	console_unlock();
++	early_memunmap(early, MEMCON_EARLY_SIZE);
++	memcon_write(NULL, hello, sizeof(hello) - 1);
++}
+diff --git a/arch/arm64/kernel/setup.c b/arch/arm64/kernel/setup.c
+index 8185979f0f11..4f644cca803c 100644
+--- a/arch/arm64/kernel/setup.c
++++ b/arch/arm64/kernel/setup.c
+@@ -7,6 +7,7 @@
+  */
+ 
+ #include <linux/acpi.h>
++#include <linux/arm-smccc.h>
+ #include <linux/export.h>
+ #include <linux/kernel.h>
+ #include <linux/stddef.h>
+@@ -279,6 +280,29 @@ u64 cpu_logical_map(unsigned int cpu)
+ 	return __cpu_logical_map[cpu];
+ }
+ 
++
++/*
++ * Bring-up test only: piano_reset_at=N on the command line resets the board
++ * through PSCI when boot reaches point N, which shows how far it gets.
++ */
++static int piano_reset_at = -1;
++
++/* Reads the command line on the first call, while init memory still exists. */
++void __ref piano_reset_point(int n)
++{
++	struct arm_smccc_res res;
++	const char *p;
++
++	if (!IS_ENABLED(CONFIG_PIANO_BRINGUP))
++		return;
++	if (piano_reset_at < 0) {
++		p = strstr(boot_command_line, "piano_reset_at=");
++		piano_reset_at = p ? simple_strtol(p + 15, NULL, 10) : 0;
++	}
++	if (n == piano_reset_at)
++		arm_smccc_smc(0x84000009, 0, 0, 0, 0, 0, 0, 0, &res);
++}
++
+ void __init __no_sanitize_address setup_arch(char **cmdline_p)
+ {
+ 	setup_initial_init_mm(_text, _etext, _edata, _end);
+@@ -289,8 +313,15 @@ void __init __no_sanitize_address setup_arch(char **cmdline_p)
+ 
+ 	early_fixmap_init();
+ 	early_ioremap_init();
++#ifdef CONFIG_PIANO_BRINGUP
++	{
++		extern void piano_memcon_early_init(void);
++		piano_memcon_early_init();
++	}
++#endif
+ 
+ 	setup_machine_fdt(__fdt_pointer);
++	piano_reset_point(1);
+ 
+ 	/*
+ 	 * Initialise the static keys early as they may be enabled by the
+@@ -333,6 +364,13 @@ void __init __no_sanitize_address setup_arch(char **cmdline_p)
+ 	arm64_memblock_init();
+ 
+ 	paging_init();
++	piano_reset_point(2);
++#ifdef CONFIG_PIANO_BRINGUP
++	{
++		extern void piano_memcon_init(void);
++		piano_memcon_init();
++	}
++#endif
+ 
+ 	acpi_table_upgrade();
+ 
+@@ -358,6 +396,7 @@ void __init __no_sanitize_address setup_arch(char **cmdline_p)
+ 	init_bootcpu_ops();
+ 	smp_init_cpus();
+ 	smp_build_mpidr_hash();
++	piano_reset_point(3);
+ 
+ #ifdef CONFIG_ARM64_SW_TTBR0_PAN
+ 	/*
+diff --git a/arch/arm64/kernel/traps.c b/arch/arm64/kernel/traps.c
+index 7fc9230e0822..20f7cee427b9 100644
+--- a/arch/arm64/kernel/traps.c
++++ b/arch/arm64/kernel/traps.c
+@@ -251,7 +251,9 @@ static void arm64_show_signal(int signo, const char *str)
+ 
+ 	/* Leave if the signal won't be shown */
+ 	if (!show_unhandled_signals ||
+-	    !unhandled_signal(tsk, signo) ||
++	    (!unhandled_signal(tsk, signo) &&
++	     !(IS_ENABLED(CONFIG_PIANO_BRINGUP) && (signo == SIGSEGV ||
++	       signo == SIGBUS || signo == SIGILL))) ||
+ 	    !__ratelimit(&rs))
+ 		return;
+ 
+diff --git a/arch/arm64/kvm/hyp/include/nvhe/rwlock.h b/arch/arm64/kvm/hyp/include/nvhe/rwlock.h
+index 797665cba..ed4992275 100644
+--- a/arch/arm64/kvm/hyp/include/nvhe/rwlock.h
++++ b/arch/arm64/kvm/hyp/include/nvhe/rwlock.h
+@@ -40,14 +40,6 @@ static inline void hyp_write_lock(hyp_rwlock_t *lock)
+ 	u32 tmp;
+ 
+ 	asm volatile(ARM64_LSE_ATOMIC_INSN(
+-	/* LL/SC */
+-	"	sevl\n"
+-	"1:	wfe\n"
+-	"2:	ldaxr	%w0, %1\n"
+-	"	cbnz	%w0, 1b\n"
+-	"	stxr	%w0, %w2, %1\n"
+-	"	cbnz	%w0, 2b\n"
+-	__nops(1),
+ 	/* LSE atomics */
+ 	"1:	mov	%w0, wzr\n"
+ 	"2:	casa	%w0, %w2, %1\n"
+@@ -65,7 +57,6 @@ static inline void hyp_write_lock(hyp_rwlock_t *lock)
+ static inline void hyp_write_unlock(hyp_rwlock_t *lock)
+ {
+ 	asm volatile(ARM64_LSE_ATOMIC_INSN(
+-	"	stlr	wzr, %0",
+ 	"	swpl	wzr, wzr, %0")
+ 	: "=Q" (lock->__val) :: "memory");
+ }
+@@ -77,14 +68,6 @@ static inline void hyp_read_lock(hyp_rwlock_t *lock)
+ 	asm volatile(
+ 	"	sevl\n"
+ 	ARM64_LSE_ATOMIC_INSN(
+-	/* LL/SC */
+-	"1:	wfe\n"
+-	"2:	ldaxr	%w0, %2\n"
+-	"	add	%w0, %w0, #1\n"
+-	"	tbnz	%w0, %3, 1b\n"
+-	"	stxr	%w1, %w0, %2\n"
+-	"	cbnz	%w1, 2b\n"
+-	__nops(1),
+ 	/* LSE atomics */
+ 	"1:	wfe\n"
+ 	"2:	ldxr	%w0, %2\n"
+@@ -103,15 +86,9 @@ static inline void hyp_read_unlock(hyp_rwlock_t *lock)
+ 	u32 tmp, tmp2;
+ 
+ 	asm volatile(ARM64_LSE_ATOMIC_INSN(
+-	/* LL/SC */
+-	"1:	ldxr	%w0, %2\n"
+-	"	sub	%w0, %w0, #1\n"
+-	"	stlxr	%w1, %w0, %2\n"
+-	"	cbnz	%w1, 1b",
+ 	/* LSE atomics */
+ 	"	movn	%w0, #0\n"
+-	"	staddl	%w0, %2\n"
+-	__nops(2))
++	"	staddl	%w0, %2\n")
+ 	: "=&r" (tmp), "=&r" (tmp2), "+Q" (lock->__val)
+ 	:
+ 	: "memory");
+diff --git a/arch/arm64/kvm/hyp/include/nvhe/spinlock.h b/arch/arm64/kvm/hyp/include/nvhe/spinlock.h
+index a3003dc9a..f7f66d823 100644
+--- a/arch/arm64/kvm/hyp/include/nvhe/spinlock.h
++++ b/arch/arm64/kvm/hyp/include/nvhe/spinlock.h
+@@ -49,16 +49,9 @@ static inline void hyp_spin_lock(hyp_spinlock_t *lock)
+ 	asm volatile(
+ 	/* Atomically increment the next ticket. */
+ 	ARM64_LSE_ATOMIC_INSN(
+-	/* LL/SC */
+-"	prfm	pstl1strm, %3\n"
+-"1:	ldaxr	%w0, %3\n"
+-"	add	%w1, %w0, #(1 << 16)\n"
+-"	stxr	%w2, %w1, %3\n"
+-"	cbnz	%w2, 1b\n",
+ 	/* LSE atomics */
+ "	mov	%w2, #(1 << 16)\n"
+-"	ldadda	%w2, %w0, %3\n"
+-	__nops(3))
++"	ldadda	%w2, %w0, %3\n")
+ 
+ 	/* Did we get the lock? */
+ "	eor	%w1, %w0, %w0, ror #16\n"
+@@ -85,14 +78,9 @@ static inline void hyp_spin_unlock(hyp_spinlock_t *lock)
+ 
+ 	asm volatile(
+ 	ARM64_LSE_ATOMIC_INSN(
+-	/* LL/SC */
+-	"	ldrh	%w1, %0\n"
+-	"	add	%w1, %w1, #1\n"
+-	"	stlrh	%w1, %0",
+ 	/* LSE atomics */
+ 	"	mov	%w1, #1\n"
+-	"	staddlh	%w1, %0\n"
+-	__nops(1))
++	"	staddlh	%w1, %0\n")
+ 	: "=Q" (lock->owner), "=&r" (tmp)
+ 	:
+ 	: "memory");
+diff --git a/block/Kconfig.iosched b/block/Kconfig.iosched
+index 27f11320b..bbceaad14 100644
+--- a/block/Kconfig.iosched
++++ b/block/Kconfig.iosched
+@@ -44,4 +44,6 @@ config BFQ_CGROUP_DEBUG
+ 	Enable some debugging help. Currently it exports additional stat
+ 	files in a cgroup which can be useful for debugging.
+ 
++source "block/cpq/Kconfig"
++
+ endmenu
+diff --git a/block/Makefile b/block/Makefile
+index ddfd21c1a..e34a31823 100644
+--- a/block/Makefile
++++ b/block/Makefile
+@@ -23,6 +23,7 @@ obj-$(CONFIG_BLK_CGROUP_IOLATENCY)	+= blk-iolatency.o
+ obj-$(CONFIG_BLK_CGROUP_IOCOST)	+= blk-iocost.o
+ obj-$(CONFIG_MQ_IOSCHED_DEADLINE)	+= mq-deadline.o
+ obj-$(CONFIG_MQ_IOSCHED_KYBER)	+= kyber-iosched.o
++obj-$(CONFIG_CPQ_IOSCHED)	+= cpq/
+ bfq-y				:= bfq-iosched.o bfq-wf2q.o bfq-cgroup.o
+ obj-$(CONFIG_IOSCHED_BFQ)	+= bfq.o
+ 
+diff --git a/block/cpq/Kconfig b/block/cpq/Kconfig
+new file mode 100644
+index 000000000..d7284000c
+--- /dev/null
++++ b/block/cpq/Kconfig
+@@ -0,0 +1,3 @@
++config CPQ_IOSCHED
++	tristate "cpq iosched"
++	default n
+diff --git a/block/cpq/Makefile b/block/cpq/Makefile
+new file mode 100644
+index 000000000..6b6dced4d
+--- /dev/null
++++ b/block/cpq/Makefile
+@@ -0,0 +1,2 @@
++# SPDX-License-Identifier: GPL-2.0
++obj-$(CONFIG_CPQ_IOSCHED)	+= cpq.o
+diff --git a/block/cpq/cpq.c b/block/cpq/cpq.c
+new file mode 100644
+index 000000000..db1ca5793
+--- /dev/null
++++ b/block/cpq/cpq.c
+@@ -0,0 +1,1185 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ *  Command Priority Queueing i/o scheduler
++ */
++#include <linux/kernel.h>
++#include <linux/fs.h>
++#include <linux/blkdev.h>
++#include <linux/blk-mq.h>
++#include <linux/bio.h>
++#include <linux/module.h>
++#include <linux/slab.h>
++#include <linux/init.h>
++#include <linux/compiler.h>
++#include <linux/rbtree.h>
++#include <linux/sbitmap.h>
++#include <linux/cgroup.h>
++
++#include <trace/events/block.h>
++
++#include "../elevator.h"
++#include "../blk.h"
++#include "../blk-mq.h"
++#include "../blk-mq-debugfs.h"
++#include "../blk-mq-sched.h"
++
++static const int read_expire = HZ / 2;  /* max time before a read is submitted. */
++static const int write_expire = 5 * HZ; /* ditto for writes, these limits are SOFT! */
++/*
++ * Time after which to dispatch lower priority requests even if higher
++ * priority requests are pending.
++ */
++static const int prio_aging_expire = 10 * HZ;
++static const int writes_starved = 2;    /* max times reads can starve a write */
++static const int fifo_batch = 16;       /* # of sequential requests treated as one
++				     by the above parameters. For throughput. */
++
++static const unsigned long cpq_fore_timeout = 4000 ; //for 40 times 4KB read (89*40 is almost equal 4000)
++static const unsigned long cpq_back_timeout = 1000 ;
++
++//data from ufs4.0 + sm8650
++static const unsigned int ufs_timecost_table[2][8] = {
++   /*4   8    16   32   64   128  256  512*/
++	{89, 107, 118, 124, 151, 167, 197, 291},//read
++	{50, 54,  56,  61,  65,  86,  136, 168} //write
++};
++
++
++static u64 cpq_slice_idle = NSEC_PER_SEC / 1000;
++static int cpq_io_threshold = 8;// which is 8 requests has inserted in scheduler but not completed in the whole system
++
++enum cpq_data_dir {
++	CPQ_READ		= READ,
++	CPQ_WRITE	= WRITE,
++};
++
++enum { CPQ_DIR_COUNT = 2 };
++
++enum cpq_prio {
++	CPQ_RT_PRIO	= 0,
++	CPQ_BE_PRIO	= 1,
++	CPQ_IDLE_PRIO	= 2,
++	CPQ_PRIO_MAX	= 2,
++};
++
++enum { CPQ_PRIO_COUNT = 3 };
++
++enum cpq_group {
++	FORE_GROUND = 0,
++	BACK_GROUND = 1,
++	GROUND_NUM = 2,
++};
++enum cpq_group_expiration {
++	GROUP_NO_MORE_REQUEST,
++	GROUP_TIMEOUT,
++	GROUP_PREEMPTED,
++};
++
++/*
++ * I/O statistics per I/O priority. It is fine if these counters overflow.
++ * What matters is that these counters are at least as wide as
++ * log2(max_outstanding_requests).
++ */
++struct io_stats_per_prio {
++	uint32_t inserted;
++	uint32_t merged;
++	uint32_t dispatched;
++	uint32_t completed;
++};
++
++/*
++ * CPQ scheduler data per I/O priority (enum cpq_prio). Requests are
++ * present on both sort_list[] and fifo_list[].
++ */
++struct cpq_per_prio {
++	struct list_head dispatch;
++	struct rb_root sort_list[CPQ_DIR_COUNT];
++	struct list_head fifo_list[CPQ_DIR_COUNT];
++	/* Next request in FIFO order. Read, write or both are NULL. */
++	struct request *next_rq[CPQ_DIR_COUNT];
++	struct io_stats_per_prio stats;
++};
++
++struct cpq_per_group{
++	struct cpq_per_prio per_prio[CPQ_PRIO_COUNT];
++	unsigned long time_cost;
++	int time_out;
++	enum cpq_group_expiration last_expire_reason;
++};
++
++struct cpq_data {
++	/*
++	 * run time data
++	 */
++
++	struct cpq_per_group per_group[GROUND_NUM];
++	enum cpq_group in_service_group;
++
++	/* Data direction of latest dispatched request. */
++	enum cpq_data_dir last_dir;
++	unsigned int batching;		/* number of sequential requests made */
++	unsigned int starved;		/* times reads have starved writes */
++
++	/*
++	 * settings that change how the i/o scheduler behaves
++	 */
++	int fifo_expire[CPQ_DIR_COUNT];
++	int fifo_batch;
++	int writes_starved;
++	int front_merges;
++	u32 async_depth;
++	int prio_aging_expire;
++
++	struct hrtimer idle_slice_timer;
++	u64 cpq_slice_idle;
++	int cpq_log;
++	bool wait_request;
++	bool timer_flag;
++	int rq_in_driver[2];// 0 is asysnc, 1 is sync
++	int io_threshold;
++
++	spinlock_t lock;
++};
++
++/* Maps an I/O priority class to a CPQ scheduler priority. */
++static const enum cpq_prio ioprio_class_to_prio[] = {
++	[IOPRIO_CLASS_NONE]	= CPQ_BE_PRIO,
++	[IOPRIO_CLASS_RT]	= CPQ_RT_PRIO,
++	[IOPRIO_CLASS_BE]	= CPQ_BE_PRIO,
++	[IOPRIO_CLASS_IDLE]	= CPQ_IDLE_PRIO,
++};
++
++static inline struct rb_root *
++cpq_rb_root(struct cpq_per_prio *per_prio, struct request *rq)
++{
++	return &per_prio->sort_list[rq_data_dir(rq)];
++}
++
++/*
++ * Returns the I/O priority class (IOPRIO_CLASS_*) that has been assigned to a
++ * request.
++ */
++static u8 cpq_rq_ioclass(struct request *rq)
++{
++	return IOPRIO_PRIO_CLASS(req_get_ioprio(rq));
++}
++
++/*
++ * get the request after `rq' in sector-sorted order
++ */
++static inline struct request *
++cpq_latter_request(struct request *rq)
++{
++	struct rb_node *node = rb_next(&rq->rb_node);
++
++	if (node)
++		return rb_entry_rq(node);
++
++	return NULL;
++}
++
++static void
++cpq_add_rq_rb(struct cpq_per_prio *per_prio, struct request *rq)
++{
++	struct rb_root *root = cpq_rb_root(per_prio, rq);
++
++	elv_rb_add(root, rq);
++}
++
++static inline void
++cpq_del_rq_rb(struct cpq_per_prio *per_prio, struct request *rq)
++{
++	const enum cpq_data_dir data_dir = rq_data_dir(rq);
++
++	if (per_prio->next_rq[data_dir] == rq)
++		per_prio->next_rq[data_dir] = cpq_latter_request(rq);
++
++	elv_rb_del(cpq_rb_root(per_prio, rq), rq);
++}
++
++/*
++ * remove rq from rbtree and fifo.
++ */
++static void cpq_remove_request(struct request_queue *q,
++				    struct cpq_per_prio *per_prio,
++				    struct request *rq)
++{
++	list_del_init(&rq->queuelist);
++
++	/*
++	 * We might not be on the rbtree, if we are doing an insert merge
++	 */
++	if (!RB_EMPTY_NODE(&rq->rb_node))
++		cpq_del_rq_rb(per_prio, rq);
++
++	elv_rqhash_del(q, rq);
++	if (q->last_merge == rq)
++		q->last_merge = NULL;
++}
++
++static void cpq_request_merged(struct request_queue *q, struct request *req,
++			      enum elv_merge type)
++{
++	struct cpq_data *cpqd = q->elevator->elevator_data;
++	const u8 ioprio_class = cpq_rq_ioclass(req);
++	const enum cpq_prio prio = ioprio_class_to_prio[ioprio_class];
++	struct cpq_per_prio *per_prio;
++
++	if(req->elv.priv[1]){
++		per_prio = &cpqd->per_group[BACK_GROUND].per_prio[prio];
++	}else{
++		per_prio = &cpqd->per_group[FORE_GROUND].per_prio[prio];
++	}
++
++	/*
++	 * if the merge was a front merge, we need to reposition request
++	 */
++	if (type == ELEVATOR_FRONT_MERGE) {
++		elv_rb_del(cpq_rb_root(per_prio, req), req);
++		cpq_add_rq_rb(per_prio, req);
++	}
++}
++
++/*
++ * Callback function that is invoked after @next has been merged into @req.
++ */
++static void cpq_merged_requests(struct request_queue *q, struct request *req,
++			       struct request *next)
++{
++	struct cpq_data *cpqd = q->elevator->elevator_data;
++	const u8 ioprio_class = cpq_rq_ioclass(next);
++	const enum cpq_prio prio = ioprio_class_to_prio[ioprio_class];
++	struct cpq_per_prio *per_prio;
++
++	lockdep_assert_held(&cpqd->lock);
++
++	if(next->elv.priv[1]){
++		per_prio = &cpqd->per_group[BACK_GROUND].per_prio[prio];
++	}else{
++		per_prio = &cpqd->per_group[FORE_GROUND].per_prio[prio];
++	}
++
++	per_prio->stats.merged++;
++
++	/*
++	 * if next expires before rq, assign its expire time to rq
++	 * and move into next position (next will be deleted) in fifo
++	 */
++	if ((req->elv.priv[1] == next->elv.priv[1]) && (!list_empty(&req->queuelist) && !list_empty(&next->queuelist))) {
++		if (time_before((unsigned long)next->fifo_time,
++				(unsigned long)req->fifo_time)) {
++			list_move(&req->queuelist, &next->queuelist);
++			req->fifo_time = next->fifo_time;
++		}
++	}
++
++	/*
++	 * kill knowledge of next, this one is a goner
++	 */
++	cpq_remove_request(q, per_prio, next);
++}
++
++/*
++ * move an entry to dispatch queue
++ */
++static void
++cpq_move_request(struct cpq_data *cpqd, struct cpq_per_prio *per_prio,
++		      struct request *rq)
++{
++	const enum cpq_data_dir data_dir = rq_data_dir(rq);
++
++	per_prio->next_rq[data_dir] = cpq_latter_request(rq);
++
++	/*
++	 * take it off the sort and fifo list
++	 */
++	cpq_remove_request(rq->q, per_prio, rq);
++}
++
++/* Number of requests queued for a given priority level. */
++static u32 cpq_queued(struct cpq_data *cpqd, struct cpq_per_group *cpq_group, enum cpq_prio prio)
++{
++	const struct io_stats_per_prio *stats = &cpq_group->per_prio[prio].stats;
++
++	lockdep_assert_held(&cpqd->lock);
++
++	return stats->inserted - stats->completed;
++}
++
++/*
++ * cpq_check_fifo returns 0 if there are no expired requests on the fifo,
++ * 1 otherwise. Requires !list_empty(&cpqd->fifo_list[data_dir])
++ */
++static inline int cpq_check_fifo(struct cpq_per_prio *per_prio,
++				      enum cpq_data_dir data_dir)
++{
++	struct request *rq = rq_entry_fifo(per_prio->fifo_list[data_dir].next);
++
++	/*
++	 * rq is expired!
++	 */
++	if (time_after_eq(jiffies, (unsigned long)rq->fifo_time))
++		return 1;
++
++	return 0;
++}
++
++/*
++ * For the specified data direction, return the next request to
++ * dispatch using arrival ordered lists.
++ */
++static struct request *
++cpq_fifo_request(struct cpq_data *cpqd, struct cpq_per_prio *per_prio,
++		      enum cpq_data_dir data_dir)
++{
++	if (list_empty(&per_prio->fifo_list[data_dir]))
++		return NULL;
++
++	return rq_entry_fifo(per_prio->fifo_list[data_dir].next);
++}
++
++/*
++ * For the specified data direction, return the next request to
++ * dispatch using sector position sorted lists.
++ */
++static struct request *
++cpq_next_request(struct cpq_data *cpqd, struct cpq_per_prio *per_prio,
++		      enum cpq_data_dir data_dir)
++{
++	return per_prio->next_rq[data_dir];
++}
++
++/*
++ * Returns true if and only if @rq started after @latest_start where
++ * @latest_start is in jiffies.
++ */
++static bool started_after(struct cpq_data *cpqd, struct request *rq,
++			  unsigned long latest_start)
++{
++	unsigned long start_time = (unsigned long)rq->fifo_time;
++
++	start_time -= cpqd->fifo_expire[rq_data_dir(rq)];
++
++	return time_after(start_time, latest_start);
++}
++
++static void cpq_update_group_cost(const struct request * rq, struct cpq_per_group *cpq_group)
++{
++	enum cpq_data_dir data_dir = rq_data_dir(rq);
++	unsigned int data_len = blk_rq_bytes(rq);
++	if(data_len <= 4096){
++		cpq_group->time_cost += ufs_timecost_table[data_dir][0]; //0k~4k
++	}else if(data_len > 4096 && data_len <= 8192){
++		cpq_group->time_cost += ufs_timecost_table[data_dir][1]; //4k~8k
++	}else if(data_len > 8192 && data_len <= 16384){
++		cpq_group->time_cost += ufs_timecost_table[data_dir][2]; //8k~16k
++	}else if(data_len > 16384 && data_len <= 32768){
++		cpq_group->time_cost += ufs_timecost_table[data_dir][3]; //16k~32k
++	}else if(data_len > 32768 && data_len <= 65536){
++		cpq_group->time_cost += ufs_timecost_table[data_dir][4]; //32k~64k
++	}else if(data_len > 65536 && data_len <= 131072){
++		cpq_group->time_cost += ufs_timecost_table[data_dir][5]; //64k~128k
++	}else if(data_len > 131072 && data_len <= 262144){
++		cpq_group->time_cost += ufs_timecost_table[data_dir][6]; //128k~256k
++	}else if(data_len > 262144 && data_len <= 524288){
++		cpq_group->time_cost += ufs_timecost_table[data_dir][7]; //256K~512k
++	}else{
++		cpq_group->time_cost += ufs_timecost_table[data_dir][7]; //512k~
++	}
++}
++
++/*
++ * cpq_dispatch_requests selects the best request according to
++ * read/write expire, fifo_batch, etc and with a start time <= @latest_start.
++ */
++static struct request *__cpq_dispatch_request(struct cpq_data *cpqd,
++					     struct cpq_per_prio *per_prio,
++					     unsigned long latest_start)
++{
++	struct request *rq, *next_rq;
++	enum cpq_data_dir data_dir;
++	enum cpq_prio prio;
++	u8 ioprio_class;
++	struct cpq_per_group *cpq_group;
++
++	lockdep_assert_held(&cpqd->lock);
++
++	if (!list_empty(&per_prio->dispatch)) {
++		rq = list_first_entry(&per_prio->dispatch, struct request,
++				      queuelist);
++		if (started_after(cpqd, rq, latest_start))
++			return NULL;
++		list_del_init(&rq->queuelist);
++		goto done;
++	}
++
++	/*
++	 * batches are currently reads XOR writes
++	 */
++	rq = cpq_next_request(cpqd, per_prio, cpqd->last_dir);
++	if (rq && cpqd->batching < cpqd->fifo_batch)
++		/* we have a next request are still entitled to batch */
++		goto dispatch_request;
++
++	/*
++	 * at this point we are not running a batch. select the appropriate
++	 * data direction (read / write)
++	 */
++
++	if (!list_empty(&per_prio->fifo_list[CPQ_READ])) {
++		BUG_ON(RB_EMPTY_ROOT(&per_prio->sort_list[CPQ_READ]));
++
++		if (cpq_fifo_request(cpqd, per_prio, CPQ_WRITE) &&
++		    (cpqd->starved++ >= cpqd->writes_starved))
++			goto dispatch_writes;
++
++		data_dir = CPQ_READ;
++
++		goto dispatch_find_request;
++	}
++
++	/*
++	 * there are either no reads or writes have been starved
++	 */
++
++	if (!list_empty(&per_prio->fifo_list[CPQ_WRITE])) {
++dispatch_writes:
++		BUG_ON(RB_EMPTY_ROOT(&per_prio->sort_list[CPQ_WRITE]));
++
++		cpqd->starved = 0;
++
++		data_dir = CPQ_WRITE;
++
++		goto dispatch_find_request;
++	}
++
++	return NULL;
++
++dispatch_find_request:
++	/*
++	 * we are not running a batch, find best request for selected data_dir
++	 */
++	next_rq = cpq_next_request(cpqd, per_prio, data_dir);
++	if (cpq_check_fifo(per_prio, data_dir) || !next_rq) {
++		/*
++		 * A deadline has expired, the last request was in the other
++		 * direction, or we have run out of higher-sectored requests.
++		 * Start again from the request with the earliest expiry time.
++		 */
++		rq = cpq_fifo_request(cpqd, per_prio, data_dir);
++	} else {
++		/*
++		 * The last req was the same dir and we have a next request in
++		 * sort order. No expired requests so continue on from here.
++		 */
++		rq = next_rq;
++	}
++
++	if (!rq)
++		return NULL;
++
++	cpqd->last_dir = data_dir;
++	cpqd->batching = 0;
++
++dispatch_request:
++	if (started_after(cpqd, rq, latest_start))
++		return NULL;
++
++	/*
++	 * rq is the selected appropriate request.
++	 */
++	cpqd->batching++;
++	cpq_move_request(cpqd, per_prio, rq);
++done:
++	ioprio_class = cpq_rq_ioclass(rq);
++	prio = ioprio_class_to_prio[ioprio_class];
++	if(rq->elv.priv[1]){
++		cpq_group = &cpqd->per_group[BACK_GROUND];
++	}else{
++		cpq_group = &cpqd->per_group[FORE_GROUND];
++	}
++
++	cpq_update_group_cost(rq, cpq_group);
++	cpq_group->per_prio[prio].stats.dispatched++;
++	rq->rq_flags |= RQF_STARTED;
++	return rq;
++}
++
++/*
++ * Check whether there are any requests with priority other than CPQ_RT_PRIO
++ * that were inserted more than prio_aging_expire jiffies ago.
++ */
++static struct request *cpq_dispatch_prio_aged_requests(struct cpq_data *cpqd,
++							  struct cpq_per_group *cpq_group,
++						      unsigned long now)
++{
++	struct request *rq;
++	enum cpq_prio prio;
++	int prio_cnt;
++
++	lockdep_assert_held(&cpqd->lock);
++
++	prio_cnt = !!cpq_queued(cpqd, cpq_group, CPQ_RT_PRIO) + !!cpq_queued(cpqd, cpq_group, CPQ_BE_PRIO) +
++		   !!cpq_queued(cpqd, cpq_group, CPQ_IDLE_PRIO);
++	if (prio_cnt < 2)
++		return NULL;
++
++	for (prio = CPQ_BE_PRIO; prio <= CPQ_PRIO_MAX; prio++) {
++		rq = __cpq_dispatch_request(cpqd, &cpq_group->per_prio[prio],
++					   now - cpqd->prio_aging_expire);
++		if (rq)
++			return rq;
++	}
++
++	return NULL;
++}
++
++static bool cpq_no_work_for_prio(struct cpq_per_prio *per_prio){
++	return list_empty_careful(&per_prio->dispatch) &&
++		list_empty_careful(&per_prio->fifo_list[CPQ_READ]) &&
++		list_empty_careful(&per_prio->fifo_list[CPQ_WRITE]);
++}
++
++static enum hrtimer_restart cpq_idle_slice_timer(struct hrtimer *timer)
++{
++	struct cpq_data *cpqd = container_of(timer, struct cpq_data,
++					     idle_slice_timer);
++	unsigned long flags;
++
++	spin_lock_irqsave(&cpqd->lock, flags);
++	
++	cpqd->wait_request = 0;
++
++	if(cpqd->cpq_log){
++		pr_err("cpq:%s %d  pid: %d\n", __func__, __LINE__, current->pid);
++	}
++	spin_unlock_irqrestore(&cpqd->lock, flags);
++
++	return HRTIMER_NORESTART;
++}
++
++static void cpq_arm_slice_timer(struct cpq_data *cpqd)
++{
++	u64 sl;
++
++	sl = cpqd->cpq_slice_idle;
++
++	cpqd->wait_request = 1;
++
++	if(cpqd->cpq_log){
++		pr_err("cpq:%s %d hrtimer_start  pid: %d sl : %llu\n", __func__, __LINE__, current->pid, sl);
++	}
++
++	hrtimer_start(&cpqd->idle_slice_timer, ns_to_ktime(sl),
++		      HRTIMER_MODE_REL);
++}
++
++static bool cpq_group_no_more_request(struct cpq_per_group *cpq_group)
++{
++	enum cpq_prio prio;
++
++	for (prio = 0; prio <= CPQ_PRIO_MAX; prio++)
++		if (!cpq_no_work_for_prio(&cpq_group->per_prio[prio]))
++			return false;
++
++	return true;
++}
++
++
++static struct cpq_per_group *cpq_select_group(struct cpq_data *cpqd)
++{
++	struct cpq_per_group *cpq_group;
++	struct cpq_per_group *cpq_off_service_group;
++	int off_service_group;
++	// first select will start at 0, which is FORE_GROUND
++
++	cpq_group = &cpqd->per_group[cpqd->in_service_group];
++ 
++	off_service_group = !cpqd->in_service_group;
++	cpq_off_service_group = &cpqd->per_group[off_service_group];
++
++	if(cpq_group->time_cost >= cpq_group->time_out){
++		if(cpq_group_no_more_request(cpq_off_service_group)){
++			goto keep_group;
++		}
++		cpq_group->last_expire_reason = GROUP_TIMEOUT;
++		cpq_group->time_cost = 0;
++		cpqd->in_service_group = !cpqd->in_service_group;
++		return &cpqd->per_group[cpqd->in_service_group];
++	}
++
++	if(cpq_group_no_more_request(cpq_group)){
++		if(!cpqd->in_service_group && cpqd->wait_request){
++			goto keep_group;
++		}
++		if(!cpqd->in_service_group && !cpqd->wait_request && cpqd->timer_flag && (cpqd->rq_in_driver[0] + cpqd->rq_in_driver[1]) >= cpqd->io_threshold){
++			//start timer only if there is a lot I/O pressure in the whole system
++			cpq_arm_slice_timer(cpqd);
++			cpqd->timer_flag = 0;
++			goto keep_group;
++		}
++		cpq_group->last_expire_reason = GROUP_NO_MORE_REQUEST;
++		cpqd->in_service_group = !cpqd->in_service_group;
++		return &cpqd->per_group[cpqd->in_service_group];
++	}
++
++	if(cpqd->wait_request && cpqd->in_service_group == FORE_GROUND){
++		hrtimer_try_to_cancel(&cpqd->idle_slice_timer);
++		cpqd->wait_request = 0;
++	}
++
++	if(cpqd->in_service_group == BACK_GROUND){
++		if(!cpq_group_no_more_request(&cpqd->per_group[FORE_GROUND]) && 
++		cpqd->per_group[FORE_GROUND].last_expire_reason == GROUP_NO_MORE_REQUEST){
++			cpq_group->last_expire_reason = GROUP_PREEMPTED;
++			cpqd->in_service_group = !cpqd->in_service_group;
++			return &cpqd->per_group[cpqd->in_service_group];
++		}
++	}
++keep_group:
++
++	return &cpqd->per_group[cpqd->in_service_group];
++}
++
++static struct request *cpq_fb_dispatch_request(struct cpq_data *cpqd, struct cpq_per_group *cpq_group)
++{
++	const unsigned long now = jiffies;
++	struct request *rq;
++	enum cpq_prio prio;
++
++	rq = cpq_dispatch_prio_aged_requests(cpqd, cpq_group, now);
++	if (rq)
++		return rq;
++
++	/*
++	 * Next, dispatch requests in priority order. Ignore lower priority
++	 * requests if any higher priority requests are pending.
++	 */
++	for (prio = 0; prio <= CPQ_PRIO_MAX; prio++) {
++		rq = __cpq_dispatch_request(cpqd, &cpq_group->per_prio[prio], now);
++		if (rq || cpq_queued(cpqd, cpq_group, prio))
++			return rq;
++	}
++	return rq;
++}
++
++/*
++ * Called from blk_mq_run_hw_queue() -> __blk_mq_sched_dispatch_requests().
++ *
++ * One confusing aspect here is that we get called for a specific
++ * hardware queue, but we may return a request that is for a
++ * different hardware queue. This is because mq-deadline has shared
++ * state for all hardware queues, in terms of sorting, FIFOs, etc.
++ */
++static struct request *cpq_dispatch_request(struct blk_mq_hw_ctx *hctx)
++{
++	struct cpq_data *cpqd = hctx->queue->elevator->elevator_data;
++	struct cpq_per_group *cpq_group;
++	struct request *rq;
++
++	spin_lock_irq(&cpqd->lock);
++
++	cpq_group = cpq_select_group(cpqd);
++	rq = cpq_fb_dispatch_request(cpqd, cpq_group);
++
++	if(rq && !rq->elv.priv[1]){
++		cpqd->timer_flag = 1;
++	}
++
++	spin_unlock_irq(&cpqd->lock);
++
++	return rq;
++}
++
++/*
++ * Called by __blk_mq_alloc_request(). The shallow_depth value set by this
++ * function is used by __blk_mq_get_tag().
++ */
++static void cpq_limit_depth(blk_opf_t opf, struct blk_mq_alloc_data *data)
++{
++	struct cpq_data *cpqd = data->q->elevator->elevator_data;
++
++	/* Do not throttle synchronous reads. */
++	if (op_is_sync(opf) && !op_is_write(opf))
++		return;
++
++	/*
++	 * Throttle asynchronous requests and writes such that these requests
++	 * do not block the allocation of synchronous requests.
++	 */
++	data->shallow_depth = cpqd->async_depth;
++}
++
++/* Called by blk_mq_update_nr_requests(). */
++static void cpq_depth_updated(struct blk_mq_hw_ctx *hctx)
++{
++	struct request_queue *q = hctx->queue;
++	struct cpq_data *cpqd = q->elevator->elevator_data;
++	struct blk_mq_tags *tags = hctx->sched_tags;
++
++	cpqd->async_depth = max(1UL, 3 * q->nr_requests / 4);
++
++	sbitmap_queue_min_shallow_depth(&tags->bitmap_tags, cpqd->async_depth);
++}
++
++/* Called by blk_mq_init_hctx() and blk_mq_init_sched(). */
++static int cpq_init_hctx(struct blk_mq_hw_ctx *hctx, unsigned int hctx_idx)
++{
++	cpq_depth_updated(hctx);
++	return 0;
++}
++
++static void cpq_exit_sched(struct elevator_queue *e)
++{
++	struct cpq_data *cpqd = e->elevator_data;
++	enum cpq_prio prio;
++	enum cpq_group group;
++
++	for (group = 0; group < GROUND_NUM; group++){
++		for (prio = 0; prio <= CPQ_PRIO_MAX; prio++) {
++			struct cpq_per_prio *per_prio = &cpqd->per_group[group].per_prio[prio];
++			const struct io_stats_per_prio *stats = &per_prio->stats;
++			uint32_t queued;
++
++			WARN_ON_ONCE(!list_empty(&per_prio->fifo_list[CPQ_READ]));
++			WARN_ON_ONCE(!list_empty(&per_prio->fifo_list[CPQ_WRITE]));
++
++			spin_lock_irq(&cpqd->lock);
++			queued = cpq_queued(cpqd, &cpqd->per_group[group], prio);
++			spin_unlock_irq(&cpqd->lock);
++
++			WARN_ONCE(queued != 0,
++				"statistics for group %s priority %d: i %u m %u d %u c %u\n",
++				group ? "back" : "fore",
++				prio, stats->inserted, stats->merged,
++				stats->dispatched, stats->completed);
++		}
++	}
++
++	hrtimer_cancel(&cpqd->idle_slice_timer);
++
++	kfree(cpqd);
++}
++
++/*
++ * initialize elevator private data (cpq_data).
++ */
++static int cpq_init_sched(struct request_queue *q, struct elevator_type *e)
++{
++	struct cpq_data *cpqd;
++	struct elevator_queue *eq;
++	enum cpq_prio prio;
++	enum cpq_group group;
++	int ret = -ENOMEM;
++
++	eq = elevator_alloc(q, e);
++	if (!eq)
++		return ret;
++
++	cpqd = kzalloc_node(sizeof(*cpqd), GFP_KERNEL, q->node);
++	if (!cpqd)
++		goto put_eq;
++
++	eq->elevator_data = cpqd;
++
++	for (group = 0; group < GROUND_NUM; group++){
++		for (prio = 0; prio <= CPQ_PRIO_MAX; prio++) {
++			struct cpq_per_prio *per_prio = &cpqd->per_group[group].per_prio[prio];
++
++			INIT_LIST_HEAD(&per_prio->dispatch);
++			INIT_LIST_HEAD(&per_prio->fifo_list[CPQ_READ]);
++			INIT_LIST_HEAD(&per_prio->fifo_list[CPQ_WRITE]);
++			per_prio->sort_list[CPQ_READ] = RB_ROOT;
++			per_prio->sort_list[CPQ_WRITE] = RB_ROOT;
++		}
++	}
++
++	hrtimer_init(&cpqd->idle_slice_timer, CLOCK_MONOTONIC,
++		     HRTIMER_MODE_REL);
++	cpqd->idle_slice_timer.function = cpq_idle_slice_timer;
++
++	cpqd->fifo_expire[CPQ_READ] = read_expire;
++	cpqd->fifo_expire[CPQ_WRITE] = write_expire;
++	cpqd->writes_starved = writes_starved;
++	cpqd->front_merges = 1;
++	cpqd->last_dir = CPQ_WRITE;
++	cpqd->fifo_batch = fifo_batch;
++	cpqd->prio_aging_expire = prio_aging_expire;
++	cpqd->per_group[FORE_GROUND].time_out = cpq_fore_timeout;
++	cpqd->per_group[BACK_GROUND].time_out = cpq_back_timeout;
++	cpqd->cpq_slice_idle = cpq_slice_idle;
++	cpqd->io_threshold = cpq_io_threshold;
++
++	spin_lock_init(&cpqd->lock);
++
++	/* We dispatch from request queue wide instead of hw queue */
++	blk_queue_flag_set(QUEUE_FLAG_SQ_SCHED, q);
++
++	q->elevator = eq;
++	return 0;
++
++put_eq:
++	kobject_put(&eq->kobj);
++	return ret;
++}
++
++/*
++ * Try to merge @bio into an existing request. If @bio has been merged into
++ * an existing request, store the pointer to that request into *@rq.
++ */
++static int cpq_request_merge(struct request_queue *q, struct request **rq,
++			    struct bio *bio)
++{
++	struct cpq_data *cpqd = q->elevator->elevator_data;
++	const u8 ioprio_class = IOPRIO_PRIO_CLASS(bio->bi_ioprio);
++	const enum cpq_prio prio = ioprio_class_to_prio[ioprio_class];
++	sector_t sector = bio_end_sector(bio);
++	struct request *__rq;
++
++	if (!cpqd->front_merges)
++		return ELEVATOR_NO_MERGE;
++
++	__rq = elv_rb_find(&cpqd->per_group[FORE_GROUND].per_prio[prio].sort_list[bio_data_dir(bio)], sector);
++	if (__rq) {
++		BUG_ON(sector != blk_rq_pos(__rq));
++
++		if (elv_bio_merge_ok(__rq, bio)) {
++			*rq = __rq;
++			if (blk_discard_mergable(__rq))
++				return ELEVATOR_DISCARD_MERGE;
++			return ELEVATOR_FRONT_MERGE;
++		}
++	}
++
++	__rq = elv_rb_find(&cpqd->per_group[BACK_GROUND].per_prio[prio].sort_list[bio_data_dir(bio)], sector);
++	if (__rq) {
++		BUG_ON(sector != blk_rq_pos(__rq));
++
++		if (elv_bio_merge_ok(__rq, bio)) {
++			*rq = __rq;
++			if (blk_discard_mergable(__rq))
++				return ELEVATOR_DISCARD_MERGE;
++			return ELEVATOR_FRONT_MERGE;
++		}
++	}
++
++	return ELEVATOR_NO_MERGE;
++}
++
++/*
++ * Attempt to merge a bio into an existing request. This function is called
++ * before @bio is associated with a request.
++ */
++static bool cpq_bio_merge(struct request_queue *q, struct bio *bio,
++		unsigned int nr_segs)
++{
++	struct cpq_data *cpqd = q->elevator->elevator_data;
++	struct request *free = NULL;
++	bool ret;
++
++	spin_lock_irq(&cpqd->lock);
++	ret = blk_mq_sched_try_merge(q, bio, nr_segs, &free);
++	spin_unlock_irq(&cpqd->lock);
++
++	if (free)
++		blk_mq_free_request(free);
++
++	return ret;
++}
++
++/*
++ * add rq to rbtree and fifo
++ */
++static void cpq_insert_request(struct blk_mq_hw_ctx *hctx, struct request *rq,
++			      blk_insert_t flags)
++{
++	struct request_queue *q = hctx->queue;
++	struct cpq_data *cpqd = q->elevator->elevator_data;
++	const enum cpq_data_dir data_dir = rq_data_dir(rq);
++	u16 ioprio = req_get_ioprio(rq);
++	u8 ioprio_class = IOPRIO_PRIO_CLASS(ioprio);
++	struct cpq_per_prio *per_prio;
++	enum cpq_prio prio;
++	LIST_HEAD(free);
++
++	spin_lock_irq(&cpqd->lock);
++	prio = ioprio_class_to_prio[ioprio_class];
++
++	cpqd->rq_in_driver[rq_is_sync(rq)]++;
++
++	if(!strncmp(task_css(current, cpuset_cgrp_id)->cgroup->kn->name, "background", 11)){
++		per_prio = &cpqd->per_group[BACK_GROUND].per_prio[prio];
++		//background rq->elv.priv[1] is non empty
++		rq->elv.priv[1] = (void *)(uintptr_t)1;
++		if (!rq->elv.priv[0]) {
++			per_prio->stats.inserted++;
++			rq->elv.priv[0] = (void *)(uintptr_t)1;
++		}
++	}else{
++		per_prio = &cpqd->per_group[FORE_GROUND].per_prio[prio];
++		rq->elv.priv[1] = NULL;
++		if (!rq->elv.priv[0]) {
++			per_prio->stats.inserted++;
++			rq->elv.priv[0] = (void *)(uintptr_t)1;
++		}
++	}
++
++	if (blk_mq_sched_try_insert_merge(q, rq, &free)) {
++		spin_unlock_irq(&cpqd->lock);
++		blk_mq_free_requests(&free);
++		return;
++	}
++
++	trace_block_rq_insert(rq);
++
++	if (flags & BLK_MQ_INSERT_AT_HEAD) {
++		list_add(&rq->queuelist, &per_prio->dispatch);
++		rq->fifo_time = jiffies;
++	} else {
++		cpq_add_rq_rb(per_prio, rq);
++
++		if (rq_mergeable(rq)) {
++			elv_rqhash_add(q, rq);
++			if (!q->last_merge)
++				q->last_merge = rq;
++		}
++
++		/*
++		 * set expire time and add to fifo list
++		 */
++		rq->fifo_time = jiffies + cpqd->fifo_expire[data_dir];
++		list_add_tail(&rq->queuelist, &per_prio->fifo_list[data_dir]);
++	}
++	spin_unlock_irq(&cpqd->lock);
++}
++
++/*
++ * Called by the block layer to queue requests.
++ */
++static void cpq_insert_requests(struct blk_mq_hw_ctx *hctx,
++			       struct list_head *list, blk_insert_t flags)
++{
++	while (!list_empty(list)) {
++		struct request *rq;
++
++		rq = list_first_entry(list, struct request, queuelist);
++		list_del_init(&rq->queuelist);
++		cpq_insert_request(hctx, rq, flags);
++	}
++}
++
++/* Callback from inside blk_mq_rq_ctx_init(). */
++static void cpq_prepare_request(struct request *rq)
++{
++	rq->elv.priv[0] = NULL;
++	rq->elv.priv[1] = NULL;
++}
++
++/*
++ * Callback from inside blk_mq_free_request().
++ */
++static void cpq_finish_request(struct request *rq)
++{
++	struct request_queue *q = rq->q;
++	struct cpq_data *cpqd = q->elevator->elevator_data;
++	const u8 ioprio_class = cpq_rq_ioclass(rq);
++	const enum cpq_prio prio = ioprio_class_to_prio[ioprio_class];
++	struct cpq_per_prio *per_prio;
++	struct cpq_per_group *cpq_group;
++	unsigned long flags;
++	enum cpq_group current_group;
++
++	/*
++	 * The block layer core may call cpq_finish_request() without having
++	 * called cpq_insert_requests(). Skip requests that bypassed I/O
++	 * scheduling. See also blk_mq_request_bypass_insert().
++	 */
++	if (!rq->elv.priv[0])
++		return;
++
++	spin_lock_irqsave(&cpqd->lock, flags);
++
++	if(!rq->elv.priv[1]){
++		current_group = FORE_GROUND;
++	}else{
++		current_group = BACK_GROUND;
++	}
++
++	cpq_group = &cpqd->per_group[current_group];
++
++	per_prio = &cpq_group->per_prio[prio];
++
++	per_prio->stats.completed++;
++	cpqd->rq_in_driver[rq_is_sync(rq)]--;
++
++	spin_unlock_irqrestore(&cpqd->lock, flags);
++}
++
++static bool cpq_has_work_for_prio(struct cpq_per_prio *per_prio)
++{
++	return !list_empty_careful(&per_prio->dispatch) ||
++		!list_empty_careful(&per_prio->fifo_list[CPQ_READ]) ||
++		!list_empty_careful(&per_prio->fifo_list[CPQ_WRITE]);
++}
++
++static bool cpq_has_work(struct blk_mq_hw_ctx *hctx)
++{
++	struct cpq_data *cpqd = hctx->queue->elevator->elevator_data;
++	enum cpq_prio prio;
++	enum cpq_group group;
++
++	for(group = 0; group < GROUND_NUM; group++){
++		for (prio = 0; prio <= CPQ_PRIO_MAX; prio++)
++			if (cpq_has_work_for_prio(&cpqd->per_group[group].per_prio[prio]))
++				return true;
++	}
++
++	return false;
++}
++
++/*
++ * sysfs parts below
++ */
++#define SHOW_INT(__FUNC, __VAR)						\
++static ssize_t __FUNC(struct elevator_queue *e, char *page)		\
++{									\
++	struct cpq_data *cpqd = e->elevator_data;			\
++									\
++	return sysfs_emit(page, "%d\n", __VAR);				\
++}
++#define SHOW_JIFFIES(__FUNC, __VAR) SHOW_INT(__FUNC, jiffies_to_msecs(__VAR))
++SHOW_JIFFIES(cpq_read_expire_show, cpqd->fifo_expire[CPQ_READ]);
++SHOW_JIFFIES(cpq_write_expire_show, cpqd->fifo_expire[CPQ_WRITE]);
++SHOW_JIFFIES(cpq_prio_aging_expire_show, cpqd->prio_aging_expire);
++SHOW_INT(cpq_fore_timeout_show, cpqd->per_group[FORE_GROUND].time_out);
++SHOW_INT(cpq_back_timeout_show, cpqd->per_group[BACK_GROUND].time_out);
++SHOW_INT(cpq_writes_starved_show, cpqd->writes_starved);
++SHOW_INT(cpq_front_merges_show, cpqd->front_merges);
++SHOW_INT(cpq_async_depth_show, cpqd->async_depth);
++SHOW_INT(cpq_fifo_batch_show, cpqd->fifo_batch);
++SHOW_INT(cpq_cpq_log_show, cpqd->cpq_log);
++SHOW_INT(cpq_io_threshold_show, cpqd->io_threshold);
++#undef SHOW_INT
++#undef SHOW_JIFFIES
++
++#define STORE_FUNCTION(__FUNC, __PTR, MIN, MAX, __CONV)			\
++static ssize_t __FUNC(struct elevator_queue *e, const char *page, size_t count)	\
++{									\
++	struct cpq_data *cpqd = e->elevator_data;			\
++	int __data, __ret;						\
++									\
++	__ret = kstrtoint(page, 0, &__data);				\
++	if (__ret < 0)							\
++		return __ret;						\
++	if (__data < (MIN))						\
++		__data = (MIN);						\
++	else if (__data > (MAX))					\
++		__data = (MAX);						\
++	*(__PTR) = __CONV(__data);					\
++	return count;							\
++}
++#define STORE_INT(__FUNC, __PTR, MIN, MAX)				\
++	STORE_FUNCTION(__FUNC, __PTR, MIN, MAX, )
++#define STORE_JIFFIES(__FUNC, __PTR, MIN, MAX)				\
++	STORE_FUNCTION(__FUNC, __PTR, MIN, MAX, msecs_to_jiffies)
++STORE_JIFFIES(cpq_read_expire_store, &cpqd->fifo_expire[CPQ_READ], 0, INT_MAX);
++STORE_JIFFIES(cpq_write_expire_store, &cpqd->fifo_expire[CPQ_WRITE], 0, INT_MAX);
++STORE_JIFFIES(cpq_prio_aging_expire_store, &cpqd->prio_aging_expire, 0, INT_MAX);
++STORE_INT(cpq_fore_timeout_store, &cpqd->per_group[FORE_GROUND].time_out, 0, INT_MAX);
++STORE_INT(cpq_back_timeout_store, &cpqd->per_group[BACK_GROUND].time_out, 0, INT_MAX);
++STORE_INT(cpq_writes_starved_store, &cpqd->writes_starved, INT_MIN, INT_MAX);
++STORE_INT(cpq_front_merges_store, &cpqd->front_merges, 0, 1);
++STORE_INT(cpq_async_depth_store, &cpqd->async_depth, 1, INT_MAX);
++STORE_INT(cpq_fifo_batch_store, &cpqd->fifo_batch, 0, INT_MAX);
++STORE_INT(cpq_cpq_log_store, &cpqd->cpq_log, 0, INT_MAX);
++STORE_INT(cpq_io_threshold_store, &cpqd->io_threshold, 0, INT_MAX);
++#undef STORE_FUNCTION
++#undef STORE_INT
++#undef STORE_JIFFIES
++
++static ssize_t cpq_slice_idle_store(struct elevator_queue *e, const char *page, size_t count)	\
++{									\
++	struct cpq_data *cpqd = e->elevator_data;			\
++	int __data, __ret;						\
++									\
++	__ret = kstrtoint(page, 0, &__data);				\
++	if (__ret < 0){							\
++		return __ret;}						\
++	if (__data < 0){					\
++		__data = 0;}				\
++	else if (__data > INT_MAX){		\
++		__data = INT_MAX;}					\
++	cpqd->cpq_slice_idle = (u64)__data * NSEC_PER_MSEC;					\
++	return count;							\
++}
++
++static ssize_t cpq_slice_idle_show(struct elevator_queue *e, char *page)	\
++{									\
++	struct cpq_data *cpqd = e->elevator_data;			\
++	u64 __data = cpqd->cpq_slice_idle;		\
++	__data = div_u64(__data, NSEC_PER_MSEC);			\
++	return sprintf(page, "%llu\n", __data);							\
++}
++
++#define CPQ_ATTR(name) \
++	__ATTR(name, 0644, cpq_##name##_show, cpq_##name##_store)
++
++static struct elv_fs_entry cpq_attrs[] = {
++	CPQ_ATTR(read_expire),
++	CPQ_ATTR(write_expire),
++	CPQ_ATTR(writes_starved),
++	CPQ_ATTR(front_merges),
++	CPQ_ATTR(async_depth),
++	CPQ_ATTR(fifo_batch),
++	CPQ_ATTR(prio_aging_expire),
++	CPQ_ATTR(fore_timeout),
++	CPQ_ATTR(back_timeout),
++	CPQ_ATTR(cpq_log),
++	CPQ_ATTR(slice_idle),
++	CPQ_ATTR(io_threshold),
++	__ATTR_NULL
++};
++
++static struct elevator_type iosched_cpq_mq = {
++	.ops = {
++		.depth_updated		= cpq_depth_updated,
++		.limit_depth		= cpq_limit_depth,
++		.insert_requests	= cpq_insert_requests,
++		.dispatch_request	= cpq_dispatch_request,
++		.prepare_request	= cpq_prepare_request,
++		.finish_request		= cpq_finish_request,
++		.next_request		= elv_rb_latter_request,
++		.former_request		= elv_rb_former_request,
++		.bio_merge		= cpq_bio_merge,
++		.request_merge		= cpq_request_merge,
++		.requests_merged	= cpq_merged_requests,
++		.request_merged		= cpq_request_merged,
++		.has_work		= cpq_has_work,
++		.init_sched		= cpq_init_sched,
++		.exit_sched		= cpq_exit_sched,
++		.init_hctx		= cpq_init_hctx,
++	},
++
++	.elevator_attrs = cpq_attrs,
++	.elevator_name = "cpq",
++	.elevator_alias = "cpq",
++	.elevator_owner = THIS_MODULE,
++};
++MODULE_ALIAS("cpq-iosched");
++
++static int __init cpq_init(void)
++{
++	return elv_register(&iosched_cpq_mq);
++}
++
++static void __exit cpq_exit(void)
++{
++	elv_unregister(&iosched_cpq_mq);
++}
++
++module_init(cpq_init);
++module_exit(cpq_exit);
++
++MODULE_AUTHOR("wangshuai12@xiaomi.com");
++MODULE_LICENSE("GPL");
++MODULE_DESCRIPTION("COQ IO scheduler");
+diff --git a/drivers/android/vendor_hooks.c b/drivers/android/vendor_hooks.c
+index dadbe147b..a366de856 100644
+--- a/drivers/android/vendor_hooks.c
++++ b/drivers/android/vendor_hooks.c
+@@ -58,6 +58,7 @@
+ #include <trace/hooks/rwsem.h>
+ #include <trace/hooks/psi.h>
+ #include <trace/hooks/bl_hib.h>
++#include <trace/hooks/lz4_decompress.h>
+ #include <trace/hooks/futex.h>
+ #include <trace/hooks/bug.h>
+ #include <trace/hooks/logbuf.h>
+@@ -775,3 +776,4 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_override_exec_folio_order);
+ EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_do_swap_page_relax);
+ EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_do_swap_page_start);
+ EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_do_swap_page_done);
++EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_lz4_decompress_bypass);
+diff --git a/drivers/misc/Kconfig b/drivers/misc/Kconfig
+index 5018db96c..b77218c5c 100644
+--- a/drivers/misc/Kconfig
++++ b/drivers/misc/Kconfig
+@@ -525,7 +525,6 @@ config OPEN_DICE
+ 
+ config NTSYNC
+ 	tristate "NT synchronization primitive emulation"
+-	depends on BROKEN
+ 	help
+ 	  This module provides kernel support for emulation of Windows NT
+ 	  synchronization primitives. It is not a hardware driver.
+diff --git a/drivers/misc/ntsync.c b/drivers/misc/ntsync.c
+index 4954553b7..999026a1a 100644
+--- a/drivers/misc/ntsync.c
++++ b/drivers/misc/ntsync.c
+@@ -6,11 +6,17 @@
+  */
+ 
+ #include <linux/anon_inodes.h>
++#include <linux/atomic.h>
+ #include <linux/file.h>
+ #include <linux/fs.h>
++#include <linux/hrtimer.h>
++#include <linux/ktime.h>
+ #include <linux/miscdevice.h>
+ #include <linux/module.h>
++#include <linux/mutex.h>
+ #include <linux/overflow.h>
++#include <linux/sched.h>
++#include <linux/sched/signal.h>
+ #include <linux/slab.h>
+ #include <linux/spinlock.h>
+ #include <uapi/linux/ntsync.h>
+@@ -19,6 +25,8 @@
+ 
+ enum ntsync_type {
+ 	NTSYNC_TYPE_SEM,
++	NTSYNC_TYPE_MUTEX,
++	NTSYNC_TYPE_EVENT,
+ };
+ 
+ /*
+@@ -30,10 +38,13 @@ enum ntsync_type {
+  *
+  * Both rely on struct file for reference counting. Individual
+  * ntsync_obj objects take a reference to the device when created.
++ * Wait operations take a reference to each object being waited on for
++ * the duration of the wait.
+  */
+ 
+ struct ntsync_obj {
+ 	spinlock_t lock;
++	int dev_locked;
+ 
+ 	enum ntsync_type type;
+ 
+@@ -46,22 +57,344 @@ struct ntsync_obj {
+ 			__u32 count;
+ 			__u32 max;
+ 		} sem;
++		struct {
++			__u32 count;
++			pid_t owner;
++			bool ownerdead;
++		} mutex;
++		struct {
++			bool manual;
++			bool signaled;
++		} event;
+ 	} u;
++
++	/*
++	 * any_waiters is protected by the object lock, but all_waiters is
++	 * protected by the device wait_all_lock.
++	 */
++	struct list_head any_waiters;
++	struct list_head all_waiters;
++
++	/*
++	 * Hint describing how many tasks are queued on this object in a
++	 * wait-all operation.
++	 *
++	 * Any time we do a wake, we may need to wake "all" waiters as well as
++	 * "any" waiters. In order to atomically wake "all" waiters, we must
++	 * lock all of the objects, and that means grabbing the wait_all_lock
++	 * below (and, due to lock ordering rules, before locking this object).
++	 * However, wait-all is a rare operation, and grabbing the wait-all
++	 * lock for every wake would create unnecessary contention.
++	 * Therefore we first check whether all_hint is zero, and, if it is,
++	 * we skip trying to wake "all" waiters.
++	 *
++	 * Since wait requests must originate from user-space threads, we're
++	 * limited here by PID_MAX_LIMIT, so there's no risk of overflow.
++	 */
++	atomic_t all_hint;
++};
++
++struct ntsync_q_entry {
++	struct list_head node;
++	struct ntsync_q *q;
++	struct ntsync_obj *obj;
++	__u32 index;
++};
++
++struct ntsync_q {
++	struct task_struct *task;
++	__u32 owner;
++
++	/*
++	 * Protected via atomic_try_cmpxchg(). Only the thread that wins the
++	 * compare-and-swap may actually change object states and wake this
++	 * task.
++	 */
++	atomic_t signaled;
++
++	bool all;
++	bool ownerdead;
++	__u32 count;
++	struct ntsync_q_entry entries[];
+ };
+ 
+ struct ntsync_device {
++	/*
++	 * Wait-all operations must atomically grab all objects, and be totally
++	 * ordered with respect to each other and wait-any operations.
++	 * If one thread is trying to acquire several objects, another thread
++	 * cannot touch the object at the same time.
++	 *
++	 * This device-wide lock is used to serialize wait-for-all
++	 * operations, and operations on an object that is involved in a
++	 * wait-for-all.
++	 */
++	struct mutex wait_all_lock;
++
+ 	struct file *file;
+ };
+ 
++/*
++ * Single objects are locked using obj->lock.
++ *
++ * Multiple objects are 'locked' while holding dev->wait_all_lock.
++ * In this case however, individual objects are not locked by holding
++ * obj->lock, but by setting obj->dev_locked.
++ *
++ * This means that in order to lock a single object, the sequence is slightly
++ * more complicated than usual. Specifically it needs to check obj->dev_locked
++ * after acquiring obj->lock, if set, it needs to drop the lock and acquire
++ * dev->wait_all_lock in order to serialize against the multi-object operation.
++ */
++
++static void dev_lock_obj(struct ntsync_device *dev, struct ntsync_obj *obj)
++{
++	lockdep_assert_held(&dev->wait_all_lock);
++	lockdep_assert(obj->dev == dev);
++	spin_lock(&obj->lock);
++	/*
++	 * By setting obj->dev_locked inside obj->lock, it is ensured that
++	 * anyone holding obj->lock must see the value.
++	 */
++	obj->dev_locked = 1;
++	spin_unlock(&obj->lock);
++}
++
++static void dev_unlock_obj(struct ntsync_device *dev, struct ntsync_obj *obj)
++{
++	lockdep_assert_held(&dev->wait_all_lock);
++	lockdep_assert(obj->dev == dev);
++	spin_lock(&obj->lock);
++	obj->dev_locked = 0;
++	spin_unlock(&obj->lock);
++}
++
++static void obj_lock(struct ntsync_obj *obj)
++{
++	struct ntsync_device *dev = obj->dev;
++
++	for (;;) {
++		spin_lock(&obj->lock);
++		if (likely(!obj->dev_locked))
++			break;
++
++		spin_unlock(&obj->lock);
++		mutex_lock(&dev->wait_all_lock);
++		spin_lock(&obj->lock);
++		/*
++		 * obj->dev_locked should be set and released under the same
++		 * wait_all_lock section, since we now own this lock, it should
++		 * be clear.
++		 */
++		lockdep_assert(!obj->dev_locked);
++		spin_unlock(&obj->lock);
++		mutex_unlock(&dev->wait_all_lock);
++	}
++}
++
++static void obj_unlock(struct ntsync_obj *obj)
++{
++	spin_unlock(&obj->lock);
++}
++
++static bool ntsync_lock_obj(struct ntsync_device *dev, struct ntsync_obj *obj)
++{
++	bool all;
++
++	obj_lock(obj);
++	all = atomic_read(&obj->all_hint);
++	if (unlikely(all)) {
++		obj_unlock(obj);
++		mutex_lock(&dev->wait_all_lock);
++		dev_lock_obj(dev, obj);
++	}
++
++	return all;
++}
++
++static void ntsync_unlock_obj(struct ntsync_device *dev, struct ntsync_obj *obj, bool all)
++{
++	if (all) {
++		dev_unlock_obj(dev, obj);
++		mutex_unlock(&dev->wait_all_lock);
++	} else {
++		obj_unlock(obj);
++	}
++}
++
++#define ntsync_assert_held(obj) \
++	lockdep_assert((lockdep_is_held(&(obj)->lock) != LOCK_STATE_NOT_HELD) || \
++		       ((lockdep_is_held(&(obj)->dev->wait_all_lock) != LOCK_STATE_NOT_HELD) && \
++			(obj)->dev_locked))
++
++static bool is_signaled(struct ntsync_obj *obj, __u32 owner)
++{
++	ntsync_assert_held(obj);
++
++	switch (obj->type) {
++	case NTSYNC_TYPE_SEM:
++		return !!obj->u.sem.count;
++	case NTSYNC_TYPE_MUTEX:
++		if (obj->u.mutex.owner && obj->u.mutex.owner != owner)
++			return false;
++		return obj->u.mutex.count < UINT_MAX;
++	case NTSYNC_TYPE_EVENT:
++		return obj->u.event.signaled;
++	}
++
++	WARN(1, "bad object type %#x\n", obj->type);
++	return false;
++}
++
++/*
++ * "locked_obj" is an optional pointer to an object which is already locked and
++ * should not be locked again. This is necessary so that changing an object's
++ * state and waking it can be a single atomic operation.
++ */
++static void try_wake_all(struct ntsync_device *dev, struct ntsync_q *q,
++			 struct ntsync_obj *locked_obj)
++{
++	__u32 count = q->count;
++	bool can_wake = true;
++	int signaled = -1;
++	__u32 i;
++
++	lockdep_assert_held(&dev->wait_all_lock);
++	if (locked_obj)
++		lockdep_assert(locked_obj->dev_locked);
++
++	for (i = 0; i < count; i++) {
++		if (q->entries[i].obj != locked_obj)
++			dev_lock_obj(dev, q->entries[i].obj);
++	}
++
++	for (i = 0; i < count; i++) {
++		if (!is_signaled(q->entries[i].obj, q->owner)) {
++			can_wake = false;
++			break;
++		}
++	}
++
++	if (can_wake && atomic_try_cmpxchg(&q->signaled, &signaled, 0)) {
++		for (i = 0; i < count; i++) {
++			struct ntsync_obj *obj = q->entries[i].obj;
++
++			switch (obj->type) {
++			case NTSYNC_TYPE_SEM:
++				obj->u.sem.count--;
++				break;
++			case NTSYNC_TYPE_MUTEX:
++				if (obj->u.mutex.ownerdead)
++					q->ownerdead = true;
++				obj->u.mutex.ownerdead = false;
++				obj->u.mutex.count++;
++				obj->u.mutex.owner = q->owner;
++				break;
++			case NTSYNC_TYPE_EVENT:
++				if (!obj->u.event.manual)
++					obj->u.event.signaled = false;
++				break;
++			}
++		}
++		wake_up_process(q->task);
++	}
++
++	for (i = 0; i < count; i++) {
++		if (q->entries[i].obj != locked_obj)
++			dev_unlock_obj(dev, q->entries[i].obj);
++	}
++}
++
++static void try_wake_all_obj(struct ntsync_device *dev, struct ntsync_obj *obj)
++{
++	struct ntsync_q_entry *entry;
++
++	lockdep_assert_held(&dev->wait_all_lock);
++	lockdep_assert(obj->dev_locked);
++
++	list_for_each_entry(entry, &obj->all_waiters, node)
++		try_wake_all(dev, entry->q, obj);
++}
++
++static void try_wake_any_sem(struct ntsync_obj *sem)
++{
++	struct ntsync_q_entry *entry;
++
++	ntsync_assert_held(sem);
++	lockdep_assert(sem->type == NTSYNC_TYPE_SEM);
++
++	list_for_each_entry(entry, &sem->any_waiters, node) {
++		struct ntsync_q *q = entry->q;
++		int signaled = -1;
++
++		if (!sem->u.sem.count)
++			break;
++
++		if (atomic_try_cmpxchg(&q->signaled, &signaled, entry->index)) {
++			sem->u.sem.count--;
++			wake_up_process(q->task);
++		}
++	}
++}
++
++static void try_wake_any_mutex(struct ntsync_obj *mutex)
++{
++	struct ntsync_q_entry *entry;
++
++	ntsync_assert_held(mutex);
++	lockdep_assert(mutex->type == NTSYNC_TYPE_MUTEX);
++
++	list_for_each_entry(entry, &mutex->any_waiters, node) {
++		struct ntsync_q *q = entry->q;
++		int signaled = -1;
++
++		if (mutex->u.mutex.count == UINT_MAX)
++			break;
++		if (mutex->u.mutex.owner && mutex->u.mutex.owner != q->owner)
++			continue;
++
++		if (atomic_try_cmpxchg(&q->signaled, &signaled, entry->index)) {
++			if (mutex->u.mutex.ownerdead)
++				q->ownerdead = true;
++			mutex->u.mutex.ownerdead = false;
++			mutex->u.mutex.count++;
++			mutex->u.mutex.owner = q->owner;
++			wake_up_process(q->task);
++		}
++	}
++}
++
++static void try_wake_any_event(struct ntsync_obj *event)
++{
++	struct ntsync_q_entry *entry;
++
++	ntsync_assert_held(event);
++	lockdep_assert(event->type == NTSYNC_TYPE_EVENT);
++
++	list_for_each_entry(entry, &event->any_waiters, node) {
++		struct ntsync_q *q = entry->q;
++		int signaled = -1;
++
++		if (!event->u.event.signaled)
++			break;
++
++		if (atomic_try_cmpxchg(&q->signaled, &signaled, entry->index)) {
++			if (!event->u.event.manual)
++				event->u.event.signaled = false;
++			wake_up_process(q->task);
++		}
++	}
++}
++
+ /*
+  * Actually change the semaphore state, returning -EOVERFLOW if it is made
+  * invalid.
+  */
+-static int post_sem_state(struct ntsync_obj *sem, __u32 count)
++static int release_sem_state(struct ntsync_obj *sem, __u32 count)
+ {
+ 	__u32 sum;
+ 
+-	lockdep_assert_held(&sem->lock);
++	ntsync_assert_held(sem);
+ 
+ 	if (check_add_overflow(sem->u.sem.count, count, &sum) ||
+ 	    sum > sem->u.sem.max)
+@@ -71,11 +404,13 @@ static int post_sem_state(struct ntsync_obj *sem, __u32 count)
+ 	return 0;
+ }
+ 
+-static int ntsync_sem_post(struct ntsync_obj *sem, void __user *argp)
++static int ntsync_sem_release(struct ntsync_obj *sem, void __user *argp)
+ {
++	struct ntsync_device *dev = sem->dev;
+ 	__u32 __user *user_args = argp;
+ 	__u32 prev_count;
+ 	__u32 args;
++	bool all;
+ 	int ret;
+ 
+ 	if (copy_from_user(&args, argp, sizeof(args)))
+@@ -84,12 +419,17 @@ static int ntsync_sem_post(struct ntsync_obj *sem, void __user *argp)
+ 	if (sem->type != NTSYNC_TYPE_SEM)
+ 		return -EINVAL;
+ 
+-	spin_lock(&sem->lock);
++	all = ntsync_lock_obj(dev, sem);
+ 
+ 	prev_count = sem->u.sem.count;
+-	ret = post_sem_state(sem, args);
++	ret = release_sem_state(sem, args);
++	if (!ret) {
++		if (all)
++			try_wake_all_obj(dev, sem);
++		try_wake_any_sem(sem);
++	}
+ 
+-	spin_unlock(&sem->lock);
++	ntsync_unlock_obj(dev, sem, all);
+ 
+ 	if (!ret && put_user(prev_count, user_args))
+ 		ret = -EFAULT;
+@@ -97,13 +437,229 @@ static int ntsync_sem_post(struct ntsync_obj *sem, void __user *argp)
+ 	return ret;
+ }
+ 
+-static int ntsync_obj_release(struct inode *inode, struct file *file)
++/*
++ * Actually change the mutex state, returning -EPERM if not the owner.
++ */
++static int unlock_mutex_state(struct ntsync_obj *mutex,
++			      const struct ntsync_mutex_args *args)
+ {
+-	struct ntsync_obj *obj = file->private_data;
++	ntsync_assert_held(mutex);
++
++	if (mutex->u.mutex.owner != args->owner)
++		return -EPERM;
++
++	if (!--mutex->u.mutex.count)
++		mutex->u.mutex.owner = 0;
++	return 0;
++}
++
++static int ntsync_mutex_unlock(struct ntsync_obj *mutex, void __user *argp)
++{
++	struct ntsync_mutex_args __user *user_args = argp;
++	struct ntsync_device *dev = mutex->dev;
++	struct ntsync_mutex_args args;
++	__u32 prev_count;
++	bool all;
++	int ret;
++
++	if (copy_from_user(&args, argp, sizeof(args)))
++		return -EFAULT;
++	if (!args.owner)
++		return -EINVAL;
++
++	if (mutex->type != NTSYNC_TYPE_MUTEX)
++		return -EINVAL;
++
++	all = ntsync_lock_obj(dev, mutex);
++
++	prev_count = mutex->u.mutex.count;
++	ret = unlock_mutex_state(mutex, &args);
++	if (!ret) {
++		if (all)
++			try_wake_all_obj(dev, mutex);
++		try_wake_any_mutex(mutex);
++	}
++
++	ntsync_unlock_obj(dev, mutex, all);
++
++	if (!ret && put_user(prev_count, &user_args->count))
++		ret = -EFAULT;
++
++	return ret;
++}
++
++/*
++ * Actually change the mutex state to mark its owner as dead,
++ * returning -EPERM if not the owner.
++ */
++static int kill_mutex_state(struct ntsync_obj *mutex, __u32 owner)
++{
++	ntsync_assert_held(mutex);
++
++	if (mutex->u.mutex.owner != owner)
++		return -EPERM;
++
++	mutex->u.mutex.ownerdead = true;
++	mutex->u.mutex.owner = 0;
++	mutex->u.mutex.count = 0;
++	return 0;
++}
++
++static int ntsync_mutex_kill(struct ntsync_obj *mutex, void __user *argp)
++{
++	struct ntsync_device *dev = mutex->dev;
++	__u32 owner;
++	bool all;
++	int ret;
++
++	if (get_user(owner, (__u32 __user *)argp))
++		return -EFAULT;
++	if (!owner)
++		return -EINVAL;
++
++	if (mutex->type != NTSYNC_TYPE_MUTEX)
++		return -EINVAL;
++
++	all = ntsync_lock_obj(dev, mutex);
++
++	ret = kill_mutex_state(mutex, owner);
++	if (!ret) {
++		if (all)
++			try_wake_all_obj(dev, mutex);
++		try_wake_any_mutex(mutex);
++	}
++
++	ntsync_unlock_obj(dev, mutex, all);
++
++	return ret;
++}
++
++static int ntsync_event_set(struct ntsync_obj *event, void __user *argp, bool pulse)
++{
++	struct ntsync_device *dev = event->dev;
++	__u32 prev_state;
++	bool all;
++
++	if (event->type != NTSYNC_TYPE_EVENT)
++		return -EINVAL;
++
++	all = ntsync_lock_obj(dev, event);
++
++	prev_state = event->u.event.signaled;
++	event->u.event.signaled = true;
++	if (all)
++		try_wake_all_obj(dev, event);
++	try_wake_any_event(event);
++	if (pulse)
++		event->u.event.signaled = false;
++
++	ntsync_unlock_obj(dev, event, all);
++
++	if (put_user(prev_state, (__u32 __user *)argp))
++		return -EFAULT;
++
++	return 0;
++}
++
++static int ntsync_event_reset(struct ntsync_obj *event, void __user *argp)
++{
++	struct ntsync_device *dev = event->dev;
++	__u32 prev_state;
++	bool all;
++
++	if (event->type != NTSYNC_TYPE_EVENT)
++		return -EINVAL;
++
++	all = ntsync_lock_obj(dev, event);
++
++	prev_state = event->u.event.signaled;
++	event->u.event.signaled = false;
++
++	ntsync_unlock_obj(dev, event, all);
++
++	if (put_user(prev_state, (__u32 __user *)argp))
++		return -EFAULT;
++
++	return 0;
++}
++
++static int ntsync_sem_read(struct ntsync_obj *sem, void __user *argp)
++{
++	struct ntsync_sem_args __user *user_args = argp;
++	struct ntsync_device *dev = sem->dev;
++	struct ntsync_sem_args args;
++	bool all;
++
++	if (sem->type != NTSYNC_TYPE_SEM)
++		return -EINVAL;
++
++	all = ntsync_lock_obj(dev, sem);
++
++	args.count = sem->u.sem.count;
++	args.max = sem->u.sem.max;
++
++	ntsync_unlock_obj(dev, sem, all);
++
++	if (copy_to_user(user_args, &args, sizeof(args)))
++		return -EFAULT;
++	return 0;
++}
+ 
++static int ntsync_mutex_read(struct ntsync_obj *mutex, void __user *argp)
++{
++	struct ntsync_mutex_args __user *user_args = argp;
++	struct ntsync_device *dev = mutex->dev;
++	struct ntsync_mutex_args args;
++	bool all;
++	int ret;
++
++	if (mutex->type != NTSYNC_TYPE_MUTEX)
++		return -EINVAL;
++
++	all = ntsync_lock_obj(dev, mutex);
++
++	args.count = mutex->u.mutex.count;
++	args.owner = mutex->u.mutex.owner;
++	ret = mutex->u.mutex.ownerdead ? -EOWNERDEAD : 0;
++
++	ntsync_unlock_obj(dev, mutex, all);
++
++	if (copy_to_user(user_args, &args, sizeof(args)))
++		return -EFAULT;
++	return ret;
++}
++
++static int ntsync_event_read(struct ntsync_obj *event, void __user *argp)
++{
++	struct ntsync_event_args __user *user_args = argp;
++	struct ntsync_device *dev = event->dev;
++	struct ntsync_event_args args;
++	bool all;
++
++	if (event->type != NTSYNC_TYPE_EVENT)
++		return -EINVAL;
++
++	all = ntsync_lock_obj(dev, event);
++
++	args.manual = event->u.event.manual;
++	args.signaled = event->u.event.signaled;
++
++	ntsync_unlock_obj(dev, event, all);
++
++	if (copy_to_user(user_args, &args, sizeof(args)))
++		return -EFAULT;
++	return 0;
++}
++
++static void ntsync_free_obj(struct ntsync_obj *obj)
++{
+ 	fput(obj->dev->file);
+ 	kfree(obj);
++}
+ 
++static int ntsync_obj_release(struct inode *inode, struct file *file)
++{
++	ntsync_free_obj(file->private_data);
+ 	return 0;
+ }
+ 
+@@ -114,8 +670,24 @@ static long ntsync_obj_ioctl(struct file *file, unsigned int cmd,
+ 	void __user *argp = (void __user *)parm;
+ 
+ 	switch (cmd) {
+-	case NTSYNC_IOC_SEM_POST:
+-		return ntsync_sem_post(obj, argp);
++	case NTSYNC_IOC_SEM_RELEASE:
++		return ntsync_sem_release(obj, argp);
++	case NTSYNC_IOC_SEM_READ:
++		return ntsync_sem_read(obj, argp);
++	case NTSYNC_IOC_MUTEX_UNLOCK:
++		return ntsync_mutex_unlock(obj, argp);
++	case NTSYNC_IOC_MUTEX_KILL:
++		return ntsync_mutex_kill(obj, argp);
++	case NTSYNC_IOC_MUTEX_READ:
++		return ntsync_mutex_read(obj, argp);
++	case NTSYNC_IOC_EVENT_SET:
++		return ntsync_event_set(obj, argp, false);
++	case NTSYNC_IOC_EVENT_RESET:
++		return ntsync_event_reset(obj, argp);
++	case NTSYNC_IOC_EVENT_PULSE:
++		return ntsync_event_set(obj, argp, true);
++	case NTSYNC_IOC_EVENT_READ:
++		return ntsync_event_read(obj, argp);
+ 	default:
+ 		return -ENOIOCTLCMD;
+ 	}
+@@ -140,6 +712,9 @@ static struct ntsync_obj *ntsync_alloc_obj(struct ntsync_device *dev,
+ 	obj->dev = dev;
+ 	get_file(dev->file);
+ 	spin_lock_init(&obj->lock);
++	INIT_LIST_HEAD(&obj->any_waiters);
++	INIT_LIST_HEAD(&obj->all_waiters);
++	atomic_set(&obj->all_hint, 0);
+ 
+ 	return obj;
+ }
+@@ -165,7 +740,6 @@ static int ntsync_obj_get_fd(struct ntsync_obj *obj)
+ 
+ static int ntsync_create_sem(struct ntsync_device *dev, void __user *argp)
+ {
+-	struct ntsync_sem_args __user *user_args = argp;
+ 	struct ntsync_sem_args args;
+ 	struct ntsync_obj *sem;
+ 	int fd;
+@@ -182,12 +756,398 @@ static int ntsync_create_sem(struct ntsync_device *dev, void __user *argp)
+ 	sem->u.sem.count = args.count;
+ 	sem->u.sem.max = args.max;
+ 	fd = ntsync_obj_get_fd(sem);
+-	if (fd < 0) {
+-		kfree(sem);
+-		return fd;
++	if (fd < 0)
++		ntsync_free_obj(sem);
++
++	return fd;
++}
++
++static int ntsync_create_mutex(struct ntsync_device *dev, void __user *argp)
++{
++	struct ntsync_mutex_args args;
++	struct ntsync_obj *mutex;
++	int fd;
++
++	if (copy_from_user(&args, argp, sizeof(args)))
++		return -EFAULT;
++
++	if (!args.owner != !args.count)
++		return -EINVAL;
++
++	mutex = ntsync_alloc_obj(dev, NTSYNC_TYPE_MUTEX);
++	if (!mutex)
++		return -ENOMEM;
++	mutex->u.mutex.count = args.count;
++	mutex->u.mutex.owner = args.owner;
++	fd = ntsync_obj_get_fd(mutex);
++	if (fd < 0)
++		ntsync_free_obj(mutex);
++
++	return fd;
++}
++
++static int ntsync_create_event(struct ntsync_device *dev, void __user *argp)
++{
++	struct ntsync_event_args args;
++	struct ntsync_obj *event;
++	int fd;
++
++	if (copy_from_user(&args, argp, sizeof(args)))
++		return -EFAULT;
++
++	event = ntsync_alloc_obj(dev, NTSYNC_TYPE_EVENT);
++	if (!event)
++		return -ENOMEM;
++	event->u.event.manual = args.manual;
++	event->u.event.signaled = args.signaled;
++	fd = ntsync_obj_get_fd(event);
++	if (fd < 0)
++		ntsync_free_obj(event);
++
++	return fd;
++}
++
++static struct ntsync_obj *get_obj(struct ntsync_device *dev, int fd)
++{
++	struct file *file = fget(fd);
++	struct ntsync_obj *obj;
++
++	if (!file)
++		return NULL;
++
++	if (file->f_op != &ntsync_obj_fops) {
++		fput(file);
++		return NULL;
++	}
++
++	obj = file->private_data;
++	if (obj->dev != dev) {
++		fput(file);
++		return NULL;
+ 	}
+ 
+-	return put_user(fd, &user_args->sem);
++	return obj;
++}
++
++static void put_obj(struct ntsync_obj *obj)
++{
++	fput(obj->file);
++}
++
++static int ntsync_schedule(const struct ntsync_q *q, const struct ntsync_wait_args *args)
++{
++	ktime_t timeout = ns_to_ktime(args->timeout);
++	clockid_t clock = CLOCK_MONOTONIC;
++	ktime_t *timeout_ptr;
++	int ret = 0;
++
++	timeout_ptr = (args->timeout == U64_MAX ? NULL : &timeout);
++
++	if (args->flags & NTSYNC_WAIT_REALTIME)
++		clock = CLOCK_REALTIME;
++
++	do {
++		if (signal_pending(current)) {
++			ret = -ERESTARTSYS;
++			break;
++		}
++
++		set_current_state(TASK_INTERRUPTIBLE);
++		if (atomic_read(&q->signaled) != -1) {
++			ret = 0;
++			break;
++		}
++		ret = schedule_hrtimeout_range_clock(timeout_ptr, 0, HRTIMER_MODE_ABS, clock);
++	} while (ret < 0);
++	__set_current_state(TASK_RUNNING);
++
++	return ret;
++}
++
++/*
++ * Allocate and initialize the ntsync_q structure, but do not queue us yet.
++ */
++static int setup_wait(struct ntsync_device *dev,
++		      const struct ntsync_wait_args *args, bool all,
++		      struct ntsync_q **ret_q)
++{
++	int fds[NTSYNC_MAX_WAIT_COUNT + 1];
++	const __u32 count = args->count;
++	size_t size = array_size(count, sizeof(fds[0]));
++	struct ntsync_q *q;
++	__u32 total_count;
++	__u32 i, j;
++
++	if (args->pad || (args->flags & ~NTSYNC_WAIT_REALTIME))
++		return -EINVAL;
++
++	if (size >= sizeof(fds))
++		return -EINVAL;
++
++	total_count = count;
++	if (args->alert)
++		total_count++;
++
++	if (copy_from_user(fds, u64_to_user_ptr(args->objs), size))
++		return -EFAULT;
++	if (args->alert)
++		fds[count] = args->alert;
++
++	q = kmalloc(struct_size(q, entries, total_count), GFP_KERNEL);
++	if (!q)
++		return -ENOMEM;
++	q->task = current;
++	q->owner = args->owner;
++	atomic_set(&q->signaled, -1);
++	q->all = all;
++	q->ownerdead = false;
++	q->count = count;
++
++	for (i = 0; i < total_count; i++) {
++		struct ntsync_q_entry *entry = &q->entries[i];
++		struct ntsync_obj *obj = get_obj(dev, fds[i]);
++
++		if (!obj)
++			goto err;
++
++		if (all) {
++			/* Check that the objects are all distinct. */
++			for (j = 0; j < i; j++) {
++				if (obj == q->entries[j].obj) {
++					put_obj(obj);
++					goto err;
++				}
++			}
++		}
++
++		entry->obj = obj;
++		entry->q = q;
++		entry->index = i;
++	}
++
++	*ret_q = q;
++	return 0;
++
++err:
++	for (j = 0; j < i; j++)
++		put_obj(q->entries[j].obj);
++	kfree(q);
++	return -EINVAL;
++}
++
++static void try_wake_any_obj(struct ntsync_obj *obj)
++{
++	switch (obj->type) {
++	case NTSYNC_TYPE_SEM:
++		try_wake_any_sem(obj);
++		break;
++	case NTSYNC_TYPE_MUTEX:
++		try_wake_any_mutex(obj);
++		break;
++	case NTSYNC_TYPE_EVENT:
++		try_wake_any_event(obj);
++		break;
++	}
++}
++
++static int ntsync_wait_any(struct ntsync_device *dev, void __user *argp)
++{
++	struct ntsync_wait_args args;
++	__u32 i, total_count;
++	struct ntsync_q *q;
++	int signaled;
++	bool all;
++	int ret;
++
++	if (copy_from_user(&args, argp, sizeof(args)))
++		return -EFAULT;
++
++	ret = setup_wait(dev, &args, false, &q);
++	if (ret < 0)
++		return ret;
++
++	total_count = args.count;
++	if (args.alert)
++		total_count++;
++
++	/* queue ourselves */
++
++	for (i = 0; i < total_count; i++) {
++		struct ntsync_q_entry *entry = &q->entries[i];
++		struct ntsync_obj *obj = entry->obj;
++
++		all = ntsync_lock_obj(dev, obj);
++		list_add_tail(&entry->node, &obj->any_waiters);
++		ntsync_unlock_obj(dev, obj, all);
++	}
++
++	/*
++	 * Check if we are already signaled.
++	 *
++	 * Note that the API requires that normal objects are checked before
++	 * the alert event. Hence we queue the alert event last, and check
++	 * objects in order.
++	 */
++
++	for (i = 0; i < total_count; i++) {
++		struct ntsync_obj *obj = q->entries[i].obj;
++
++		if (atomic_read(&q->signaled) != -1)
++			break;
++
++		all = ntsync_lock_obj(dev, obj);
++		try_wake_any_obj(obj);
++		ntsync_unlock_obj(dev, obj, all);
++	}
++
++	/* sleep */
++
++	ret = ntsync_schedule(q, &args);
++
++	/* and finally, unqueue */
++
++	for (i = 0; i < total_count; i++) {
++		struct ntsync_q_entry *entry = &q->entries[i];
++		struct ntsync_obj *obj = entry->obj;
++
++		all = ntsync_lock_obj(dev, obj);
++		list_del(&entry->node);
++		ntsync_unlock_obj(dev, obj, all);
++
++		put_obj(obj);
++	}
++
++	signaled = atomic_read(&q->signaled);
++	if (signaled != -1) {
++		struct ntsync_wait_args __user *user_args = argp;
++
++		/* even if we caught a signal, we need to communicate success */
++		ret = q->ownerdead ? -EOWNERDEAD : 0;
++
++		if (put_user(signaled, &user_args->index))
++			ret = -EFAULT;
++	} else if (!ret) {
++		ret = -ETIMEDOUT;
++	}
++
++	kfree(q);
++	return ret;
++}
++
++static int ntsync_wait_all(struct ntsync_device *dev, void __user *argp)
++{
++	struct ntsync_wait_args args;
++	struct ntsync_q *q;
++	int signaled;
++	__u32 i;
++	int ret;
++
++	if (copy_from_user(&args, argp, sizeof(args)))
++		return -EFAULT;
++
++	ret = setup_wait(dev, &args, true, &q);
++	if (ret < 0)
++		return ret;
++
++	/* queue ourselves */
++
++	mutex_lock(&dev->wait_all_lock);
++
++	for (i = 0; i < args.count; i++) {
++		struct ntsync_q_entry *entry = &q->entries[i];
++		struct ntsync_obj *obj = entry->obj;
++
++		atomic_inc(&obj->all_hint);
++
++		/*
++		 * obj->all_waiters is protected by dev->wait_all_lock rather
++		 * than obj->lock, so there is no need to acquire obj->lock
++		 * here.
++		 */
++		list_add_tail(&entry->node, &obj->all_waiters);
++	}
++	if (args.alert) {
++		struct ntsync_q_entry *entry = &q->entries[args.count];
++		struct ntsync_obj *obj = entry->obj;
++
++		dev_lock_obj(dev, obj);
++		list_add_tail(&entry->node, &obj->any_waiters);
++		dev_unlock_obj(dev, obj);
++	}
++
++	/* check if we are already signaled */
++
++	try_wake_all(dev, q, NULL);
++
++	mutex_unlock(&dev->wait_all_lock);
++
++	/*
++	 * Check if the alert event is signaled, making sure to do so only
++	 * after checking if the other objects are signaled.
++	 */
++
++	if (args.alert) {
++		struct ntsync_obj *obj = q->entries[args.count].obj;
++
++		if (atomic_read(&q->signaled) == -1) {
++			bool all = ntsync_lock_obj(dev, obj);
++			try_wake_any_obj(obj);
++			ntsync_unlock_obj(dev, obj, all);
++		}
++	}
++
++	/* sleep */
++
++	ret = ntsync_schedule(q, &args);
++
++	/* and finally, unqueue */
++
++	mutex_lock(&dev->wait_all_lock);
++
++	for (i = 0; i < args.count; i++) {
++		struct ntsync_q_entry *entry = &q->entries[i];
++		struct ntsync_obj *obj = entry->obj;
++
++		/*
++		 * obj->all_waiters is protected by dev->wait_all_lock rather
++		 * than obj->lock, so there is no need to acquire it here.
++		 */
++		list_del(&entry->node);
++
++		atomic_dec(&obj->all_hint);
++
++		put_obj(obj);
++	}
++
++	mutex_unlock(&dev->wait_all_lock);
++
++	if (args.alert) {
++		struct ntsync_q_entry *entry = &q->entries[args.count];
++		struct ntsync_obj *obj = entry->obj;
++		bool all;
++
++		all = ntsync_lock_obj(dev, obj);
++		list_del(&entry->node);
++		ntsync_unlock_obj(dev, obj, all);
++
++		put_obj(obj);
++	}
++
++	signaled = atomic_read(&q->signaled);
++	if (signaled != -1) {
++		struct ntsync_wait_args __user *user_args = argp;
++
++		/* even if we caught a signal, we need to communicate success */
++		ret = q->ownerdead ? -EOWNERDEAD : 0;
++
++		if (put_user(signaled, &user_args->index))
++			ret = -EFAULT;
++	} else if (!ret) {
++		ret = -ETIMEDOUT;
++	}
++
++	kfree(q);
++	return ret;
+ }
+ 
+ static int ntsync_char_open(struct inode *inode, struct file *file)
+@@ -198,6 +1158,8 @@ static int ntsync_char_open(struct inode *inode, struct file *file)
+ 	if (!dev)
+ 		return -ENOMEM;
+ 
++	mutex_init(&dev->wait_all_lock);
++
+ 	file->private_data = dev;
+ 	dev->file = file;
+ 	return nonseekable_open(inode, file);
+@@ -219,8 +1181,16 @@ static long ntsync_char_ioctl(struct file *file, unsigned int cmd,
+ 	void __user *argp = (void __user *)parm;
+ 
+ 	switch (cmd) {
++	case NTSYNC_IOC_CREATE_EVENT:
++		return ntsync_create_event(dev, argp);
++	case NTSYNC_IOC_CREATE_MUTEX:
++		return ntsync_create_mutex(dev, argp);
+ 	case NTSYNC_IOC_CREATE_SEM:
+ 		return ntsync_create_sem(dev, argp);
++	case NTSYNC_IOC_WAIT_ALL:
++		return ntsync_wait_all(dev, argp);
++	case NTSYNC_IOC_WAIT_ANY:
++		return ntsync_wait_any(dev, argp);
+ 	default:
+ 		return -ENOIOCTLCMD;
+ 	}
+@@ -238,6 +1208,7 @@ static struct miscdevice ntsync_misc = {
+ 	.minor		= MISC_DYNAMIC_MINOR,
+ 	.name		= NTSYNC_NAME,
+ 	.fops		= &ntsync_fops,
++	.mode		= 0666,
+ };
+ 
+ module_misc_device(ntsync_misc);
+diff --git a/drivers/remoteproc/remoteproc_core.c b/drivers/remoteproc/remoteproc_core.c
+index c68e6cd5f7bb..50872a49f2e9 100644
+--- a/drivers/remoteproc/remoteproc_core.c
++++ b/drivers/remoteproc/remoteproc_core.c
+@@ -1670,13 +1670,58 @@ static int rproc_attach(struct rproc *rproc)
+  * to unregister the device. one other option is just to use kref here,
+  * that might be cleaner).
+  */
++/*
++ * A remote processor can be registered from the first-stage ramdisk, before
++ * the partition holding its firmware is mounted. Its auto-boot request then
++ * fails once and the processor stays off. Retry for a while instead.
++ */
++struct rproc_auto_boot_retry {
++	struct delayed_work work;
++	struct rproc *rproc;
++	unsigned int tries;
++};
++
++static void rproc_auto_boot_retry_fn(struct work_struct *work)
++{
++	struct rproc_auto_boot_retry *r = container_of(to_delayed_work(work),
++					struct rproc_auto_boot_retry, work);
++	struct rproc *rproc = r->rproc;
++
++	if (rproc->state != RPROC_OFFLINE || !rproc_boot(rproc)) {
++		put_device(&rproc->dev);
++		kfree(r);
++		return;
++	}
++	if (++r->tries >= 60) {
++		dev_err(&rproc->dev, "auto boot failed: no firmware %s after %u tries\n",
++			rproc->firmware, r->tries);
++		put_device(&rproc->dev);
++		kfree(r);
++		return;
++	}
++	schedule_delayed_work(&r->work, 2 * HZ);
++}
++
+ static void rproc_auto_boot_callback(const struct firmware *fw, void *context)
+ {
+ 	struct rproc *rproc = context;
++	struct rproc_auto_boot_retry *r;
+ 
+-	rproc_boot(rproc);
++	if (fw || rproc->state != RPROC_OFFLINE) {
++		rproc_boot(rproc);
++		release_firmware(fw);
++		return;
++	}
+ 
+-	release_firmware(fw);
++	dev_info(&rproc->dev, "firmware %s not available yet, retrying auto boot\n",
++		 rproc->firmware);
++	r = kzalloc(sizeof(*r), GFP_KERNEL);
++	if (!r)
++		return;
++	r->rproc = rproc;
++	get_device(&rproc->dev);
++	INIT_DELAYED_WORK(&r->work, rproc_auto_boot_retry_fn);
++	schedule_delayed_work(&r->work, 2 * HZ);
+ }
+ 
+ static int rproc_trigger_auto_boot(struct rproc *rproc)
+diff --git a/fs/erofs/decompressor.c b/fs/erofs/decompressor.c
+index dc61a6a8f..8f7aa652f 100644
+--- a/fs/erofs/decompressor.c
++++ b/fs/erofs/decompressor.c
+@@ -6,6 +6,7 @@
+  */
+ #include "compress.h"
+ #include <linux/lz4.h>
++#include <trace/hooks/lz4_decompress.h>
+ 
+ #ifndef LZ4_DISTANCE_MAX	/* history window size */
+ #define LZ4_DISTANCE_MAX 65535	/* set to maximum value by default */
+@@ -212,6 +213,7 @@ static int z_erofs_lz4_decompress_mem(struct z_erofs_lz4_decompress_ctx *ctx,
+ 	unsigned int inputmargin;
+ 	u8 *out, *headpage, *src;
+ 	int ret, maptype;
++	bool lz4_decompression_bypass = false;
+ 
+ 	DBG_BUGON(*rq->in == NULL);
+ 	headpage = kmap_local_page(*rq->in);
+@@ -237,6 +239,12 @@ static int z_erofs_lz4_decompress_mem(struct z_erofs_lz4_decompress_ctx *ctx,
+ 		return PTR_ERR(src);
+ 
+ 	out = dst + rq->pageofs_out;
++	trace_android_vh_lz4_decompress_bypass(src + inputmargin, out,
++		rq->inputsize, rq->outputsize, rq->inplace_io, &ret,
++		&lz4_decompression_bypass);
++	if (lz4_decompression_bypass)
++		goto bypass_decompression;
++
+ 	/* legacy format could compress extra data in a pcluster. */
+ 	if (rq->partial_decoding || !support_0padding)
+ 		ret = LZ4_decompress_safe_partial(src + inputmargin, out,
+@@ -245,6 +253,7 @@ static int z_erofs_lz4_decompress_mem(struct z_erofs_lz4_decompress_ctx *ctx,
+ 		ret = LZ4_decompress_safe(src + inputmargin, out,
+ 					  rq->inputsize, rq->outputsize);
+ 
++bypass_decompression:
+ 	if (ret != rq->outputsize) {
+ 		erofs_err(rq->sb, "failed to decompress %d in[%u, %u] out[%u]",
+ 			  ret, rq->inputsize, inputmargin, rq->outputsize);
+diff --git a/fs/kernfs/file.c b/fs/kernfs/file.c
+index c81cffa72..c282ba0f3 100644
+--- a/fs/kernfs/file.c
++++ b/fs/kernfs/file.c
+@@ -313,6 +313,7 @@ static ssize_t kernfs_fop_write_iter(struct kiocb *iocb, struct iov_iter *iter)
+ 	struct kernfs_open_file *of = kernfs_of(iocb->ki_filp);
+ 	ssize_t len = iov_iter_count(iter);
+ 	const struct kernfs_ops *ops;
++	char buf_onstack[SZ_64] __aligned(sizeof(long));
+ 	char *buf;
+ 
+ 	if (of->atomic_write_len) {
+@@ -322,13 +323,17 @@ static ssize_t kernfs_fop_write_iter(struct kiocb *iocb, struct iov_iter *iter)
+ 		len = min_t(size_t, len, PAGE_SIZE);
+ 	}
+ 
+-	buf = of->prealloc_buf;
+-	if (buf)
+-		mutex_lock(&of->prealloc_mutex);
+-	else
+-		buf = kmalloc(len + 1, GFP_KERNEL);
+-	if (!buf)
+-		return -ENOMEM;
++	if (len < sizeof(buf_onstack)) {
++		buf = buf_onstack;
++	} else {
++		buf = of->prealloc_buf;
++		if (buf)
++			mutex_lock(&of->prealloc_mutex);
++		else
++			buf = kmalloc(len + 1, GFP_KERNEL);
++		if (!buf)
++			return -ENOMEM;
++	}
+ 
+ 	if (copy_from_iter(buf, len, iter) != len) {
+ 		len = -EFAULT;
+@@ -362,7 +367,7 @@ static ssize_t kernfs_fop_write_iter(struct kiocb *iocb, struct iov_iter *iter)
+ out_free:
+ 	if (buf == of->prealloc_buf)
+ 		mutex_unlock(&of->prealloc_mutex);
+-	else
++	else if (buf != buf_onstack)
+ 		kfree(buf);
+ 	return len;
+ }
+diff --git a/fs/smb/client/cifsfs.c b/fs/smb/client/cifsfs.c
+index ce3af62dd..cc42aa162 100644
+--- a/fs/smb/client/cifsfs.c
++++ b/fs/smb/client/cifsfs.c
+@@ -2067,6 +2067,7 @@ exit_cifs(void)
+ 
+ MODULE_AUTHOR("Steve French");
+ MODULE_LICENSE("GPL");	/* combination of LGPL + GPL source behaves as GPL */
++MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);
+ MODULE_DESCRIPTION
+ 	("VFS to access SMB3 servers e.g. Samba, Macs, Azure and Windows (and "
+ 	"also older servers complying with the SNIA CIFS Specification)");
+diff --git a/gki/aarch64/symbols/xiaomi b/gki/aarch64/symbols/xiaomi
+index c12e700..6109747 100644
+--- a/gki/aarch64/symbols/xiaomi
++++ b/gki/aarch64/symbols/xiaomi
+@@ -663,3 +663,5 @@ __tracepoint_android_vh_folio_end_writeback
+ __traceiter_android_vh_folio_end_writeback
+ __tracepoint_android_vh_folio_start_writeback
+ __traceiter_android_vh_folio_start_writeback
++__traceiter_android_vh_lz4_decompress_bypass
++__tracepoint_android_vh_lz4_decompress_bypass
+diff --git a/include/trace/hooks/lz4_decompress.h b/include/trace/hooks/lz4_decompress.h
+new file mode 100644
+index 000000000..441bc8285
+--- /dev/null
++++ b/include/trace/hooks/lz4_decompress.h
+@@ -0,0 +1,21 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#undef TRACE_SYSTEM
++#define TRACE_SYSTEM lz4_decompress
++
++#define TRACE_INCLUDE_PATH trace/hooks
++
++#if !defined(_TRACE_HOOK_LZ4_DECOMPRESS_H) || defined(TRACE_HEADER_MULTI_READ)
++#define _TRACE_HOOK_LZ4_DECOMPRESS_H
++
++#include <trace/hooks/vendor_hooks.h>
++
++DECLARE_HOOK(android_vh_lz4_decompress_bypass,
++	TP_PROTO(const char *in, char *out,
++			unsigned int inlen, unsigned int outlen,
++			bool dip, int* ret, bool* bypass),
++	TP_ARGS(in, out, inlen, outlen, dip, ret, bypass));
++
++
++#endif /* _TRACE_HOOK_LZ4_DECOMPRESS_H */
++/* This part must be outside protection */
++#include <trace/define_trace.h>
+diff --git a/include/uapi/linux/ntsync.h b/include/uapi/linux/ntsync.h
+index dcfa38fdc..6d0679351 100644
+--- a/include/uapi/linux/ntsync.h
++++ b/include/uapi/linux/ntsync.h
+@@ -11,13 +11,49 @@
+ #include <linux/types.h>
+ 
+ struct ntsync_sem_args {
+-	__u32 sem;
+ 	__u32 count;
+ 	__u32 max;
+ };
+ 
+-#define NTSYNC_IOC_CREATE_SEM		_IOWR('N', 0x80, struct ntsync_sem_args)
++struct ntsync_mutex_args {
++	__u32 owner;
++	__u32 count;
++};
++
++struct ntsync_event_args {
++	__u32 manual;
++	__u32 signaled;
++};
++
++#define NTSYNC_WAIT_REALTIME	0x1
++
++struct ntsync_wait_args {
++	__u64 timeout;
++	__u64 objs;
++	__u32 count;
++	__u32 index;
++	__u32 flags;
++	__u32 owner;
++	__u32 alert;
++	__u32 pad;
++};
++
++#define NTSYNC_MAX_WAIT_COUNT 64
++
++#define NTSYNC_IOC_CREATE_SEM		_IOW ('N', 0x80, struct ntsync_sem_args)
++#define NTSYNC_IOC_WAIT_ANY		_IOWR('N', 0x82, struct ntsync_wait_args)
++#define NTSYNC_IOC_WAIT_ALL		_IOWR('N', 0x83, struct ntsync_wait_args)
++#define NTSYNC_IOC_CREATE_MUTEX		_IOW ('N', 0x84, struct ntsync_mutex_args)
++#define NTSYNC_IOC_CREATE_EVENT		_IOW ('N', 0x87, struct ntsync_event_args)
+ 
+-#define NTSYNC_IOC_SEM_POST		_IOWR('N', 0x81, __u32)
++#define NTSYNC_IOC_SEM_RELEASE		_IOWR('N', 0x81, __u32)
++#define NTSYNC_IOC_MUTEX_UNLOCK		_IOWR('N', 0x85, struct ntsync_mutex_args)
++#define NTSYNC_IOC_MUTEX_KILL		_IOW ('N', 0x86, __u32)
++#define NTSYNC_IOC_EVENT_SET		_IOR ('N', 0x88, __u32)
++#define NTSYNC_IOC_EVENT_RESET		_IOR ('N', 0x89, __u32)
++#define NTSYNC_IOC_EVENT_PULSE		_IOR ('N', 0x8a, __u32)
++#define NTSYNC_IOC_SEM_READ		_IOR ('N', 0x8b, struct ntsync_sem_args)
++#define NTSYNC_IOC_MUTEX_READ		_IOR ('N', 0x8c, struct ntsync_mutex_args)
++#define NTSYNC_IOC_EVENT_READ		_IOR ('N', 0x8d, struct ntsync_event_args)
+ 
+ #endif
+diff --git a/init/main.c b/init/main.c
+index 1b4c90e0a..62439e511 100644
+--- a/init/main.c
++++ b/init/main.c
+@@ -25,6 +25,8 @@
+ #include <linux/delay.h>
+ #include <linux/ioport.h>
+ #include <linux/init.h>
++
++void piano_reset_point(int n);
+ #include <linux/initrd.h>
+ #include <linux/memblock.h>
+ #include <linux/acpi.h>
+@@ -1098,6 +1100,7 @@ void start_kernel(void)
+ 	sort_main_extable();
+ 	trap_init();
+ 	mm_core_init();
++	piano_reset_point(4);
+ 	poking_init();
+ 	ftrace_init();
+ 
+@@ -1110,6 +1113,7 @@ void start_kernel(void)
+ 	 * time - but meanwhile we still have a functioning scheduler.
+ 	 */
+ 	sched_init();
++	piano_reset_point(5);
+ 
+ 	if (WARN(!irqs_disabled(),
+ 		 "Interrupts were enabled *very* early, fixing it\n"))
+@@ -1150,6 +1154,7 @@ void start_kernel(void)
+ 	softirq_init();
+ 	timekeeping_init();
+ 	time_init();
++	piano_reset_point(6);
+ 
+ 	/* This must be after timekeeping is initialized */
+ 	random_init();
+@@ -1174,6 +1179,7 @@ void start_kernel(void)
+ 	 * this. But we do want output early, in case something goes wrong.
+ 	 */
+ 	console_init();
++	piano_reset_point(7);
+ 	if (panic_later)
+ 		panic("Too many boot %s vars at `%s'", panic_later,
+ 		      panic_param);
+@@ -1239,6 +1245,7 @@ void start_kernel(void)
+ 	kcsan_init();
+ 
+ 	/* Do the rest non-__init'ed, we're now alive */
++	piano_reset_point(8);
+ 	rest_init();
+ 
+ 	/*
+@@ -1613,6 +1620,7 @@ static int __ref kernel_init(void *unused)
+ 	kgdb_free_init_mem();
+ 	exit_boot_config();
+ 	free_initmem();
++	piano_reset_point(10);
+ 	mark_readonly();
+ 
+ 	/*
+@@ -1715,6 +1723,7 @@ static noinline void __init kernel_init_freeable(void)
+ 	page_alloc_init_late();
+ 
+ 	do_basic_setup();
++	piano_reset_point(9);
+ 
+ 	kunit_run_all_tests();
+ 
+diff --git a/kernel/bpf/syscall.c b/kernel/bpf/syscall.c
+index 6449c49e8..59906df72 100644
+--- a/kernel/bpf/syscall.c
++++ b/kernel/bpf/syscall.c
+@@ -1534,6 +1534,8 @@ static int map_lookup_elem(union bpf_attr *attr)
+ 	void __user *uvalue = u64_to_user_ptr(attr->value);
+ 	struct bpf_map *map;
+ 	void *key, *value;
++	u8 key_onstack[SZ_16] __aligned(sizeof(long));
++	u8 value_onstack[SZ_64] __aligned(sizeof(long));
+ 	u32 value_size;
+ 	int err;
+ 
+@@ -1554,16 +1556,26 @@ static int map_lookup_elem(union bpf_attr *attr)
+ 	    !btf_record_has_field(map->record, BPF_SPIN_LOCK))
+ 		return -EINVAL;
+ 
+-	key = __bpf_copy_key(ukey, map->key_size);
+-	if (IS_ERR(key))
+-		return PTR_ERR(key);
++	if (map->key_size && map->key_size <= sizeof(key_onstack)) {
++		key = key_onstack;
++		if (copy_from_user(key, ukey, map->key_size))
++			return -EFAULT;
++	} else {
++		key = __bpf_copy_key(ukey, map->key_size);
++		if (IS_ERR(key))
++			return PTR_ERR(key);
++	}
+ 
+ 	value_size = bpf_map_value_size(map);
+ 
+ 	err = -ENOMEM;
+-	value = kvmalloc(value_size, GFP_USER | __GFP_NOWARN);
+-	if (!value)
+-		goto free_key;
++	if (value_size <= sizeof(value_onstack)) {
++		value = value_onstack;
++	} else {
++		value = kvmalloc(value_size, GFP_USER | __GFP_NOWARN);
++		if (!value)
++			goto free_key;
++	}
+ 
+ 	if (map->map_type == BPF_MAP_TYPE_BLOOM_FILTER) {
+ 		if (copy_from_user(value, uvalue, value_size))
+@@ -1584,9 +1596,11 @@ static int map_lookup_elem(union bpf_attr *attr)
+ 	err = 0;
+ 
+ free_value:
+-	kvfree(value);
++	if (value != value_onstack)
++		kvfree(value);
+ free_key:
+-	kvfree(key);
++	if (key != key_onstack)
++		kvfree(key);
+ 	return err;
+ }
+ 
+@@ -1599,6 +1613,8 @@ static int map_update_elem(union bpf_attr *attr, bpfptr_t uattr)
+ 	bpfptr_t uvalue = make_bpfptr(attr->value, uattr.is_kernel);
+ 	struct bpf_map *map;
+ 	void *key, *value;
++	u8 key_onstack[SZ_16] __aligned(sizeof(long));
++	u8 value_onstack[SZ_64] __aligned(sizeof(long));
+ 	u32 value_size;
+ 	int err;
+ 
+@@ -1621,26 +1637,44 @@ static int map_update_elem(union bpf_attr *attr, bpfptr_t uattr)
+ 		goto err_put;
+ 	}
+ 
+-	key = ___bpf_copy_key(ukey, map->key_size);
+-	if (IS_ERR(key)) {
+-		err = PTR_ERR(key);
+-		goto err_put;
++	if (map->key_size && map->key_size <= sizeof(key_onstack)) {
++		key = key_onstack;
++		if (copy_from_bpfptr(key, ukey, map->key_size)) {
++			err = -EFAULT;
++			goto err_put;
++		}
++	} else {
++		key = ___bpf_copy_key(ukey, map->key_size);
++		if (IS_ERR(key)) {
++			err = PTR_ERR(key);
++			goto err_put;
++		}
+ 	}
+ 
+ 	value_size = bpf_map_value_size(map);
+-	value = kvmemdup_bpfptr(uvalue, value_size);
+-	if (IS_ERR(value)) {
+-		err = PTR_ERR(value);
+-		goto free_key;
++	if (value_size <= sizeof(value_onstack)) {
++		value = value_onstack;
++		if (copy_from_bpfptr(value, uvalue, value_size)) {
++			err = -EFAULT;
++			goto free_key;
++		}
++	} else {
++		value = kvmemdup_bpfptr(uvalue, value_size);
++		if (IS_ERR(value)) {
++			err = PTR_ERR(value);
++			goto free_key;
++		}
+ 	}
+ 
+ 	err = bpf_map_update_value(map, fd_file(f), key, value, attr->flags);
+ 	if (!err)
+ 		maybe_wait_bpf_programs(map);
+ 
+-	kvfree(value);
++	if (value != value_onstack)
++		kvfree(value);
+ free_key:
+-	kvfree(key);
++	if (key != key_onstack)
++		kvfree(key);
+ err_put:
+ 	bpf_map_write_active_dec(map);
+ 	return err;
+@@ -1653,6 +1687,7 @@ static int map_delete_elem(union bpf_attr *attr, bpfptr_t uattr)
+ 	bpfptr_t ukey = make_bpfptr(attr->key, uattr.is_kernel);
+ 	struct bpf_map *map;
+ 	void *key;
++	u8 key_onstack[SZ_16] __aligned(sizeof(long));
+ 	int err;
+ 
+ 	if (CHECK_ATTR(BPF_MAP_DELETE_ELEM))
+@@ -1668,10 +1703,18 @@ static int map_delete_elem(union bpf_attr *attr, bpfptr_t uattr)
+ 		goto err_put;
+ 	}
+ 
+-	key = ___bpf_copy_key(ukey, map->key_size);
+-	if (IS_ERR(key)) {
+-		err = PTR_ERR(key);
+-		goto err_put;
++	if (map->key_size && map->key_size <= sizeof(key_onstack)) {
++		key = key_onstack;
++		if (copy_from_bpfptr(key, ukey, map->key_size)) {
++			err = -EFAULT;
++			goto err_put;
++		}
++	} else {
++		key = ___bpf_copy_key(ukey, map->key_size);
++		if (IS_ERR(key)) {
++			err = PTR_ERR(key);
++			goto err_put;
++		}
+ 	}
+ 
+ 	if (bpf_map_is_offloaded(map)) {
+@@ -1692,7 +1735,8 @@ static int map_delete_elem(union bpf_attr *attr, bpfptr_t uattr)
+ 	if (!err)
+ 		maybe_wait_bpf_programs(map);
+ out:
+-	kvfree(key);
++	if (key != key_onstack)
++		kvfree(key);
+ err_put:
+ 	bpf_map_write_active_dec(map);
+ 	return err;
+@@ -1707,6 +1751,8 @@ static int map_get_next_key(union bpf_attr *attr)
+ 	void __user *unext_key = u64_to_user_ptr(attr->next_key);
+ 	struct bpf_map *map;
+ 	void *key, *next_key;
++	u8 key_onstack[SZ_16] __aligned(sizeof(long));
++	u8 next_key_onstack[SZ_64] __aligned(sizeof(long));
+ 	int err;
+ 
+ 	if (CHECK_ATTR(BPF_MAP_GET_NEXT_KEY))
+@@ -1720,17 +1766,27 @@ static int map_get_next_key(union bpf_attr *attr)
+ 		return -EPERM;
+ 
+ 	if (ukey) {
+-		key = __bpf_copy_key(ukey, map->key_size);
+-		if (IS_ERR(key))
+-			return PTR_ERR(key);
++		if (map->key_size && map->key_size <= sizeof(key_onstack)) {
++			key = key_onstack;
++			if (copy_from_user(key, ukey, map->key_size))
++				return -EFAULT;
++		} else {
++			key = __bpf_copy_key(ukey, map->key_size);
++			if (IS_ERR(key))
++				return PTR_ERR(key);
++		}
+ 	} else {
+ 		key = NULL;
+ 	}
+ 
+ 	err = -ENOMEM;
+-	next_key = kvmalloc(map->key_size, GFP_USER);
+-	if (!next_key)
+-		goto free_key;
++	if (map->key_size <= sizeof(next_key_onstack)) {
++		next_key = next_key_onstack;
++	} else {
++		next_key = kvmalloc(map->key_size, GFP_USER);
++		if (!next_key)
++			goto free_key;
++	}
+ 
+ 	if (bpf_map_is_offloaded(map)) {
+ 		err = bpf_map_offload_get_next_key(map, key, next_key);
+@@ -1751,9 +1807,11 @@ static int map_get_next_key(union bpf_attr *attr)
+ 	err = 0;
+ 
+ free_next_key:
+-	kvfree(next_key);
++	if (next_key != next_key_onstack)
++		kvfree(next_key);
+ free_key:
+-	kvfree(key);
++	if (key != key_onstack)
++		kvfree(key);
+ 	return err;
+ }
+ 
+@@ -1976,6 +2034,8 @@ static int map_lookup_and_delete_elem(union bpf_attr *attr)
+ 	void __user *uvalue = u64_to_user_ptr(attr->value);
+ 	struct bpf_map *map;
+ 	void *key, *value;
++	u8 key_onstack[SZ_16] __aligned(sizeof(long));
++	u8 value_onstack[SZ_64] __aligned(sizeof(long));
+ 	u32 value_size;
+ 	int err;
+ 
+@@ -2009,18 +2069,30 @@ static int map_lookup_and_delete_elem(union bpf_attr *attr)
+ 		goto err_put;
+ 	}
+ 
+-	key = __bpf_copy_key(ukey, map->key_size);
+-	if (IS_ERR(key)) {
+-		err = PTR_ERR(key);
+-		goto err_put;
++	if (map->key_size && map->key_size <= sizeof(key_onstack)) {
++		key = key_onstack;
++		if (copy_from_user(key, ukey, map->key_size)) {
++			err = -EFAULT;
++			goto err_put;
++		}
++	} else {
++		key = __bpf_copy_key(ukey, map->key_size);
++		if (IS_ERR(key)) {
++			err = PTR_ERR(key);
++			goto err_put;
++		}
+ 	}
+ 
+ 	value_size = bpf_map_value_size(map);
+ 
+ 	err = -ENOMEM;
+-	value = kvmalloc(value_size, GFP_USER | __GFP_NOWARN);
+-	if (!value)
+-		goto free_key;
++	if (value_size <= sizeof(value_onstack)) {
++		value = value_onstack;
++	} else {
++		value = kvmalloc(value_size, GFP_USER | __GFP_NOWARN);
++		if (!value)
++			goto free_key;
++	}
+ 
+ 	err = -ENOTSUPP;
+ 	if (map->map_type == BPF_MAP_TYPE_QUEUE ||
+@@ -2050,9 +2122,11 @@ static int map_lookup_and_delete_elem(union bpf_attr *attr)
+ 	err = 0;
+ 
+ free_value:
+-	kvfree(value);
++	if (value != value_onstack)
++		kvfree(value);
+ free_key:
+-	kvfree(key);
++	if (key != key_onstack)
++		kvfree(key);
+ err_put:
+ 	bpf_map_write_active_dec(map);
+ 	return err;
+diff --git a/kernel/sys.c b/kernel/sys.c
+index 1a154c425..2b9460082 100644
+--- a/kernel/sys.c
++++ b/kernel/sys.c
+@@ -2373,6 +2373,7 @@ static inline bool is_valid_name_char(char ch)
+ static int prctl_set_vma(unsigned long opt, unsigned long addr,
+ 			 unsigned long size, unsigned long arg)
+ {
++	char name[ANON_VMA_NAME_MAX_LEN] __aligned(sizeof(long));
+ 	struct mm_struct *mm = current->mm;
+ 	const char __user *uname;
+ 	struct anon_vma_name *anon_name = NULL;
+@@ -2383,21 +2384,27 @@ static int prctl_set_vma(unsigned long opt, unsigned long addr,
+ 	case PR_SET_VMA_ANON_NAME:
+ 		uname = (const char __user *)arg;
+ 		if (uname) {
+-			char *name, *pch;
++			char *pch;
++			long len;
+ 
+-			name = strndup_user(uname, ANON_VMA_NAME_MAX_LEN);
+-			if (IS_ERR(name))
+-				return PTR_ERR(name);
++			len = strnlen_user(uname, sizeof(name));
++			if (!len)
++				return -EFAULT;
++
++			if (len > sizeof(name))
++				return -EINVAL;
++
++			if (copy_from_user(name, uname, len))
++				return -EFAULT;
++
++			name[len - 1] = '\0';
+ 
+ 			for (pch = name; *pch != '\0'; pch++) {
+-				if (!is_valid_name_char(*pch)) {
+-					kfree(name);
++				if (!is_valid_name_char(*pch))
+ 					return -EINVAL;
+-				}
+ 			}
+ 			/* anon_vma has its own copy */
+ 			anon_name = anon_vma_name_alloc(name);
+-			kfree(name);
+ 			if (!anon_name)
+ 				return -ENOMEM;
+ 
+diff --git a/modules.bzl b/modules.bzl
+index 51b30732c..fa9ea8c6c 100644
+--- a/modules.bzl
++++ b/modules.bzl
+@@ -53,6 +53,10 @@ _COMMON_GKI_MODULES_LIST = [
+     "drivers/virtio/virtio_pci_legacy_dev.ko",
+     "drivers/virtio/virtio_pci_modern_dev.ko",
+     "fs/netfs/netfs.ko",
++    "fs/nls/nls_ucs2_utils.ko",
++    "fs/smb/client/cifs.ko",
++    "fs/smb/common/cifs_arc4.ko",
++    "fs/smb/common/cifs_md4.ko",
+     "kernel/kheaders.ko",
+     "lib/crypto/libarc4.ko",
+     "mm/zsmalloc.ko",
+@@ -74,6 +78,7 @@ _COMMON_GKI_MODULES_LIST = [
+     "net/can/can-bcm.ko",
+     "net/can/can-gw.ko",
+     "net/can/can-raw.ko",
++    "net/dns_resolver/dns_resolver.ko",
+     "net/ieee802154/6lowpan/ieee802154_6lowpan.ko",
+     "net/ieee802154/ieee802154.ko",
+     "net/ieee802154/ieee802154_socket.ko",
+@@ -104,9 +109,11 @@ _ARM64_GKI_MODULES_LIST = [
+     # keep sorted
+     "arch/arm64/crypto/aes-neon-blk.ko",
+     "arch/arm64/geniezone/gzvm.ko",
++    "block/cpq/cpq.ko",
+     "drivers/android/binder/rust_binder.ko",
+     "drivers/char/hw_random/cctrng.ko",
+     "drivers/misc/open-dice.ko",
++    "drivers/misc/ntsync.ko",
+     "drivers/ptp/ptp_kvm.ko",
+     "drivers/virt/halla/exynos-hvm.ko",
+     "fs/efivarfs/efivarfs.ko",
+diff --git a/security/selinux/hooks.c b/security/selinux/hooks.c
+index fb7e7d172..674724895 100644
+--- a/security/selinux/hooks.c
++++ b/security/selinux/hooks.c
+@@ -1367,20 +1367,15 @@ static int inode_doinit_use_xattr(struct inode *inode, struct dentry *dentry,
+ 				  u32 def_sid, u32 *sid)
+ {
+ #define INITCONTEXTLEN 255
+-	char *context;
++	char context_onstack[INITCONTEXTLEN + 1] __aligned(sizeof(long));
++	char *context = context_onstack;
+ 	unsigned int len;
+ 	int rc;
+ 
+ 	len = INITCONTEXTLEN;
+-	context = kmalloc(len + 1, GFP_NOFS);
+-	if (!context)
+-		return -ENOMEM;
+-
+ 	context[len] = '\0';
+ 	rc = __vfs_getxattr(dentry, inode, XATTR_NAME_SELINUX, context, len);
+ 	if (rc == -ERANGE) {
+-		kfree(context);
+-
+ 		/* Need a larger buffer.  Query for the right size. */
+ 		rc = __vfs_getxattr(dentry, inode, XATTR_NAME_SELINUX, NULL, 0);
+ 		if (rc < 0)
+@@ -1396,7 +1391,8 @@ static int inode_doinit_use_xattr(struct inode *inode, struct dentry *dentry,
+ 				    context, len);
+ 	}
+ 	if (rc < 0) {
+-		kfree(context);
++		if (context != context_onstack)
++			kfree(context);
+ 		if (rc != -ENODATA) {
+ 			pr_warn("SELinux: %s:  getxattr returned %d for dev=%s ino=%ld\n",
+ 				__func__, -rc, inode->i_sb->s_id, inode->i_ino);
+@@ -1420,7 +1416,8 @@ static int inode_doinit_use_xattr(struct inode *inode, struct dentry *dentry,
+ 				__func__, context, -rc, dev, ino);
+ 		}
+ 	}
+-	kfree(context);
++	if (context != context_onstack)
++		kfree(context);
+ 	return 0;
+ }
+ 
