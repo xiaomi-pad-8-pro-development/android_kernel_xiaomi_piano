@@ -1,0 +1,318 @@
+diff --git a/BUILD.bazel b/BUILD.bazel
+index e4d795d..3f9ebb7 100644
+--- a/BUILD.bazel
++++ b/BUILD.bazel
+@@ -37,8 +37,3 @@ ddk_headers(
+ load(":sun.bzl", "define_sun")
+ define_sun()
+ 
+-load(":tuna.bzl", "define_tuna")
+-define_tuna()
+-
+-load(":pineapple.bzl", "define_pineapple")
+-define_pineapple()
+diff --git a/eva_module_build.bzl b/eva_module_build.bzl
+index 210add6..e899b16 100644
+--- a/eva_module_build.bzl
++++ b/eva_module_build.bzl
+@@ -81,13 +81,24 @@ def create_module_registry(hdrs = []):
+ 
+ def define_target_variant_modules(target, variant, registry, modules, config_options = []):
+     kernel_build = "{}_{}".format(target, variant)
+-    kernel_build_label = "//msm-kernel:{}".format(kernel_build)
++    kernel_build_label = "//soc-repo:{}_base_kernel".format(kernel_build)
+     modules = [registry.get(module_name) for module_name in modules]
+     options = _get_kernel_build_options(modules, config_options)
+     build_print = lambda message: print("{}: {}".format(kernel_build, message))
+     formatter = lambda s: s.replace("%b", kernel_build).replace("%t", target)
+ 
+-    headers = ["//msm-kernel:all_headers"] + registry.hdrs
++    # KP 5.0 builds the vendor modules against the soc-repo kernel.
++    soc = ["//soc-repo:{}/drivers/{}".format(kernel_build, d) for d in [
++        "firmware/qcom/qcom-scm",
++        "iommu/qcom_iommu_util",
++        "soc/qcom/mem_buf/mem_buf_dev",
++        "soc/qcom/socinfo",
++        "soc/qcom/llcc-qcom",
++        "soc/qcom/mdt_loader",
++        "soc/qcom/qcom_va_minidump",
++        "clk/qcom/clk-qcom",
++    ]]
++    headers = ["//soc-repo:all_headers"] + soc + registry.hdrs
+     all_module_rules = []
+ 
+     for module in modules:
+diff --git a/msm/eva/cvp.c b/msm/eva/cvp.c
+index 8032055..64a8e83 100644
+--- a/msm/eva/cvp.c
++++ b/msm/eva/cvp.c
+@@ -463,14 +463,13 @@ static int msm_cvp_probe(struct platform_device *pdev)
+ 	return -EINVAL;
+ }
+ 
+-static int msm_cvp_remove(struct platform_device *pdev)
++static void msm_cvp_remove(struct platform_device *pdev)
+ {
+-	int rc = 0;
+ 	struct msm_cvp_core *core;
+ 
+ 	if (!pdev) {
+ 		dprintk(CVP_ERR, "%s invalid input %pK", __func__, pdev);
+-		return -EINVAL;
++		return;
+ 	}
+ 
+ 	if (of_device_is_compatible(pdev->dev.of_node, "qcom,msm-cvp"))
+@@ -480,7 +479,7 @@ static int msm_cvp_remove(struct platform_device *pdev)
+ 
+ 	if (!core) {
+ 		dprintk(CVP_ERR, "%s invalid core", __func__);
+-		return -EINVAL;
++		return;
+ 	}
+ 
+ 	cvp_hfi_deinitialize(core->hfi_type, core->dev_ops);
+@@ -490,7 +489,6 @@ static int msm_cvp_remove(struct platform_device *pdev)
+ 	mutex_destroy(&core->lock);
+ 	mutex_destroy(&core->clk_lock);
+ 	kfree(core);
+-	return rc;
+ }
+ 
+ static int msm_cvp_pm_suspend(struct device *dev)
+diff --git a/msm/eva/cvp_dump.c b/msm/eva/cvp_dump.c
+index 3d6418f..1988b2a 100644
+--- a/msm/eva/cvp_dump.c
++++ b/msm/eva/cvp_dump.c
+@@ -75,7 +75,7 @@ int md_eva_dump(const char* name, u64 virt, u64 phys, u64 size)
+ 	if (msm_minidump_enabled()) {
+ 		dprintk(CVP_INFO, "Minidump is enabled!\n");
+ 
+-		strlcpy(md_entry.name, name, sizeof(md_entry.name));
++		strscpy(md_entry.name, name, sizeof(md_entry.name));
+ 		md_entry.virt_addr = (uintptr_t)virt;
+ 		md_entry.phys_addr = phys;
+ 		md_entry.size = size;
+@@ -160,7 +160,7 @@ void add_va_node_to_list(enum cvp_dump_type type, void *buff_va, u32 buff_size,
+ 
+ 	temp_node->va_md_buff = buff_va;
+ 	temp_node->va_md_buff_size = buff_size;
+-	strlcpy(temp_node->region_name, region_name,
++	strscpy(temp_node->region_name, region_name,
+ 		sizeof(temp_node->region_name));
+ 	temp_node->copy = copy;
+ 
+@@ -257,7 +257,7 @@ static int eva_hfiq_list_notif_handler(struct notifier_block *this,
+ 			}
+ 		}
+ 		entry.size = cursor->va_md_buff_size;
+-		strlcpy(entry.owner, cursor->region_name, sizeof(entry.owner));
++		strscpy(entry.owner, cursor->region_name, sizeof(entry.owner));
+ 		entry.cb = NULL;
+ 
+ 		if (msm_cvp_minidump_enable) {
+@@ -298,7 +298,7 @@ static int eva_struct_list_notif_handler(struct notifier_block *this,
+ 			}
+ 		}
+ 		entry.size = cursor->va_md_buff_size;
+-		strlcpy(entry.owner, cursor->region_name, sizeof(entry.owner));
++		strscpy(entry.owner, cursor->region_name, sizeof(entry.owner));
+ 		entry.cb = NULL;
+ 
+ 		if (msm_cvp_minidump_enable) {
+diff --git a/msm/eva/cvp_hfi.c b/msm/eva/cvp_hfi.c
+index d296ae0..a20d4e8 100644
+--- a/msm/eva/cvp_hfi.c
++++ b/msm/eva/cvp_hfi.c
+@@ -1987,7 +1987,7 @@ static void __hfi_queue_init(struct iris_hfi_device *dev)
+ 			dev->iface_q_table.align_virtual_addr;
+ 	q_tbl_hdr->qtbl_version = 0;
+ 	q_tbl_hdr->device_addr = (void *)dev;
+-	strlcpy(q_tbl_hdr->name, "msm_cvp", sizeof(q_tbl_hdr->name));
++	strscpy(q_tbl_hdr->name, "msm_cvp", sizeof(q_tbl_hdr->name));
+ 	q_tbl_hdr->qtbl_size = CVP_IFACEQ_TABLE_SIZE;
+ 	q_tbl_hdr->qtbl_qhdr0_offset =
+ 				sizeof(struct cvp_hfi_queue_table_header);
+diff --git a/msm/eva/msm_cvp.c b/msm/eva/msm_cvp.c
+index c080c62..2ee9a7d 100644
+--- a/msm/eva/msm_cvp.c
++++ b/msm/eva/msm_cvp.c
+@@ -4,6 +4,7 @@
+  * Copyright (c) 2023-2025, Qualcomm Innovation Center, Inc. All rights reserved.
+  */
+ 
++#include <linux/vmalloc.h>
+ #include "msm_cvp.h"
+ #include "cvp_hfi.h"
+ #include "cvp_core_hfi.h"
+diff --git a/msm/eva/msm_cvp_buf.c b/msm/eva/msm_cvp_buf.c
+index 519ad5c..ac4b250 100644
+--- a/msm/eva/msm_cvp_buf.c
++++ b/msm/eva/msm_cvp_buf.c
+@@ -74,7 +74,7 @@ int print_smem(u32 tag, const char *str, struct msm_cvp_inst *inst,
+ 	if (smem->dma_buf) {
+ 		i = get_pkt_index_from_type(smem->pkt_type);
+ 		if (i > 0)
+-			strlcpy(name, cvp_hfi_defs[i].name, PKT_NAME_LEN);
++			strscpy(name, cvp_hfi_defs[i].name, PKT_NAME_LEN);
+ 
+ 		if (!atomic_read(&smem->refcount))
+ 			dprintk(tag,
+@@ -241,32 +241,16 @@ static bool __is_buf_valid(struct msm_cvp_inst *inst,
+ static struct file *msm_cvp_fget(unsigned int fd, struct task_struct *task,
+ 			fmode_t mask, unsigned int refs)
+ {
+-	struct files_struct *files = task->files;
+-	struct file *file;
+-
+-	if (!files)
++	/*
++	 * files_lookup_fd_rcu() is gone in 6.12 and fget_task() is not
++	 * exported. Buffers are mapped from the client's ioctl, so its file
++	 * table is the current one; fget() already skips FMODE_PATH files.
++	 */
++	if (!task->files || task->files != current->files) {
++		dprintk(CVP_ERR, "%s: fd %u not from the client\n", __func__, fd);
+ 		return NULL;
+-
+-	rcu_read_lock();
+-loop:
+-#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 13, 0))
+-	file = fcheck_files(files, fd);
+-#else
+-	file = files_lookup_fd_rcu(files, fd);
+-#endif
+-	if (file) {
+-		/* File object ref couldn't be taken.
+-		 * dup2() atomicity guarantee is the reason
+-		 * we loop to catch the new file (or NULL pointer)
+-		 */
+-		if (file->f_mode & mask)
+-			file = NULL;
+-		else if (!get_file_rcu(file))
+-			goto loop;
+-	}
+-	rcu_read_unlock();
+-
+-	return file;
++	}
++	return mask == FMODE_PATH ? fget(fd) : NULL;
+ }
+ 
+ static struct dma_buf *cvp_dma_buf_get(struct file *file, int fd,
+diff --git a/msm/eva/msm_cvp_clocks.c b/msm/eva/msm_cvp_clocks.c
+index d2586ed..9031c2f 100644
+--- a/msm/eva/msm_cvp_clocks.c
++++ b/msm/eva/msm_cvp_clocks.c
+@@ -119,7 +119,7 @@ int msm_cvp_mmrm_register(struct iris_hfi_device *device)
+ 		if (cl->has_scaling) {	/* only clk source enabled in dtsi */
+ 			device->mmrm_desc.client_info.desc.clk=cl->clk;
+ 			device->mmrm_desc.client_info.desc.client_id=cl->clk_id;
+-			strlcpy(name, cl->name,
++			strscpy(name, cl->name,
+ 			sizeof(device->mmrm_desc.client_info.desc.name));
+ 		}
+ 	}
+diff --git a/msm/eva/msm_cvp_core.c b/msm/eva/msm_cvp_core.c
+index 0a3008c..1a5a43f 100644
+--- a/msm/eva/msm_cvp_core.c
++++ b/msm/eva/msm_cvp_core.c
+@@ -244,7 +244,7 @@ struct msm_cvp_inst *msm_cvp_open(int session_type, struct task_struct *task)
+ 
+ 	inst->debugfs_root =
+ 		msm_cvp_debugfs_init_inst(inst, core->debugfs_root);
+-	strlcpy(inst->proc_name, task->comm, TASK_COMM_LEN);
++	strscpy(inst->proc_name, task->comm, TASK_COMM_LEN);
+ 
+ 	return inst;
+ fail_init:
+diff --git a/msm/eva/msm_cvp_dsp.c b/msm/eva/msm_cvp_dsp.c
+index f553e54..c38b1c3 100644
+--- a/msm/eva/msm_cvp_dsp.c
++++ b/msm/eva/msm_cvp_dsp.c
+@@ -753,7 +753,7 @@ void cvp_dsp_init_hfi_queue_hdr(struct iris_hfi_device *device)
+ 			device->dsp_iface_q_table.align_virtual_addr;
+ 	q_tbl_hdr->qtbl_version = 0;
+ 	q_tbl_hdr->device_addr = (void *)device;
+-	strlcpy(q_tbl_hdr->name, "msm_cvp", sizeof(q_tbl_hdr->name));
++	strscpy(q_tbl_hdr->name, "msm_cvp", sizeof(q_tbl_hdr->name));
+ 	q_tbl_hdr->qtbl_size = CVP_IFACEQ_TABLE_SIZE;
+ 	q_tbl_hdr->qtbl_qhdr0_offset =
+ 				sizeof(struct cvp_hfi_queue_table_header);
+diff --git a/msm/eva/msm_cvp_events.h b/msm/eva/msm_cvp_events.h
+index 2915143..edf0090 100644
+--- a/msm/eva/msm_cvp_events.h
++++ b/msm/eva/msm_cvp_events.h
+@@ -30,7 +30,7 @@ TRACE_EVENT(tracing_mark_write,
+ 	),
+ 	TP_fast_assign(
+ 		__entry->pid = pid;
+-		__assign_str(trace_name, name);
++		__assign_str(trace_name);
+ 		__entry->trace_begin = trace_begin;
+ 		),
+ 	TP_printk("%s|%d|%s", __entry->trace_begin ? "B" : "E",
+@@ -57,7 +57,7 @@ TRACE_EVENT(tracing_eva_frame_from_sw,
+ 	),
+ 	TP_fast_assign(
+ 		__entry->aon_cycles = aon_cycles;
+-		__assign_str(trace_name, name);
++		__assign_str(trace_name);
+ 		__entry->session_id = session_id;
+ 		__entry->stream_id  = stream_id;
+ 		__entry->packet_id  = packet_id;
+@@ -81,7 +81,7 @@ TRACE_EVENT(tracing_eva_frame_from_fw,
+ 	),
+ 
+ 	TP_fast_assign(
+-		__assign_str(trace_name, trace);
++		__assign_str(trace_name);
+ 	),
+ 
+ 	TP_printk("%s", __get_str(trace_name))
+diff --git a/msm/eva/msm_cvp_res_parse.c b/msm/eva/msm_cvp_res_parse.c
+index 999110d..417cf43 100644
+--- a/msm/eva/msm_cvp_res_parse.c
++++ b/msm/eva/msm_cvp_res_parse.c
+@@ -618,7 +618,7 @@ static int msm_cvp_load_regulator_table(
+ 					"Failed to alloc memory for regulator name\n");
+ 			goto err_reg_name_alloc;
+ 		}
+-		strlcpy(rinfo->name, domains_property->name,
++		strscpy(rinfo->name, domains_property->name,
+ 			(supply - domains_property->name) + 1);
+ 
+ 		rinfo->has_hw_power_collapse = of_property_read_bool(
+diff --git a/sun.bzl b/sun.bzl
+index b95121c..2373863 100644
+--- a/sun.bzl
++++ b/sun.bzl
+@@ -1,9 +1,10 @@
+ load(":eva_modules.bzl", "eva_modules")
+-load(":eva_module_build.bzl", "define_consolidate_gki_perf_modules")
++load(":eva_module_build.bzl", "define_target_variant_modules")
+ 
+ def define_sun():
+-    define_consolidate_gki_perf_modules(
++    define_target_variant_modules(
+         target = "sun",
++        variant = "perf",
+         registry = eva_modules,
+         modules = [
+             "msm-eva",
+@@ -15,6 +16,14 @@ def define_sun():
+             "TARGET_MMRM_ENABLE",
+             "CONFIG_EVA_SUN",
+             #"TARGET_PRESIL_ENABLE",
+-            "CONFIG_MSM_MMRM"
++            "CONFIG_MSM_MMRM",
++            # The soc-repo modules these call are not in the base kernel config, so
++            # without these their headers compile in stubs (no firmware load, LLCC
++            # or mem_buf).
++            "CONFIG_QCOM_MDT_LOADER_MODULE",
++            "CONFIG_QCOM_LLCC_MODULE",
++            "CONFIG_QCOM_MEM_BUF_MODULE",
++            "CONFIG_QCOM_MEM_BUF_DEV_MODULE",
++            "CONFIG_QCOM_MEM_BUF_GH_MODULE",
+         ],
+     )
