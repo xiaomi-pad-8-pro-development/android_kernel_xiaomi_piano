@@ -1,0 +1,54 @@
+diff --git a/driver/src/msm_mmrm.c b/driver/src/msm_mmrm.c
+index 10a3594..1110602 100644
+--- a/driver/src/msm_mmrm.c
++++ b/driver/src/msm_mmrm.c
+@@ -578,9 +578,14 @@ static const struct of_device_id msm_mmrm_dt_match[] = {
+ 
+ MODULE_DEVICE_TABLE(of, msm_mmrm_dt_match);
+ 
++static void msm_mmrm_remove_void(struct platform_device *pdev)
++{
++	msm_mmrm_remove(pdev);
++}
++
+ static struct platform_driver msm_mmrm_driver = {
+ 	.probe = msm_mmrm_probe,
+-	.remove = msm_mmrm_remove,
++	.remove = msm_mmrm_remove_void,
+ 	.driver = {
+ 		.name = "msm-mmrm",
+ 		.of_match_table = msm_mmrm_dt_match,
+diff --git a/mmrm_modules_build.bzl b/mmrm_modules_build.bzl
+index b97a8f8..901aab8 100644
+--- a/mmrm_modules_build.bzl
++++ b/mmrm_modules_build.bzl
+@@ -39,7 +39,7 @@ def mmrm_driver_modules_entry(hdrs = []):
+ 
+ def define_target_variant_modules(target, variant, registry, modules, config_options = []):
+     kernel_build = "{}_{}".format(target, variant)
+-    kernel_build_label = "//msm-kernel:{}".format(kernel_build)
++    kernel_build_label = "//soc-repo:{}_base_kernel".format(kernel_build)
+     modules = [registry.get(module_name) for module_name in modules]
+     options = _get_kernel_build_options(modules, config_options)
+     build_print = lambda message : print("{}: {}".format(kernel_build, message))
+@@ -57,7 +57,7 @@ def define_target_variant_modules(target, variant, registry, modules, config_opt
+             name = rule_name,
+             srcs = module_srcs,
+             out = "{}.ko".format(module.name),
+-            deps = ["//msm-kernel:all_headers"] + registry.hdrs,
++            deps = ["//soc-repo:all_headers", "//soc-repo:{}/drivers/clk/qcom/clk-qcom".format(kernel_build)] + registry.hdrs,
+             local_defines = options.keys()
+         )
+         all_module_rules.append(rule_name)
+diff --git a/target.bzl b/target.bzl
+index 27ca9ec..7c8312f 100644
+--- a/target.bzl
++++ b/target.bzl
+@@ -1,6 +1,6 @@
+ load(":mmrm_modules.bzl", "mmrm_driver_modules")
+ load(":mmrm_modules_build.bzl", "define_target_variant_modules")
+-load("//msm-kernel:target_variants.bzl", "get_all_la_variants")
++load("//soc-repo:target_variants.bzl", "get_all_la_variants")
+ 
+ def define_target_modules():
+     for target, variant in get_all_la_variants():
