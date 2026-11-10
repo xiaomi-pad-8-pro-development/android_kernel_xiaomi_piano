@@ -6434,7 +6434,7 @@ diff --git a/hid_xiaomi/hid-xiaomi.c b/hid_xiaomi/hid-xiaomi.c
 new file mode 100644
 --- /dev/null
 +++ b/hid_xiaomi/hid-xiaomi.c
-@@ -0,0 +1,55 @@
+@@ -0,0 +1,62 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * Xiaomi Focus Pen filter for the Xiaomi Pad 8 Pro (piano), 6.12
@@ -6464,6 +6464,13 @@ new file mode 100644
 +				    struct hid_usage *usage,
 +				    unsigned long **bit, int *max)
 +{
++	/*
++	 * Stock reads the squeeze, double tap and slide gestures as buttons
++	 * 7 to 10 of the HID button page. Only the keyboard page is noise.
++	 */
++	if ((usage->hid & HID_USAGE_PAGE) == HID_UP_BUTTON)
++		return 0;
++
 +	switch (field->report->id) {
 +	case 2:
 +	case 5:
