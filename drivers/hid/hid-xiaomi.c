@@ -91,6 +91,13 @@ static int xiaomi_input_mapping(struct hid_device *hdev, struct hid_input *hi,
 	if (hdev->vendor != BT_VENDOR_ID_XIAOMI_PEN)
 		return 0;
 
+	/*
+	 * Stock reads the squeeze, double tap and slide gestures as buttons
+	 * 7 to 10 of the HID button page. Only the keyboard page is noise.
+	 */
+	if ((usage->hid & HID_USAGE_PAGE) == HID_UP_BUTTON)
+		return 0;
+
 	switch (field->report->id) {
 	case 2:
 	case 5:
