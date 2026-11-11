@@ -83,6 +83,30 @@ reports sit behind `CONFIG_PIANO_BRINGUP`. `build612.sh` turns it on by
 default while 6.12 is in testing; build with `PIANO_BRINGUP=0` for a
 release.
 
+## Bring-up boot options
+
+These are kernel command line options. So far 6.12 has only booted from a
+ROM install with the bring-up kernel and all of them set:
+
+| Option | What it does |
+| --- | --- |
+| `piano_skip_old_modules=1` | Reports `-ENOEXEC` from the 6.6 dlkm modules as success, so `vendor_modprobe.sh` carries on |
+| `dwc3_msm.piano_force_peripheral=1` | Keeps USB in device mode; the 6.12 charger detection does not report VBUS yet, so adb never comes up without it |
+| `piano_memcon_copies=1..5` | Copies of the RAM log ring (default 5, voted per bit after a warm reset) |
+| `piano_memcon.reboot_after=<s>` | Restarts into the bootloader after that many seconds |
+
+## LTO
+
+6.12 builds with `CONFIG_LTO_NONE`, which is the android16-6.12 GKI default
+(CFI and the shadow call stack are on without it). Qualcomm's
+`build_with_bazel.py` rejects `--lto` for that reason. This is not a piano
+change and is left as it is.
+
+## KernelSU
+
+With `ksu.patch`, KernelSU-Next (built in, GKI2) and SUSFS v2.3.0 work on
+the tablet with the KernelSU-Next manager v3.4.2.
+
 ## State (2026-11-05, r50)
 
 - IPC logging is off (no `qcom_ipc_logging`, as on 6.6); Wi-Fi, Bluetooth
