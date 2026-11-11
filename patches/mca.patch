@@ -1030,6 +1030,36 @@ index 0000000..c036d5a
 +#endif
 +
 +#endif
+diff --git a/include/mca/smartchg/smart_chg_class.h b/include/mca/smartchg/smart_chg_class.h
+index 70ea092..374f7e0 100644
+--- a/include/mca/smartchg/smart_chg_class.h
++++ b/include/mca/smartchg/smart_chg_class.h
+@@ -7,11 +7,9 @@
+  * BASP (battery aging safety/spec) blob layout, parsed by mca_smart_charge.c
+  * from mmap'd memory via sizeof()/offsetof().
+  *
+- * WARNING: the open-source drop ships NO definition for these structs. The
+- * layout below is INFERRED from field usage only and is NOT verified against
+- * the real binary format. It lets the module build; the BAA/spec-override
+- * runtime path is unreliable and should be treated as unsupported until the
+- * true layout is obtained.
++ * The open-source drop ships no definition for these structs. The layout was
++ * confirmed on piano (2026-11-10) against the buffer the stock battery
++ * anti-aging service sends: total_len 496, checksum 12642, counts 2/9/2/2/0/0.
+  */
+ struct smart_batt_spec_curve {
+ 	int mv;
+@@ -42,9 +40,9 @@ struct smart_batt_spec {
+ };
+ 
+ struct smart_basp_header {
+-	u32 type;
+ 	u32 total_len;
+ 	u32 checksum;
++	u32 type;
+ 	u32 jeita_ffc_term_size;
+ 	u32 jeita_normal_term_size;
+ 	u32 wired_ffc_size;
 diff --git a/include/miev/mievent.h b/include/miev/mievent.h
 new file mode 100644
 index 0000000..91d99c4
@@ -3596,7 +3626,7 @@ index 9e772ae..be345a3 100644
  
  static const struct of_device_id match_table[] = {
 diff --git a/mca_smart_charge/mca_smart_charge.c b/mca_smart_charge/mca_smart_charge.c
-index 5b23843..b8c4a3c 100644
+index 5b23843..e838623 100644
 --- a/mca_smart_charge/mca_smart_charge.c
 +++ b/mca_smart_charge/mca_smart_charge.c
 @@ -880,8 +880,8 @@ update_smart_bypass_temp_section(struct smart_charge_info *info,
@@ -3664,7 +3694,22 @@ index 5b23843..b8c4a3c 100644
  	if (info->last_bypass_state != state) {
  		info->last_bypass_state = state;
  		if (state == 0)
-@@ -1863,7 +1863,7 @@ error1:
+@@ -1480,8 +1480,13 @@ static int smart_charge_cal_checksum(struct smart_charge_info *info)
+ 		return -1;
+ 	}
+ 
+-	for (i = sizeof(int); i < total_len; i++)
++	/* Byte sum of the buffer with the checksum field taken as zero. */
++	for (i = 0; i < total_len; i++) {
++		if (i >= offsetof(struct smart_basp_header, checksum) &&
++		    i < offsetof(struct smart_basp_header, checksum) + sizeof(u32))
++			continue;
+ 		checksum += (uint8_t)temp_buff[i];
++	}
+ 
+ 	mca_log_err("cal checksum %d, origin checksum %d\n", checksum,
+ 		    basp_header->checksum);
+@@ -1863,7 +1868,7 @@ error1:
  	return -1;
  }
  
@@ -3673,7 +3718,7 @@ index 5b23843..b8c4a3c 100644
  {
  	struct smart_charge_info *info = platform_get_drvdata(pdev);
  
-@@ -1875,7 +1875,7 @@ static int smart_charge_remove(struct platform_device *pdev)
+@@ -1875,7 +1880,7 @@ static int smart_charge_remove(struct platform_device *pdev)
  	mca_event_block_notify_unregister(MCA_EVENT_TYPE_PANEL,
  					  &info->panel_nb);
  
