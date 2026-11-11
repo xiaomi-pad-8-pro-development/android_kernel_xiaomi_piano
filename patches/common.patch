@@ -16,7 +16,7 @@ index 265c4461031f..0a4e2fd1396e 100644
 +
  source "drivers/hwtracing/coresight/Kconfig"
 diff --git a/arch/arm64/configs/gki_defconfig b/arch/arm64/configs/gki_defconfig
-index ee8096829..cdac481b8 100644
+index ee8096829b4f..cdac481b81af 100644
 --- a/arch/arm64/configs/gki_defconfig
 +++ b/arch/arm64/configs/gki_defconfig
 @@ -120,6 +120,7 @@ CONFIG_BLK_CGROUP_IOCOST=y
@@ -52,7 +52,7 @@ index ee8096829..cdac481b8 100644
  CONFIG_NLS_CODEPAGE_737=y
  CONFIG_NLS_CODEPAGE_775=y
 diff --git a/arch/arm64/include/asm/cmpxchg.h b/arch/arm64/include/asm/cmpxchg.h
-index d7a540736..7b52192b1 100644
+index d7a540736741..7b52192b1571 100644
 --- a/arch/arm64/include/asm/cmpxchg.h
 +++ b/arch/arm64/include/asm/cmpxchg.h
 @@ -25,16 +25,8 @@ static inline u##sz __xchg_case_##name##sz(u##sz x, volatile void *ptr)		\
@@ -74,7 +74,7 @@ index d7a540736..7b52192b1 100644
  	: "r" (x)								\
  	: cl);									\
 diff --git a/arch/arm64/include/asm/lse.h b/arch/arm64/include/asm/lse.h
-index 4e50768f5..8d5ab9f90 100644
+index 4e50768f5759..8d5ab9f90526 100644
 --- a/arch/arm64/include/asm/lse.h
 +++ b/arch/arm64/include/asm/lse.h
 @@ -16,16 +16,10 @@
@@ -99,7 +99,7 @@ index 4e50768f5..8d5ab9f90 100644
  #else	/* CONFIG_ARM64_LSE_ATOMICS */
  
 diff --git a/arch/arm64/include/asm/mte-kasan.h b/arch/arm64/include/asm/mte-kasan.h
-index 2e98028c1..e59456d63 100644
+index 2e98028c1965..e59456d633cb 100644
 --- a/arch/arm64/include/asm/mte-kasan.h
 +++ b/arch/arm64/include/asm/mte-kasan.h
 @@ -98,7 +98,7 @@ static inline u8 mte_get_ptr_tag(void *ptr)
@@ -121,7 +121,7 @@ index 2e98028c1..e59456d63 100644
  
  	return mte_get_ptr_tag(addr);
 diff --git a/arch/arm64/include/asm/percpu.h b/arch/arm64/include/asm/percpu.h
-index 9abcc8ef3..734be4c3b 100644
+index 9abcc8ef3087..734be4c3b1e6 100644
 --- a/arch/arm64/include/asm/percpu.h
 +++ b/arch/arm64/include/asm/percpu.h
 @@ -71,14 +71,8 @@ __percpu_##name##_case_##sz(void *ptr, unsigned long val)		\
@@ -168,7 +168,7 @@ index 2b112f3b7510..4f0901d43f76 100644
 +obj-$(CONFIG_PIANO_BRINGUP) += piano_memcon.o piano_blklog.o
 diff --git a/arch/arm64/kernel/piano_blklog.c b/arch/arm64/kernel/piano_blklog.c
 new file mode 100644
-index 000000000..8e46697e2
+index 000000000000..8e46697e20c4
 --- /dev/null
 +++ b/arch/arm64/kernel/piano_blklog.c
 @@ -0,0 +1,136 @@
@@ -310,10 +310,10 @@ index 000000000..8e46697e2
 +late_initcall(blklog_init);
 diff --git a/arch/arm64/kernel/piano_memcon.c b/arch/arm64/kernel/piano_memcon.c
 new file mode 100644
-index 000000000..d86c7e88d
+index 000000000000..7a2ce63aeb8e
 --- /dev/null
 +++ b/arch/arm64/kernel/piano_memcon.c
-@@ -0,0 +1,114 @@
+@@ -0,0 +1,190 @@
 +// SPDX-License-Identifier: GPL-2.0-only
 +/*
 + * Bring-up only: copy the kernel log into the unused ramoops dmesg zone from
@@ -324,6 +324,7 @@ index 000000000..d86c7e88d
 +#include <linux/console.h>
 +#include <linux/init.h>
 +#include <linux/io.h>
++#include <linux/kernel.h>
 +#include <linux/string.h>
 +#include <asm/cacheflush.h>
 +#include <asm/early_ioremap.h>
@@ -334,11 +335,13 @@ index 000000000..d86c7e88d
 + * counter is stored 32 times and read by a per-bit majority vote, because
 + * the memory gets bit flips over a warm reset.
 + */
-+#define MEMCON_RING0	0xa3501000
-+#define MEMCON_RING1	0xa3541000
++#define MEMCON_RING0	0xa3600000
++#define MEMCON_RING1	0xa3780000
 +#define MEMCON_COUNT	0xa35c0000
 +#define MEMCON_COUNT_COPIES	32
-+#define MEMCON_SIZE	0xff000
++#define MEMCON_SIZE	0x99000
++/* The RAM keeps ~20% bad bytes over a warm reset: write 5 copies, vote per bit. */
++#define MEMCON_COPIES	5
 +#define MEMCON_MAGIC	0x4d454d43	/* "MEMC" */
 +/* early_memremap() maps at most 256K per slot. */
 +#define MEMCON_EARLY_SIZE	0x3f000
@@ -346,24 +349,59 @@ index 000000000..d86c7e88d
 +static u8 *memcon;
 +static phys_addr_t memcon_base;
 +static u32 memcon_size = MEMCON_EARLY_SIZE;
++/* piano_memcon_copies=1..5 on the command line; parsed before paging_init(). */
++static int memcon_copies = MEMCON_COPIES;
++
++static int __init memcon_copies_setup(char *arg)
++{
++	int v;
++
++	if (!kstrtoint(arg, 0, &v) && v >= 1 && v <= MEMCON_COPIES)
++		memcon_copies = v;
++	return 0;
++}
++early_param("piano_memcon_copies", memcon_copies_setup);
 +
 +static void memcon_write(struct console *con, const char *s, unsigned int n)
 +{
 +	/* Bring-up: keep userspace (init) lines and kernel errors only. */
 +	if (con && !strnstr(s, "init", n) && !strnstr(s, "rror", n) &&
-+	    !strnstr(s, "ail", n) && !strnstr(s, "anic", n))
++	    !strnstr(s, "ail", n) && !strnstr(s, "anic", n) && !strnstr(s, "memcon", n) &&
++	    !strnstr(s, "remoteproc", n) && !strnstr(s, "q6v5", n) &&
++	    !strnstr(s, "irmware", n) && !strnstr(s, "adsp", n))
++		return;
++	/* The old 6.6 dlkm modules flood the log with this; skip it. */
++	if (con && (strnstr(s, "linkonce", n) || strnstr(s, "Loaded kernel module", n) ||
++		    strnstr(s, "init: Loading module", n)))
 +		return;
 +	u32 *hdr = (u32 *)memcon;
 +	u32 pos = hdr[1];
 +
-+	while (n--) {
-+		memcon[16 + pos % (memcon_size - 16)] = *s++;
-+		pos++;
++	u32 ring = memcon_size - 16, start = pos % ring, len = n;
++
++	int c, copies = memcon_size == MEMCON_SIZE ? memcon_copies : 1;
++
++	for (c = 0; c < copies; c++) {
++		u8 *m = memcon + c * MEMCON_SIZE;
++		const char *t = s;
++		u32 p = pos, k = len;
++
++		while (k--) {
++			m[16 + p % ring] = *t++;
++			p++;
++		}
++		((u32 *)m)[0] = MEMCON_MAGIC;
++		((u32 *)m)[1] = p;
++		((u32 *)m)[2] = hdr[2];
++		/* Clean only the header and the bytes just written (whole ring on wrap). */
++		dcache_clean_poc((unsigned long)m, (unsigned long)m + 16);
++		if (start + len <= ring)
++			dcache_clean_poc((unsigned long)m + 16 + start,
++					 (unsigned long)m + 16 + start + len);
++		else
++			dcache_clean_poc((unsigned long)m + 16,
++					 (unsigned long)m + memcon_size);
 +	}
-+	hdr[0] = MEMCON_MAGIC;
-+	hdr[1] = pos;
-+	dcache_clean_poc((unsigned long)memcon,
-+			 (unsigned long)memcon + memcon_size);
 +}
 +
 +static struct console memcon_console = {
@@ -404,7 +442,7 @@ index 000000000..d86c7e88d
 +	static const char hello[] = "memcon: early\n";
 +	u32 boot = memcon_next_boot();
 +
-+	memcon_base = (boot & 1) ? MEMCON_RING1 : MEMCON_RING0;
++	memcon_base = MEMCON_RING0;
 +	memcon = early_memremap(memcon_base, MEMCON_EARLY_SIZE);
 +	if (!memcon)
 +		return;
@@ -424,10 +462,48 @@ index 000000000..d86c7e88d
 +		return;
 +	console_lock();
 +	memcon = phys_to_virt(memcon_base);
++	/* Before this point the ring was the early fixmap size and had not wrapped. */
++	memcon_size = MEMCON_SIZE;
++	{
++		int c;
++
++		for (c = 1; c < memcon_copies; c++)
++			memcpy(memcon + c * MEMCON_SIZE, memcon, MEMCON_SIZE);
++		dcache_clean_poc((unsigned long)memcon,
++				 (unsigned long)memcon + MEMCON_COPIES * MEMCON_SIZE);
++	}
 +	console_unlock();
 +	early_memunmap(early, MEMCON_EARLY_SIZE);
 +	memcon_write(NULL, hello, sizeof(hello) - 1);
 +}
++
++/*
++ * Bring-up: piano_memcon.reboot_after=<seconds> warm-resets into the
++ * bootloader that long after boot, so a 6.12 boot that never reaches adb
++ * still returns without a long power-key reset (which lets the RAM log
++ * decay). 0 (default) disables it.
++ */
++#include <linux/moduleparam.h>
++#include <linux/reboot.h>
++#include <linux/workqueue.h>
++
++static unsigned int reboot_after;
++module_param(reboot_after, uint, 0644);
++
++static void memcon_reboot_fn(struct work_struct *work)
++{
++	pr_emerg("memcon: %u s up, restarting into the bootloader\n", reboot_after);
++	kernel_restart("bootloader");
++}
++static DECLARE_DELAYED_WORK(memcon_reboot_work, memcon_reboot_fn);
++
++static int __init memcon_reboot_init(void)
++{
++	if (reboot_after)
++		schedule_delayed_work(&memcon_reboot_work, reboot_after * HZ);
++	return 0;
++}
++late_initcall(memcon_reboot_init);
 diff --git a/arch/arm64/kernel/setup.c b/arch/arm64/kernel/setup.c
 index 8185979f0f11..4f644cca803c 100644
 --- a/arch/arm64/kernel/setup.c
@@ -524,7 +600,7 @@ index 7fc9230e0822..20f7cee427b9 100644
  		return;
  
 diff --git a/arch/arm64/kvm/hyp/include/nvhe/rwlock.h b/arch/arm64/kvm/hyp/include/nvhe/rwlock.h
-index 797665cba..ed4992275 100644
+index 797665cbab15..ed4992275cc3 100644
 --- a/arch/arm64/kvm/hyp/include/nvhe/rwlock.h
 +++ b/arch/arm64/kvm/hyp/include/nvhe/rwlock.h
 @@ -40,14 +40,6 @@ static inline void hyp_write_lock(hyp_rwlock_t *lock)
@@ -583,7 +659,7 @@ index 797665cba..ed4992275 100644
  	:
  	: "memory");
 diff --git a/arch/arm64/kvm/hyp/include/nvhe/spinlock.h b/arch/arm64/kvm/hyp/include/nvhe/spinlock.h
-index a3003dc9a..f7f66d823 100644
+index a3003dc9ab17..f7f66d823622 100644
 --- a/arch/arm64/kvm/hyp/include/nvhe/spinlock.h
 +++ b/arch/arm64/kvm/hyp/include/nvhe/spinlock.h
 @@ -49,16 +49,9 @@ static inline void hyp_spin_lock(hyp_spinlock_t *lock)
@@ -621,7 +697,7 @@ index a3003dc9a..f7f66d823 100644
  	:
  	: "memory");
 diff --git a/block/Kconfig.iosched b/block/Kconfig.iosched
-index 27f11320b..bbceaad14 100644
+index 27f11320b8d1..bbceaad1438d 100644
 --- a/block/Kconfig.iosched
 +++ b/block/Kconfig.iosched
 @@ -44,4 +44,6 @@ config BFQ_CGROUP_DEBUG
@@ -632,7 +708,7 @@ index 27f11320b..bbceaad14 100644
 +
  endmenu
 diff --git a/block/Makefile b/block/Makefile
-index ddfd21c1a..e34a31823 100644
+index ddfd21c1a9ff..e34a31823bde 100644
 --- a/block/Makefile
 +++ b/block/Makefile
 @@ -23,6 +23,7 @@ obj-$(CONFIG_BLK_CGROUP_IOLATENCY)	+= blk-iolatency.o
@@ -645,7 +721,7 @@ index ddfd21c1a..e34a31823 100644
  
 diff --git a/block/cpq/Kconfig b/block/cpq/Kconfig
 new file mode 100644
-index 000000000..d7284000c
+index 000000000000..d7284000c9c1
 --- /dev/null
 +++ b/block/cpq/Kconfig
 @@ -0,0 +1,3 @@
@@ -654,7 +730,7 @@ index 000000000..d7284000c
 +	default n
 diff --git a/block/cpq/Makefile b/block/cpq/Makefile
 new file mode 100644
-index 000000000..6b6dced4d
+index 000000000000..6b6dced4d657
 --- /dev/null
 +++ b/block/cpq/Makefile
 @@ -0,0 +1,2 @@
@@ -662,7 +738,7 @@ index 000000000..6b6dced4d
 +obj-$(CONFIG_CPQ_IOSCHED)	+= cpq.o
 diff --git a/block/cpq/cpq.c b/block/cpq/cpq.c
 new file mode 100644
-index 000000000..db1ca5793
+index 000000000000..db1ca579309a
 --- /dev/null
 +++ b/block/cpq/cpq.c
 @@ -0,0 +1,1185 @@
@@ -1852,7 +1928,7 @@ index 000000000..db1ca5793
 +MODULE_LICENSE("GPL");
 +MODULE_DESCRIPTION("COQ IO scheduler");
 diff --git a/drivers/android/vendor_hooks.c b/drivers/android/vendor_hooks.c
-index dadbe147b..a366de856 100644
+index dadbe147b70f..a366de856b6b 100644
 --- a/drivers/android/vendor_hooks.c
 +++ b/drivers/android/vendor_hooks.c
 @@ -58,6 +58,7 @@
@@ -1869,7 +1945,7 @@ index dadbe147b..a366de856 100644
  EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_do_swap_page_done);
 +EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_lz4_decompress_bypass);
 diff --git a/drivers/misc/Kconfig b/drivers/misc/Kconfig
-index 5018db96c..b77218c5c 100644
+index 5018db96c802..b77218c5cfa0 100644
 --- a/drivers/misc/Kconfig
 +++ b/drivers/misc/Kconfig
 @@ -525,7 +525,6 @@ config OPEN_DICE
@@ -1881,7 +1957,7 @@ index 5018db96c..b77218c5c 100644
  	  This module provides kernel support for emulation of Windows NT
  	  synchronization primitives. It is not a hardware driver.
 diff --git a/drivers/misc/ntsync.c b/drivers/misc/ntsync.c
-index 4954553b7..999026a1a 100644
+index 4954553b7baa..999026a1ae04 100644
 --- a/drivers/misc/ntsync.c
 +++ b/drivers/misc/ntsync.c
 @@ -6,11 +6,17 @@
@@ -3088,7 +3164,7 @@ index c68e6cd5f7bb..50872a49f2e9 100644
  
  static int rproc_trigger_auto_boot(struct rproc *rproc)
 diff --git a/fs/erofs/decompressor.c b/fs/erofs/decompressor.c
-index dc61a6a8f..8f7aa652f 100644
+index dc61a6a8f696..8f7aa652f09f 100644
 --- a/fs/erofs/decompressor.c
 +++ b/fs/erofs/decompressor.c
 @@ -6,6 +6,7 @@
@@ -3129,7 +3205,7 @@ index dc61a6a8f..8f7aa652f 100644
  		erofs_err(rq->sb, "failed to decompress %d in[%u, %u] out[%u]",
  			  ret, rq->inputsize, inputmargin, rq->outputsize);
 diff --git a/fs/kernfs/file.c b/fs/kernfs/file.c
-index c81cffa72..c282ba0f3 100644
+index c81cffa72b1c..c282ba0f37a7 100644
 --- a/fs/kernfs/file.c
 +++ b/fs/kernfs/file.c
 @@ -313,6 +313,7 @@ static ssize_t kernfs_fop_write_iter(struct kiocb *iocb, struct iov_iter *iter)
@@ -3175,7 +3251,7 @@ index c81cffa72..c282ba0f3 100644
  	return len;
  }
 diff --git a/fs/smb/client/cifsfs.c b/fs/smb/client/cifsfs.c
-index ce3af62dd..cc42aa162 100644
+index ce3af62ddaf4..cc42aa162d42 100644
 --- a/fs/smb/client/cifsfs.c
 +++ b/fs/smb/client/cifsfs.c
 @@ -2067,6 +2067,7 @@ exit_cifs(void)
@@ -3187,7 +3263,7 @@ index ce3af62dd..cc42aa162 100644
  	("VFS to access SMB3 servers e.g. Samba, Macs, Azure and Windows (and "
  	"also older servers complying with the SNIA CIFS Specification)");
 diff --git a/gki/aarch64/symbols/xiaomi b/gki/aarch64/symbols/xiaomi
-index c12e700..6109747 100644
+index c12e70065a1c..6109747b044a 100644
 --- a/gki/aarch64/symbols/xiaomi
 +++ b/gki/aarch64/symbols/xiaomi
 @@ -663,3 +663,5 @@ __tracepoint_android_vh_folio_end_writeback
@@ -3198,7 +3274,7 @@ index c12e700..6109747 100644
 +__tracepoint_android_vh_lz4_decompress_bypass
 diff --git a/include/trace/hooks/lz4_decompress.h b/include/trace/hooks/lz4_decompress.h
 new file mode 100644
-index 000000000..441bc8285
+index 000000000000..441bc8285d56
 --- /dev/null
 +++ b/include/trace/hooks/lz4_decompress.h
 @@ -0,0 +1,21 @@
@@ -3224,7 +3300,7 @@ index 000000000..441bc8285
 +/* This part must be outside protection */
 +#include <trace/define_trace.h>
 diff --git a/include/uapi/linux/ntsync.h b/include/uapi/linux/ntsync.h
-index dcfa38fdc..6d0679351 100644
+index dcfa38fdc93c..6d06793512b1 100644
 --- a/include/uapi/linux/ntsync.h
 +++ b/include/uapi/linux/ntsync.h
 @@ -11,13 +11,49 @@
@@ -3281,7 +3357,7 @@ index dcfa38fdc..6d0679351 100644
  
  #endif
 diff --git a/init/main.c b/init/main.c
-index 1b4c90e0a..62439e511 100644
+index 1b4c90e0a56f..62439e511174 100644
 --- a/init/main.c
 +++ b/init/main.c
 @@ -25,6 +25,8 @@
@@ -3350,7 +3426,7 @@ index 1b4c90e0a..62439e511 100644
  	kunit_run_all_tests();
  
 diff --git a/kernel/bpf/syscall.c b/kernel/bpf/syscall.c
-index 6449c49e8..59906df72 100644
+index 6449c49e8e41..59906df72f0e 100644
 --- a/kernel/bpf/syscall.c
 +++ b/kernel/bpf/syscall.c
 @@ -1534,6 +1534,8 @@ static int map_lookup_elem(union bpf_attr *attr)
@@ -3632,8 +3708,38 @@ index 6449c49e8..59906df72 100644
  err_put:
  	bpf_map_write_active_dec(map);
  	return err;
+diff --git a/kernel/module/main.c b/kernel/module/main.c
+index 2de2981eff67..b57c9d024fde 100644
+--- a/kernel/module/main.c
++++ b/kernel/module/main.c
+@@ -3685,6 +3685,9 @@ static int idempotent_init_module(struct file *f, const char __user * uargs, int
+ 	return idempotent_wait_for_completion(&idem);
+ }
+ 
++static bool piano_skip_old_modules;
++core_param(piano_skip_old_modules, piano_skip_old_modules, bool, 0644);
++
+ SYSCALL_DEFINE3(finit_module, int, fd, const char __user *, uargs, int, flags)
+ {
+ 	int err;
+@@ -3704,6 +3707,15 @@ SYSCALL_DEFINE3(finit_module, int, fd, const char __user *, uargs, int, flags)
+ 	f = fdget(fd);
+ 	err = idempotent_init_module(fd_file(f), uargs, flags);
+ 	fdput(f);
++	/*
++	 * Bring-up only: while 6.12 boots with every module in its ramdisk, the
++	 * 6.6 dlkm partitions are still mounted and vendor_modprobe.sh stops at
++	 * their first module. Report those as loaded so boot carries on.
++	 */
++	if (err == -ENOEXEC && piano_skip_old_modules) {
++		pr_info("piano: load of an old module failed (-ENOEXEC), reporting success\n");
++		err = 0;
++	}
+ 	return err;
+ }
+ 
 diff --git a/kernel/sys.c b/kernel/sys.c
-index 1a154c425..2b9460082 100644
+index 1a154c425e1b..2b946008222c 100644
 --- a/kernel/sys.c
 +++ b/kernel/sys.c
 @@ -2373,6 +2373,7 @@ static inline bool is_valid_name_char(char ch)
@@ -3681,7 +3787,7 @@ index 1a154c425..2b9460082 100644
  				return -ENOMEM;
  
 diff --git a/modules.bzl b/modules.bzl
-index 51b30732c..fa9ea8c6c 100644
+index 51b30732c164..fa9ea8c6c716 100644
 --- a/modules.bzl
 +++ b/modules.bzl
 @@ -53,6 +53,10 @@ _COMMON_GKI_MODULES_LIST = [
@@ -3716,7 +3822,7 @@ index 51b30732c..fa9ea8c6c 100644
      "drivers/virt/halla/exynos-hvm.ko",
      "fs/efivarfs/efivarfs.ko",
 diff --git a/security/selinux/hooks.c b/security/selinux/hooks.c
-index fb7e7d172..674724895 100644
+index fb7e7d17230b..674724895c86 100644
 --- a/security/selinux/hooks.c
 +++ b/security/selinux/hooks.c
 @@ -1367,20 +1367,15 @@ static int inode_doinit_use_xattr(struct inode *inode, struct dentry *dentry,
