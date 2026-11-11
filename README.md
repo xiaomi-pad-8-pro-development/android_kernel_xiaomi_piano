@@ -97,10 +97,11 @@ ROM install with the bring-up kernel and all of them set:
 
 ## LTO
 
-6.12 builds with `CONFIG_LTO_NONE`, which is the android16-6.12 GKI default
-(CFI and the shadow call stack are on without it). Qualcomm's
-`build_with_bazel.py` rejects `--lto` for that reason. This is not a piano
-change and is left as it is.
+`gki_defconfig` selects `CONFIG_LTO_CLANG_THIN` (common.patch). Qualcomm's
+`build_with_bazel.py` only rejects the `--lto` flag; with the default
+`--lto=default` Kleaf keeps the defconfig choice, and the DDK modules follow
+the kernel config. The MTE `irg`/`ldg` asm that broke Full LTO on 6.6 is
+already `volatile` here.
 
 ## KernelSU
 
