@@ -4,7 +4,8 @@ Research branch, not used by any ROM build. The daily kernel stays on
 `seventeen` (android15-6.6).
 
 The 6.12 kernel is Qualcomm KERNEL.PLATFORM.5.0 r48-00400 (ACK
-android16-6.12.81 plus the sun SoC drivers). Xiaomi released no 6.12
+android16-6.12.81 plus the sun SoC drivers), with `common`
+updated to ACK 6.12.96. Xiaomi released no 6.12
 source, so piano's own drivers are ported from 6.6.
 
 ## Layout

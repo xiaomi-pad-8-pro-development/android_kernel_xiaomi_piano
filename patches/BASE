@@ -1,4 +1,4 @@
-common 8fc057fab 33 files
+common d92f18cbe947 34 files
 audio-kernel a21b3ff 16 files
 display-drivers 87a9217 14 files
 mm-drivers b3815e4 4 files
@@ -15,4 +15,4 @@ video-driver 3a4122e9707d 13 files
 input 049b1543d1ea 14 files
 soc-repo d08fc44 9 files
 perf 049b1543d1ea 27 files
-ksu 8fc057fab 33 files (after common.patch)
+ksu d92f18cbe947 33 files (after common.patch)

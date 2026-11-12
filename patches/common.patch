@@ -1,5 +1,5 @@
 diff --git a/arch/arm64/Kconfig.debug b/arch/arm64/Kconfig.debug
-index 265c4461031f..0a4e2fd1396e 100644
+index 265c4461031f4..0a4e2fd1396e2 100644
 --- a/arch/arm64/Kconfig.debug
 +++ b/arch/arm64/Kconfig.debug
 @@ -20,4 +20,12 @@ config ARM64_RELOC_TEST
@@ -16,10 +16,10 @@ index 265c4461031f..0a4e2fd1396e 100644
 +
  source "drivers/hwtracing/coresight/Kconfig"
 diff --git a/arch/arm64/configs/gki_defconfig b/arch/arm64/configs/gki_defconfig
-index ee8096829b4f..cdac481b81af 100644
+index 5849599f0310d..1e0a7e05a47a6 100644
 --- a/arch/arm64/configs/gki_defconfig
 +++ b/arch/arm64/configs/gki_defconfig
-@@ -120,6 +120,7 @@ CONFIG_BLK_CGROUP_IOCOST=y
+@@ -125,6 +125,7 @@ CONFIG_BLK_CGROUP_IOCOST=y
  CONFIG_BLK_CGROUP_IOPRIO=y
  CONFIG_BLK_INLINE_ENCRYPTION=y
  CONFIG_BLK_INLINE_ENCRYPTION_FALLBACK=y
@@ -27,7 +27,7 @@ index ee8096829b4f..cdac481b81af 100644
  CONFIG_GKI_TASK_STRUCT_VENDOR_SIZE_MAX=1280
  CONFIG_GKI_HACKS_TO_FIX=y
  # CONFIG_CORE_DUMP_DEFAULT_ELF_HEADERS is not set
-@@ -349,6 +350,7 @@ CONFIG_ZRAM=m
+@@ -358,6 +359,7 @@ CONFIG_ZRAM=m
  CONFIG_ZRAM_BACKEND_LZ4=y
  CONFIG_ZRAM_BACKEND_ZSTD=y
  CONFIG_ZRAM_BACKEND_LZO=y
@@ -35,7 +35,7 @@ index ee8096829b4f..cdac481b81af 100644
  CONFIG_ZRAM_WRITEBACK=y
  CONFIG_ZRAM_MULTI_COMP=y
  CONFIG_ZRAM_ANDROID_IOCTL=y
-@@ -363,6 +365,7 @@ CONFIG_NVME_MULTIPATH=y
+@@ -372,6 +374,7 @@ CONFIG_NVME_MULTIPATH=y
  CONFIG_SRAM=y
  CONFIG_UID_SYS_STATS=y
  CONFIG_OPEN_DICE=m
@@ -43,7 +43,7 @@ index ee8096829b4f..cdac481b81af 100644
  CONFIG_VCPU_STALL_DETECTOR=m
  CONFIG_SCSI=y
  # CONFIG_SCSI_PROC_FS is not set
-@@ -718,6 +721,7 @@ CONFIG_PSTORE_BLK=m
+@@ -732,6 +735,7 @@ CONFIG_PSTORE_BLK=m
  CONFIG_EROFS_FS=y
  CONFIG_EROFS_FS_ZIP_ZSTD=y
  CONFIG_EROFS_FS_PCPU_KTHREAD=y
@@ -52,7 +52,7 @@ index ee8096829b4f..cdac481b81af 100644
  CONFIG_NLS_CODEPAGE_737=y
  CONFIG_NLS_CODEPAGE_775=y
 diff --git a/arch/arm64/include/asm/cmpxchg.h b/arch/arm64/include/asm/cmpxchg.h
-index d7a540736741..7b52192b1571 100644
+index d7a5407367414..7b52192b1571c 100644
 --- a/arch/arm64/include/asm/cmpxchg.h
 +++ b/arch/arm64/include/asm/cmpxchg.h
 @@ -25,16 +25,8 @@ static inline u##sz __xchg_case_##name##sz(u##sz x, volatile void *ptr)		\
@@ -74,7 +74,7 @@ index d7a540736741..7b52192b1571 100644
  	: "r" (x)								\
  	: cl);									\
 diff --git a/arch/arm64/include/asm/lse.h b/arch/arm64/include/asm/lse.h
-index 4e50768f5759..8d5ab9f90526 100644
+index 4e50768f5759b..8d5ab9f90526a 100644
 --- a/arch/arm64/include/asm/lse.h
 +++ b/arch/arm64/include/asm/lse.h
 @@ -16,16 +16,10 @@
@@ -99,7 +99,7 @@ index 4e50768f5759..8d5ab9f90526 100644
  #else	/* CONFIG_ARM64_LSE_ATOMICS */
  
 diff --git a/arch/arm64/include/asm/mte-kasan.h b/arch/arm64/include/asm/mte-kasan.h
-index 2e98028c1965..e59456d633cb 100644
+index 2e98028c19658..e59456d633cb2 100644
 --- a/arch/arm64/include/asm/mte-kasan.h
 +++ b/arch/arm64/include/asm/mte-kasan.h
 @@ -98,7 +98,7 @@ static inline u8 mte_get_ptr_tag(void *ptr)
@@ -121,7 +121,7 @@ index 2e98028c1965..e59456d633cb 100644
  
  	return mte_get_ptr_tag(addr);
 diff --git a/arch/arm64/include/asm/percpu.h b/arch/arm64/include/asm/percpu.h
-index 9abcc8ef3087..734be4c3b1e6 100644
+index 9abcc8ef3087b..734be4c3b1e66 100644
 --- a/arch/arm64/include/asm/percpu.h
 +++ b/arch/arm64/include/asm/percpu.h
 @@ -71,14 +71,8 @@ __percpu_##name##_case_##sz(void *ptr, unsigned long val)		\
@@ -158,7 +158,7 @@ index 9abcc8ef3087..734be4c3b1e6 100644
  	  [ptr] "+Q"(*(u##sz *)ptr)					\
  	: [val] "r" ((u##sz)(val)));					\
 diff --git a/arch/arm64/kernel/Makefile b/arch/arm64/kernel/Makefile
-index 2b112f3b7510..4f0901d43f76 100644
+index 2b112f3b75109..4f0901d43f76f 100644
 --- a/arch/arm64/kernel/Makefile
 +++ b/arch/arm64/kernel/Makefile
 @@ -85,3 +85,4 @@ endif
@@ -168,7 +168,7 @@ index 2b112f3b7510..4f0901d43f76 100644
 +obj-$(CONFIG_PIANO_BRINGUP) += piano_memcon.o piano_blklog.o
 diff --git a/arch/arm64/kernel/piano_blklog.c b/arch/arm64/kernel/piano_blklog.c
 new file mode 100644
-index 000000000000..8e46697e20c4
+index 0000000000000..8e46697e20c46
 --- /dev/null
 +++ b/arch/arm64/kernel/piano_blklog.c
 @@ -0,0 +1,136 @@
@@ -310,7 +310,7 @@ index 000000000000..8e46697e20c4
 +late_initcall(blklog_init);
 diff --git a/arch/arm64/kernel/piano_memcon.c b/arch/arm64/kernel/piano_memcon.c
 new file mode 100644
-index 000000000000..7a2ce63aeb8e
+index 0000000000000..7a2ce63aeb8e0
 --- /dev/null
 +++ b/arch/arm64/kernel/piano_memcon.c
 @@ -0,0 +1,190 @@
@@ -505,7 +505,7 @@ index 000000000000..7a2ce63aeb8e
 +}
 +late_initcall(memcon_reboot_init);
 diff --git a/arch/arm64/kernel/setup.c b/arch/arm64/kernel/setup.c
-index 8185979f0f11..4f644cca803c 100644
+index 8185979f0f116..4f644cca803ce 100644
 --- a/arch/arm64/kernel/setup.c
 +++ b/arch/arm64/kernel/setup.c
 @@ -7,6 +7,7 @@
@@ -585,7 +585,7 @@ index 8185979f0f11..4f644cca803c 100644
  #ifdef CONFIG_ARM64_SW_TTBR0_PAN
  	/*
 diff --git a/arch/arm64/kernel/traps.c b/arch/arm64/kernel/traps.c
-index 7fc9230e0822..20f7cee427b9 100644
+index bbc67b4ab001f..a99095c60471a 100644
 --- a/arch/arm64/kernel/traps.c
 +++ b/arch/arm64/kernel/traps.c
 @@ -251,7 +251,9 @@ static void arm64_show_signal(int signo, const char *str)
@@ -600,7 +600,7 @@ index 7fc9230e0822..20f7cee427b9 100644
  		return;
  
 diff --git a/arch/arm64/kvm/hyp/include/nvhe/rwlock.h b/arch/arm64/kvm/hyp/include/nvhe/rwlock.h
-index 797665cbab15..ed4992275cc3 100644
+index 797665cbab152..ed4992275cc39 100644
 --- a/arch/arm64/kvm/hyp/include/nvhe/rwlock.h
 +++ b/arch/arm64/kvm/hyp/include/nvhe/rwlock.h
 @@ -40,14 +40,6 @@ static inline void hyp_write_lock(hyp_rwlock_t *lock)
@@ -659,7 +659,7 @@ index 797665cbab15..ed4992275cc3 100644
  	:
  	: "memory");
 diff --git a/arch/arm64/kvm/hyp/include/nvhe/spinlock.h b/arch/arm64/kvm/hyp/include/nvhe/spinlock.h
-index a3003dc9ab17..f7f66d823622 100644
+index a3003dc9ab172..f7f66d8236224 100644
 --- a/arch/arm64/kvm/hyp/include/nvhe/spinlock.h
 +++ b/arch/arm64/kvm/hyp/include/nvhe/spinlock.h
 @@ -49,16 +49,9 @@ static inline void hyp_spin_lock(hyp_spinlock_t *lock)
@@ -697,7 +697,7 @@ index a3003dc9ab17..f7f66d823622 100644
  	:
  	: "memory");
 diff --git a/block/Kconfig.iosched b/block/Kconfig.iosched
-index 27f11320b8d1..bbceaad1438d 100644
+index 27f11320b8d12..bbceaad1438d0 100644
 --- a/block/Kconfig.iosched
 +++ b/block/Kconfig.iosched
 @@ -44,4 +44,6 @@ config BFQ_CGROUP_DEBUG
@@ -708,7 +708,7 @@ index 27f11320b8d1..bbceaad1438d 100644
 +
  endmenu
 diff --git a/block/Makefile b/block/Makefile
-index ddfd21c1a9ff..e34a31823bde 100644
+index ddfd21c1a9ffc..e34a31823bded 100644
 --- a/block/Makefile
 +++ b/block/Makefile
 @@ -23,6 +23,7 @@ obj-$(CONFIG_BLK_CGROUP_IOLATENCY)	+= blk-iolatency.o
@@ -721,7 +721,7 @@ index ddfd21c1a9ff..e34a31823bde 100644
  
 diff --git a/block/cpq/Kconfig b/block/cpq/Kconfig
 new file mode 100644
-index 000000000000..d7284000c9c1
+index 0000000000000..d7284000c9c1b
 --- /dev/null
 +++ b/block/cpq/Kconfig
 @@ -0,0 +1,3 @@
@@ -730,7 +730,7 @@ index 000000000000..d7284000c9c1
 +	default n
 diff --git a/block/cpq/Makefile b/block/cpq/Makefile
 new file mode 100644
-index 000000000000..6b6dced4d657
+index 0000000000000..6b6dced4d657f
 --- /dev/null
 +++ b/block/cpq/Makefile
 @@ -0,0 +1,2 @@
@@ -738,7 +738,7 @@ index 000000000000..6b6dced4d657
 +obj-$(CONFIG_CPQ_IOSCHED)	+= cpq.o
 diff --git a/block/cpq/cpq.c b/block/cpq/cpq.c
 new file mode 100644
-index 000000000000..db1ca579309a
+index 0000000000000..db1ca579309ac
 --- /dev/null
 +++ b/block/cpq/cpq.c
 @@ -0,0 +1,1185 @@
@@ -1928,10 +1928,10 @@ index 000000000000..db1ca579309a
 +MODULE_LICENSE("GPL");
 +MODULE_DESCRIPTION("COQ IO scheduler");
 diff --git a/drivers/android/vendor_hooks.c b/drivers/android/vendor_hooks.c
-index dadbe147b70f..a366de856b6b 100644
+index 07579f015a6e1..f9300d0d11cf8 100644
 --- a/drivers/android/vendor_hooks.c
 +++ b/drivers/android/vendor_hooks.c
-@@ -58,6 +58,7 @@
+@@ -59,6 +59,7 @@
  #include <trace/hooks/rwsem.h>
  #include <trace/hooks/psi.h>
  #include <trace/hooks/bl_hib.h>
@@ -1939,13 +1939,13 @@ index dadbe147b70f..a366de856b6b 100644
  #include <trace/hooks/futex.h>
  #include <trace/hooks/bug.h>
  #include <trace/hooks/logbuf.h>
-@@ -775,3 +776,4 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_override_exec_folio_order);
- EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_do_swap_page_relax);
- EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_do_swap_page_start);
- EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_do_swap_page_done);
+@@ -818,3 +819,4 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_io_schedule_prepare);
+ EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_rq_qos_wait);
+ EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_wbt_track);
+ EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_wbt_wait);
 +EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_lz4_decompress_bypass);
 diff --git a/drivers/misc/Kconfig b/drivers/misc/Kconfig
-index 5018db96c802..b77218c5cfa0 100644
+index 5018db96c8027..b77218c5cfa00 100644
 --- a/drivers/misc/Kconfig
 +++ b/drivers/misc/Kconfig
 @@ -525,7 +525,6 @@ config OPEN_DICE
@@ -1957,7 +1957,7 @@ index 5018db96c802..b77218c5cfa0 100644
  	  This module provides kernel support for emulation of Windows NT
  	  synchronization primitives. It is not a hardware driver.
 diff --git a/drivers/misc/ntsync.c b/drivers/misc/ntsync.c
-index 4954553b7baa..999026a1ae04 100644
+index 4954553b7baa6..999026a1ae048 100644
 --- a/drivers/misc/ntsync.c
 +++ b/drivers/misc/ntsync.c
 @@ -6,11 +6,17 @@
@@ -3099,7 +3099,7 @@ index 4954553b7baa..999026a1ae04 100644
  
  module_misc_device(ntsync_misc);
 diff --git a/drivers/remoteproc/remoteproc_core.c b/drivers/remoteproc/remoteproc_core.c
-index c68e6cd5f7bb..50872a49f2e9 100644
+index c68e6cd5f7bbd..50872a49f2e95 100644
 --- a/drivers/remoteproc/remoteproc_core.c
 +++ b/drivers/remoteproc/remoteproc_core.c
 @@ -1670,13 +1670,58 @@ static int rproc_attach(struct rproc *rproc)
@@ -3164,7 +3164,7 @@ index c68e6cd5f7bb..50872a49f2e9 100644
  
  static int rproc_trigger_auto_boot(struct rproc *rproc)
 diff --git a/fs/erofs/decompressor.c b/fs/erofs/decompressor.c
-index dc61a6a8f696..8f7aa652f09f 100644
+index 87009c4d2cf3a..e23958c78b5c1 100644
 --- a/fs/erofs/decompressor.c
 +++ b/fs/erofs/decompressor.c
 @@ -6,6 +6,7 @@
@@ -3175,7 +3175,7 @@ index dc61a6a8f696..8f7aa652f09f 100644
  
  #ifndef LZ4_DISTANCE_MAX	/* history window size */
  #define LZ4_DISTANCE_MAX 65535	/* set to maximum value by default */
-@@ -212,6 +213,7 @@ static int z_erofs_lz4_decompress_mem(struct z_erofs_lz4_decompress_ctx *ctx,
+@@ -209,6 +210,7 @@ static int z_erofs_lz4_decompress_mem(struct z_erofs_decompress_req *rq, u8 *dst
  	unsigned int inputmargin;
  	u8 *out, *headpage, *src;
  	int ret, maptype;
@@ -3183,7 +3183,7 @@ index dc61a6a8f696..8f7aa652f09f 100644
  
  	DBG_BUGON(*rq->in == NULL);
  	headpage = kmap_local_page(*rq->in);
-@@ -237,6 +239,12 @@ static int z_erofs_lz4_decompress_mem(struct z_erofs_lz4_decompress_ctx *ctx,
+@@ -234,6 +236,12 @@ static int z_erofs_lz4_decompress_mem(struct z_erofs_decompress_req *rq, u8 *dst
  		return PTR_ERR(src);
  
  	out = dst + rq->pageofs_out;
@@ -3196,7 +3196,7 @@ index dc61a6a8f696..8f7aa652f09f 100644
  	/* legacy format could compress extra data in a pcluster. */
  	if (rq->partial_decoding || !support_0padding)
  		ret = LZ4_decompress_safe_partial(src + inputmargin, out,
-@@ -245,6 +253,7 @@ static int z_erofs_lz4_decompress_mem(struct z_erofs_lz4_decompress_ctx *ctx,
+@@ -242,6 +250,7 @@ static int z_erofs_lz4_decompress_mem(struct z_erofs_decompress_req *rq, u8 *dst
  		ret = LZ4_decompress_safe(src + inputmargin, out,
  					  rq->inputsize, rq->outputsize);
  
@@ -3205,7 +3205,7 @@ index dc61a6a8f696..8f7aa652f09f 100644
  		erofs_err(rq->sb, "failed to decompress %d in[%u, %u] out[%u]",
  			  ret, rq->inputsize, inputmargin, rq->outputsize);
 diff --git a/fs/kernfs/file.c b/fs/kernfs/file.c
-index c81cffa72b1c..c282ba0f37a7 100644
+index c81cffa72b1c0..c282ba0f37a72 100644
 --- a/fs/kernfs/file.c
 +++ b/fs/kernfs/file.c
 @@ -313,6 +313,7 @@ static ssize_t kernfs_fop_write_iter(struct kiocb *iocb, struct iov_iter *iter)
@@ -3251,10 +3251,10 @@ index c81cffa72b1c..c282ba0f37a7 100644
  	return len;
  }
 diff --git a/fs/smb/client/cifsfs.c b/fs/smb/client/cifsfs.c
-index ce3af62ddaf4..cc42aa162d42 100644
+index 2f666c92b027b..749dcd8fd1a4d 100644
 --- a/fs/smb/client/cifsfs.c
 +++ b/fs/smb/client/cifsfs.c
-@@ -2067,6 +2067,7 @@ exit_cifs(void)
+@@ -2069,6 +2069,7 @@ exit_cifs(void)
  
  MODULE_AUTHOR("Steve French");
  MODULE_LICENSE("GPL");	/* combination of LGPL + GPL source behaves as GPL */
@@ -3263,18 +3263,18 @@ index ce3af62ddaf4..cc42aa162d42 100644
  	("VFS to access SMB3 servers e.g. Samba, Macs, Azure and Windows (and "
  	"also older servers complying with the SNIA CIFS Specification)");
 diff --git a/gki/aarch64/symbols/xiaomi b/gki/aarch64/symbols/xiaomi
-index c12e70065a1c..6109747b044a 100644
+index 83a82cf943677..609819e787387 100644
 --- a/gki/aarch64/symbols/xiaomi
 +++ b/gki/aarch64/symbols/xiaomi
-@@ -663,3 +663,5 @@ __tracepoint_android_vh_folio_end_writeback
- __traceiter_android_vh_folio_end_writeback
- __tracepoint_android_vh_folio_start_writeback
- __traceiter_android_vh_folio_start_writeback
+@@ -679,3 +679,5 @@ __traceiter_android_vh_folio_start_writeback
+ # required by mi-power.ko
+ __traceiter_android_vh_try_to_freeze_abort
+ __tracepoint_android_vh_try_to_freeze_abort
 +__traceiter_android_vh_lz4_decompress_bypass
 +__tracepoint_android_vh_lz4_decompress_bypass
 diff --git a/include/trace/hooks/lz4_decompress.h b/include/trace/hooks/lz4_decompress.h
 new file mode 100644
-index 000000000000..441bc8285d56
+index 0000000000000..441bc8285d561
 --- /dev/null
 +++ b/include/trace/hooks/lz4_decompress.h
 @@ -0,0 +1,21 @@
@@ -3300,7 +3300,7 @@ index 000000000000..441bc8285d56
 +/* This part must be outside protection */
 +#include <trace/define_trace.h>
 diff --git a/include/uapi/linux/ntsync.h b/include/uapi/linux/ntsync.h
-index dcfa38fdc93c..6d06793512b1 100644
+index dcfa38fdc93c6..6d06793512b15 100644
 --- a/include/uapi/linux/ntsync.h
 +++ b/include/uapi/linux/ntsync.h
 @@ -11,13 +11,49 @@
@@ -3357,7 +3357,7 @@ index dcfa38fdc93c..6d06793512b1 100644
  
  #endif
 diff --git a/init/main.c b/init/main.c
-index 1b4c90e0a56f..62439e511174 100644
+index 1b4c90e0a56f6..62439e5111743 100644
 --- a/init/main.c
 +++ b/init/main.c
 @@ -25,6 +25,8 @@
@@ -3426,7 +3426,7 @@ index 1b4c90e0a56f..62439e511174 100644
  	kunit_run_all_tests();
  
 diff --git a/kernel/bpf/syscall.c b/kernel/bpf/syscall.c
-index 6449c49e8e41..59906df72f0e 100644
+index 6449c49e8e41b..59906df72f0e8 100644
 --- a/kernel/bpf/syscall.c
 +++ b/kernel/bpf/syscall.c
 @@ -1534,6 +1534,8 @@ static int map_lookup_elem(union bpf_attr *attr)
@@ -3709,7 +3709,7 @@ index 6449c49e8e41..59906df72f0e 100644
  	bpf_map_write_active_dec(map);
  	return err;
 diff --git a/kernel/module/main.c b/kernel/module/main.c
-index 2de2981eff67..b57c9d024fde 100644
+index 6830920b03582..d0b15b2b8193b 100644
 --- a/kernel/module/main.c
 +++ b/kernel/module/main.c
 @@ -3685,6 +3685,9 @@ static int idempotent_init_module(struct file *f, const char __user * uargs, int
@@ -3739,10 +3739,10 @@ index 2de2981eff67..b57c9d024fde 100644
  }
  
 diff --git a/kernel/sys.c b/kernel/sys.c
-index 1a154c425e1b..2b946008222c 100644
+index c9da55d573cf0..c7e529583f734 100644
 --- a/kernel/sys.c
 +++ b/kernel/sys.c
-@@ -2373,6 +2373,7 @@ static inline bool is_valid_name_char(char ch)
+@@ -2368,6 +2368,7 @@ static inline bool is_valid_name_char(char ch)
  static int prctl_set_vma(unsigned long opt, unsigned long addr,
  			 unsigned long size, unsigned long arg)
  {
@@ -3750,7 +3750,7 @@ index 1a154c425e1b..2b946008222c 100644
  	struct mm_struct *mm = current->mm;
  	const char __user *uname;
  	struct anon_vma_name *anon_name = NULL;
-@@ -2383,21 +2384,27 @@ static int prctl_set_vma(unsigned long opt, unsigned long addr,
+@@ -2378,21 +2379,27 @@ static int prctl_set_vma(unsigned long opt, unsigned long addr,
  	case PR_SET_VMA_ANON_NAME:
  		uname = (const char __user *)arg;
  		if (uname) {
@@ -3787,12 +3787,12 @@ index 1a154c425e1b..2b946008222c 100644
  				return -ENOMEM;
  
 diff --git a/modules.bzl b/modules.bzl
-index 51b30732c164..fa9ea8c6c716 100644
+index 2256e8a5dff66..373fc9f0a5045 100644
 --- a/modules.bzl
 +++ b/modules.bzl
-@@ -53,6 +53,10 @@ _COMMON_GKI_MODULES_LIST = [
-     "drivers/virtio/virtio_pci_legacy_dev.ko",
+@@ -54,6 +54,10 @@ _COMMON_GKI_MODULES_LIST = [
      "drivers/virtio/virtio_pci_modern_dev.ko",
+     "drivers/watchdog/pretimeout_dump.ko",
      "fs/netfs/netfs.ko",
 +    "fs/nls/nls_ucs2_utils.ko",
 +    "fs/smb/client/cifs.ko",
@@ -3801,7 +3801,7 @@ index 51b30732c164..fa9ea8c6c716 100644
      "kernel/kheaders.ko",
      "lib/crypto/libarc4.ko",
      "mm/zsmalloc.ko",
-@@ -74,6 +78,7 @@ _COMMON_GKI_MODULES_LIST = [
+@@ -75,6 +79,7 @@ _COMMON_GKI_MODULES_LIST = [
      "net/can/can-bcm.ko",
      "net/can/can-gw.ko",
      "net/can/can-raw.ko",
@@ -3809,7 +3809,7 @@ index 51b30732c164..fa9ea8c6c716 100644
      "net/ieee802154/6lowpan/ieee802154_6lowpan.ko",
      "net/ieee802154/ieee802154.ko",
      "net/ieee802154/ieee802154_socket.ko",
-@@ -104,9 +109,11 @@ _ARM64_GKI_MODULES_LIST = [
+@@ -105,9 +110,11 @@ _ARM64_GKI_MODULES_LIST = [
      # keep sorted
      "arch/arm64/crypto/aes-neon-blk.ko",
      "arch/arm64/geniezone/gzvm.ko",
@@ -3822,7 +3822,7 @@ index 51b30732c164..fa9ea8c6c716 100644
      "drivers/virt/halla/exynos-hvm.ko",
      "fs/efivarfs/efivarfs.ko",
 diff --git a/security/selinux/hooks.c b/security/selinux/hooks.c
-index fb7e7d17230b..674724895c86 100644
+index 2a49b36476e39..4bf7d3a5e67e0 100644
 --- a/security/selinux/hooks.c
 +++ b/security/selinux/hooks.c
 @@ -1367,20 +1367,15 @@ static int inode_doinit_use_xattr(struct inode *inode, struct dentry *dentry,
