@@ -17,6 +17,10 @@ ccflags-y += -I$(WLAN_PLATFORM_ROOT)/../../securemsm-kernel/include/linux/
 ccflags-y += -I$(WLAN_PLATFORM_ROOT)/../../securemsm-kernel/include/uapi/linux/
 endif
 
+ifneq ($(CONFIG_MI_HARDWARE_ID),)
+ccflags-y += -I$(srctree)/drivers/misc/hwid
+endif
+
 obj-$(CONFIG_CNSS2) += cnss2.o
 
 cnss2-y := main.o

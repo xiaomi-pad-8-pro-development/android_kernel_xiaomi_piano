@@ -13,6 +13,10 @@
 #include "qmi.h"
 #include "genl.h"
 
+#if IS_ENABLED(CONFIG_MI_HARDWARE_ID)
+#include "hwid.h"
+#endif
+
 #define WLFW_SERVICE_INS_ID_V01		1
 #define WLFW_CLIENT_ID			0x4b4e454c
 #define BDF_FILE_NAME_PREFIX		"bdwlan"
@@ -720,6 +724,31 @@ static char *cnss_bdf_type_to_str(enum cnss_bdf_type bdf_type)
 	}
 }
 
+#if IS_ENABLED(CONFIG_MI_HARDWARE_ID)
+/*
+ * Xiaomi boards leave the board id unprogrammed and ship their tuned board
+ * file next to the generic bdwlan.elf, so pick it from the hwid project.
+ */
+#define HARDWARE_PROJECT_PIANO	9
+
+static const char *cnss_get_xiaomi_bdf_name(void)
+{
+	switch (get_hw_version_platform()) {
+	case HARDWARE_PROJECT_PIANO:
+		if (get_hw_country_version() == CountryGlobal)
+			return "bd_o8gl.elf";
+		return "bd_o8.elf";
+	default:
+		return NULL;
+	}
+}
+#else
+static const char *cnss_get_xiaomi_bdf_name(void)
+{
+	return NULL;
+}
+#endif
+
 static int cnss_get_bdf_file_name(struct cnss_plat_data *plat_priv,
 				  u32 bdf_type, char *filename,
 				  u32 filename_len)
@@ -735,8 +764,10 @@ static int cnss_get_bdf_file_name(struct cnss_plat_data *plat_priv,
 				snprintf(filename_tmp, filename_len,
 					 ELF_BDF_FILE_NAME_GF);
 			else {
-				snprintf(filename_tmp, filename_len,
-						ELF_BDF_FILE_NAME);
+				const char *xiaomi_bdf = cnss_get_xiaomi_bdf_name();
+
+				snprintf(filename_tmp, filename_len, "%s",
+					 xiaomi_bdf ?: ELF_BDF_FILE_NAME);
 			}
 		} else if (plat_priv->board_info.board_id < 0xFF) {
 			if (plat_priv->chip_info.chip_id & CHIP_ID_GF_MASK)
