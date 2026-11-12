@@ -1797,7 +1797,7 @@ index 4700a79..0d976ca 100644
  	u32 dsi_mode_flags;
  	u32 panel_mode_caps;
 diff --git a/msm/dsi/dsi_display.c b/msm/dsi/dsi_display.c
-index 678b1a7..276cfbf 100644
+index 678b1a7..921bc7e 100644
 --- a/msm/dsi/dsi_display.c
 +++ b/msm/dsi/dsi_display.c
 @@ -11,6 +11,9 @@
@@ -1915,7 +1915,7 @@ index 678b1a7..276cfbf 100644
  	mutex_lock(&panel->panel_lock);
  
  	if (!dsi_panel_initialized(panel)) {
-@@ -658,12 +743,70 @@ static bool dsi_display_validate_reg_read(struct dsi_panel *panel)
+@@ -658,12 +743,30 @@ static bool dsi_display_validate_reg_read(struct dsi_panel *panel)
  
  	for (j = 0; j < config->groups; ++j) {
  		for (i = 0; i < len; ++i) {
@@ -1943,16 +1943,13 @@ index 678b1a7..276cfbf 100644
  				break;
  			}
 +#endif
-+		}
-+
-+		if (i == len)
-+			return true;
-+		group += len;
-+	}
-+
-+	return false;
-+}
-+
+ 		}
+ 
+ 		if (i == len)
+@@ -674,6 +777,47 @@ static bool dsi_display_validate_reg_read(struct dsi_panel *panel)
+ 	return false;
+ }
+ 
 +#ifdef MI_DISPLAY_MODIFY
 +static bool dsi_display_validate_reg_read_O3(struct dsi_panel *panel)
 +{
@@ -1983,17 +1980,20 @@ index 678b1a7..276cfbf 100644
 +					i, config->return_buf[i], group + i, config->status_value[group + i]);
 +				break;
 +			}
- 		}
- 
- 		if (i == len)
-@@ -673,6 +816,7 @@ static bool dsi_display_validate_reg_read(struct dsi_panel *panel)
- 
- 	return false;
- }
++		}
++
++		if (i == len)
++			return true;
++		group += len;
++	}
++
++	return false;
++}
 +#endif
- 
++
  static void dsi_display_parse_demura_data(struct dsi_display *display)
  {
+ 	int rc = 0;
 @@ -923,12 +1067,88 @@ static int dsi_display_read_status(struct dsi_display_ctrl *ctrl,
  	return rc;
  }
@@ -2545,7 +2545,7 @@ index 678b1a7..276cfbf 100644
  
  	rc = dsi_display_validate_mode_set(display, &adj_mode, flags);
  	if (rc) {
-@@ -9231,15 +9681,54 @@ int dsi_display_set_mode(struct dsi_display *display,
+@@ -9231,15 +9681,40 @@ int dsi_display_set_mode(struct dsi_display *display,
  		goto error;
  	}
  
@@ -2583,24 +2583,10 @@ index 678b1a7..276cfbf 100644
 +	}
 +#endif
 +
-+	/* Xiaomi multi-timing panels: a VRR switch may change timing node. */
-+	if (display->panel->multi_timing_enable &&
-+			(adj_mode.dsi_mode_flags & DSI_MODE_FLAG_VRR) &&
-+			!dsi_display_clk_ctrl(display->dsi_clk_handle,
-+				DSI_CORE_CLK | DSI_LINK_CLK, DSI_CLK_ON)) {
-+		mutex_lock(&display->panel->panel_lock);
-+		if (dsi_panel_tx_cmd_set(display->panel,
-+				(enum dsi_cmd_set_type)DSI_CUSTOM_CMD_SET_TIMING_VIDEO_SWITCH, false))
-+			DSI_ERR("[%s] failed to send timing switch video cmds\n",
-+				display->name);
-+		mutex_unlock(&display->panel->panel_lock);
-+		dsi_display_clk_ctrl(display->dsi_clk_handle,
-+				DSI_CORE_CLK | DSI_LINK_CLK, DSI_CLK_OFF);
-+	}
  error:
  	mutex_unlock(&display->display_lock);
  	return rc;
-@@ -9835,7 +10324,16 @@ static int dsi_display_calc_ctrl_roi(const struct dsi_display *display,
+@@ -9835,7 +10310,16 @@ static int dsi_display_calc_ctrl_roi(const struct dsi_display *display,
  exit:
  	/* adjust the ctrl origin to be top left within the ctrl */
  	out_roi->x = out_roi->x - bounds->x;
@@ -2618,7 +2604,7 @@ index 678b1a7..276cfbf 100644
  	DSI_DEBUG("ctrl%d:%d: req (%d,%d,%d,%d) bnd (%d,%d,%d,%d) out (%d,%d,%d,%d)\n",
  			ctrl->dsi_ctrl_idx, ctrl->ctrl->cell_index,
  			req_roi.x, req_roi.y, req_roi.w, req_roi.h,
-@@ -10039,7 +10537,15 @@ static int dsi_display_set_roi(struct dsi_display *display,
+@@ -10039,7 +10523,15 @@ static int dsi_display_set_roi(struct dsi_display *display,
  			DSI_ERR("dsi_display_calc_ctrl_roi failed rc %d\n", rc);
  			return rc;
  		}
@@ -2635,7 +2621,7 @@ index 678b1a7..276cfbf 100644
  		rc = dsi_ctrl_set_roi(ctrl->ctrl, &ctrl_roi, &changed);
  		if (rc) {
  			DSI_ERR("dsi_ctrl_set_roi failed rc %d\n", rc);
-@@ -10260,6 +10766,11 @@ int dsi_display_enable(struct dsi_display *display)
+@@ -10260,6 +10752,11 @@ int dsi_display_enable(struct dsi_display *display)
  {
  	int rc = 0;
  	struct dsi_display_mode *mode;
@@ -2647,7 +2633,7 @@ index 678b1a7..276cfbf 100644
  
  	if (!display || !display->panel) {
  		DSI_ERR("Invalid params\n");
-@@ -10272,6 +10783,10 @@ int dsi_display_enable(struct dsi_display *display)
+@@ -10272,6 +10769,10 @@ int dsi_display_enable(struct dsi_display *display)
  	}
  	SDE_EVT32(SDE_EVTLOG_FUNC_ENTRY, display->is_master);
  
@@ -2658,7 +2644,7 @@ index 678b1a7..276cfbf 100644
  	/*
  	 * Engine states and panel states are populated during splash
  	 * resource/trusted vm and hence we return early
-@@ -10290,9 +10805,59 @@ int dsi_display_enable(struct dsi_display *display)
+@@ -10290,9 +10791,59 @@ int dsi_display_enable(struct dsi_display *display)
  		}
  
  		display->panel->panel_initialized = true;
@@ -2718,7 +2704,7 @@ index 678b1a7..276cfbf 100644
  		return 0;
  	}
  
-@@ -10316,6 +10881,12 @@ int dsi_display_enable(struct dsi_display *display)
+@@ -10316,6 +10867,12 @@ int dsi_display_enable(struct dsi_display *display)
  		}
  	}
  	dsi_display_panel_id_notification(display);
@@ -2731,7 +2717,7 @@ index 678b1a7..276cfbf 100644
  	/* Block sending pps command if modeset is due to fps difference */
  	if ((mode->priv_info->dsc_enabled ||
  			mode->priv_info->vdc_enabled) &&
-@@ -10328,9 +10899,29 @@ int dsi_display_enable(struct dsi_display *display)
+@@ -10328,9 +10885,29 @@ int dsi_display_enable(struct dsi_display *display)
  			goto error;
  		}
  	}
@@ -2761,7 +2747,7 @@ index 678b1a7..276cfbf 100644
  		if (rc)
  			DSI_ERR("[%s] failed to switch DSI panel mode, rc=%d\n",
  				   display->name, rc);
-@@ -10374,12 +10965,28 @@ int dsi_display_post_enable(struct dsi_display *display)
+@@ -10374,12 +10951,28 @@ int dsi_display_post_enable(struct dsi_display *display)
  {
  	int rc = 0;
  
@@ -2790,7 +2776,7 @@ index 678b1a7..276cfbf 100644
  
  	if (display->panel->cur_mode->dsi_mode_flags &
  			DSI_MODE_FLAG_POMS_TO_CMD) {
-@@ -10798,6 +11405,11 @@ int dsi_display_ctl_post_transition(void *display)
+@@ -10798,6 +11391,11 @@ int dsi_display_ctl_post_transition(void *display)
  
  void __init dsi_display_register(void)
  {
@@ -2802,7 +2788,7 @@ index 678b1a7..276cfbf 100644
  	dsi_phy_drv_register();
  	dsi_ctrl_drv_register();
  
-@@ -10813,6 +11425,10 @@ void __exit dsi_display_unregister(void)
+@@ -10813,6 +11411,10 @@ void __exit dsi_display_unregister(void)
  	dsi_sim_bridge_unregister();
  	dsi_ctrl_drv_unregister();
  	dsi_phy_drv_unregister();
