@@ -7,11 +7,11 @@ set -euo pipefail
 KP=/home/alif/kernel/kp50/kernel_platform
 DIST=$KP/out/msm-kernel-sun-perf/dist
 BIN=$KP/bazel-bin/vendor/qcom/opensource
-ROM=/home/alif/android/evolution-12.3
+ROM=/home/alif/android/evolution-x
 OUTP=$ROM/out/target/product/piano
 HOST=$ROM/out/host/linux-x86/bin
 W=/home/alif/kernel/dlkm612
-VER=6.12.81-android16-6-maybe-dirty-4k
+VER=$(basename $(ls -d /home/alif/kernel/kp50/kernel_platform/bazel-bin/vendor/qcom/opensource/mm-drivers/msm_ext_display/sun_perf_msm_ext_display/staging/lib/modules/* -td | head -1))
 STRIP=$(ls -d $KP/prebuilts/clang/host/linux-x86/clang-r*/bin/llvm-strip | tail -1)
 
 rm -rf $W; mkdir -p $W/vendor_dlkm/lib/modules/$VER $W/out

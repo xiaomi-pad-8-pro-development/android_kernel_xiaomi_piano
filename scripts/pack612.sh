@@ -9,7 +9,7 @@ BIN=$KP/bazel-bin/vendor/qcom/opensource
 HOST=/home/alif/android/evolution-12.3/out/host/linux-x86/bin
 W=/home/alif/kernel/pack612
 DT=/home/alif/kernel/dt612-out
-VER=6.12.81-android16-6-maybe-dirty-4k
+VER=$(basename $(ls -d /home/alif/kernel/kp50/kernel_platform/bazel-bin/vendor/qcom/opensource/mm-drivers/msm_ext_display/sun_perf_msm_ext_display/staging/lib/modules/* -td | head -1))
 rm -rf $W/dlkm $W/out; mkdir -p $W/dlkm/lib/modules/$VER $W/out
 M=$W/dlkm/lib/modules/$VER
 cp $DIST/*.ko $M/

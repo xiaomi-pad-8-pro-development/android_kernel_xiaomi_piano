@@ -17,7 +17,7 @@ sed -i '/"CONFIG_PIANO_BRINGUP"/d' $C
 K=common/arch/arm64/Kconfig.debug
 sed -i '/^\tdefault y # piano bring-up$/d' $K
 [ "${PIANO_BRINGUP:-1}" = 1 ] && sed -i 's/^\tbool "Xiaomi Pad 8 Pro (piano) bring-up debug tools"$/&\n\tdefault y # piano bring-up/' $K
-./build_with_bazel.py -t sun perf -s abl || { echo STEP=full FAIL; exit 1; }
+./build_with_bazel.py -t sun perf -s abl --config=stamp || { echo STEP=full FAIL; exit 1; }
 # Every techpack module for sun perf, so none is left over from an older
 # build. Camera needs its project flag and builds on its own below.
 T=$(tools/bazel query 'attr(name, "^sun_perf_", kind("ddk_module|kernel_module", //vendor/qcom/opensource/... + //vendor/xiaomi/...)) except //vendor/qcom/opensource/camera-kernel/...' 2>/dev/null)
