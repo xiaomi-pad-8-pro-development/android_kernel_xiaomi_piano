@@ -25,6 +25,7 @@
 #include "walt.h"
 #include "trace.h"
 #include "sysctl_walt_stats.h"
+#include <soc/qcom/mist_hooks.h>
 
 const char *task_event_names[] = {
 	"PUT_PREV_TASK",
@@ -4876,6 +4877,8 @@ static void walt_irq_work(struct irq_work *irq_work)
 			if (sbt_boost_ns + SBT_BOOST_THRESH_NS < wrq->window_start)
 				sbt_boost_ns = 0;
 		}
+		/* Xiaomi mist: per-window load tracking */
+		trigger_mist_load_tracking(NULL);
 	}
 #ifdef TRACEHOOK_INST_CNT
 	per_cpu(walt_irq_work_inst, track_cpu) += read_instruction_cnt() -
@@ -5779,6 +5782,7 @@ static void android_rvh_schedule(void *unused, struct task_struct *prev,
 	} else {
 		walt_update_task_ravg(prev, rq, TASK_UPDATE, wallclock, 0);
 	}
+	mi_dflt_schedule_hook();
 	update_instruction_data(SCHEDULE);
 }
 

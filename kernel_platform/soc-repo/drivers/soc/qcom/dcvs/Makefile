@@ -28,3 +28,17 @@ obj-$(CONFIG_QCOM_BWPROF_SCMI) += bwprof_scmi.o
 
 obj-$(CONFIG_QTI_CPUFREQ_STATS_SCMI_V2) += cpufreq_stats_scmi_v2.o
 
+
+obj-$(CONFIG_QTI_C1DCVS_SCMI_V2) += c1dcvs_scmi_v2.o
+
+obj-$(CONFIG_QTI_CPUFREQ_STATS_SCMI_V3) += cpufreq_stats_scmi_v3.o
+
+obj-$(CONFIG_QTI_DYNPF_SCMI) += dynpf_scmi.o
+
+# Xiaomi mist (klarnet2009/dada-closed-modules reconstruction, same code
+# as the piano stock mist.ko)
+obj-$(CONFIG_MI_MIST) += mist.o
+mist-objs += mist/mist_dflt.o mist/mist_gflt.o mist/mist_lc.o
+CFLAGS_mist/mist_dflt.o += -I$(src)/mist -I$(src)/mist/include
+CFLAGS_mist/mist_gflt.o += -I$(src)/mist -I$(src)/mist/include
+CFLAGS_mist/mist_lc.o += -I$(src)/mist -I$(src)/mist/include

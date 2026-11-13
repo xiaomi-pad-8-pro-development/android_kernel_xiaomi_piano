@@ -20,6 +20,7 @@
 #include <linux/soc/qcom/msm_adreno_devfreq.h>
 
 #include "drivers/devfreq/governor.h"
+#include <soc/qcom/mist_hooks.h>
 
 static DEFINE_SPINLOCK(tz_lock);
 static DEFINE_SPINLOCK(sample_lock);
@@ -372,6 +373,11 @@ static int tz_get_target_freq(struct devfreq *devfreq, unsigned long *freq)
 	stats->busy_time = min_t(u64, busy_time, stats->total_time);
 
 	priv->bin.busy_time += stats->busy_time;
+
+	/* Xiaomi mist: report GPU load, take its calibrated busy time */
+	set_adreno_gflt_load(priv->bin.total_time, priv->bin.busy_time, 0, 0);
+	if (gpu_load_calibration())
+		priv->bin.busy_time = gpu_load_calibration();
 
 	if (stats->private_data)
 		context_count =  *((int *)stats->private_data);

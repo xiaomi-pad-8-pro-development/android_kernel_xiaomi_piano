@@ -29,6 +29,7 @@
 #include <linux/spinlock.h>
 #include <trace/hooks/sched.h>
 #include <soc/qcom/dcvs.h>
+#include <soc/qcom/mist_hooks.h>
 #include <soc/qcom/pmu_lib.h>
 #include <linux/scmi_protocol.h>
 #include <linux/sched/clock.h>
@@ -890,6 +891,8 @@ static void calculate_sampling_stats(void)
 			spin_lock_nested(&stats->ctrs_lock, level);
 		level++;
 	}
+	if (mi_dflt_get_latency_enable())
+		mi_dflt_set_latency_vote_start(false);
 
 	for_each_possible_cpu(cpu) {
 		stats = per_cpu(sampling_stats, cpu);
@@ -957,6 +960,11 @@ static void calculate_sampling_stats(void)
 						delta->grp_ctrs[grp][ACC_IDX]);
 
 			/* one meas event per memlat_group with group name */
+			if (mi_dflt_get_latency_enable())
+				mi_dflt_calculate_dflt_lantancy_hook(grp, cpu, delta_us,
+					delta->common_ctrs[INST_IDX],
+					delta->grp_ctrs[grp][MISS_IDX],
+					delta->common_ctrs[CYC_IDX]);
 			trace_memlat_dev_meas(dev_name(memlat_grp->dev), cpu,
 					delta->common_ctrs[INST_IDX],
 					delta->grp_ctrs[grp][MISS_IDX],
@@ -1054,6 +1062,8 @@ static void calculate_mon_sampling_freq(struct memlat_mon *mon)
 	}
 
 	mon->cur_freq = max_memfreq;
+	if (mi_dflt_get_latency_enable())
+		mi_dflt_calculate_mon_sampling_freq_hook(mon->cpus, hw);
 }
 
 /*
@@ -1114,6 +1124,10 @@ static void update_memlat_fp_vote(int cpu, u32 *fp_freqs)
 	if (ret < 0)
 		pr_err("error updating qcom dcvs fp: %d\n", ret);
 	spin_unlock(&memlat_data->fp_commit_lock);
+	for (grp = 0; grp < MAX_MEMLAT_GRPS; grp++) {
+		if ((commit_mask & BIT(grp)) && mi_dflt_get_latency_enable())
+			mi_dflt_update_memlat_fp_vote_hook(voted_freqs, grp);
+	}
 	local_irq_restore(flags);
 }
 
@@ -1187,11 +1201,50 @@ static void memlat_jiffies_update_cb(void *unused, void *extra)
 	if (unlikely(!memlat_data->inited))
 		return;
 
+	/* Xiaomi mist: frame-driven voting replaces the periodic sample. */
+	if (mi_dflt_get_latency_enable()) {
+		if (!mist_ddr_vote_enable() || !mi_dflt_get_latency_vote_start())
+			return;
+		if (delta_ns < 5 * NSEC_PER_MSEC)
+			return;
+		mi_dflt_set_latency_vote_start(false);
+		if (!hrtimer_active(&memlat_data->timer)) {
+			hrtimer_start(&memlat_data->timer, MEMLAT_UPDATE_DELAY,
+						HRTIMER_MODE_REL_PINNED);
+			memlat_data->last_jiffy_ts = now;
+		}
+		return;
+	}
+
 	if (delta_ns > ms_to_ktime(memlat_data->sample_ms)) {
 		hrtimer_start(&memlat_data->timer, MEMLAT_UPDATE_DELAY,
 						HRTIMER_MODE_REL_PINNED);
 		memlat_data->last_jiffy_ts = now;
 	}
+}
+
+/* Xiaomi mist: switch every cpu's sampling between memlat and mist. */
+static void memlat_set_mist_enable(int enable)
+{
+	struct cpu_stats *stats;
+	unsigned long flags;
+	int cpu, level = 0;
+
+	local_irq_save(flags);
+	for_each_possible_cpu(cpu) {
+		stats = per_cpu(sampling_stats, cpu);
+		if (level == 0)
+			spin_lock(&stats->ctrs_lock);
+		else
+			spin_lock_nested(&stats->ctrs_lock, level);
+		level++;
+	}
+	mi_dflt_set_latency_enable(enable);
+	for_each_possible_cpu(cpu) {
+		stats = per_cpu(sampling_stats, cpu);
+		spin_unlock(&stats->ctrs_lock);
+	}
+	local_irq_restore(flags);
 }
 
 /*
@@ -1245,9 +1298,11 @@ static void memlat_pmu_idle_cb(struct qcom_pmu_data *data, int cpu, int state)
 		return;
 
 	spin_lock_irqsave(&stats->ctrs_lock, flags);
-	memcpy(&stats->raw_ctrs, data, sizeof(*data));
-	process_raw_ctrs(stats);
-	stats->idle_sample = true;
+	if (!mi_dflt_get_latency_enable()) {
+		memcpy(&stats->raw_ctrs, data, sizeof(*data));
+		process_raw_ctrs(stats);
+		stats->idle_sample = true;
+	}
 	spin_unlock_irqrestore(&stats->ctrs_lock, flags);
 }
 
@@ -1267,6 +1322,13 @@ static void memlat_sched_tick_cb(void *unused, struct rq *rq)
 		return;
 
 	spin_lock_irqsave(&stats->ctrs_lock, flags);
+	if (mi_dflt_get_latency_enable())
+		goto out;
+	if (mi_dflt_get_latency_enable_from_user()) {
+		spin_unlock_irqrestore(&stats->ctrs_lock, flags);
+		memlat_set_mist_enable(1);
+		return;
+	}
 	delta_ns = now - stats->last_sample_ts + HALF_TICK_NS;
 	if (delta_ns < ms_to_ktime(memlat_data->sample_ms))
 		goto out;
@@ -1281,6 +1343,37 @@ static void memlat_sched_tick_cb(void *unused, struct rq *rq)
 	process_raw_ctrs(stats);
 
 out:
+	spin_unlock_irqrestore(&stats->ctrs_lock, flags);
+}
+
+static void mi_dflt_latency_update_cb(int cpu, ktime_t new_time,
+				      struct qcom_pmu_data *unused)
+{
+	struct cpu_stats *stats = per_cpu(sampling_stats, cpu);
+	ktime_t now = ktime_get();
+	unsigned long flags;
+	int ret;
+
+	if (unlikely(!memlat_data->inited))
+		return;
+
+	spin_lock_irqsave(&stats->ctrs_lock, flags);
+	if (!mi_dflt_get_latency_enable_from_user()) {
+		spin_unlock_irqrestore(&stats->ctrs_lock, flags);
+		memlat_set_mist_enable(0);
+		return;
+	}
+	stats->sample_ts = now;
+	stats->idle_sample = false;
+	stats->raw_ctrs.num_evs = 0;
+	ret = qcom_pmu_read_all_local(&stats->raw_ctrs);
+	if (ret < 0 || stats->raw_ctrs.num_evs == 0)
+		pr_err("error reading pmu counters on cpu%d: %d\n", cpu, ret);
+	else {
+		process_raw_ctrs(stats);
+		mi_dflt_process_raw_ctrs_hook(cpu, stats->raw_ctrs.ev_data[1],
+					      stats->raw_ctrs.ev_data[3]);
+	}
 	spin_unlock_irqrestore(&stats->ctrs_lock, flags);
 }
 
@@ -1388,6 +1481,8 @@ static int memlat_sampling_init(void)
 	memlat_data->timer.function = memlat_hrtimer_handler;
 
 	register_trace_android_vh_jiffies_update(memlat_jiffies_update_cb, NULL);
+	register_mi_dflt_lat_update_cb(mi_dflt_latency_update_cb,
+				       &memlat_data->timer, calculate_sampling_stats);
 
 	return 0;
 }

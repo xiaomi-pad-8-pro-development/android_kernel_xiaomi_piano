@@ -497,6 +497,51 @@ exit:
 	return ret;
 }
 
+/*
+ * Xiaomi mist: read the memory controller clock (MCCC period register)
+ * without selecting a debug mux parent. Reconstructed from the piano
+ * stock clk-qcom.ko; mist calls it with data == NULL for its trace.
+ */
+int clk_debug_mc_cc_get(void *data, u64 *val)
+{
+	struct clk_debug_mux *meas, *mux;
+	struct clk_hw *parent;
+	int i, ret = -EINVAL;
+	u32 regval = 0;
+
+	if (!measure)
+		return -EINVAL;
+
+	meas = to_clk_measure(measure);
+	ret = clk_runtime_get_debug_mux(meas);
+	if (ret)
+		return ret;
+
+	ret = -EINVAL;
+	mutex_lock(&clk_debug_lock);
+	for (i = 0; i < clk_hw_get_num_parents(measure); i++) {
+		parent = clk_hw_get_parent_by_index(measure, i);
+		if (!parent || !clk_is_debug_mux(parent))
+			continue;
+		mux = to_clk_measure(parent);
+		if (mux->mux_sels)
+			continue;
+		regmap_read(mux->regmap, mux->period_offset, &regval);
+		if (!regval) {
+			pr_err("Error reading mccc period register\n");
+			break;
+		}
+		*val = 1000000000000UL;
+		do_div(*val, regval);
+		ret = 0;
+		break;
+	}
+	mutex_unlock(&clk_debug_lock);
+	clk_runtime_put_debug_mux(meas);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(clk_debug_mc_cc_get);
+
 DEFINE_DEBUGFS_ATTRIBUTE(clk_measure_fops, clk_debug_measure_get,
 			 clk_debug_measure_set, "%lld\n");
 

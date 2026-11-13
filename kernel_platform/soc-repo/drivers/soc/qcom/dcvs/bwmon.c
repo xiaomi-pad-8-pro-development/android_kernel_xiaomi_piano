@@ -24,6 +24,7 @@
 #include <linux/cpufreq.h>
 #include <linux/sched/walt.h>
 #include <soc/qcom/dcvs.h>
+#include <soc/qcom/mist_hooks.h>
 #include <trace/hooks/sched.h>
 #include "bwmon.h"
 #include "trace-dcvs.h"
@@ -837,6 +838,8 @@ static bool bwmon_update_cur_freq(struct hwmon_node *node)
 	/* sched_boost_freq is intentionally not limited by max_freq */
 	if (node->cur_sched_boost)
 		new_freq.ib = max(new_freq.ib, node->sched_boost_freq);
+	if (mi_dflt_get_bwmon_enable())
+		mi_dflt_bwmon_update_cur_freq_hook(new_freq.ib, 0);
 	primary_ib_mbps = KHZ_TO_MBPS(new_freq.ib, hw->dcvs_width);
 
 	if (new_freq.ib != node->cur_freqs[0].ib ||
@@ -915,6 +918,9 @@ static void bwmon_jiffies_update_cb(void *unused, void *extra)
 	bool sched_update = false, low_power_update = false;
 	int new_boost_state = -1;
 
+	if (mi_dflt_get_bwmon_enable())
+		return;
+
 	spin_lock_irqsave(&list_lock, flags);
 	list_for_each_entry(node, &hwmon_list, list) {
 		hw = node->hw;
@@ -939,6 +945,25 @@ static void bwmon_jiffies_update_cb(void *unused, void *extra)
 			queue_work(bwmon_wq, &hw->work);
 			hw->last_update_ts = now;
 		}
+	}
+	spin_unlock_irqrestore(&list_lock, flags);
+}
+
+static void mi_dflt_bwmon_update_cb(void)
+{
+	struct bw_hwmon *hw;
+	struct hwmon_node *node;
+	unsigned long flags;
+	ktime_t now = ktime_get();
+
+	spin_lock_irqsave(&list_lock, flags);
+	list_for_each_entry(node, &hwmon_list, list) {
+		hw = node->hw;
+		if (!hw->is_active || !mi_dflt_get_bwmon_sample_start(hw->dcvs_hw))
+			continue;
+		mi_dflt_set_bwmon_sample_start(hw->dcvs_hw, false);
+		queue_work(bwmon_wq, &hw->work);
+		hw->last_update_ts = now;
 	}
 	spin_unlock_irqrestore(&list_lock, flags);
 }
@@ -2204,6 +2229,7 @@ static int init_and_start_bwmon(struct platform_device *pdev, struct bwmon *m)
 		}
 		register_trace_android_vh_jiffies_update(
 						bwmon_jiffies_update_cb, NULL);
+		register_mi_dflt_bw_update_cb(mi_dflt_bwmon_update_cb);
 	}
 	mutex_unlock(&bwmon_lock);
 	ret = start_monitor(&m->hw);

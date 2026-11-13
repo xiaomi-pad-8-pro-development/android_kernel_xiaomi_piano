@@ -11,6 +11,7 @@ def register_modules(registry):
         ],
         deps = [
             # do not sort
+            "drivers/soc/qcom/dcvs/mist",
             "kernel/sched/walt/sched-walt",
             "drivers/soc/qcom/socinfo",
             "drivers/soc/qcom/dcvs/qcom-dcvs",
@@ -75,6 +76,7 @@ def register_modules(registry):
         ],
         deps = [
             # do not sort
+            "drivers/soc/qcom/dcvs/mist",
             "drivers/soc/qcom/dcvs/qcom-pmu-lib",
             "drivers/perf/qcom_llcc_pmu",
             "drivers/soc/qcom/cpu_phys_log_map",
@@ -262,5 +264,65 @@ def register_modules(registry):
         deps = [
             # do not sort
             "drivers/soc/qcom/dcvs/qcom_scmi_client",
+        ],
+    )
+
+    registry.register(
+        name = "drivers/soc/qcom/dcvs/c1dcvs_scmi_v2",
+        out = "c1dcvs_scmi_v2.ko",
+        config = "CONFIG_QTI_C1DCVS_SCMI_V2",
+        srcs = [
+            # do not sort
+            "drivers/soc/qcom/dcvs/c1dcvs_scmi_v2.c",
+        ],
+        deps = [
+            # do not sort
+            "drivers/soc/qcom/dcvs/qcom_scmi_client",
+        ],
+    )
+
+    registry.register(
+        name = "drivers/soc/qcom/dcvs/cpufreq_stats_scmi_v3",
+        out = "cpufreq_stats_scmi_v3.ko",
+        config = "CONFIG_QTI_CPUFREQ_STATS_SCMI_V3",
+        srcs = [
+            # do not sort
+            "drivers/soc/qcom/dcvs/cpufreq_stats_scmi_v3.c",
+        ],
+    )
+
+    registry.register(
+        name = "drivers/soc/qcom/dcvs/dynpf_scmi",
+        out = "dynpf_scmi.ko",
+        config = "CONFIG_QTI_DYNPF_SCMI",
+        srcs = [
+            # do not sort
+            "drivers/soc/qcom/dcvs/dynpf_scmi.c",
+        ],
+        deps = [
+            # do not sort
+            "drivers/soc/qcom/dcvs/qcom_scmi_client",
+        ],
+    )
+
+    registry.register(
+        name = "drivers/soc/qcom/dcvs/mist",
+        out = "mist.ko",
+        config = "CONFIG_MI_MIST",
+        srcs = [
+            # do not sort
+            "drivers/soc/qcom/dcvs/mist/include/soc/qcom/mist_ext.h",
+            "drivers/soc/qcom/dcvs/mist/mist.h",
+            "drivers/soc/qcom/dcvs/mist/mist_dflt.c",
+            "drivers/soc/qcom/dcvs/mist/mist_dflt.h",
+            "drivers/soc/qcom/dcvs/mist/mist_gflt.c",
+            "drivers/soc/qcom/dcvs/mist/mist_lc.c",
+            "include/soc/qcom/mist_hooks.h",
+        ],
+        deps = [
+            # do not sort
+            "drivers/soc/qcom/dcvs/qcom-dcvs",
+            "drivers/soc/qcom/dcvs/qcom-pmu-lib",
+            "drivers/clk/qcom/clk-qcom",
         ],
     )

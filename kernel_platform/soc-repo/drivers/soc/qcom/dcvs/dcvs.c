@@ -264,6 +264,32 @@ static inline struct dcvs_path *get_dcvs_path(enum dcvs_hw_type hw,
 	return NULL;
 }
 
+/*
+ * Xiaomi mist: highest DDR vote over all DDR paths, like show_cur_freq.
+ * Reconstructed from the piano stock qcom-dcvs.ko.
+ */
+u32 get_ddr_freq(void)
+{
+	struct dcvs_path *path;
+	u32 cur_freq = 0;
+	int i, cpu;
+
+	for (i = 0; i < NUM_DCVS_PATHS; i++) {
+		path = get_dcvs_path(DCVS_DDR, i);
+		if (!path)
+			continue;
+		if (path->type != DCVS_PERCPU_PATH) {
+			cur_freq = max(cur_freq, path->cur_freq.ib);
+			continue;
+		}
+		for_each_possible_cpu(cpu)
+			cur_freq = max(cur_freq, path->percpu_cur_freqs[cpu]);
+	}
+
+	return cur_freq;
+}
+EXPORT_SYMBOL_GPL(get_ddr_freq);
+
 static u32 get_target_freq(struct dcvs_path *path, u32 freq)
 {
 	struct dcvs_hw *hw = path->hw;

@@ -61,6 +61,7 @@ def register_modules(registry):
             # do not sort
             "drivers/soc/qcom/socinfo",
             "drivers/soc/qcom/smem",
+            "drivers/soc/qcom/dcvs/mist",
         ],
     )
 

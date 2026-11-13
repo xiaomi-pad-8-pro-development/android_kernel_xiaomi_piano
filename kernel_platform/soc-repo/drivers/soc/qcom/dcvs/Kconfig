@@ -32,6 +32,14 @@ config QCOM_DCVS
 	  Qualcomm Technologies, Inc. (QTI) chipsets. This includes voting
 	  interfaces from both QCOM_DCVS_FP and INTERCONNECT.
 
+config MI_MIST
+	tristate "Xiaomi mist frame-aware CPU, DDR and GPU boost"
+	depends on QCOM_DCVS && QCOM_PMU_LIB
+	default n
+	help
+	  Xiaomi's mist module, rebuilt from source. memlat, bwmon, WALT
+	  and kgsl call into it when it is enabled from user space.
+
 config QCOM_MEMLAT
 	tristate "QCOM Memlat Driver"
 	depends on QCOM_DCVS && QCOM_PMU_LIB

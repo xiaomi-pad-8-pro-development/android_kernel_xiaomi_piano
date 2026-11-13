@@ -5613,9 +5613,31 @@ static enum usb_role dwc3_msm_usb_role_switch_get_role(struct usb_role_switch *s
 	return role;
 }
 
+/*
+ * Bring-up only: piano's charger detection (subpmic) does not report VBUS on
+ * 6.12 yet, so nothing ever selects the device role and adb stays off in
+ * Android. piano_force_peripheral=1 keeps the controller in device mode.
+ */
+static bool piano_force_peripheral;
+module_param(piano_force_peripheral, bool, 0644);
+static struct dwc3_msm *piano_force_mdwc;
+static int dwc3_msm_set_role(struct dwc3_msm *mdwc, enum usb_role role);
+
+static void piano_force_peripheral_fn(struct work_struct *w)
+{
+	if (piano_force_peripheral && piano_force_mdwc)
+		pr_info("dwc3-msm: piano: forcing device role, init returned %d\n",
+			dwc3_msm_set_role(piano_force_mdwc, USB_ROLE_DEVICE));
+}
+static DECLARE_DELAYED_WORK(piano_force_peripheral_work, piano_force_peripheral_fn);
+
 static int dwc3_msm_set_role(struct dwc3_msm *mdwc, enum usb_role role)
 {
 	enum usb_role cur_role;
+
+	if (piano_force_peripheral && role == USB_ROLE_NONE &&
+	    system_state == SYSTEM_RUNNING)
+		role = USB_ROLE_DEVICE;
 
 	if (mdwc->dis_role_switch)
 		return -EPERM;
@@ -7205,6 +7227,10 @@ static int dwc3_msm_probe(struct platform_device *pdev)
 	mdwc->dp_state = DP_NONE;
 
 	mdwc->force_disconnect = false;
+	if (piano_force_peripheral) {
+		piano_force_mdwc = mdwc;
+		schedule_delayed_work(&piano_force_peripheral_work, 5 * HZ);
+	}
 	return 0;
 
 put_dwc3:

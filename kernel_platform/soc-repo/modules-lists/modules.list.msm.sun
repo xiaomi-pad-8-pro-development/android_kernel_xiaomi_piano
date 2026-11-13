@@ -76,7 +76,6 @@ qcom-pmu-lib.ko
 qcom-ipcc.ko
 qnoc-qos.ko
 qnoc-sun.ko
-qcom_ipc_logging.ko
 qcom_hwspinlock.ko
 qrtr.ko
 qcom_aoss.ko

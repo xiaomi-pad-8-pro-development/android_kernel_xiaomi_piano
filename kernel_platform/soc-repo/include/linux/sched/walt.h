@@ -68,6 +68,13 @@ struct walt_related_thread_group {
 	u64			last_update;
 	u64			downmigrate_ts;
 	u64			start_ktime_ts;
+	/*
+	 * Xiaomi rtg: preferred CPUs (one mask word) and preferred util of
+	 * the group. The stock 6.6 rtg.ko writes them at offsets 0x58 and
+	 * 0x60, right after start_ktime_ts.
+	 */
+	u64			mi_prefer_cpus;
+	unsigned long		mi_prefer_util;
 };
 
 struct walt_task_struct {

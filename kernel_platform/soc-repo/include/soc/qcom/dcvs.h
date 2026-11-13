@@ -40,6 +40,7 @@ int qcom_dcvs_register_voter(const char *name, enum dcvs_hw_type hw_type,
 			enum dcvs_path_type path_type);
 int qcom_dcvs_unregister_voter(const char *name, enum dcvs_hw_type hw_type,
 			enum dcvs_path_type path_type);
+u32 get_ddr_freq(void);
 int qcom_dcvs_update_votes(const char *name, struct dcvs_freq *votes,
 			u32 update_mask, enum dcvs_path_type path);
 struct kobject *qcom_dcvs_kobject_get(enum dcvs_hw_type type);
