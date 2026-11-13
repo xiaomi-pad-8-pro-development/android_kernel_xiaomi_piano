@@ -1,0 +1,22 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include "art-sde-display-qrd.dtsi"
+
+/ {
+	model = "Qualcomm Technologies, Inc. Artl QRD + Fig + ST54L + QMP1000 + Pandeiro + 2s battery + Pictor";
+	compatible = "qcom,artl-qrd", "qcom,artl", "qcom,artlp-qrd", "qcom,artlp",
+			   "qcom,qrd";
+	qcom,msm-id = <755 0x10000>;
+	qcom,board-id = <0x1000b 0x0>;
+};
+
+&sde_dsi {
+	exvdd-supply = <&display_panel_vdd>;
+	qcom,dsi-default-panel = <&dsi_nt37802_amoled_cmd_i2c_cphy>;
+};

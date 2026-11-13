@@ -1,0 +1,96 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ */
+
+&mdss_mdp {
+	dsi_dlc0697_fhd_60_video: qcom,mdss_dsi_dlc0697_fhd_60_video {
+		qcom,mdss-dsi-panel-name =
+			"dlc0697 lcd video mode dsi fhd panel";
+		qcom,mdss-dsi-panel-type = "dsi_video_mode";
+		qcom,dsi-ctrl-num = <0>;
+		qcom,dsi-phy-num = <0>;
+		qcom,mdss-dsi-virtual-channel-id = <0>;
+		qcom,mdss-dsi-stream = <0>;
+		qcom,mdss-dsi-bpp = <24>;
+		qcom,mdss-dsi-border-color = <0>;
+		qcom,mdss-dsi-traffic-mode = "burst_mode";
+		qcom,mdss-dsi-bllp-power-mode;
+		qcom,mdss-dsi-bllp-eof-power-mode;
+		qcom,mdss-dsi-lane-0-state;
+		qcom,mdss-dsi-lane-1-state;
+		qcom,mdss-dsi-lane-2-state;
+		qcom,mdss-dsi-lane-3-state;
+		qcom,mdss-dsi-dma-trigger = "trigger_sw";
+		qcom,mdss-dsi-mdp-trigger = "none";
+		qcom,mdss-dsi-reset-sequence = <1 10>, <0 10>, <1 10>;
+		qcom,mdss-dsi-tx-eot-append;
+		qcom,adjust-timer-wakeup-ms = <1>;
+		qcom,mdss-dsi-panel-peak-brightness = <4200000>;
+		qcom,mdss-dsi-panel-blackness-level = <3230>;
+
+		qcom,mdss-dsi-display-timings {
+			timing@0 {
+				cell-index = <0>;
+				qcom,mdss-dsi-panel-width = <1080>;
+				qcom,mdss-dsi-panel-height = <1920>;
+				qcom,mdss-dsi-h-front-porch = <18>;
+				qcom,mdss-dsi-h-back-porch = <16>;
+				qcom,mdss-dsi-h-pulse-width = <2>;
+				qcom,mdss-dsi-h-sync-skew = <0>;
+				qcom,mdss-dsi-v-back-porch = <20>;
+				qcom,mdss-dsi-v-front-porch = <26>;
+				qcom,mdss-dsi-v-pulse-width = <4>;
+				qcom,mdss-dsi-panel-framerate = <60>;
+
+				qcom,mdss-dsi-on-command = [
+					// Soft Reset (Wait 120ms)
+					05 01 00 00 78 00 01 01
+
+					// Manufacturer Unlock (Page 1/2 Access)
+					39 01 00 00 00 00 04 FF 78 07 00
+
+					//	TE On (V-Blanking)
+					15 01 00 00 00 00 02 35 00
+
+					/*
+					 * CABC CONFIG (12-bit)
+					 * CABC Min Brightness (0x5E) - 2 Params
+					 * Value: 0x999 (~60% of 12-bit 4095)
+					 * Packet: Cmd(5E) + D0(06) + D1(66)
+					 */
+					39 01 00 00 00 00 03 5E 09 99
+
+					// CABC Control (0x53) - Enable BCTRL
+					15 01 00 00 00 00 02 53 24
+
+					// CABC Mode (0x55) - UI Mode
+					15 01 00 00 00 00 02 55 01
+
+					/*
+					 * DISPLAY BRIGHTNESS (14-bit)
+					 * Set Initial Bright(0x51) - 2 Params
+					 * Value: 0x3FFF (Max 14-bit)
+					 * Packet: Cmd(51) + D0(3F) + D1(FF)
+					 */
+					39 01 00 00 00 00 03 51 3F FF
+
+					// Sleep Out (Wait 120ms)
+					05 01 00 00 78 00 01 11
+
+					// Display On (Wait 20ms)
+					05 01 00 00 14 00 01 29
+				];
+				qcom,mdss-dsi-on-command-state = "dsi_lp_mode";
+				qcom,mdss-dsi-off-command = [
+					// Display Off (DT=05, Wait=20ms)
+					05 01 00 00 14 00 01 28
+
+					// Sleep In (DT=05, Wait=120ms)
+					05 01 00 00 78 00 01 10
+				];
+				qcom,mdss-dsi-off-command-state = "dsi_lp_mode";
+			};
+		};
+	};
+};

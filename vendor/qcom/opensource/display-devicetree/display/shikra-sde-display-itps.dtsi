@@ -1,0 +1,93 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ */
+
+#include "shikra-sde-display.dtsi"
+
+&tlmm {
+	lt9611uxd_pins: lt9611uxd_pins {
+		mux {
+			pins = "gpio85", "gpio76";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio85", "gpio76";
+			drive-strength = <8>;
+			bias-disable = <0>;
+		};
+	};
+};
+
+&dsi_dlc0697_fhd_60_video {
+	qcom,panel-supply-entries = <&dsi_panel_pwr_supply_no_labibb>;
+	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
+	qcom,mdss-dsi-bl-min-level = <10>;
+	qcom,mdss-dsi-bl-max-level = <4095>;
+	qcom,mdss-brightness-max-level = <8191>;
+	qcom,mdss-dsi-bl-inverted-dbv;
+	qcom,platform-te-gpio = <&tlmm 86 0>;
+	qcom,platform-bklight-en-gpio = <&tlmm 91 0>;
+	qcom,platform-en-gpio = <&tlmm 151 0>;
+};
+
+&sde_dsi {
+	qcom,dsi-default-panel = <&dsi_dlc0697_fhd_60_video>;
+	port@0 {
+		status = "disabled";
+		reg = <0>;
+		ext_dsi_0_out: endpoint {
+			remote-endpoint = <&lt9611uxd_in_0>;
+		};
+	};
+};
+
+&i2c4 {
+	status = "okay";
+
+	gt9xx-i2c@5d {
+		panel = <&dsi_dlc0697_fhd_60_video>;
+	};
+
+	lt9611uxd: lt,lt9611uxd@41 {
+		status = "disabled";
+		compatible = "lt,lt9611uxd";
+		reg = <0x41>;
+		lt,irq-gpio = <&tlmm 85 0x0>;
+		lt,reset-gpio = <&tlmm 76 0x0>;
+		lt,hdmi-en-gpio = <&tlmm 151 0x0>;
+		lt,ext-disp = <&ext_disp>;
+		lt,audio-support;
+		lt,cec-support;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&lt9611uxd_pins>;
+
+		lt,preferred-mode = "1920x1080";
+
+		lt,customize-modes {
+			lt,customize-mode-id@0 {
+				lt,mode-h-active = <1920>;
+				lt,mode-h-front-porch = <88>;
+				lt,mode-h-pulse-width = <44>;
+				lt,mode-h-back-porch = <148>;
+				lt,mode-h-active-high;
+				lt,mode-v-active = <1080>;
+				lt,mode-v-front-porch = <4>;
+				lt,mode-v-pulse-width = <5>;
+				lt,mode-v-back-porch = <36>;
+				lt,mode-v-active-high;
+				lt,mode-refresh-rate = <60>;
+				lt,mode-clock-in-khz = <148500>;
+			};
+		};
+
+		port@0 {
+			reg = <0>;
+			lt9611uxd_in_0: endpoint {
+				remote-endpoint = <&ext_dsi_0_out>;
+			};
+		};
+	};
+};

@@ -1,0 +1,17 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include "sun-sde-display-hdk-sec-hdmi.dtsi"
+
+/ {
+	model = "Qualcomm Technologies, Inc. Sun HDK Secondary HDMI";
+	compatible = "qcom,sun-hdk", "qcom,sun", "qcom,hdk";
+	qcom,msm-id = <706 0x10000>, <706 0x20000>,
+			<0x10002c2 0x10000>, <0x10002c2 0x20000>;
+	qcom,board-id = <0x1001f 0>;
+};

@@ -1,0 +1,18 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ */
+
+#include "trustedvm-shikra-sde-display.dtsi"
+
+
+&dsi_dlc0697_fhd_60_video {
+	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
+	qcom,mdss-dsi-bl-min-level = <10>;
+	qcom,mdss-dsi-bl-max-level = <4095>;
+	qcom,mdss-brightness-max-level = <8191>;
+	qcom,mdss-dsi-bl-inverted-dbv;
+	qcom,platform-te-gpio = <&tlmm 86 0>;
+	qcom,platform-bklight-en-gpio = <&tlmm 91 0>;
+	qcom,platform-en-gpio = <&tlmm 151 0>;
+};

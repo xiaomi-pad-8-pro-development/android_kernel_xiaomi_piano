@@ -1,0 +1,68 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include "art-sde-display-qrd.dtsi"
+
+/ {
+	model = "Qualcomm Technologies, Inc. Art QRD + Fig + ST54L + Harmonium + Pandeiro + 1s battery + RCM +165HZ, Alioth";
+	compatible = "qcom,art-qrd", "qcom,art", "qcom,artp-qrd", "qcom,artp",
+			   "qcom,qrd";
+	qcom,msm-id = <707 0x10000>, <707 0x20000>, <708 0x10000>, <708 0x20000>;
+	qcom,board-id = <0x2100b 0>;
+};
+
+&tlmm {
+	/delete-node/ pmx_sde_esync;
+
+	display_panel_vdd_default: display_panel_vdd_default {
+		mux_320: mux {
+			pins = "gpio88";
+			function = "gpio";
+		};
+
+		config_321: config {
+			pins = "gpio88";
+			drive-strength = <8>;
+			bias-disable = <0>;
+			output-high;
+		};
+	};
+};
+
+&soc {
+	display_panel_vdd_165hz: display_gpio_regulator@3 {
+		compatible = "qti-regulator-fixed";
+		regulator-name = "display_panel_exvdd";
+		regulator-min-microvolt = <1100000>;
+		regulator-max-microvolt = <1100000>;
+		regulator-enable-ramp-delay = <233>;
+		gpio = <&tlmm 88 0>;
+		enable-active-high;
+		regulator-boot-on;
+		proxy-supply = <&display_panel_vdd_165hz>;
+		qcom,proxy-consumer-enable;
+		pinctrl-names = "default";
+		pinctrl-0 = <&display_panel_vdd_default>;
+	};
+};
+
+&sde_dsi {
+	exvdd-supply = <&display_panel_vdd_165hz>;
+	qcom,dsi-default-panel = <&dsi_ili97680a_amoled_dsc_10b_cmd>;
+
+	pinctrl-names = "panel_active", "panel_active_with_esync", "panel_suspend";
+	pinctrl-0 = <&sde_dsi_active &sde_te_active
+			&sde_mdp_vsync_p_1p2_active &sde_mdp_vsync_p_1p8_active
+			&sde_disp0_rst_1p2_active &sde_disp0_rst_1p8_active>;
+	pinctrl-1 = <&sde_dsi_active &sde_te_active
+			&sde_mdp_vsync_p_1p2_active &sde_mdp_vsync_p_1p8_active
+			&sde_disp0_rst_1p2_active &sde_disp0_rst_1p8_active>;
+	pinctrl-2 = <&sde_dsi_suspend &sde_te_suspend
+			&sde_mdp_vsync_p_1p2_active &sde_mdp_vsync_p_1p8_active
+			&sde_disp0_rst_1p2_active &sde_disp0_rst_1p8_active>;
+};

@@ -1,0 +1,16 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ */
+/dts-v1/;
+/plugin/;
+
+#include "trustedvm-pebble-sde.dtsi"
+#include "trustedvm-pebble-sde-display-rcm.dtsi"
+
+/ {
+	model = "Qualcomm Technologies, Inc. Pebble SVM RCM";
+	compatible = "qcom,pebble-rcm", "qcom,pebble", "qcom,rcm";
+	qcom,msm-id = <735 0x10000>, <735 0x10001>, <741 0x10000>, <741 0x10001>;
+	qcom,board-id = <0x10015 0x0>, <0x30115 0x0>, <0x20015 0x0>, <0x20115 0x0>, <0x10115 0x0>, <0x30015 0x0>;
+};

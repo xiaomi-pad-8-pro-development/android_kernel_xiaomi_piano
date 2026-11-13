@@ -1,0 +1,52 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/arm/msm/qti-smmu-proxy-dt-ids.h>
+#include "art-sde-common.dtsi"
+#include "trustedvm-art-avf-required-subnodes.dtsi"
+
+&soc {
+	smmu_sde_iommu_region_partition: smmu_sde_iommu_region_partition@1 {
+		iommu-addresses = <&smmu_sde_unsec 0x0 0x0 0x0 0x00020000>;
+	};
+
+	smmu_sde_unsec: qcom,smmu_sde_unsec_cb@0 {
+		compatible = "qcom,smmu_sde_unsec";
+		memory-region = <&smmu_sde_iommu_region_partition>;
+		iommus = <&apps_smmu 0x404 0x2>;
+		qcom,iommu-faults = "non-fatal";
+		dma-coherent;
+	};
+};
+
+&mdss_mdp {
+	qcom,sde-vm-exclude-reg-names = "mdp_phys", "vbif_phys",
+					"regdma_phys", "ipcc_reg",
+					"swfuse_phys";
+	qcom,sde-hw-version =<0xE0000000>;
+	status = "ok";
+	qcom,sde-trusted-vm-env;
+};
+
+&mdss_dsi0 {
+	reg = <0x0 0x09ac0000 0x0 0x1000>,
+		<0x0 0x9BB1000 0x0 0x4>,
+		<0x0 0x0998f000 0x0 0x300>;
+
+	reg-names = "dsi_ctrl", "disp_cc_base", "mdp_intf_base";
+	status = "ok";
+};
+
+&mdss_dsi_phy0 {
+	reg = <0x0 0x9ac1000 0x0 0xa00>,
+		<0x0 0x9ac1500 0x0 0x400>,
+		<0x0 0x9ac0200 0x0 0xa0>;
+	reg-names = "dsi_phy", "pll_base", "dyn_refresh_base";
+	status = "ok";
+	qcom,dsi-pll-in-trusted-vm;
+};

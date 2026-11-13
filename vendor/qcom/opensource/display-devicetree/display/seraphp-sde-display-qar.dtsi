@@ -1,0 +1,63 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ */
+
+#include "seraph-sde-display.dtsi"
+
+&pmar2230_gpios {
+	display_verg_pwr_en_active: display_verg_pwr_en_active {
+		pins = "gpio14";
+		function = "normal";
+		input-disable;
+		output-enable;
+		bias-disable;
+		power-source = <2>;
+		qcom,drive-strength = <2>;
+	};
+};
+
+&display_verg_pwr_en {
+	gpio = <&pmar2230_gpios 14 0>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&display_verg_pwr_en_active>;
+};
+
+&sde_dsi_active {
+	mux {
+		pins = "gpio93";
+		function = "gpio";
+	};
+
+	config {
+		pins = "gpio93";
+		drive-strength = <8>;   /* 8 mA */
+		bias-disable = <0>;   /* no pull */
+	};
+};
+
+&sde_dsi_suspend {
+	mux {
+		pins = "gpio93";
+		function = "gpio";
+	};
+
+	config {
+		pins = "gpio93";
+		drive-strength = <2>;   /* 2 mA */
+		bias-pull-down;         /* PULL DOWN */
+	};
+};
+
+&dsi_sim_vid {
+	qcom,panel-supply-entries = <&dsi_panel_pwr_supply_sim>;
+	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
+	qcom,mdss-dsi-bl-min-level = <1>;
+	qcom,mdss-dsi-bl-max-level = <1023>;
+	qcom,mdss-brightness-max-level = <1023>;
+	qcom,platform-reset-gpio = <&tlmm 93 0>;
+};
+
+&sde_dsi {
+	qcom,dsi-default-panel = <&dsi_sim_vid>;
+};

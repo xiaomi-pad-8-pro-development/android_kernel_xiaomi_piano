@@ -1,0 +1,13 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ */
+
+#include "art-sde.dtsi"
+
+&mdss_mdp {
+
+	qcom,sde-hw-version = <0xE0030000>;
+
+};
+

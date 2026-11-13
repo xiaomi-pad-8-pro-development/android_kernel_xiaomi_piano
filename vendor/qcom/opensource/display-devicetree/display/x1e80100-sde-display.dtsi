@@ -1,0 +1,40 @@
+// SPDX-License-Identifier: BSD-3-Clause-Clear
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ */
+
+#include <dt-bindings/clock/qcom,x1e80100-dispcc.h>
+
+&soc {
+	sde_wb0: qcom,wb-display@0 {
+		compatible = "qcom,wb-display";
+		cell-index = <0>;
+		label = "wb_display0";
+		qcom,op-label = "hwio";
+		status = "ok";
+		clocks = <&dispcc DISP_CC_MDSS_MDP_CLK>;
+		clock-names = "mdp_core_clk";
+	};
+
+	sde_wb1: qcom,wb-display@1 {
+		compatible = "qcom,wb-display";
+		cell-index = <1>;
+		label = "wb_display1";
+		qcom,op-label = "hwio";
+		status = "ok";
+		clocks = <&dispcc DISP_CC_MDSS_MDP_CLK>;
+		clock-names = "mdp_core_clk";
+	};
+
+};
+
+&reserved_memory {
+	splash_memory: splash_region {
+		reg = <0x0 0xE4800000 0x0 0x021C0000>;
+		label = "cont_splash_region";
+	};
+};
+
+&mdss_mdp {
+	connectors = <&smmu_sde_unsec &smmu_sde_sec &sde_wb0 &sde_wb1 &sde_edp &sde_dp &sde_dp1>;
+};

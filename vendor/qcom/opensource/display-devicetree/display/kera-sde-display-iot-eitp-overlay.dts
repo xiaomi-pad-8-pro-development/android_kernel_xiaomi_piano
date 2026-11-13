@@ -1,0 +1,18 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include "kera-sde-display-iot-eitp.dtsi"
+
+/ {
+	model = "Qualcomm Technologies, Inc. Kera EITP";
+	compatible = "qcom,kera-evk", "qcom,kera", "qcom,kerap-evk", "qcom,kerap",
+			"qcom,evk";
+	qcom,msm-id = <731 0x10000>, <732 0x10000>;
+	qcom,board-id = <0x10034 0>, <0x20034 0>, <0x30034 0>, <0x40034 0>,
+			<0x50034 0>, <0x60034 0>, <0x70034 0>;
+};

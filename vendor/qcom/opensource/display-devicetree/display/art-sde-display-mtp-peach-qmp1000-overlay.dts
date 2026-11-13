@@ -1,0 +1,17 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include "art-sde-display-mtp.dtsi"
+
+/ {
+	model = "Qualcomm Technologies, Inc. Art MTP + Peach + SN200U + QMP1000";
+	compatible = "qcom,art-mtp", "qcom,art", "qcom,artp-mtp", "qcom,artp",
+			"qcom,mtp";
+	qcom,msm-id = <707 0x10000>, <707 0x20000>, <708 0x10000>, <708 0x20000>;
+	qcom,board-id = <0x30108 0>, <0x10030108 0>;
+};

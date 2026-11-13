@@ -1,0 +1,17 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include "art-sde-display-rumi.dtsi"
+
+/ {
+	model = "Qualcomm Technologies, Inc. Art RUMI";
+	compatible = "qcom,art-rumi", "qcom,art", "qcom,rumi";
+	qcom,msm-id = <707 0x10000>, <707 0x20000>, <708 0x10000>, <708 0x20000>;
+	qcom,board-id = <15 0>;
+};
+

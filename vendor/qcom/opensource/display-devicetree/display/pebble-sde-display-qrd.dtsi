@@ -1,0 +1,10 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ */
+
+#include "pebble-sde-display-mtp.dtsi"
+
+&sde_dsi {
+	qcom,dsi-default-panel = <&dsi_nt37802_amoled_cmd_i2c_cphy>;
+};

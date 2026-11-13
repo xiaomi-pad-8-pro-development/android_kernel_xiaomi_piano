@@ -1,0 +1,16 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include "arth-sde.dtsi"
+
+/ {
+	model = "Qualcomm Technologies, Inc. Arth";
+	compatible = "qcom,arth";
+	qcom,msm-id = <760 0x10000>;
+	qcom,board-id = <0 0>;
+};

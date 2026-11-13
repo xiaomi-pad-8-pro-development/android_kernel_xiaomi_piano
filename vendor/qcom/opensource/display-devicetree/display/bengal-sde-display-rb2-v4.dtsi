@@ -1,0 +1,91 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ */
+
+#include "bengal-sde-display.dtsi"
+
+&pmx_sde {
+	sde_dsi_active: sde_dsi_active {
+		mux {
+			pins = "gpio97";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio97";
+			drive-strength = <8>;   /* 8 mA */
+			bias-disable = <0>;     /* NO PULL */
+		};
+	};
+
+	sde_dsi_suspend: sde_dsi_suspend {
+		mux {
+			pins = "gpio97";
+			function = "gpio";
+		};
+
+		config {
+			pins = "gpio97";
+			drive-strength = <2>;   /* 2 mA */
+			bias-pull-down;         /* PULL DOWN */
+		};
+	};
+};
+
+&pmx_sde_te {
+	sde_te_active: sde_te_active {
+		mux {
+			pins = "gpio40";
+			function = "mdp_vsync";
+		};
+
+		config {
+			pins = "gpio40";
+			drive-strength = <2>;   /* 2 mA */
+			bias-pull-down;         /* PULL DOWN */
+		};
+	};
+
+	sde_te_suspend: sde_te_suspend {
+		mux {
+			pins = "gpio40";
+			function = "mdp_vsync";
+		};
+
+		config {
+			pins = "gpio40";
+			drive-strength = <2>;   /* 2 mA */
+			bias-pull-down;         /* PULL DOWN */
+		};
+	};
+};
+
+&dsi_ili9881p_hd_plus_video {
+	qcom,panel-supply-entries = <&dsi_panel_pwr_supply_no_labibb>;
+	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_pwm";
+	pwms = <&pm6125_pwm 0 0>;
+	qcom,bl-pmic-pwm-period-usecs = <100>;
+	qcom,mdss-dsi-bl-min-level = <1>;
+	qcom,mdss-dsi-bl-max-level = <4095>;
+	qcom,platform-reset-gpio = <&tlmm 97 0>;
+	qcom,platform-reset-gpio-always-on;
+	qcom,platform-bklight-en-gpio = <&ioexp21 3 0>;
+};
+
+&mdss_rotator {
+	status = "disabled";
+};
+
+&sde_dsi {
+	pinctrl-names = "panel_active", "panel_suspend", "pwm_pin";
+	pinctrl-0 = <&sde_dsi_active &sde_te_active
+		&sx1508q_lcd0_vdd_1v8_active &sx1508q_lcd0_vsp_active
+		&sx1508q_lcd0_vsn_active &sx1508q_lcd0_bl_active>;
+	pinctrl-1 = <&sde_dsi_suspend &sde_te_suspend
+		&sx1508q_lcd0_vdd_1v8_sleep &sx1508q_lcd0_vsp_sleep
+		&sx1508q_lcd0_vsn_sleep &sx1508q_lcd0_bl_sleep>;
+	pinctrl-2 = <&lcd_backlight_pwm_default>;
+
+	qcom,dsi-default-panel = <&dsi_ili9881p_hd_plus_video>;
+};

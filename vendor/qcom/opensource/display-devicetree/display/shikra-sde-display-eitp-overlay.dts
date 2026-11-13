@@ -1,0 +1,16 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include "shikra-sde-display-eitp.dtsi"
+
+/ {
+	model = "Qualcomm Technologies, Inc. Shikra EITP";
+	compatible = "qcom,shikra-cqs", "qcom,shikra-cqm", "qcom,shikra-evk", "qcom,evk";
+	qcom,msm-id = <756 0x10000>, <758 0x10000>;
+	qcom,board-id = <0x30033 2>, <0x20033 2>, <0x10033 2>;
+};

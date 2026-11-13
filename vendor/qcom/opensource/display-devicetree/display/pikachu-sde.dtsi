@@ -1,0 +1,98 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ */
+
+#include <dt-bindings/regulator/qcom,rpmh-regulator-levels.h>
+#include <dt-bindings/interconnect/qcom,pikachu.h>
+#include <dt-bindings/clock/qcom,rpmh.h>
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include "pikachu-sde-common.dtsi"
+
+&soc {
+	smmu_sde_iommu_region_partition: smmu_sde_iommu_region_partition {
+		iommu-addresses = <&smmu_sde_unsec 0x0 0x00020000>,
+				<&smmu_sde_sec 0x0 0x00020000>;
+	};
+
+	smmu_sde_unsec: qcom,smmu_sde_unsec_cb {
+		compatible = "qcom,smmu_sde_unsec";
+		iommus = <&apps_smmu 0x1C00 0x0002>;
+		memory-region = <&smmu_sde_iommu_region_partition>;
+		qcom,iommu-faults = "non-fatal";
+		qcom,iommu-earlymap; /* for cont-splash */
+		dma-coherent;
+	};
+
+	smmu_sde_sec: qcom,smmu_sde_sec_cb {
+		compatible = "qcom,smmu_sde_sec";
+		iommus = <&apps_smmu 0x1C01 0x0>;
+		memory-region = <&smmu_sde_iommu_region_partition>;
+		qcom,iommu-faults = "non-fatal";
+		qcom,iommu-vmid = <0xa>;
+	};
+};
+
+&mdss_mdp {
+	/* data and reg bus scale settings */
+	interconnects = <&mmss_noc MASTER_MDP &gem_noc SLAVE_LLCC>,
+			<&mc_virt MASTER_LLCC &mc_virt SLAVE_EBI1>,
+			<&gem_noc MASTER_APPSS_PROC &cnoc_main SLAVE_DISPLAY_CFG>;
+	interconnect-names = "qcom,sde-data-bus0",
+			"qcom,sde-ebi-bus", "qcom,sde-reg-bus";
+
+	qcom,sde-ib-bw-vote = <2500000 0 800000>;
+	qcom,sde-has-idle-pc;
+
+	mmcx-supply = <&VDD_MMCX_LEVEL>;
+	cx-supply = <&VDD_CX_LEVEL>;
+	mxa-supply = <&VDD_MXA_LEVEL>;
+
+	qcom,platform-supply-entries {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		qcom,platform-supply-entry@0 {
+			reg = <0>;
+			qcom,supply-name = "mmcx";
+			qcom,supply-min-voltage = <416>;
+			qcom,supply-max-voltage = <416>;
+			qcom,supply-enable-load = <0>;
+			qcom,supply-disable-load = <0>;
+		};
+
+		qcom,platform-supply-entry@1 {
+			reg = <1>;
+			qcom,supply-name = "cx";
+			qcom,supply-min-voltage = <416>;
+			qcom,supply-max-voltage = <416>;
+			qcom,supply-enable-load = <0>;
+			qcom,supply-disable-load = <0>;
+		};
+
+		qcom,platform-supply-entry@2 {
+			reg = <2>;
+			qcom,supply-name = "mxa";
+			qcom,supply-min-voltage = <432>;
+			qcom,supply-max-voltage = <432>;
+			qcom,supply-enable-load = <0>;
+			qcom,supply-disable-load = <0>;
+		};
+	};
+};
+
+&mdss_dsi0 {
+	vdda-1p2-supply = <&L6A>;
+};
+
+&mdss_dsi1 {
+	vdda-1p2-supply = <&L6A>;
+};
+
+&mdss_dsi_phy0 {
+	vdda-0p9-supply = <&L9A>;
+};
+
+&mdss_dsi_phy1 {
+	vdda-0p9-supply = <&L9A>;
+};

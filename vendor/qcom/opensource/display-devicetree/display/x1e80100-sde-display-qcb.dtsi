@@ -1,0 +1,38 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ */
+
+#include "x1e80100-sde-display.dtsi"
+
+&mdss_mdp {
+	status = "disabled";
+};
+
+&smmu_sde_unsec {
+	status = "disabled";
+};
+
+&smmu_sde_sec {
+	status = "disabled";
+};
+
+&sde_wb0 {
+	status = "disabled";
+};
+
+&sde_wb1 {
+	status = "disabled";
+};
+
+&mdss_dsi_phy0 {
+	status = "disabled";
+};
+
+&sde_edp_pll {
+	status = "disabled";
+};
+
+&sde_edp {
+	status = "disabled";
+};

@@ -1,0 +1,17 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include "art-sde-display-mtp.dtsi"
+
+/ {
+	model = "Qualcomm Technologies, Inc. Artl MTP";
+	compatible = "qcom,artl-mtp", "qcom,artl", "qcom,artlp-mtp", "qcom,artlp",
+			"qcom,mtp";
+	qcom,msm-id = <755 0x10000>;
+	qcom,board-id = <0x10108 0x0>, <0x20008 0x0>, <0x10208 0x0>, <0x10008 0x0>, <0x30108 0x0>, <0x30008 0x0>;
+};

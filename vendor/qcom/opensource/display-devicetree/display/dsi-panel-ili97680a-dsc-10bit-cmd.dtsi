@@ -1,0 +1,275 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ */
+
+&mdss_mdp {
+	dsi_ili97680a_amoled_dsc_10b_cmd: qcom,mdss_dsi_ili97680a_amoled_dsc_10b_cmd {
+		qcom,mdss-dsi-panel-name =
+			"ili97680a amoled cmd mode dsi csot panel with DSC 10bit";
+		qcom,mdss-dsi-panel-type = "dsi_cmd_mode";
+		qcom,mdss-dsi-panel-physical-type = "oled";
+		qcom,mdss-dsi-virtual-channel-id = <0>;
+		qcom,mdss-dsi-stream = <0>;
+		qcom,mdss-dsi-bpp = <30>;
+		qcom,mdss-dsi-color-order = "rgb_swap_rgb";
+		qcom,mdss-dsi-underflow-color = <0xff>;
+		qcom,mdss-dsi-border-color = <0>;
+
+		qcom,dsi-ctrl-num = <0>;
+		qcom,dsi-phy-num = <0>;
+
+		qcom,mdss-dsi-traffic-mode = "non_burst_sync_event";
+		qcom,mdss-dsi-lane-map = "lane_map_0123";
+		qcom,mdss-dsi-bllp-eof-power-mode;
+		qcom,mdss-dsi-bllp-power-mode;
+		qcom,mdss-dsi-lane-0-state;
+		qcom,mdss-dsi-lane-1-state;
+		qcom,mdss-dsi-lane-2-state;
+		qcom,mdss-dsi-lane-3-state;
+		qcom,mdss-dsi-dma-trigger = "trigger_sw";
+		qcom,mdss-dsi-mdp-trigger = "none";
+		qcom,mdss-dsi-reset-sequence = <1 10>, <0 10>, <1 10>;
+		qcom,mdss-pan-physical-width-dimension = <74>;
+		qcom,mdss-pan-physical-height-dimension = <156>;
+
+		qcom,mdss-dsi-te-pin-select = <1>;
+		qcom,mdss-dsi-wr-mem-start = <0x2c>;
+		qcom,mdss-dsi-wr-mem-continue = <0x3c>;
+		qcom,mdss-dsi-te-dcs-command = <1>;
+		qcom,mdss-dsi-te-check-enable;
+		qcom,mdss-dsi-te-using-te-pin;
+
+		qcom_mdss_dsi_display_timings_359: qcom,mdss-dsi-display-timings {
+			timing_0_360: timing@0 {
+				cell-index = <0>;
+				qcom,mdss-dsi-panel-framerate = <165>;
+				qcom,mdss-dsi-panel-width = <1272>;
+				qcom,mdss-dsi-panel-height = <2772>;
+				qcom,mdss-dsi-h-front-porch = <32>;
+				qcom,mdss-dsi-h-back-porch = <16>;
+				qcom,mdss-dsi-h-pulse-width = <16>;
+				qcom,mdss-dsi-h-sync-skew = <0>;
+				qcom,mdss-dsi-v-back-porch = <20>;
+				qcom,mdss-dsi-v-front-porch = <44>;
+				qcom,mdss-dsi-v-pulse-width = <2>;
+				qcom,mdss-dsi-h-left-border = <0>;
+				qcom,mdss-dsi-h-right-border = <0>;
+				qcom,mdss-dsi-v-top-border = <0>;
+				qcom,mdss-dsi-v-bottom-border = <0>;
+				qcom,mdss-dsi-panel-jitter = <0x4 0x1>;
+				qcom,mdss-dsi-panel-clockrate = <1416048480>;
+
+				qcom,mdss-dsi-on-command = [
+					39 01 00 00 00 00 04 FF 5A A5 20
+					39 01 00 00 00 00 02 C8 00
+					39 01 00 00 00 00 02 C7 00
+					39 01 00 00 00 00 02 BF 00
+					39 01 00 00 00 00 04 FF 5A A5 1F
+					39 01 00 00 00 00 03 8A 4F 00
+					39 01 00 00 00 00 03 82 00 80
+					39 01 00 00 00 00 02 87 09
+					39 01 00 00 00 00 02 88 20
+					39 01 00 00 00 00 06 89 43 00 04 F0 55
+					39 01 00 00 00 00 02 80 08
+					39 01 00 00 00 00 05 8C 00 00 00 40
+					39 01 00 00 00 00 02 8E 00
+					39 01 00 00 00 00 02 95 00
+					39 01 00 00 00 00 05 96 05 35 55 00
+					39 01 00 00 00 00 06 97 11 33 22 01 07
+					39 01 00 00 00 00 09 83 2C 00 00 00 00
+					   00 00 00
+					39 01 00 00 00 00 09 84 1B 00 00 00 00
+					   00 00 00
+					39 01 00 00 00 00 09 85 35 00 00 00 00
+					   00 00 00
+					39 01 00 00 00 00 09 8F 03 00 00 00 00
+					   00 00 00
+					39 01 00 00 00 00 09 90 03 00 00 00 00
+					   00 00 00
+					39 01 00 00 00 00 09 91 03 00 00 00 00
+					   00 00 00
+					39 01 00 00 00 00 04 FF 5A A5 29
+					39 01 00 00 00 00 09 82 71 85 85 86 86
+					   86 87 87
+					39 01 00 00 00 00 09 83 87 87 87 88 88
+					   88 88 89
+					39 01 00 00 00 00 09 84 89 89 89 89 8A
+					   8A 8A 8A
+					39 01 00 00 00 00 07 85 8A 8A 8A 8A 8A
+					   8A
+					39 01 00 00 00 00 04 FF 5A A5 00
+					39 01 00 00 00 00 05 94 00 00 00 00
+					39 01 00 00 00 00 04 FF 5A A5 08
+					39 01 00 00 00 00 02 C8 62
+					39 01 00 00 00 00 04 FF 5A A5 21
+					39 01 00 00 00 00 02 A4 38
+					39 01 00 00 00 00 04 FF 5A A5 01
+					39 01 00 00 00 00 02 FB 08
+					39 01 00 00 00 00 04 FF 5A A5 00
+					39 01 00 00 00 00 02 5E 01
+					39 01 00 00 00 00 02 60 06
+					39 01 00 00 00 00 02 61 07
+					39 01 00 00 00 00 02 6D 01
+					05 01 00 00 00 00 01 35
+					39 01 00 00 00 00 02 53 20
+					39 01 00 00 00 00 05 51 0D BB 03 DD
+
+					39 01 00 00 00 00 04 FF 5A A5 06
+					39 01 00 00 00 00 02 98 A4
+					39 01 00 00 00 00 04 FF 5A A5 07
+					39 01 00 00 00 00 03 8B 21 20
+
+					05 01 00 00 78 00 01 11
+					05 01 00 00 14 00 01 29
+					0a 01 00 00 00 00 80 11 00 00 ab 30 80
+					   0a d4 04 f8 00 16 02 7c 02 7c 02 00
+					   02 3e 00 20 02 46 00 08 00 0c 04 93
+					   03 ed 18 00 10 f0 07 10 20 00 06 0f
+					   0f 33 0e 1c 2a 38 46 54 62 69 70 77
+					   79 7b 7d 7e 01 02 22 00 2a 40 2a be
+					   3a fc 3a fa 3a f8 3b 38 3b 78 3b b6
+					   4b f6 4c 36 4c 74 5c 74 8c f4 00 00
+					   00 00 00 00 00 00 00 00 00 00 00 00
+					   00 00 00 00 00 00 00 00 00 00 00 00
+					   00 00 00 00 00 00 00 00 00 00 00 00
+					   00 00
+				];
+
+				qcom,mdss-dsi-off-command = [
+					05 01 00 00 14 00 02 28 00
+					05 01 00 00 78 00 02 10 00];
+				qcom,mdss-dsi-timing-switch-command = [
+					39 01 00 00 00 00 02 60 06];
+				qcom,mdss-dsi-on-command-state = "dsi_lp_mode";
+				qcom,mdss-dsi-off-command-state = "dsi_hs_mode";
+				qcom,mdss-dsi-timing-switch-command-state =
+					"dsi_lp_mode";
+				qcom,mdss-dsi-h-sync-pulse = <0>;
+				qcom,compression-mode = "dsc";
+				qcom,mdss-dsc-rc-override_v1;
+				qcom,mdss-dsc-slice-height = <22>;
+				qcom,mdss-dsc-slice-width = <636>;
+				qcom,mdss-dsc-slice-per-pkt = <1>;
+				qcom,mdss-dsc-bit-per-component = <10>;
+				qcom,mdss-dsc-bit-per-pixel = <8>;
+				qcom,mdss-dsc-block-prediction-enable;
+			};
+
+			timing_1_361: timing@1 {
+				cell-index = <1>;
+				qcom,mdss-dsi-panel-framerate = <144>;
+				qcom,mdss-dsi-panel-width = <1272>;
+				qcom,mdss-dsi-panel-height = <2772>;
+				qcom,mdss-dsi-h-front-porch = <32>;
+				qcom,mdss-dsi-h-back-porch = <16>;
+				qcom,mdss-dsi-h-pulse-width = <16>;
+				qcom,mdss-dsi-h-sync-skew = <0>;
+				qcom,mdss-dsi-v-back-porch = <20>;
+				qcom,mdss-dsi-v-front-porch = <44>;
+				qcom,mdss-dsi-v-pulse-width = <2>;
+				qcom,mdss-dsi-h-left-border = <0>;
+				qcom,mdss-dsi-h-right-border = <0>;
+				qcom,mdss-dsi-v-top-border = <0>;
+				qcom,mdss-dsi-v-bottom-border = <0>;
+				qcom,mdss-dsi-panel-jitter = <0x4 0x1>;
+				qcom,mdss-dsi-panel-clockrate = <1416048480>;
+
+				qcom,mdss-dsi-on-command = [
+					39 01 00 00 00 00 04 FF 5A A5 20
+					39 01 00 00 00 00 02 C8 00
+					39 01 00 00 00 00 02 C7 00
+					39 01 00 00 00 00 02 BF 00
+					39 01 00 00 00 00 04 FF 5A A5 1F
+					39 01 00 00 00 00 03 8A 4F 00
+					39 01 00 00 00 00 03 82 00 80
+					39 01 00 00 00 00 02 87 09
+					39 01 00 00 00 00 02 88 20
+					39 01 00 00 00 00 06 89 43 00 04 F0 55
+					39 01 00 00 00 00 02 80 08
+					39 01 00 00 00 00 05 8C 00 00 00 40
+					39 01 00 00 00 00 02 8E 00
+					39 01 00 00 00 00 02 95 00
+					39 01 00 00 00 00 05 96 05 35 55 00
+					39 01 00 00 00 00 06 97 11 33 22 01 07
+					39 01 00 00 00 00 09 83 2C 00 00 00 00
+					   00 00 00
+					39 01 00 00 00 00 09 84 1B 00 00 00 00
+					   00 00 00
+					39 01 00 00 00 00 09 85 35 00 00 00 00
+					   00 00 00
+					39 01 00 00 00 00 09 8F 03 00 00 00 00
+					   00 00 00
+					39 01 00 00 00 00 09 90 03 00 00 00 00
+					   00 00 00
+					39 01 00 00 00 00 09 91 03 00 00 00 00
+					   00 00 00
+					39 01 00 00 00 00 04 FF 5A A5 29
+					39 01 00 00 00 00 09 82 71 85 85 86 86
+					   86 87 87
+					39 01 00 00 00 00 09 83 87 87 87 88 88
+					   88 88 89
+					39 01 00 00 00 00 09 84 89 89 89 89 8A
+					   8A 8A 8A
+					39 01 00 00 00 00 07 85 8A 8A 8A 8A 8A
+					   8A
+					39 01 00 00 00 00 04 FF 5A A5 00
+					39 01 00 00 00 00 05 94 00 00 00 00
+					39 01 00 00 00 00 04 FF 5A A5 08
+					39 01 00 00 00 00 02 C8 62
+					39 01 00 00 00 00 04 FF 5A A5 21
+					39 01 00 00 00 00 02 A4 38
+					39 01 00 00 00 00 04 FF 5A A5 01
+					39 01 00 00 00 00 02 FB 08
+					39 01 00 00 00 00 04 FF 5A A5 00
+					39 01 00 00 00 00 02 5E 01
+					39 01 00 00 00 00 02 60 04
+					39 01 00 00 00 00 02 61 07
+					39 01 00 00 00 00 02 6D 01
+					05 01 00 00 00 00 01 35
+					39 01 00 00 00 00 02 53 20
+					39 01 00 00 00 00 05 51 0D BB 03 DD
+
+					39 01 00 00 00 00 04 FF 5A A5 06
+					39 01 00 00 00 00 02 98 A4
+					39 01 00 00 00 00 04 FF 5A A5 07
+					39 01 00 00 00 00 03 8B 21 20
+
+					05 01 00 00 78 00 01 11
+					05 01 00 00 14 00 01 29
+					0a 01 00 00 00 00 80 11 00 00 ab 30 80
+					   0a d4 04 f8 00 16 02 7c 02 7c 02 00
+					   02 3e 00 20 02 46 00 08 00 0c 04 93
+					   03 ed 18 00 10 f0 07 10 20 00 06 0f
+					   0f 33 0e 1c 2a 38 46 54 62 69 70 77
+					   79 7b 7d 7e 01 02 22 00 2a 40 2a be
+					   3a fc 3a fa 3a f8 3b 38 3b 78 3b b6
+					   4b f6 4c 36 4c 74 5c 74 8c f4 00 00
+					   00 00 00 00 00 00 00 00 00 00 00 00
+					   00 00 00 00 00 00 00 00 00 00 00 00
+					   00 00 00 00 00 00 00 00 00 00 00 00
+					   00 00
+				];
+
+				qcom,mdss-dsi-off-command = [
+					05 01 00 00 14 00 02 28 00
+					05 01 00 00 78 00 02 10 00];
+				qcom,mdss-dsi-timing-switch-command = [
+					39 01 00 00 00 00 02 60 04];
+				qcom,mdss-dsi-on-command-state = "dsi_lp_mode";
+				qcom,mdss-dsi-off-command-state = "dsi_hs_mode";
+				qcom,mdss-dsi-timing-switch-command-state =
+					"dsi_lp_mode";
+				qcom,mdss-dsi-h-sync-pulse = <0>;
+				qcom,compression-mode = "dsc";
+				qcom,mdss-dsc-rc-override_v1;
+				qcom,mdss-dsc-slice-height = <22>;
+				qcom,mdss-dsc-slice-width = <636>;
+				qcom,mdss-dsc-slice-per-pkt = <1>;
+				qcom,mdss-dsc-bit-per-component = <10>;
+				qcom,mdss-dsc-bit-per-pixel = <8>;
+				qcom,mdss-dsc-block-prediction-enable;
+			};
+		};
+	};
+};

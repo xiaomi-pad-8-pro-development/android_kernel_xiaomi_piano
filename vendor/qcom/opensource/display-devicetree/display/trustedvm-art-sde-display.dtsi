@@ -1,0 +1,23 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ */
+
+#include "art-sde-display-common.dtsi"
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/mailbox/qcom-ipcc-art.h>
+#include <dt-bindings/mailbox/qcom-ipcc.h>
+
+&dsi_ss_video_psr_vid_vhm {
+	qcom,hwfence_sw_override_always;
+	qcom,has-vhm-capability;
+};
+
+&dsi_nt37802_amoled_video_vhm_cphy {
+	qcom,hwfence_sw_override_always;
+	qcom,has-vhm-capability;
+};
+
+&mdss_mdp {
+	connectors = <&sde_dsi &sde_dsi1 &smmu_sde_unsec>;
+};

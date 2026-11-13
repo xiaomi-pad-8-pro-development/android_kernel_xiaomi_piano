@@ -1,0 +1,174 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ */
+
+&mdss_mdp {
+	dsi_nt38360_cmd: qcom,mdss_dsi_nt38360_cmd {
+		qcom,mdss-dsi-panel-name =
+			"Novatek command mode dsi panel";
+		qcom,mdss-dsi-panel-type = "dsi_cmd_mode";
+		qcom,ulps-enabled;
+		qcom,mdss-dsi-virtual-channel-id = <0>;
+		qcom,mdss-dsi-stream = <0>;
+		qcom,mdss-dsi-bpp = <24>;
+		qcom,mdss-dsi-color-order = "rgb_swap_rgb";
+		qcom,mdss-dsi-underflow-color = <0xff>;
+		qcom,mdss-dsi-border-color = <0>;
+
+		qcom,dsi-ctrl-num = <0>;
+		qcom,dsi-phy-num = <0>;
+
+		qcom,mdss-dsi-traffic-mode = "burst_mode";
+		qcom,mdss-dsi-lane-map = "lane_map_0123";
+		qcom,mdss-dsi-bllp-eof-power-mode;
+		qcom,mdss-dsi-bllp-power-mode;
+		qcom,mdss-dsi-lane-0-state;
+		qcom,mdss-dsi-dma-trigger = "trigger_sw";
+		qcom,mdss-dsi-mdp-trigger = "none";
+		qcom,mdss-dsi-reset-sequence = <1 10>, <0 4>, <1 10>;
+		qcom,mdss-dsi-te-pin-select = <1>;
+		qcom,mdss-dsi-te-dcs-command = <1>;
+		qcom,mdss-dsi-te-check-enable;
+		qcom,mdss-dsi-te-using-te-pin;
+		qcom,mdss-dsi-t-clk-post = <0x08>;
+		qcom,mdss-dsi-t-clk-pre = <0x0B>;
+
+		qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
+		qcom,mdss-dsi-bl-min-level = <1>;
+		qcom,mdss-dsi-bl-max-level = <255>;
+
+		qcom,mdss-dsi-hbm-mode;
+		qcom,mdss-dsi-hbm-min-level = <149>;
+		qcom,mdss-dsi-hbm-set-brightness-cmd = <0x63>;
+
+		qcom,mdss-dsi-brightness-lut = [
+			/* NBM Mode */
+			02 03 04 05 06 07 08 09 0a 0b
+			0c 0d 0e 0f 10 11 12 13 14 15
+			16 17 18 19 1a 1b 1c 1d 1e 1f
+			20 21 22 23 24 25 26 27 28 29
+			2a 2b 2c 2d 2e 2f 30 31 32 33
+			34 35 36 37 38 39 3a 3b 3c 3d
+			3e 3f 40 41 42 43 44 45 46 47
+			48 49 4a 4b 4c 4d 4e 4f 50 51
+			52 54 56 58 5a 5c 5e 60 62 64
+			66 68 6a 6c 6e 70 72 74 76 78
+			7a 7c 7e 80 82 84 86 88 8a 8c
+			8e 90 92 94 96 98 9a 9c 9e a0
+			a2 a4 a6 a8 aa ac ae b0 b3 b6
+			b9 bc bf c2 c5 c8 cc d0 d4 d8
+			dc e0 e4 e8 ec f0 f5 fa ff
+			/* HBM Mode */
+			00 01 02 03 04 05 06 07 08 09
+			0a 0b 0c 0d 0e 0f 10 11 12 13
+			14 15 16 17 18 19 1a 1b 1c 1d
+			1e 1f 20 21 23 25 27 29 2b 2d
+			2f 31 33 35 37 39 3b 3d 3f 41
+			43 45 47 49 4b 4d 4f 51 53 55
+			58 5b 5e 61 64 67 6a 6d 70 73
+			76 79 7c 7f 82 85 88 8b 8e 91
+			94 98 9c a0 a4 a8 ac b0 b4 b8
+			bc c0 c4 c8 cc d0 d4 d8 dc e0
+			e4 e8 ec f0 f5 fa ff];
+
+		qcom,mdss-dsi-display-timings {
+			timing@0 {
+				cell-index = <0>;
+				qcom,mdss-dsi-panel-framerate = <60>;
+				qcom,mdss-dsi-panel-clockrate = <354400000>;
+				qcom,mdss-dsi-panel-width = <456>;
+				qcom,mdss-dsi-panel-height = <456>;
+				qcom,mdss-dsi-h-front-porch = <40>;
+				qcom,mdss-dsi-h-back-porch = <20>;
+				qcom,mdss-dsi-h-pulse-width = <4>;
+				qcom,mdss-dsi-h-sync-skew = <0>;
+				qcom,mdss-dsi-v-back-porch = <8>;
+				qcom,mdss-dsi-v-front-porch = <6>;
+				qcom,mdss-dsi-v-pulse-width = <2>;
+				qcom,mdss-dsi-h-left-border = <0>;
+				qcom,mdss-dsi-h-right-border = <0>;
+				qcom,mdss-dsi-v-bottom-border = <0>;
+
+				qcom,mdss-dsi-panel-phy-timings = [
+						00 0B 03 02 10 1C 03
+						03 02 02 04 00 0B 07];
+				qcom,display-topology = <1 0 1>;
+				qcom,default-topology-index = <0>;
+
+				qcom,mdss-dsi-on-command = [
+					/* sleep out */
+					05 01 00 00 64 00 02 11 00
+					/* Page Sel */
+					15 01 00 00 00 00 02 FF 10
+					/* TE on */
+					15 01 00 00 00 00 02 35 00
+					/* Page Sel Dim Ctrl */
+					15 01 00 00 00 00 02 FF 21
+					/* DIM Step up */
+					15 01 00 00 00 00 02 57 12
+					/* DIM Step down */
+					15 01 00 00 00 00 02 58 12
+					/* Col. addr set */
+					39 01 00 00 00 00 05 2A 00 00 01 D1
+					/* page addr set */
+					39 01 00 00 00 00 05 2B 00 00 01 C7
+					/* Page Sel */
+					15 01 00 00 00 00 02 FF 10
+					/* normal trans */
+					15 01 00 00 00 00 02 53 20
+					/* Default bright 200 nits*/
+					15 01 00 00 32 00 02 51 80
+					/* display on */
+					05 01 00 00 78 00 02 29 00
+				];
+				qcom,mdss-dsi-off-command = [
+					05 01 00 00 78 00 02 28 00
+					05 01 00 00 78 00 02 10 00
+				];
+
+				qcom,mdss-dsi-on-command-state =
+							"dsi_lp_mode";
+				qcom,mdss-dsi-off-command-state =
+							"dsi_hs_mode";
+				qcom,mdss-dsi-nolp-command-state =
+							"dsi_lp_mode";
+				qcom,mdss-dsi-hbm-on-commands-state =
+							"dsi_hs_mode";
+				qcom,mdss-dsi-hbm-off-commands-state =
+							"dsi_hs_mode";
+				qcom,mdss-dsi-lp2-command = [
+				];
+
+				qcom,mdss-dsi-nolp-command = [
+					/* Page Sel */
+					15 01 00 00 00 00 02 FF 10
+					/* Exit idle mode */
+					15 01 00 00 00 00 02 38 00
+					/* Col. addr set */
+					39 01 00 00 00 00 05 2A 00 00 01 D1
+					/* page addr set */
+					39 01 00 00 00 00 05 2B 00 00 01 C7
+					/* Panel RAM access */
+					15 01 00 00 00 00 02 B6 00
+					 /* Panel Cmd access */
+					15 01 00 00 00 00 02 B3 33
+				];
+
+				qcom,mdss-dsi-hbm-on-commands = [
+					/* Page Sel */
+					15 01 00 00 00 00 02 FF 10
+					/* HBM on */
+					15 01 00 00 00 00 02 66 02
+				];
+
+				qcom,mdss-dsi-hbm-off-commands = [
+					/* Page Sel */
+					15 01 00 00 00 00 02 FF 10
+					/* HBM off */
+					15 01 00 00 00 00 02 66 00
+				];
+			};
+		};
+	};
+};

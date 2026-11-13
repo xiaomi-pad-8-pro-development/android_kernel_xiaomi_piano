@@ -1,0 +1,17 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include "bengal-sde-display-rb2-v4.dtsi"
+
+/ {
+	model = "Qualcomm Technologies, Inc. BENGAL QRD RB2 V4";
+	compatible = "qcom,bengal";
+	qcom,msm-id = <523 0x10000>;
+	qcom,board-id = <0x1000B 0x406>;
+	qcom,pmic-id = <0x2D 0x25 0x0 0x0>;
+};

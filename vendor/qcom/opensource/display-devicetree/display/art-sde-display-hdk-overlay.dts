@@ -1,0 +1,16 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include "art-sde-display-hdk.dtsi"
+
+/ {
+	model = "Qualcomm Technologies, Inc. ArtP HDK + QRD SKU1 + PMR735D removed";
+	compatible = "qcom,artp-hdk", "qcom,artp", "qcom,hdk";
+	qcom,msm-id = <707 0x10000>, <707 0x20000>, <708 0x10000>, <708 0x20000>;
+	qcom,board-id = <0x1001f 0>;
+};

@@ -1,0 +1,17 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include "art-sde-display-rcm.dtsi"
+
+/ {
+	model = "Qualcomm Technologies, Inc. Art RCM";
+	compatible = "qcom,artl-rcm", "qcom,artl", "qcom,artlp-rcm", "qcom,artlp",
+			"qcom,rcm";
+	qcom,msm-id = <755 0x10000>;
+	qcom,board-id = <0x10015 0x0>, <0x20015 0x0>;
+};

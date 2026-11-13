@@ -1,0 +1,124 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ */
+#include <dt-bindings/arm/msm/qti-smmu-proxy-dt-ids.h>
+#include <dt-bindings/clock/qcom,art-gcc.h>
+#include <dt-bindings/clock/qcom,art-tcsrcc.h>
+#include "art-sde-common.dtsi"
+
+&soc {
+	smmu_sde_iommu_region_partition: smmu_sde_iommu_region_partition {
+		iommu-addresses = <&smmu_sde_unsec 0x0 0x0 0x0 0x00020000>,
+				  <&smmu_sde_unsec 0x0 0xf8c60000  0x0 0x02b00000>,
+				  <&smmu_sde_sec 0x0 0x0 0x0 0x00020000>;
+	};
+
+	smmu_sde_unsec: qcom,smmu_sde_unsec_cb {
+		compatible = "qcom,smmu_sde_unsec";
+		iommus = <&apps_smmu 0x400 0x2>;
+		memory-region = <&smmu_sde_iommu_region_partition>;
+		qcom,iommu-faults = "non-fatal";
+		qcom,iommu-earlymap; /* for cont-splash */
+		dma-coherent;
+	};
+
+	smmu_sde_sec: qcom,smmu_sde_sec_cb {
+		compatible = "qcom,smmu_sde_sec";
+		iommus = <&apps_smmu 0x401 0x0>;
+		memory-region = <&smmu_sde_iommu_region_partition>;
+		qcom,iommu-faults = "non-fatal";
+		qcom,iommu-vmid = <0xa>;
+	};
+
+	ext_disp: qcom,msm-ext-disp {
+		compatible = "qcom,msm-ext-disp";
+
+		ext_disp_audio_codec: qcom,msm-ext-disp-audio-codec-rx {
+			compatible = "qcom,msm-ext-disp-audio-codec-rx";
+		};
+	};
+
+	qcom_msmhdcp: qcom,msm_hdcp {
+		compatible = "qcom,msm-hdcp";
+		qcom,op-label = "hfi";
+		status = "ok";
+	};
+
+	sde_dp: qcom,dp_display {
+		compatible = "qcom,dp-display";
+		status = "ok";
+
+		qcom,mdp = <&mdss_mdp>;
+
+		clocks = <&tcsrcc TCSR_USB3_CLKREF_EN>,
+			<&gcc GCC_USB3_PRIM_PHY_PIPE_CLK>;
+		clock-names = "usb3_tcsr_clk", "usb3_pipe_clk";
+		power-domains = <&gcc GCC_USB3_PHY_GDSC>;
+		qcom,altmode-dev = <&altmode 0>;
+		qcom,dp-aux-switch = <&wcd_usbss>;
+		qcom,ext-disp = <&ext_disp>;
+		usb-controller = <&usb0>;
+		qcom,mst-enable;
+	};
+};
+
+&mdss_mdp {
+	qti,smmu-proxy-cb-id = <QTI_SMMU_PROXY_DISPLAY_CB>;
+	qcom,sde-dspp-ltm-version = <0x00010004>;
+	/* offsets are based off dspp 0, 1, 2, and 3 */
+	qcom,sde-dspp-ltm-off = <0x3300 0x3300 0x3300 0x3300>;
+	qcom,hw-fence-sw-version = <0x1>;
+
+	nvmem-cells = <&ssip_config>, <&disp_qultiv_fuse>;
+	nvmem-cell-names = "ssip_config", "disp_qultiv_fuse";
+	qcom,sde-vm-exclude-reg-names = "mdp_phys", "vbif_phys",
+					"regdma_phys", "ipcc_reg",
+					"swfuse_phys";
+	dcx-supply = <&VDD_DISP_LEVEL>;
+	cx-supply = <&VDD_CX_LEVEL>;
+	mxc-supply = <&VDD_MXC_LEVEL>;
+	mx-supply = <&VDD_MXA_LEVEL>;
+
+	/* Pre mdss_core vregs */
+	qcom,platform-supply-entries {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		qcom,platform-supply-entry@0 {
+			reg = <0>;
+			qcom,supply-name = "dcx";
+			qcom,supply-min-voltage = <416>;
+			qcom,supply-max-voltage = <416>;
+			qcom,supply-enable-load = <0>;
+			qcom,supply-disable-load = <0>;
+		};
+
+		qcom,platform-supply-entry@1 {
+			reg = <1>;
+			qcom,supply-name = "cx";
+			qcom,supply-min-voltage = <480>;
+			qcom,supply-max-voltage = <480>;
+			qcom,supply-enable-load = <0>;
+			qcom,supply-disable-load = <0>;
+		};
+
+		qcom,platform-supply-entry@2 {
+			reg = <2>;
+			qcom,supply-name = "mxc";
+			qcom,supply-min-voltage = <384>;
+			qcom,supply-max-voltage = <384>;
+			qcom,supply-enable-load = <0>;
+			qcom,supply-disable-load = <0>;
+		};
+
+		qcom,platform-supply-entry@3 {
+			reg = <3>;
+			qcom,supply-name = "mx";
+			qcom,supply-min-voltage = <384>;
+			qcom,supply-max-voltage = <384>;
+			qcom,supply-enable-load = <0>;
+			qcom,supply-disable-load = <0>;
+		};
+	};
+};
