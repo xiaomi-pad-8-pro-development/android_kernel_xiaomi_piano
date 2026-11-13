@@ -321,7 +321,7 @@ static const struct file_operations xiaomitouch_dev_fops = {
 	.unlocked_ioctl = xiaomi_touch_dev_ioctl,
 	.compat_ioctl = xiaomi_touch_dev_ioctl,
 	.release = xiaomi_touch_dev_release,
-	.llseek = no_llseek,
+	.llseek = noop_llseek,
 };
 
 static struct miscdevice misc_dev = {

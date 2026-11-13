@@ -4775,7 +4775,7 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 	spi_set_drvdata(client, ts);
 
 	//---prepare for spi parameter---
-	if (ts->client->master->flags & SPI_MASTER_HALF_DUPLEX) {
+	if (ts->client->controller->flags & SPI_CONTROLLER_HALF_DUPLEX) {
 		NVT_ERR("Full duplex not supported by master\n");
 		ret = -EIO;
 		goto err_ckeck_full_duplex;
@@ -5007,7 +5007,6 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 		input_set_abs_params(ts->pen_input_dev_p81c, ABS_DISTANCE, 0, PEN_DISTANCE_MAX, 0, 0);
 		input_set_abs_params(ts->pen_input_dev_p81c, ABS_TILT_X, PEN_TILT_MIN, PEN_TILT_MAX, 0, 0);
 		input_set_abs_params(ts->pen_input_dev_p81c, ABS_TILT_Y, PEN_TILT_MIN, PEN_TILT_MAX, 0, 0);
-		input_set_abs_params(ts->pen_input_dev_p81c, ABS_BRAKE, 0, 360, 0, 0);
 
 #if WAKEUP_GESTURE
 		input_set_capability(ts->pen_input_dev_p81c, EV_KEY, KEY_WAKEUP);

@@ -5007,7 +5007,6 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 		input_set_abs_params(ts->pen_input_dev_p81c, ABS_DISTANCE, 0, PEN_DISTANCE_MAX, 0, 0);
 		input_set_abs_params(ts->pen_input_dev_p81c, ABS_TILT_X, PEN_TILT_MIN, PEN_TILT_MAX, 0, 0);
 		input_set_abs_params(ts->pen_input_dev_p81c, ABS_TILT_Y, PEN_TILT_MIN, PEN_TILT_MAX, 0, 0);
-		input_set_abs_params(ts->pen_input_dev_p81c, ABS_BRAKE, 0, 360, 0, 0);
 
 #if WAKEUP_GESTURE
 		input_set_capability(ts->pen_input_dev_p81c, EV_KEY, KEY_WAKEUP);
