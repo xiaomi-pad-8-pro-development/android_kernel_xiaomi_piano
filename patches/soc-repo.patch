@@ -858,23 +858,6 @@ index e5c2870..ed136bd 100644
  
  	return 0;
  }
-diff --git a/drivers/soc/qcom/dcvs/mist/include/soc/qcom/mist_ext.h b/drivers/soc/qcom/dcvs/mist/include/soc/qcom/mist_ext.h
-new file mode 100644
-index 0000000..5e62aaa
---- /dev/null
-+++ b/drivers/soc/qcom/dcvs/mist/include/soc/qcom/mist_ext.h
-@@ -0,0 +1,11 @@
-+/* SPDX-License-Identifier: GPL-2.0 */
-+/* prototypes of the vendor symbols imported by the mist module (clk-qcom debugcc / dcvs providers) */
-+#ifndef _SOC_QCOM_MIST_EXT_H
-+#define _SOC_QCOM_MIST_EXT_H
-+
-+#include <linux/types.h>
-+
-+int clk_debug_mc_cc_get(void *data, u64 *val);
-+u32 get_ddr_freq(void);
-+
-+#endif
 diff --git a/drivers/soc/qcom/dcvs/mist/mist.h b/drivers/soc/qcom/dcvs/mist/mist.h
 new file mode 100644
 index 0000000..48955c5
@@ -2646,7 +2629,7 @@ index 0000000..0a2f763
 +}
 +EXPORT_SYMBOL_GPL(trigger_mist_load_tracking);
 diff --git a/drivers/soc/qcom/dcvs/modules.bzl b/drivers/soc/qcom/dcvs/modules.bzl
-index ea2b4e3..d61940a 100644
+index ea2b4e3..0a90a6f 100644
 --- a/drivers/soc/qcom/dcvs/modules.bzl
 +++ b/drivers/soc/qcom/dcvs/modules.bzl
 @@ -11,6 +11,7 @@ def register_modules(registry):
@@ -2714,7 +2697,7 @@ index ea2b4e3..d61940a 100644
 +        config = "CONFIG_MI_MIST",
 +        srcs = [
 +            # do not sort
-+            "drivers/soc/qcom/dcvs/mist/include/soc/qcom/mist_ext.h",
++            "include/soc/qcom/mist_ext.h",
 +            "drivers/soc/qcom/dcvs/mist/mist.h",
 +            "drivers/soc/qcom/dcvs/mist/mist_dflt.c",
 +            "drivers/soc/qcom/dcvs/mist/mist_dflt.h",
@@ -2832,6 +2815,23 @@ index 48b64cd..051ee3f 100644
  int qcom_dcvs_update_votes(const char *name, struct dcvs_freq *votes,
  			u32 update_mask, enum dcvs_path_type path);
  struct kobject *qcom_dcvs_kobject_get(enum dcvs_hw_type type);
+diff --git a/include/soc/qcom/mist_ext.h b/include/soc/qcom/mist_ext.h
+new file mode 100644
+index 0000000..5e62aaa
+--- /dev/null
++++ b/include/soc/qcom/mist_ext.h
+@@ -0,0 +1,11 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++/* prototypes of the vendor symbols imported by the mist module (clk-qcom debugcc / dcvs providers) */
++#ifndef _SOC_QCOM_MIST_EXT_H
++#define _SOC_QCOM_MIST_EXT_H
++
++#include <linux/types.h>
++
++int clk_debug_mc_cc_get(void *data, u64 *val);
++u32 get_ddr_freq(void);
++
++#endif
 diff --git a/include/soc/qcom/mist_hooks.h b/include/soc/qcom/mist_hooks.h
 new file mode 100644
 index 0000000..f593d62
@@ -2939,10 +2939,14 @@ index dc6b4a6..da882b5 100644
  }
  
 diff --git a/modules-lists/modules.list.msm.sun b/modules-lists/modules.list.msm.sun
-index 58867f1..7f6fd31 100644
+index 58867f1..ffd6f70 100644
 --- a/modules-lists/modules.list.msm.sun
 +++ b/modules-lists/modules.list.msm.sun
-@@ -76,7 +76,6 @@ qcom-pmu-lib.ko
+@@ -73,10 +73,10 @@ dcvs_fp.ko
+ qcom-dcvs.ko
+ qcom_llcc_pmu.ko
+ qcom-pmu-lib.ko
++mist.ko
  qcom-ipcc.ko
  qnoc-qos.ko
  qnoc-sun.ko
