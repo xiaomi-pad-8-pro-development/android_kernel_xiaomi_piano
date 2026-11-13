@@ -17,12 +17,12 @@ def _define_module(target, variant):
             "//soc-repo:{}/drivers/soc/qcom/hab/msm_hab".format(tv),
         ],
         "//build/qcom_build_extensions:qtisocrepo_false": [
-            "//msm-kernel:all_headers",
+            "//soc-repo:all_headers",
         ],
     })
     kernel_build = select({
         "//build/qcom_build_extensions:qtisocrepo_true": "//soc-repo:{}_base_kernel".format(tv),
-        "//build/qcom_build_extensions:qtisocrepo_false": "//msm-kernel:{}".format(tv),
+        "//build/qcom_build_extensions:qtisocrepo_false": "//soc-repo:{}".format(tv),
     })
 
     if target in ["pineapple", "alor-le"]:
