@@ -1,6 +1,9 @@
 #!/bin/bash
 # Compile piano 6.6 overlays against the Qualcomm 6.12 sun devicetree.
 set -u
+# Any failed step sets FAIL; the script exits 1 at the end so build612.sh
+# stops instead of packing a stale or partial devicetree.
+FAIL=0
 KP=/home/alif/kernel/kp50
 SRC66=/home/alif/kernel/piano-alxp-full-lto-20261025
 QDT=$KP/kernel_platform/qcom/opensource/devicetree
@@ -15,7 +18,7 @@ cp -r $QDT/qcom/. $OUT/qcom/; cp -r $DDT/display/. $OUT/display/
 # 6.12 SPS: "qcom,msm-sps-4k" now means the 0xC000 pipe layout; sun BAMs use 0x13000 (v1_7-4k), as on 6.6.
 sed -i "s/compatible = \"qcom,msm-sps-4k\";/compatible = \"qcom,msm-sps-v1_7-4k\";/" $OUT/qcom/sun.dtsi
 for f in piano-sm8750-overlay.dts piano-sm8750.dtsi piano-pinctrl.dtsi piano-charger-common.dtsi piano-xiaomi-touch-pinctrl.dtsi sm8750-xiaomi-common.dtsi sm8750-ir-sensor-common.dtsi; do
-  cp $SRC66/arch/arm64/boot/dts/vendor/qcom/$f $OUT/qcom/ || echo "MISSING $f"
+  cp $SRC66/arch/arm64/boot/dts/vendor/qcom/$f $OUT/qcom/ || { echo "MISSING $f"; FAIL=1; }
 done
 cp -r --update=none $SRC66/arch/arm64/boot/dts/vendor/qcom/. $OUT/qcom/
 cp -r --update=none $SRC66/arch/arm64/boot/dts/techpack/display-devicetree/display/. $OUT/display/
@@ -44,9 +47,14 @@ fi
 sed -i -E "s/\b(PMIH010X_ADC5_GEN4_[A-Z0-9_]+)\b([^(]|\$)/\1(0, PMIH010X_SID)\2/g" $OUT/qcom/piano-*.dtsi $OUT/qcom/sm8750-*.dtsi
 INC="-I /home/alif/kernel/dt612-extra -I $K/include -I $OUT/qcom -I $OUT/display -I $QDT/bindings -I $K/include -I $K/include/dt-bindings -I $K/arch/arm64/boot/dts -I $QDT/qcom -I $KP/kernel_platform/common/scripts/dtc/include-prefixes -I $KP/kernel_platform/common/include"
 build() { # src out [extra cpp args]
-  $CC -E ${3:-} -nostdinc -undef -D__DTS__ -x assembler-with-cpp $INC -o $2.pp $1 2>&1 | head -20 &&
-  $DTC -@ -I dts -O dtb -o $2 -i $(dirname $1) $2.pp 2>&1 | grep -E "rror" | head -20
-  ls -la $2 2>/dev/null
+  rm -f $2 $2.pp
+  if ! $CC -E ${3:-} -nostdinc -undef -D__DTS__ -x assembler-with-cpp $INC -o $2.pp $1 > $2.log 2>&1; then
+    head -20 $2.log; echo "FAIL cpp $1"; FAIL=1; return 1
+  fi
+  if ! $DTC -@ -I dts -O dtb -o $2 -i $(dirname $1) $2.pp > $2.log 2>&1; then
+    grep -E "rror" $2.log | head -20; echo "FAIL dtc $1"; FAIL=1; rm -f $2; return 1
+  fi
+  ls -la $2
 }
 cp $SRC66/arch/arm64/boot/dts/techpack/graphics-devicetree/gpu/sun-*gpu*.dtsi $OUT/qcom/
 cp /home/alif/kernel/piano-sun-additions.dtsi /home/alif/kernel/sun-synx.dtsi /home/alif/kernel/piano-fastrpc.dtsi $OUT/qcom/
@@ -91,10 +99,11 @@ build $TP/video-devicetree/sun-vidc-v2.dts $OUT/sun-vidc.dtbo "-I $TP/video-devi
 build $TP/eva-devicetree/sun-eva-v2.dts $OUT/sun-eva.dtbo "-I $TP/eva-devicetree"
 MM="$OUT/sun-mmrm.dtbo $OUT/piano-camera.dtbo $OUT/sun-vidc.dtbo $OUT/sun-eva.dtbo"
 H=$KP/kernel_platform/out/msm-kernel-sun-perf/host/bin
-echo "== check"; $H/fdtoverlay -i $OUT/sun-v2.dtb -o $OUT/merged.dtb $OUT/piano-overlay.dtbo $OUT/piano-display-overlay.dtbo $OUT/sun-audio.dtbo $OUT/piano-audio.dtbo $OUT/piano-bt.dtbo $OUT/piano-wlan.dtbo $MM || exit 1
-ls -la $OUT/merged.dtb
+echo "== check"; $H/fdtoverlay -i $OUT/sun-v2.dtb -o $OUT/merged.dtb $OUT/piano-overlay.dtbo $OUT/piano-display-overlay.dtbo $OUT/sun-audio.dtbo $OUT/piano-audio.dtbo $OUT/piano-bt.dtbo $OUT/piano-wlan.dtbo $MM && ls -la $OUT/merged.dtb || { echo "FAIL fdtoverlay"; FAIL=1; }
 echo "== pack"
-$H/fdtoverlaymerge -i $OUT/piano-overlay.dtbo -o $OUT/piano-all.dtbo $OUT/piano-display-overlay.dtbo $OUT/sun-audio.dtbo $OUT/piano-audio.dtbo $OUT/piano-bt.dtbo $OUT/piano-wlan.dtbo $MM || exit 1
-(cd $OUT && cat $(printf '%s.dtb ' $BASES)) > $OUT/dtb || exit 1
-$KP/kernel_platform/build/kernel/build-tools/path/linux-x86/mkdtboimg create $OUT/dtbo.img --page_size=4096 $OUT/piano-all.dtbo || exit 1
+$H/fdtoverlaymerge -i $OUT/piano-overlay.dtbo -o $OUT/piano-all.dtbo $OUT/piano-display-overlay.dtbo $OUT/sun-audio.dtbo $OUT/piano-audio.dtbo $OUT/piano-bt.dtbo $OUT/piano-wlan.dtbo $MM || { echo "FAIL fdtoverlaymerge"; FAIL=1; }
+(cd $OUT && cat $(printf '%s.dtb ' $BASES)) > $OUT/dtb || { echo "FAIL dtb"; FAIL=1; }
+$KP/kernel_platform/build/kernel/build-tools/path/linux-x86/mkdtboimg create $OUT/dtbo.img --page_size=4096 $OUT/piano-all.dtbo || { echo "FAIL mkdtboimg"; FAIL=1; }
 ls -la $OUT/dtb $OUT/dtbo.img
+if [ $FAIL != 0 ]; then echo DT612_FAIL; exit 1; fi
+echo DT612_DONE

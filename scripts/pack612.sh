@@ -79,7 +79,10 @@ if [ "${RECOVERY_DLKM:-1}" = 1 ]; then
   mv $M/l.tmp $M/modules.load.recovery
 fi
 depmod -b $W/dlkm $VER
-for m in $(cat $M/modules.load $M/modules.load.recovery); do test -f $M/$m || echo "MISSING $m"; done
+# A listed module that is not packed stops first-stage init at that line.
+MISSING=0
+for m in $(cat $M/modules.load $M/modules.load.recovery); do test -f $M/$m || { echo "MISSING $m"; MISSING=1; }; done
+[ $MISSING = 0 ] || { echo PACK612_MISSING; exit 1; }
 # Flatten to /lib/modules like the stock vendor ramdisk.
 mv $M/* $W/dlkm/lib/modules/ && rmdir $M
 sed -i -E "s#(^|[ :])([^ :]+\.ko)#\1/lib/modules/\2#g" $W/dlkm/lib/modules/modules.dep
