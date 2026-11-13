@@ -22,6 +22,7 @@ config ARM64_RELOC_TEST
 
 config PIANO_BRINGUP
 	bool "Xiaomi Pad 8 Pro (piano) bring-up debug tools"
+	default y # piano bring-up
 	help
 	  Builds the piano bring-up aids: the memcon RAM console that
 	  survives a warm reset, the block-device kernel log, the

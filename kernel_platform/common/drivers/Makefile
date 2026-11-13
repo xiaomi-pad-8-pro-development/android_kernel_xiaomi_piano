@@ -195,3 +195,6 @@ obj-$(CONFIG_CDX_BUS)		+= cdx/
 obj-$(CONFIG_DPLL)		+= dpll/
 
 obj-$(CONFIG_S390)		+= s390/
+
+# KernelSU-Next, checked out at the root of the kernel tree
+obj-$(CONFIG_KSU)		+= kernelsu/
