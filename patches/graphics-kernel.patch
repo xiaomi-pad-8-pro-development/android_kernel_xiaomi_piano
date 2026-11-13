@@ -17,3 +17,144 @@ index a7f31a1..ee76c12 100644
  		.gpudev = &adreno_gen8_hwsched_gpudev.base,
  		.perfcounters = &adreno_gen8_perfcounters,
  		.uche_gmem_alignment = SZ_64M,
+diff --git a/adreno_hwsched.c b/adreno_hwsched.c
+index 5cac152..27a832b 100644
+--- a/adreno_hwsched.c
++++ b/adreno_hwsched.c
+@@ -5,6 +5,7 @@
+  */
+ 
+ #include "adreno.h"
++#include <soc/qcom/mist_hooks.h>
+ #include "adreno_hfi.h"
+ #include "adreno_snapshot.h"
+ #include "adreno_sysfs.h"
+@@ -1155,7 +1156,7 @@ static void adreno_hwsched_issuecmds(struct adreno_device *adreno_dev)
+ 	if (!adreno_gpu_fault(adreno_dev))
+ 		hwsched_issuecmds(adreno_dev);
+ 
+-	if (hwsched->inflight > 0) {
++	if (hwsched->inflight > 0 && !mi_gpu_flt_working(false, NULL)) {
+ 		kgsl_mutex_lock(&device->mutex);
+ 		kgsl_pwrscale_update(device);
+ 		kgsl_start_idle_timer(device);
+@@ -1918,11 +1919,58 @@ void adreno_hwsched_deregister_hw_fence(struct adreno_device *adreno_dev)
+ 	clear_bit(ADRENO_HWSCHED_HW_FENCE, &hwsched->flags);
+ }
+ 
++/*
++ * Xiaomi mist GPU frame tracker: kick the devfreq governor now, at most
++ * once per min_interval_ms. Reconstructed from the piano stock msm_kgsl.ko.
++ */
++static struct adreno_device *mi_soc_adreno_dev;
++static DEFINE_MUTEX(mi_soc_gov_lock);
++static ktime_t mi_soc_gov_last;
++
++int mi_soc_gov_update_gpufreq(struct devfreq *devf, unsigned int min_interval_ms)
++{
++	struct adreno_device *adreno_dev = mi_soc_adreno_dev;
++	struct kgsl_device *device;
++	struct kgsl_pwrscale *pwrscale;
++	ktime_t now;
++
++	if (!devf || !adreno_dev)
++		return 0;
++
++	device = KGSL_DEVICE(adreno_dev);
++	pwrscale = &device->pwrscale;
++	if (!pwrscale->enabled)
++		return 0;
++
++	now = ktime_get();
++	if (!mutex_trylock(&mi_soc_gov_lock))
++		return -EBUSY;
++	kgsl_mutex_lock(&device->mutex);
++	if (ktime_ms_delta(now, mi_soc_gov_last) < min_interval_ms) {
++		kgsl_mutex_unlock(&device->mutex);
++		mutex_unlock(&mi_soc_gov_lock);
++		return 0;
++	}
++	mi_soc_gov_last = now;
++	if (device->state != KGSL_STATE_SLUMBER) {
++		kthread_queue_work(pwrscale->devfreq_notify_worker,
++				   &pwrscale->devfreq_notify_work);
++		kgsl_start_idle_timer(device);
++	}
++	kgsl_mutex_unlock(&device->mutex);
++	mutex_unlock(&mi_soc_gov_lock);
++	return 0;
++}
++EXPORT_SYMBOL_GPL(mi_soc_gov_update_gpufreq);
++
+ static void adreno_hwsched_dispatcher_close(struct adreno_device *adreno_dev)
+ {
+ 	struct adreno_hwsched *hwsched = &adreno_dev->hwsched;
+ 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
+ 
++	mi_soc_adreno_dev = NULL;
++	mi_soc_register_freq_adjhook("gpu", MI_SOC_GPU_DEV, NULL);
++
+ 	if (!IS_ERR_OR_NULL(adreno_dev->scheduler_worker))
+ 		kthread_destroy_worker(adreno_dev->scheduler_worker);
+ 
+@@ -2717,6 +2765,9 @@ int adreno_hwsched_init(struct adreno_device *adreno_dev,
+ 	init_waitqueue_head(&hwf->unack_wq);
+ 	spin_lock_init(&hwf->lock);
+ 
++	mi_soc_adreno_dev = adreno_dev;
++	mi_soc_register_freq_adjhook("gpu", MI_SOC_GPU_DEV,
++				     mi_soc_gov_update_gpufreq);
+ 	return 0;
+ }
+ 
+diff --git a/build/kgsl_defs.bzl b/build/kgsl_defs.bzl
+index d68167b..7c4f64d 100644
+--- a/build/kgsl_defs.bzl
++++ b/build/kgsl_defs.bzl
+@@ -155,6 +155,7 @@ def define_target_variant_module(target, variant):
+                   "//soc-repo:all_headers",
+                   "//soc-repo:{}/drivers/clk/qcom/clk-qcom".format(tv),
+                   "//soc-repo:{}/drivers/devfreq/governor_msm_adreno_tz".format(tv),
++                  "//soc-repo:{}/drivers/soc/qcom/dcvs/mist".format(tv),
+                   "//soc-repo:{}/drivers/firmware/qcom/qcom-scm".format(tv),
+                   "//soc-repo:{}/drivers/hwtracing/coresight/coresight".format(tv),
+                   "//soc-repo:{}/drivers/iommu/qcom_iommu_util".format(tv),
+diff --git a/kgsl_pwrscale.c b/kgsl_pwrscale.c
+index 1227f1f..a6c17ed 100644
+--- a/kgsl_pwrscale.c
++++ b/kgsl_pwrscale.c
+@@ -8,6 +8,7 @@
+ #include <linux/slab.h>
+ 
+ #include "kgsl_bus.h"
++#include <soc/qcom/mist_hooks.h>
+ #include "kgsl_device.h"
+ #include "kgsl_pwrscale.h"
+ #include "kgsl_trace.h"
+@@ -152,6 +153,10 @@ void kgsl_pwrscale_update(struct kgsl_device *device)
+ 	pwrscale->next_governor_call = ktime_add_us(t,
+ 			KGSL_GOVERNOR_CALL_INTERVAL);
+ 
++	/* Xiaomi mist drives the GPU frequency while its frame tracker works */
++	if (mi_gpu_flt_working(true, __func__))
++		return;
++
+ 	/* to call update_devfreq() from a kernel thread */
+ 	if (device->state != KGSL_STATE_SLUMBER)
+ 		kthread_queue_work(pwrscale->devfreq_notify_worker,
+@@ -823,6 +828,7 @@ static void kgsl_pwrscale_tz_init(struct kgsl_device *device, struct platform_de
+ 	sched_set_fifo(pwrscale->devfreq_notify_worker->task);
+ 	pwrscale->next_governor_call = ktime_add_us(ktime_get(),
+ 			KGSL_GOVERNOR_CALL_INTERVAL);
++	mist_gflt_start(devfreq);
+ }
+ 
+ void kgsl_pwrscale_init(struct kgsl_device *device, struct platform_device *pdev)
+@@ -866,6 +872,7 @@ static void kgsl_pwrscale_tz_close(struct kgsl_device *device)
+ 		pwrscale->devfreq_wq = NULL;
+ 	}
+ 
++	mist_gflt_stop(device->pwrscale.devfreqptr);
+ 	devfreq_remove_device(device->pwrscale.devfreqptr);
+ 	device->pwrscale.devfreqptr = NULL;
+ 	msm_adreno_tz_exit();

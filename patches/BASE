@@ -6,13 +6,13 @@ mmrm-driver f4594bb 3 files
 synx-kernel 16ab2b4 1 files
 securemsm-kernel e023c66 1 files
 dsp-kernel c4303c8 0 files
-graphics-kernel 7f4e7b2 1 files
+graphics-kernel 7f4e7b2 4 files
 touch-driver fcf7f8a830a1 6 files
 mca 049b1543d1ea 52 files
 camera-kernel 049b1543d1ea 62 files
 eva-kernel 049b1543d1ea 13 files
 video-driver 3a4122e9707d 13 files
 input 049b1543d1ea 14 files
-soc-repo d08fc44 9 files
+soc-repo d08fc44 27 files
 perf 049b1543d1ea 80 files
 ksu d92f18cbe947 33 files (after common.patch)
