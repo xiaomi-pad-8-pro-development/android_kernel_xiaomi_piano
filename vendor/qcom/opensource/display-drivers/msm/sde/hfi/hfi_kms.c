@@ -1,0 +1,1776 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ */
+
+#define pr_fmt(fmt)	"[drm:%s:%d] " fmt, __func__, __LINE__
+
+#include "sde_connector.h"
+#include "hfi_crtc.h"
+#include "hfi_kms.h"
+#include "hfi_msm_drv.h"
+#include "hfi_catalog.h"
+#include "hfi_msm_drv.h"
+#include "hfi_encoder.h"
+#include "sde_plane.h"
+#include "sde_formats.h"
+#include "hfi_utils.h"
+#include "hfi_defs_debug.h"
+#include "hfi_dbg.h"
+
+#define DWORDS_TO_BYTES(x) (x * 4)
+#define BYTES_TO_DWORDS(x) (x / 4)
+
+/*
+ * minimum required size for commn caps is 1 dword for number of caps &
+ * at least 2 dwords to hold each key-value pair
+ */
+#define MIN_BYTES_FOR_COMMON_CAPS(x) DWORDS_TO_BYTES(x * 2)
+
+/*
+ * minimum required size for pipe caps is size of formats list + size of caps
+ * size of fromats is 1 dword for format count + dword each for every format
+ * and in best case with 0 property 1 dword for property count
+ */
+#define MIN_BYTES_FOR_PIPE_CAPS(x) DWORDS_TO_BYTES(1 + x[0] +  1)
+
+#define MAX_DEBUG_FEATURES 2
+
+static u32 _hfi_kms_read_lsr_init_caps(struct hfi_catalog_base *catalog,
+		u32 hfi_prop, u32 *payload, u32 max_words);
+
+
+static int hfi_kms_prepare_commit(struct sde_kms *kms,
+		struct drm_atomic_state *state)
+{
+	int i, ret = 0;
+	u32 disp_id;
+	u32 encoder_mask;
+	struct hfi_cmdbuf_t *cmd_buf;
+	struct drm_encoder *encoder;
+	struct drm_crtc *crtc;
+	struct sde_crtc *sde_crtc;
+	struct drm_crtc_state *cstate;
+	struct hfi_kms *hfi_kms;
+
+	if (!kms)
+		return -EINVAL;
+
+	hfi_kms = to_hfi_kms(kms);
+
+	for_each_new_crtc_in_state(state, crtc, cstate, i) {
+		sde_crtc = to_sde_crtc(crtc);
+
+		encoder_mask = cstate->encoder_mask ?
+			cstate->encoder_mask : sde_crtc->cached_encoder_mask;
+		SDE_DEBUG("crtc:%d encoder_mask:0x%x\n", DRMID(crtc), encoder_mask);
+
+		drm_for_each_encoder_mask(encoder, kms->dev, encoder_mask) {
+			disp_id = hfi_crtc_get_display_id(crtc, cstate);
+			if (disp_id == U32_MAX || sde_encoder_in_clone_mode(encoder)) {
+				SDE_DEBUG("no display for encoder%p\n", encoder);
+				continue;
+			}
+			SDE_DEBUG("creating cmd buffer for disp_id:%d\n", disp_id);
+
+			cmd_buf = hfi_adapter_get_cmd_buf(&hfi_kms->hfi_client,
+					disp_id, HFI_CMDBUF_TYPE_ATOMIC_COMMIT);
+			if (!cmd_buf) {
+				SDE_ERROR("failed to get cmd_buf for crtc:%d disp_id:%d\n",
+						DRMID(crtc), disp_id);
+				return -EINVAL;
+			}
+		}
+		hfi_crtc_set_pending_enc_mask(sde_crtc, encoder_mask);
+	}
+
+	SDE_DEBUG("done\n");
+
+	return ret;
+}
+
+static int hfi_kms_trigger_commit(struct sde_kms *kms,
+		struct drm_atomic_state *state)
+{
+	int i, ret = 0;
+	u32 disp_id;
+	u32 payload = HFI_COMMIT;
+	struct hfi_cmdbuf_t *cmd_buf;
+	struct drm_crtc *crtc;
+	struct drm_crtc_state *crtc_state;
+	struct hfi_kms *hfi_kms;
+	struct drm_encoder *encoder;
+	struct drm_device *dev;
+	u32 pending_commit_count;
+	u32 lsr_mode;
+	bool avoid_frame_trigger = false;
+
+	if (!kms || !state)
+		return -EINVAL;
+
+	hfi_kms = to_hfi_kms(kms);
+
+	SDE_EVT32(HFI_COMMAND_DISPLAY_FRAME_TRIGGER, SDE_EVTLOG_FUNC_ENTRY);
+	for_each_new_crtc_in_state(state, crtc, crtc_state, i) {
+		disp_id = hfi_crtc_get_display_id(crtc, crtc_state);
+		lsr_mode = sde_crtc_get_property(to_sde_crtc_state(crtc_state),
+			CRTC_PROP_LSR_MODE);
+
+		if (disp_id == U32_MAX) {
+			SDE_DEBUG("no valid display for crtc:%d\n", DRMID(crtc));
+			continue;
+		}
+		SDE_DEBUG("getting cmd buffer for disp_id:%d\n", disp_id);
+
+		/* Avoid Frame trigger command on LSR mode commits on primary display*/
+		if (lsr_mode == MSM_DISP_LSR_MODE_ENABLED)
+			avoid_frame_trigger = true;
+
+		cmd_buf = hfi_kms_get_cmd_buf(hfi_kms, disp_id,
+				HFI_CMDBUF_TYPE_ATOMIC_COMMIT);
+		if (!cmd_buf) {
+			SDE_ERROR("failed to get cmd_buf for crtc:%d disp_id:%d\n",
+					DRMID(crtc), disp_id);
+			return -EINVAL;
+		}
+
+		if (!crtc->state->active && sde_in_trusted_vm(kms)) {
+			SDE_DEBUG("crtc:%d inactive, skipping commit\n", DRMID(crtc));
+			ret = hfi_adapter_release_cmd_buf(&hfi_kms->hfi_client, cmd_buf);
+			if (ret)
+				SDE_ERROR("failed to release commit buffer for crtc:%d\n",
+					  DRMID(crtc));
+			hfi_crtc_set_pending_enc_mask(to_sde_crtc(crtc), 0);
+			continue;
+		}
+
+		if (!avoid_frame_trigger)
+			ret = hfi_adapter_add_set_property(&hfi_kms->hfi_client, cmd_buf,
+					HFI_COMMAND_DISPLAY_FRAME_TRIGGER, MSM_DRV_HFI_ID,
+					HFI_PAYLOAD_TYPE_U32, &payload, sizeof(u32), 0);
+
+		dev = crtc->dev;
+		list_for_each_entry(encoder, &dev->mode_config.encoder_list, head) {
+			if (encoder->crtc != crtc)
+				continue;
+
+			if (sde_encoder_in_clone_mode(encoder))
+				continue;
+
+			pending_commit_count = sde_encoder_helper_inc_pending(encoder);
+			SDE_EVT32(pending_commit_count);
+		}
+
+		ret = hfi_adapter_set_cmd_buf(&hfi_kms->hfi_client, cmd_buf);
+		SDE_EVT32(HFI_COMMAND_DISPLAY_FRAME_TRIGGER, ret, SDE_EVTLOG_FUNC_CASE1);
+		if (ret) {
+			SDE_ERROR("failed to send commit buffer\n");
+			return ret;
+		}
+		hfi_crtc_set_pending_enc_mask(to_sde_crtc(crtc), 0);
+	}
+
+	SDE_EVT32(HFI_COMMAND_DISPLAY_FRAME_TRIGGER, avoid_frame_trigger, SDE_EVTLOG_FUNC_EXIT);
+	return ret;
+}
+
+static int hfi_kms_commit(struct sde_kms *kms,
+		struct drm_atomic_state *state)
+{
+	int i, ret = 0;
+	struct drm_crtc *crtc;
+	struct drm_crtc_state *crtc_state;
+	struct hfi_kms *hfi_kms;
+
+	if (!kms || !state)
+		return -EINVAL;
+
+	hfi_kms = to_hfi_kms(kms);
+	for_each_new_crtc_in_state(state, crtc, crtc_state, i) {
+		if (crtc->state->active || crtc_state->active) {
+			SDE_DEBUG(" crtc:%d\n", DRMID(crtc));
+			sde_crtc_commit_kickoff(crtc, crtc_state);
+		}
+	}
+
+	return ret;
+}
+
+static int hfi_kms_process_cmd_buf(struct hfi_client_t *client, struct hfi_cmdbuf_t *cmd_buf)
+{
+	int rc;
+
+	SDE_DEBUG("process cmd-buf called\n");
+
+	/*
+	 * If no crtcs and encoders are initialized, cannot switch context
+	 * Currently adapter thread is used, need to schedule unpack to right event thread
+	 */
+	rc = hfi_adapter_unpack_cmd_buf(client, cmd_buf);
+	if (rc)
+		SDE_ERROR("[WARNING] error in response packet or unpacking buffer\n");
+
+	rc = hfi_adapter_release_cmd_buf(client, cmd_buf);
+	if (rc)
+		SDE_ERROR("[WARNING] Failed to release command buffer\n");
+
+	return rc;
+}
+
+static void _wake_up_all_kickoff_wq(struct sde_kms *sde_kms)
+{
+	struct drm_encoder *drm_enc;
+	struct hfi_encoder *hfi_enc;
+	struct sde_encoder_virt *sde_enc;
+
+	drm_for_each_encoder(drm_enc, sde_kms->dev) {
+		sde_enc = to_sde_encoder_virt(drm_enc);
+		if (!sde_enc)
+			continue;
+
+		hfi_enc = to_hfi_encoder(sde_enc);
+		if (!hfi_enc)
+			continue;
+
+		wake_up_all(&hfi_enc->pending_kickoff_wq);
+	}
+}
+
+#if IS_ENABLED(CONFIG_QTI_HFI_CORE) && IS_ENABLED(CONFIG_QTI_HW_FENCE)
+void hfi_kms_recover_hwfence(struct hfi_kms *hfi_kms)
+{
+	int rc, i;
+	struct hfi_hwfence_data *hwfence_data;
+
+	hwfence_data = hfi_kms->hfi_hw_fence_data;
+	if (!hwfence_data || !hwfence_data->hw_fence_handle) {
+		SDE_ERROR("failed to reset hwfence timeline, invalid hwfencedata\n");
+		return;
+	}
+
+	for (i = 0; i < hwfence_data->max_displays; i++) {
+		if (hwfence_data->input_h_synx_array[i]) {
+			rc = synx_release(hwfence_data->hw_fence_handle,
+				hwfence_data->input_h_synx_array[i]);
+			if (rc)
+				SDE_ERROR("failed to rel display:%d input_h_synx:%u\n",
+					i, hwfence_data->input_h_synx_array[i]);
+
+			hwfence_data->input_h_synx_array[i] = SYNX_INVALID_HANDLE;
+		}
+	}
+
+	rc = synx_recover(hwfence_data->client_id);
+	if (rc)
+		SDE_ERROR("failed to reset client %d\n", hwfence_data->client_id);
+}
+#else
+void hfi_kms_recover_hwfence(struct hfi_kms *hfi_kms)
+{
+	SDE_INFO("skipping reset client, hw fence not enabled\n");
+}
+#endif /* CONFIG_QTI_HW_FENCE && CONFIG_QTI_HFI_CORE */
+
+static int _hfi_kms_process_ssr_start(struct hfi_client_t *hfi_client)
+{
+	int rc;
+	struct msm_drm_private *priv;
+	struct dss_module_power *mp;
+	struct sde_power_handle *phandle;
+	struct hfi_kms *hfi_kms;
+	struct hfi_connector *hfi_conn;
+	struct sde_kms *sde_kms;
+	struct drm_device *ddev;
+
+	if (!hfi_client || !hfi_client->priv) {
+		SDE_ERROR("invalid params\n");
+		return -EINVAL;
+	}
+
+	hfi_kms = (struct hfi_kms *)hfi_client->priv;
+
+	hfi_conn = hfi_kms->primary_connector;
+	if (!hfi_conn) {
+		SDE_ERROR("hfi_conn is null\n");
+		return -EINVAL;
+	}
+	sde_kms = hfi_kms->base;
+	if (!sde_kms) {
+		SDE_ERROR("sde_kms is null\n");
+		return -EINVAL;
+	}
+
+	ddev = sde_kms->dev;
+	if (!ddev || !ddev->dev_private) {
+		SDE_ERROR("ddev or dev priv is null\n");
+		return -EINVAL;
+	}
+
+	priv = ddev->dev_private;
+	phandle = &priv->phandle;
+	mp = &phandle->mp;
+
+	atomic_set(&hfi_kms->ssr_in_progress, 1);
+	_wake_up_all_kickoff_wq(sde_kms);
+
+	SDE_DEBUG("process ssr start called\n");
+
+	if (!hfi_conn->sde_base) {
+		SDE_ERROR("sde_base is null\n");
+		return -EINVAL;
+	}
+	/* Notify SSR start event to user mode driver */
+	rc = sde_connector_event_notify(&hfi_conn->sde_base->base, DRM_EVENT_SSR,
+				sizeof(uint8_t), SDE_SSR_START);
+	if (rc)
+		SDE_ERROR("[WARNING] Failed to notify ssr start event to user mode driver\n");
+
+	/* Enable MMCX vote for HLOS driver */
+	if (!mp->vreg_config) {
+		SDE_ERROR("mp->vreg_config is null\n");
+		return -EINVAL;
+	}
+	rc = msm_dss_enable_vreg(mp->vreg_config, mp->num_vreg, true);
+	if (rc) {
+		SDE_ERROR("failed to enable vregs rc=%d\n", rc);
+		return rc;
+	}
+
+	/* Release all command buffers associated with DPU driver hfi client */
+	rc = hfi_adapter_release_all_cmd_bufs(hfi_client);
+	if (rc)
+		SDE_ERROR("[WARNING] Failed to release command buffers\n");
+
+	/* reset hwfence timeline if hwfencing enabled */
+	if (sde_kms->catalog && sde_kms->catalog->hw_fence_rev)
+		hfi_kms_recover_hwfence(hfi_kms);
+
+	/* wait for all display off */
+	rc = sde_kms_wait_for_display_off(sde_kms);
+	if (rc) {
+		SDE_ERROR("failed to wait for display off rc=%d\n", rc);
+		//return rc;
+	}
+
+	if (test_bit(SDE_FEATURE_LSR, sde_kms->catalog->features)) {
+		SDE_ERROR("Triggering lsr fw reset from DCP SSR\n");
+		rc = hfi_lsr_reset();
+		if (rc)
+			SDE_ERROR("LSR FW reset failed:%d\n", rc);
+	}
+
+	SDE_DEBUG("ssr start processing completed\n");
+
+	return rc;
+}
+
+static int _hfi_kms_process_ssr_end(struct hfi_client_t *hfi_client)
+{
+	int rc;
+	struct msm_drm_private *priv;
+	struct dss_module_power *mp;
+	struct hfi_kms *hfi_kms;
+	struct hfi_connector *hfi_conn;
+	struct sde_kms *sde_kms;
+	struct drm_device *ddev;
+
+	SDE_DEBUG("process ssr end called\n");
+
+	if (!hfi_client) {
+		SDE_ERROR("invalid params\n");
+		return -EINVAL;
+	}
+
+	if (!hfi_client->priv) {
+		SDE_ERROR("invalid client private data\n");
+		return -EINVAL;
+	}
+
+	hfi_kms = (struct hfi_kms *)hfi_client->priv;
+	hfi_conn = hfi_kms->primary_connector;
+	sde_kms = hfi_kms->base;
+	ddev = sde_kms->dev;
+
+	if (!ddev || !ddev->dev_private) {
+		SDE_ERROR("invalid drm device / drm device priv\n");
+		return -EINVAL;
+	}
+
+	priv = ddev->dev_private;
+	mp = &priv->phandle.mp;
+
+	rc = hfi_kms_init_hw_fence_config(hfi_kms);
+	if (rc)
+		SDE_INFO("failed to send HFI HW FENCE config to FW ret:%d\n", rc);
+
+	/* re configure debug setup configs */
+	rc = hfi_dbg_device_setup(hfi_kms);
+	if (rc)
+		SDE_ERROR("failed to send debug setup configs rc=%d\n", rc);
+
+	/* re configure fw with lut dma configs */
+	rc = sde_kms_reinit_device_lut_dma(sde_kms);
+	if (rc) {
+		SDE_ERROR("failed lut dma configuration rc=%d\n", rc);
+		return rc;
+	}
+
+	/* Disable MMCX vote for HLOS driver */
+	rc = msm_dss_enable_vreg(mp->vreg_config, mp->num_vreg, false);
+	if (rc)
+		SDE_ERROR("[WARNING] failed to disable vregs rc=%d\n", rc);
+
+	/* Notify SSR end event to user mode driver */
+	rc = sde_connector_event_notify(&hfi_conn->sde_base->base, DRM_EVENT_SSR,
+				sizeof(uint8_t), SDE_SSR_END);
+	if (rc)
+		SDE_ERROR("[WARNING] Failed to notify ssr end event to user mode driver\n");
+
+	atomic_set(&hfi_kms->ssr_in_progress, 0);
+
+	SDE_DEBUG("ssr end processing completed\n");
+
+	return rc;
+}
+
+static int hfi_kms_process_event(struct hfi_client_t *hfi_client, enum hfi_adapter_event_type event,
+			bool blocking)
+{
+	if (!hfi_client) {
+		SDE_ERROR("Invalid client\n");
+		return -EINVAL;
+	}
+
+	SDE_DEBUG("%s: called\n", __func__);
+
+	switch (event) {
+	case HFI_ADAPTER_EVENT_SSR_START:
+		return _hfi_kms_process_ssr_start(hfi_client);
+	case HFI_ADAPTER_EVENT_SSR_END:
+		return _hfi_kms_process_ssr_end(hfi_client);
+	default:
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static const struct sde_kms_hal_funcs hfi_hal_funcs = {
+	.prepare_commit[MSM_DISP_OP_HFI] = hfi_kms_prepare_commit,
+	.commit[MSM_DISP_OP_HFI] = hfi_kms_commit,
+	.trigger_commit[MSM_DISP_OP_HFI] = hfi_kms_trigger_commit,
+};
+
+static int _hfi_kms_setup_hfi(struct hfi_adapter_t *adapter, struct hfi_kms *hfi_kms)
+{
+	int ret;
+
+	if (!adapter || !hfi_kms)
+		return -EINVAL;
+
+	hfi_kms->hfi_adapter = adapter;
+	hfi_kms->hfi_client.process_cmd_buf = hfi_kms_process_cmd_buf;
+	hfi_kms->hfi_client.process_event = hfi_kms_process_event;
+	hfi_kms->hfi_client.priv = (void *)hfi_kms;
+
+	ret = hfi_adapter_client_register(hfi_kms->hfi_adapter, &hfi_kms->hfi_client);
+	if (ret) {
+		SDE_ERROR("failed to register as adapter client\n");
+		return ret;
+	}
+
+	return ret;
+}
+
+struct hfi_cmdbuf_t *hfi_kms_get_cmd_buf(struct hfi_kms *hfi_kms,
+		u16 display_id, u32 cmd_type)
+{
+	struct hfi_cmdbuf_t *ret_buf = NULL;
+	struct hfi_cmdbuf_t *buf;
+	struct hfi_client_t *hfi_client;
+
+	if (!hfi_kms) {
+		SDE_ERROR("Invalid hfi_kms\n");
+		return NULL;
+	}
+
+	hfi_client = &hfi_kms->hfi_client;
+
+	mutex_lock(&hfi_client->lock);
+	list_for_each_entry(buf, &hfi_client->cmd_buf_list, node) {
+		if (buf->cmd_type == cmd_type && buf->obj_id == display_id) {
+			ret_buf = buf;
+			break;
+		}
+	}
+	mutex_unlock(&hfi_client->lock);
+
+	return ret_buf;
+}
+
+int hfi_kms_reg_client(struct drm_device *dev)
+{
+	int ret;
+	struct msm_drm_hfi_private *hfi_drv_priv;
+	struct sde_kms *sde_kms;
+	struct msm_drm_private *priv;
+
+	if (!dev || !dev->dev_private)
+		return -EINVAL;
+
+	priv = dev->dev_private;
+	if (!priv || !priv->hfi_priv) {
+		SDE_ERROR("Invalid priv");
+		return -HFI_ERROR;
+	}
+
+	hfi_drv_priv = priv->hfi_priv;
+	if (!hfi_drv_priv || !hfi_drv_priv->hfi_adapter) {
+		SDE_ERROR("Invalid hfi_drv_priv");
+		return -HFI_ERROR;
+	}
+
+	sde_kms = to_sde_kms(priv->kms);
+	if (!sde_kms) {
+		SDE_ERROR("Invalid sde_kms");
+		return -HFI_ERROR;
+	}
+	atomic_set(&sde_kms->hfi_kms->ssr_in_progress, 0);
+
+	ret = _hfi_kms_setup_hfi(hfi_drv_priv->hfi_adapter, sde_kms->hfi_kms);
+	if (ret) {
+		SDE_ERROR("failed to setup HFI client ret=%d\n", ret);
+		return -HFI_ERROR;
+	}
+
+	return 0;
+
+}
+
+static u32 _hfi_kms_read_init_caps(struct hfi_catalog_base *catalog,
+		u32 hfi_prop, u32 *payload, u32 max_words)
+{
+	u32 read = 0;
+	u32 prop_id = HFI_PROP_ID(hfi_prop);
+	u32 payload_size = HFI_PROP_SZ(hfi_prop);
+	u32 vig_index_count;
+	u32 dma_index_count;
+	u32 num_displays, display_id, pipe_mask;
+	u32 prop_sz;
+	u32 wb_downscale_count;
+
+	if (!catalog || !payload)
+		return -EINVAL;
+
+	SDE_INFO("read prop:0x%x size:%d\n", prop_id, payload_size);
+	switch (prop_id) {
+	case HFI_PROPERTY_DEVICE_INIT_DCP_HW_VERSION:
+		catalog->dcp_hw_rev = payload[read++];
+		break;
+	case HFI_PROPERTY_DEVICE_INIT_MDSS_HW_VERSION:
+		catalog->hw_rev = payload[read++];
+		break;
+	case HFI_PROPERTY_DEVICE_INIT_DCP_FW_VERSION:
+		catalog->fw_rev = payload[read++];
+		break;
+	case HFI_PROPERTY_DEVICE_INIT_VIG_INDICES:
+		if (payload[0] > SDE_MAX_SSPP_COUNT) {
+			SDE_ERROR("invalid vig indices in the packet\n");
+			return read;
+		}
+		vig_index_count = payload[read++];
+		for (int i = 0; i < vig_index_count; i++, read++)
+			if (REC_ID(payload[read]) == 0) {
+				catalog->vig_indices[catalog->vig_count] = payload[read];
+				catalog->vig_count++;
+			} else {
+				catalog->vig_r1_indices[catalog->virt_vig_count] = payload[read];
+				catalog->virt_vig_count++;
+			}
+		break;
+	case HFI_PROPERTY_DEVICE_INIT_DMA_INDICES:
+		if (!max_words || max_words <=  payload[0] || payload[0] > SDE_MAX_SSPP_COUNT) {
+			SDE_ERROR("invalid dma indices in the packet\n");
+			return read;
+		}
+
+		dma_index_count = payload[read++];
+		for (int i = 0; i < dma_index_count; i++, read++)
+			if (REC_ID(payload[read]) == 0) {
+				catalog->dma_indices[catalog->dma_count] = payload[read];
+				catalog->dma_count++;
+			} else {
+				catalog->dma_r1_indices[catalog->virt_dma_count] = payload[read];
+				catalog->virt_dma_count++;
+			}
+		return read;
+	case HFI_PROPERTY_DEVICE_INIT_MAX_DISPLAY_COUNT:
+		catalog->max_display_count = payload[read++];
+		break;
+	case HFI_PROPERTY_DEVICE_INIT_WB_INDICES:
+		if (payload[0] > MAX_BLOCKS) {
+			SDE_ERROR("invalid wb indices in the packet\n");
+			return read;
+		}
+
+		catalog->wb_count = payload[read++];
+		for (int i = 0; i < catalog->wb_count; i++, read++)
+			catalog->wb_indices[i] = payload[read];
+		break;
+	case HFI_PROPERTY_DEVICE_INIT_WB_DNSC_SUPPORT_INDICES:
+		if (payload[0] > MAX_BLOCKS) {
+			SDE_ERROR("invalid wb dnsc support indices in packet, %d\n", payload[0]);
+			return read;
+		}
+
+		wb_downscale_count = payload[read++];
+		if (max_words < 1 + wb_downscale_count + 2) {
+			SDE_ERROR("wb dnsc payload too small: max_words=%u\n", max_words);
+			return read;
+		}
+		for (int i = 0; i < wb_downscale_count; i++, read++)
+			catalog->wb_dnsc_indices[i] = payload[read];
+		catalog->wb_dnsc_range = payload[read++];
+		catalog->wb_dnsc_integer_only = payload[read++];
+		break;
+	case HFI_PROPERTY_DEVICE_INIT_MAX_WB_LINEAR_RESOLUTION:
+		catalog->max_wb_linear_resolution = payload[read++];
+		break;
+	case HFI_PROPERTY_DEVICE_INIT_MAX_WB_UBWC_RESOLUTION:
+		catalog->max_wb_ubwc_resolution = payload[read++];
+		break;
+	case HFI_PROPERTY_DEVICE_INIT_DSI_INDICES:
+		if (payload[0] > MAX_BLOCKS) {
+			SDE_ERROR("invalid dsi indices in the packet\n");
+			return read;
+		}
+
+		catalog->dsi_count = payload[read++];
+		for (int i = 0; i < catalog->dsi_count; i++, read++)
+			catalog->dsi_indices[i] = payload[read];
+		break;
+	case HFI_PROPERTY_DEVICE_INIT_MAX_DSI_RESOLUTION:
+		catalog->max_dsi_resolution = payload[read++];
+		break;
+	case HFI_PROPERTY_DEVICE_INIT_DP_INDICES:
+		if (payload[0] > MAX_BLOCKS) {
+			SDE_ERROR("invalid dp indices in the packet\n");
+			return read;
+		}
+
+		catalog->dp_count = payload[read++];
+		for (int i = 0; i < catalog->dp_count; i++, read++)
+			catalog->dp_indices[i] = payload[read];
+		break;
+	case HFI_PROPERTY_DEVICE_INIT_MAX_DP_RESOLUTION:
+		catalog->max_dp_resolution = payload[read++];
+		break;
+	case HFI_PROPERTY_DEVICE_INIT_DS_INDICES:
+		if (payload[0] > MAX_BLOCKS) {
+			SDE_ERROR("invalid ds indices in the packet\n");
+			return read;
+		}
+
+		catalog->ds_count = payload[read++];
+		for (int i = 0; i < catalog->ds_count; i++, read++)
+			catalog->ds_indices[i] = payload[read];
+		return read;
+	case HFI_PROPERTY_DEVICE_INIT_MAX_DS_RESOLUTION:
+		catalog->max_ds_resolution = payload[read++];
+		break;
+	case HFI_PROPERTY_DEVICE_INIT_ACTIVE_LAYERS:
+		prop_sz = sizeof(struct hfi_device_active_layers_info) / sizeof(u32);
+		num_displays = payload[read++];
+		if (max_words < (1 + num_displays * prop_sz)) {
+			SDE_ERROR("insufficient data for active layers: max_words=%d, need=%d\n",
+					max_words, 1 + num_displays * prop_sz);
+			return read;
+		}
+		for (int i = 0; i < num_displays; i++) {
+			display_id = payload[read++];
+			pipe_mask = payload[read++];
+
+			if (display_id < MAX_DSI_DISPLAYS) {
+				catalog->active_pipes_mask[display_id] = pipe_mask;
+				SDE_INFO("Display ID %d: pipes=0x%x\n", display_id, pipe_mask);
+				SDE_EVT32(display_id, pipe_mask);
+			} else {
+				SDE_ERROR("Invalid display_id %d in active layers\n", display_id);
+			}
+		}
+		break;
+	default:
+		SDE_DEBUG("Unknown device cap key (%u)\n", prop_id);
+	}
+
+	if (read > payload_size) {
+		SDE_ERROR("mismatch in read vs payload_size, prop:0x%x read:%d payload_size:%d\n",
+				prop_id, read, payload_size);
+	}
+	return payload_size;
+}
+
+static int _hfi_kms_init_device_caps(struct hfi_catalog_base *catalog,
+		void *payload, u32 size)
+{
+	int ret;
+	u32 *value_ptr;
+	u32 prop, max_words, last_read = 0;
+	struct hfi_util_kv_parser kv_parser;
+
+	ret  = hfi_util_kv_parser_init(&kv_parser, size, payload);
+	if (ret) {
+		SDE_ERROR("failed to get int prop parser\n");
+		return ret;
+	}
+
+	ret = hfi_util_kv_parser_get_next(&kv_parser, last_read, &prop, &value_ptr, &max_words);
+	if (ret) {
+		SDE_ERROR("failed to get next prop\n");
+		return ret;
+	}
+
+	SDE_INFO("prop:0x%x, max_words:%d\n", prop, max_words);
+
+	while (prop && payload) {
+		last_read = _hfi_kms_read_init_caps(catalog, prop, value_ptr, max_words);
+
+		ret = _hfi_kms_read_lsr_init_caps(catalog, prop, value_ptr, max_words);
+
+		if (!last_read || (ret < 0)) {
+			SDE_ERROR("failed to get next prop\n");
+			return ret;
+		}
+
+		ret = hfi_util_kv_parser_get_next(&kv_parser, last_read, &prop,
+				&value_ptr, &max_words);
+		if (ret) {
+			SDE_ERROR("failed to get next prop\n");
+			return ret;
+		}
+	}
+	return ret;
+}
+
+static void hfi_kms_populate_catalog(u32 display_id, u32 cmd_id,
+		void *prop_data, u32 size, struct hfi_prop_listener *hfi_listener)
+{
+	struct hfi_kms *hfi_kms = container_of(hfi_listener, struct hfi_kms, device_init_listener);
+	struct hfi_catalog_base *catalog;
+
+	if (!hfi_kms) {
+		SDE_ERROR("invalid object or listener from FW\n");
+		return;
+	}
+
+	catalog = hfi_kms->catalog;
+	if (!catalog) {
+		SDE_ERROR("Catalog not yet initialized\n");
+		return;
+	}
+
+	switch (cmd_id) {
+	case HFI_COMMAND_DEVICE_INIT:
+		_hfi_kms_init_device_caps(catalog, prop_data, size);
+		break;
+	case HFI_COMMAND_DEVICE_INIT_DEVICE_CAPS:
+		_hfi_kms_init_device_caps(catalog, prop_data, size);
+		atomic_inc(&hfi_kms->cat_init_done);
+		break;
+	case HFI_COMMAND_DEVICE_INIT_VIG_CAPS:
+	case HFI_COMMAND_DEVICE_INIT_DMA_CAPS:
+	case HFI_COMMAND_DEVICE_INIT_COMMON_LAYER_CAPS:
+	case HFI_COMMAND_DEVICE_INIT_DISPLAY_CAPS:
+	case HFI_COMMAND_DEVICE_INIT_DISPLAY_WB_CAPS:
+	case HFI_COMMAND_DEVICE_RESOURCE_REGISTER:
+	case HFI_COMMAND_DEVICE_CALLBACK_RESOURCE_VOTE:
+	case HFI_COMMAND_DEVICE_INIT_VIG_R1_CAPS:
+	case HFI_COMMAND_DEVICE_INIT_DMA_R1_CAPS:
+	case HFI_COMMAND_DEVICE_INIT_LSR_WB_CSC_LAYER_CAPS:
+	case HFI_COMMAND_DEVICE_INIT_LSR_WB_REPROJ_LAYER_CAPS:
+	case HFI_COMMAND_DEVICE_INIT_DISPLAY_LSR_WB_CSC_CAPS:
+	case HFI_COMMAND_DEVICE_INIT_DISPLAY_LSR_WB_REPROJ_CAPS:
+		break;
+	default:
+		SDE_ERROR("command:0x%x not supported\n", cmd_id);
+	}
+}
+
+static int _send_device_init_cmd(struct hfi_kms *hfi_kms)
+{
+	int ret;
+	struct hfi_cmdbuf_t *cmd_buf;
+	bool cat_done = false;
+	bool wait_count = false;
+	u32 device_id, packet_id = 0;
+
+	if (!hfi_kms)
+		return -EINVAL;
+
+	SDE_EVT32(HFI_COMMAND_DEVICE_INIT, SDE_EVTLOG_FUNC_ENTRY);
+	device_id = sde_in_trusted_vm(hfi_kms->base) ? MSM_DRV_HFI_SEC_ID : MSM_DRV_HFI_ID;
+	cmd_buf = hfi_adapter_get_cmd_buf(&hfi_kms->hfi_client,
+			device_id, HFI_CMDBUF_TYPE_DEVICE_INFO);
+	SDE_EVT32(HFI_COMMAND_DEVICE_INIT, SDE_EVTLOG_FUNC_CASE1);
+	if (!cmd_buf) {
+		SDE_ERROR("failed to get hfi command buffer\n");
+		return -EINVAL;
+	}
+
+	hfi_kms->device_init_listener.hfi_prop_handler = hfi_kms_populate_catalog;
+	ret = hfi_adapter_add_get_property(&hfi_kms->hfi_client, cmd_buf, HFI_COMMAND_DEVICE_INIT,
+			device_id, HFI_PAYLOAD_TYPE_NONE, NULL, 0,
+			&hfi_kms->device_init_listener,
+			HFI_HOST_FLAGS_RESPONSE_REQUIRED | HFI_HOST_FLAGS_NON_DISCARDABLE,
+			false, &packet_id);
+	if (ret) {
+		SDE_ERROR("failed to add device-init command\n");
+		return ret;
+	}
+
+	SDE_EVT32(HFI_COMMAND_DEVICE_INIT, SDE_EVTLOG_FUNC_CASE2);
+	ret = hfi_adapter_set_cmd_buf_blocking(&hfi_kms->hfi_client, cmd_buf);
+	SDE_EVT32(HFI_COMMAND_DEVICE_INIT, ret, SDE_EVTLOG_FUNC_CASE3);
+	if (ret) {
+		SDE_ERROR("failed to send device-init command\n");
+		return ret;
+	}
+
+	cat_done = atomic_read(&hfi_kms->cat_init_done);
+	if (!cat_done)
+		SDE_ERROR("failed to parse catalog\n");
+
+	hfi_adapter_remove_listener_by_packet_id(&hfi_kms->hfi_client, packet_id);
+	SDE_DEBUG("catalog wait success after :%d ms\n", wait_count);
+	SDE_EVT32(HFI_COMMAND_DEVICE_INIT, SDE_EVTLOG_FUNC_EXIT);
+	return ret;
+}
+
+static void hfi_kms_get_debug_set_common_property_resp(u32 cmd, u32 obj_id,
+						       void *payload,
+						       u32 payload_size,
+						       struct hfi_prop_listener *listener)
+{
+	struct hfi_util_kv_parser kv_parser;
+	u32 hfi_prop;
+	u32 *prop_payload;
+	u32 max_words;
+	int ret;
+
+	if (!listener || !payload) {
+		SDE_ERROR("invalid listener or payload\n");
+		return;
+	}
+
+	SDE_EVT32(cmd, SDE_EVTLOG_FUNC_ENTRY, payload_size);
+
+	/* Initialize kv parser with response payload */
+	ret = hfi_util_kv_parser_init(&kv_parser, payload_size, (u32 *)payload);
+	if (ret) {
+		SDE_ERROR("failed to init kv parser ret:%d\n", ret);
+		return;
+	}
+
+	SDE_EVT32(cmd, SDE_EVTLOG_FUNC_CASE1, payload_size);
+
+	/* Parse each property from response */
+	while (!hfi_util_kv_parser_get_next(&kv_parser, 1, &hfi_prop,
+					    &prop_payload, &max_words)) {
+		u32 prop_id = HFI_PROP_ID(hfi_prop);
+
+		SDE_EVT32(cmd, SDE_EVTLOG_FUNC_CASE2, prop_id, max_words);
+
+		/* Validate property ID */
+		if (prop_id != HFI_PROPERTY_DEBUG_ENABLE) {
+			SDE_WARN("unexpected property id in response: 0x%x\n", prop_id);
+			continue;
+		}
+
+		/* Validate payload size for enable property (dsize=2) */
+		if (max_words < 2) {
+			SDE_ERROR("invalid payload size for enable property: %u\n", max_words);
+			continue;
+		}
+
+		/* Cast to structure for type-safe access */
+		struct hfi_debug_enable_payload *enable_payload =
+			(struct hfi_debug_enable_payload *)prop_payload;
+
+		switch (enable_payload->feature) {
+		case HFI_DEBUG_FEATURE_TRACE:
+			SDE_DEBUG("trace enable property response received\n");
+			SDE_EVT32(cmd, SDE_EVTLOG_FUNC_CASE3,
+				  HFI_DEBUG_FEATURE_TRACE, enable_payload->enable);
+			break;
+		case HFI_DEBUG_FEATURE_LOG:
+			SDE_DEBUG("debug log enable property response received\n");
+			SDE_EVT32(cmd, SDE_EVTLOG_FUNC_CASE4,
+				  HFI_DEBUG_FEATURE_LOG, enable_payload->enable);
+			break;
+		default:
+			SDE_WARN("unknown feature type in response: 0x%x\n",
+				 enable_payload->feature);
+			break;
+		}
+	}
+
+	SDE_EVT32(cmd, SDE_EVTLOG_FUNC_EXIT);
+}
+
+/**
+ * _send_debug_set_common_property_cmd() - Send debug set common property command
+ *
+ * Constructs and sends HFI_COMMAND_DEBUG_SET_COMMON_PROPERTY with debug
+ * properties using key-value pairs. Supports flexible combination of
+ * trace_enable and debug_enable settings.
+ *
+ * Buffer addresses are optional and may be preconfigured through device tree.
+ * If buffer address is 0, buffer configuration property is skipped.
+ *
+ * @hfi_kms:      HFI KMS instance
+ * @trace_enable: Enable (1) or disable (0) trace events
+ * @debug_enable: Enable (1) or disable (0) debug logs
+ * @trace_buf_addr: Trace buffer address (64-bit), 0 if preconfigured
+ * @trace_buf_size: Trace buffer size in bytes, 0 if preconfigured
+ * @log_buf_addr: Log buffer address (64-bit), 0 if preconfigured
+ * @log_buf_size: Log buffer size in bytes, 0 if preconfigured
+ *
+ * Return: 0 on success, negative error code on failure
+ */
+static int _send_debug_set_common_property_cmd(struct hfi_kms *hfi_kms,
+					       u32 trace_enable,
+					       u32 debug_enable,
+					       u64 trace_buf_addr, u32 trace_buf_size,
+					       u64 log_buf_addr, u32 log_buf_size)
+{
+	int ret = 0;
+	struct hfi_cmdbuf_t *cmd_buf;
+	u32 kv_count = 0;
+	int i;
+
+	struct hfi_debug_feature_cfg {
+		u32 enable;
+		u64 buf_addr;
+		u32 buf_size;
+		u32 feature_type;
+	};
+
+	const struct hfi_debug_feature_cfg features[MAX_DEBUG_FEATURES] = {
+		{ trace_enable, trace_buf_addr, trace_buf_size, HFI_DEBUG_FEATURE_TRACE },
+		{ debug_enable, log_buf_addr,   log_buf_size,   HFI_DEBUG_FEATURE_LOG   },
+	};
+
+	u32 num_features = ARRAY_SIZE(features);
+	struct hfi_kv_pairs kv_pairs[ARRAY_SIZE(features) * 2];
+	struct hfi_debug_buffer_addr_payload bufs[MAX_DEBUG_FEATURES];
+	struct hfi_debug_enable_payload enable_vals[MAX_DEBUG_FEATURES];
+	u32 kv_size = 0;
+
+	if (!hfi_kms)
+		return -EINVAL;
+
+	SDE_EVT32(HFI_COMMAND_DEBUG_SET_COMMON_PROPERTY, SDE_EVTLOG_FUNC_ENTRY,
+		  trace_enable, debug_enable);
+
+	cmd_buf = hfi_adapter_get_cmd_buf(&hfi_kms->hfi_client,
+					  MSM_DRV_HFI_ID, HFI_CMDBUF_TYPE_GET_DEBUG_DATA);
+
+	SDE_EVT32(HFI_COMMAND_DEBUG_SET_COMMON_PROPERTY, SDE_EVTLOG_FUNC_CASE1);
+	if (!cmd_buf) {
+		SDE_ERROR("failed to get hfi command buffer\n");
+		return -ENOMEM;
+	}
+
+	for (i = 0; i < num_features; i++) {
+		if (!features[i].enable)
+			continue;
+
+		enable_vals[i].feature = features[i].feature_type;
+		enable_vals[i].enable  = features[i].enable;
+
+		kv_pairs[kv_count].key      = HFI_PACKKEY(HFI_PROPERTY_DEBUG_ENABLE, 0, 2);
+		kv_pairs[kv_count].value_ptr = &enable_vals[i];
+		kv_count++;
+		kv_size += sizeof(struct hfi_debug_enable_payload);
+
+		if (features[i].buf_addr != 0) {
+			if (features[i].buf_size == 0) {
+				SDE_ERROR("feature %u buffer size must be non-zero\n",
+					  features[i].feature_type);
+				ret = -EINVAL;
+				goto release_cmd_buf;
+			}
+
+			bufs[i].feature = features[i].feature_type;
+			bufs[i].buff.addr_l = HFI_VAL_L32(features[i].buf_addr);
+			bufs[i].buff.addr_h = HFI_VAL_H32(features[i].buf_addr);
+			bufs[i].buff.size = features[i].buf_size;
+			bufs[i].buff.version = 0;
+			bufs[i].buff.flags = 0; /* reserved, no longer overloaded */
+
+			kv_pairs[kv_count].key = HFI_PACKKEY(HFI_PROPERTY_DEBUG_BUFFER_ADDR, 0, 6);
+			kv_pairs[kv_count].value_ptr = &bufs[i];
+			kv_count++;
+			kv_size += sizeof(bufs[i]);
+		} else {
+			SDE_DEBUG("feature %u buffer not provided, using preconfigured buffer\n",
+				  features[i].feature_type);
+		}
+	}
+
+	if (kv_count == 0) {
+		SDE_DEBUG("No properties to send\n");
+		goto release_cmd_buf;
+	}
+
+	hfi_kms->debug_set_prop_listener.hfi_prop_handler =
+			hfi_kms_get_debug_set_common_property_resp;
+
+	SDE_EVT32(HFI_COMMAND_DEBUG_SET_COMMON_PROPERTY, SDE_EVTLOG_FUNC_CASE2);
+	ret = hfi_adapter_add_prop_array(&hfi_kms->hfi_client, cmd_buf,
+					 HFI_COMMAND_DEBUG_SET_COMMON_PROPERTY, MSM_DRV_HFI_ID,
+					 HFI_PAYLOAD_TYPE_U32_ARRAY, kv_pairs, kv_count,
+					 kv_count * sizeof(u32) + kv_size);
+	if (ret) {
+		SDE_ERROR("failed to add debug properties ret:%d\n", ret);
+		goto release_cmd_buf;
+	}
+
+	SDE_EVT32(HFI_COMMAND_DEBUG_SET_COMMON_PROPERTY, SDE_EVTLOG_FUNC_CASE3);
+	ret = hfi_adapter_set_cmd_buf(&hfi_kms->hfi_client, cmd_buf);
+	SDE_EVT32(HFI_COMMAND_DEBUG_SET_COMMON_PROPERTY, SDE_EVTLOG_FUNC_CASE3, ret);
+	if (ret) {
+		SDE_ERROR("failed to send trace config command\n");
+		goto release_cmd_buf;
+		return ret;
+	}
+	SDE_EVT32(HFI_COMMAND_DEBUG_SET_COMMON_PROPERTY, SDE_EVTLOG_FUNC_CASE4, ret);
+	if (ret)
+		SDE_ERROR("failed to send debug set common property command ret:%d\n", ret);
+
+	SDE_EVT32(HFI_COMMAND_DEBUG_SET_COMMON_PROPERTY, SDE_EVTLOG_FUNC_EXIT);
+
+release_cmd_buf:
+	hfi_adapter_release_cmd_buf(&hfi_kms->hfi_client, cmd_buf);
+	return ret;
+}
+
+int hfi_kms_send_trace_cfg(struct hfi_kms *hfi_kms, u32 enable)
+{
+	int ret = 0;
+
+	if (!sde_in_trusted_vm(hfi_kms->base)) {
+		ret = _send_debug_set_common_property_cmd(hfi_kms, enable,
+							  enable, 0x0, 0, 0x0, 0);
+	}
+	return ret;
+}
+
+int hfi_kms_get_plane_indices(struct hfi_kms *hfi_kms, bool vig_pipe,
+		uint32_t pipe_idx, bool rect1, uint32_t *hfi_pipe_id,
+		bool csc_pipe, bool repro_pipe)
+{
+	if (vig_pipe && !rect1) {
+		if (hfi_kms->catalog->vig_count >= pipe_idx)
+			*hfi_pipe_id = hfi_kms->catalog->vig_indices[pipe_idx];
+		else
+			goto fail;
+	} else if (vig_pipe && rect1) {
+		if (hfi_kms->catalog->virt_vig_count >= pipe_idx)
+			*hfi_pipe_id = hfi_kms->catalog->vig_r1_indices[pipe_idx];
+		else
+			goto fail;
+	} else if (csc_pipe) {
+		if (hfi_kms->catalog->csc_count >= pipe_idx)
+			*hfi_pipe_id = hfi_kms->catalog->csc_indices[pipe_idx];
+		else
+			goto fail;
+	} else if (repro_pipe) {
+		if (hfi_kms->catalog->repro_count >= pipe_idx)
+			*hfi_pipe_id = hfi_kms->catalog->repro_indices[pipe_idx];
+		else
+			goto fail;
+	} else if (!vig_pipe && !rect1) {
+		if (hfi_kms->catalog->dma_count >= pipe_idx)
+			*hfi_pipe_id = hfi_kms->catalog->dma_indices[pipe_idx];
+		else
+			goto fail;
+	} else if (!vig_pipe && rect1) {
+		if (hfi_kms->catalog->virt_dma_count >= pipe_idx)
+			*hfi_pipe_id = hfi_kms->catalog->dma_r1_indices[pipe_idx];
+		else
+			goto fail;
+	} else {
+		goto fail;
+	}
+
+	return 0;
+
+fail:
+	*hfi_pipe_id = 0xffffff;
+	if (csc_pipe || repro_pipe) {
+		SDE_DEBUG("LSR pipe indices are not populated from FW");
+		/*
+		 * Avoiding post init failure and crash to remove tight coupling with FW,
+		 * LSR commits will be failed until FW populates the proper indices.
+		 */
+		return 0;
+	}
+	return -EINVAL;
+}
+
+int hfi_kms_get_catalog_data(struct hfi_kms *hfi_kms)
+{
+	int ret = 0;
+
+	ret = _send_device_init_cmd(hfi_kms);
+	if (ret) {
+		SDE_ERROR("failed to send device-init\n");
+		return ret;
+	}
+
+	return ret;
+}
+
+int hfi_kms_set_vm_state(struct drm_crtc *crtc, struct drm_crtc_state *crtc_state,
+	enum hfi_device_res_state vm_state)
+{
+	int ret = 0;
+	struct sde_kms *sde_kms;
+	struct hfi_kms *hfi_kms;
+	struct hfi_cmdbuf_t *cmd_buf = NULL;
+	struct hfi_device_resource_config hfi_res_cfg = {};
+	enum sde_crtc_vm_req vm_req;
+	u32 device_id;
+
+	if (!crtc || !crtc_state) {
+		SDE_ERROR("invalid crtc args\n");
+		return -EINVAL;
+	}
+
+	if (!crtc->dev || !crtc->dev->dev_private ||
+	    !((struct msm_drm_private *)crtc->dev->dev_private)->kms) {
+		SDE_ERROR("invalid params\n");
+		return -EINVAL;
+	}
+
+	sde_kms = to_sde_kms(((struct msm_drm_private *)crtc->dev->dev_private)->kms);
+	if (!sde_kms || !sde_kms->hfi_kms) {
+		SDE_ERROR("invalid params\n");
+		return -EINVAL;
+	}
+
+	hfi_kms = sde_kms->hfi_kms;
+
+	vm_req = sde_crtc_get_property(to_sde_crtc_state(crtc_state), CRTC_PROP_VM_REQ_STATE);
+	if (vm_req == VM_REQ_NONE)
+		return 0;
+
+	device_id = sde_in_trusted_vm(sde_kms) ? MSM_DRV_HFI_SEC_ID : MSM_DRV_HFI_ID;
+	cmd_buf = hfi_adapter_get_cmd_buf(&hfi_kms->hfi_client,
+			device_id, HFI_CMDBUF_TYPE_DEVICE_INFO);
+	if (!cmd_buf) {
+		SDE_ERROR("failed to get hfi command buffer\n");
+		return -EINVAL;
+	}
+
+	hfi_res_cfg.disp_mask = 0xF;
+	hfi_res_cfg.vm_state = vm_state;
+	hfi_res_cfg.resource_type = HFI_DEVICE_RESOURCE_DISPLAY;
+
+	ret = hfi_adapter_add_set_property(&hfi_kms->hfi_client, cmd_buf,
+			HFI_COMMAND_DEVICE_RESOURCE_CTRL, device_id,
+			HFI_PAYLOAD_TYPE_U32_ARRAY, &hfi_res_cfg, sizeof(hfi_res_cfg),
+			HFI_HOST_FLAGS_RESPONSE_REQUIRED | HFI_HOST_FLAGS_NON_DISCARDABLE);
+	if (ret) {
+		SDE_ERROR("failed to add device resource control, vm_req:%u ret:%d\n",
+			  vm_req, ret);
+		return ret;
+	}
+
+	ret = hfi_adapter_set_cmd_buf_blocking(&hfi_kms->hfi_client, cmd_buf);
+	if (ret) {
+		SDE_ERROR("failed to update device resource control\n");
+		return ret;
+	}
+
+	return ret;
+}
+
+int hfi_kms_set_reg_dma_buffer(struct hfi_kms *hfi_kms, struct sde_reg_dma_buffer *buffer)
+{
+	int ret;
+	struct hfi_cmdbuf_t *cmd_buf;
+	struct hfi_buff_dpu hfi_cfg = {};
+	u32 device_id;
+
+	if (!hfi_kms || !buffer)
+		return -EINVAL;
+
+	device_id = sde_in_trusted_vm(hfi_kms->base) ? MSM_DRV_HFI_SEC_ID : MSM_DRV_HFI_ID;
+	cmd_buf = hfi_adapter_get_cmd_buf(&hfi_kms->hfi_client,
+			device_id, HFI_CMDBUF_TYPE_DEVICE_INFO);
+	if (!cmd_buf) {
+		SDE_ERROR("failed to get hfi command buffer\n");
+		return -EINVAL;
+	}
+
+	hfi_cfg.iova = buffer->iova;
+	hfi_cfg.len = buffer->index;
+
+	ret = hfi_adapter_add_set_property(&hfi_kms->hfi_client, cmd_buf,
+			HFI_COMMAND_DEVICE_LUT_DMA_LAST_CMD, device_id,
+			HFI_PAYLOAD_TYPE_U32_ARRAY, &hfi_cfg, sizeof(hfi_cfg),
+			HFI_HOST_FLAGS_NONE);
+	if (ret) {
+		SDE_ERROR("failed to set hfi property for last command buffer\n");
+		return -EINVAL;
+	}
+
+	ret = hfi_adapter_set_cmd_buf(&hfi_kms->hfi_client, cmd_buf);
+	if (ret) {
+		SDE_ERROR("failed to send DEVICE_REG_DMA_LAST_CMD\n");
+		return ret;
+	}
+
+	return ret;
+}
+
+/**
+ * struct hfi_kms_uidle_status_ctx - context for uidle status HFI GET query
+ * @listener:        HFI property listener used to receive the FW response
+ * @uidle_enabled:   uidle enabled flag returned by FW (value_lsb)
+ * @uidle_state:     uidle state returned by FW (value_msb)
+ */
+struct hfi_kms_uidle_status_ctx {
+	struct hfi_prop_listener listener;
+	bool uidle_enabled;
+	u32 uidle_state;
+};
+
+static void _hfi_kms_uidle_status_handler(u32 obj_id, u32 cmd_id,
+		void *payload, u32 size, struct hfi_prop_listener *listener)
+{
+	struct hfi_kms_uidle_status_ctx *ctx;
+	struct hfi_display_dbg_property *prop;
+
+	if (!listener || !payload || size < sizeof(struct hfi_display_dbg_property)) {
+		SDE_ERROR("invalid uidle status response listener:%d payload:%d size:%d\n",
+			!listener, !payload, size);
+		return;
+	}
+
+	ctx = container_of(listener, struct hfi_kms_uidle_status_ctx, listener);
+	prop = (struct hfi_display_dbg_property *)payload;
+	ctx->uidle_enabled = (bool)prop->value_lsb;
+	ctx->uidle_state = prop->value_msb;
+
+	SDE_DEBUG("uidle_status response: enabled=%d state=%u\n",
+			ctx->uidle_enabled, ctx->uidle_state);
+}
+
+int hfi_kms_get_uidle_status(struct hfi_kms *hfi_kms, bool *uidle_enabled, u32 *uidle_state)
+{
+	struct hfi_cmdbuf_t *cmd_buf;
+	struct hfi_display_dbg_property dbg_prop = {0};
+	struct hfi_kms_uidle_status_ctx *uidle_ctx;
+	int rc = 0;
+	u32 packet_id = 0;
+
+	if (!hfi_kms || !uidle_enabled || !uidle_state)
+		return -EINVAL;
+
+	cmd_buf = hfi_adapter_get_cmd_buf(&hfi_kms->hfi_client,
+			MSM_DRV_HFI_ID, HFI_CMDBUF_TYPE_GET_DEBUG_DATA);
+	if (!cmd_buf) {
+		SDE_ERROR("failed to get hfi command buffer\n");
+		return -EINVAL;
+	}
+
+	dbg_prop.display_id = MSM_DRV_HFI_ID;
+	dbg_prop.prop_id = HFI_DISPLAY_DEBUG_UIDLE;
+
+	uidle_ctx = kzalloc(sizeof(*uidle_ctx), GFP_KERNEL);
+	if (!uidle_ctx)
+		return -ENOMEM;
+
+	uidle_ctx->listener.hfi_prop_handler = _hfi_kms_uidle_status_handler;
+
+	rc = hfi_adapter_add_get_property(&hfi_kms->hfi_client, cmd_buf,
+			HFI_COMMAND_DEBUG_GET_DISPLAY_PROPERTY, MSM_DRV_HFI_ID,
+			HFI_PAYLOAD_TYPE_U32_ARRAY, &dbg_prop, sizeof(dbg_prop),
+			&uidle_ctx->listener,
+			(HFI_HOST_FLAGS_RESPONSE_REQUIRED | HFI_HOST_FLAGS_NON_DISCARDABLE),
+			false, &packet_id);
+	if (rc) {
+		SDE_ERROR("failed to add uidle status get property rc:%d\n", rc);
+		hfi_adapter_release_cmd_buf(&hfi_kms->hfi_client, cmd_buf);
+		goto end;
+	}
+
+	SDE_EVT32(MSM_DRV_HFI_ID, HFI_COMMAND_DEBUG_GET_DISPLAY_PROPERTY,
+			SDE_EVTLOG_FUNC_CASE1);
+	rc = hfi_adapter_set_cmd_buf_blocking(&hfi_kms->hfi_client, cmd_buf);
+	SDE_EVT32(MSM_DRV_HFI_ID, HFI_COMMAND_DEBUG_GET_DISPLAY_PROPERTY, rc,
+			SDE_EVTLOG_FUNC_CASE2);
+	if (rc) {
+		SDE_ERROR("failed to send uidle status command rc:%d\n", rc);
+		hfi_adapter_release_cmd_buf(&hfi_kms->hfi_client, cmd_buf);
+		goto end;
+	}
+
+	*uidle_enabled = uidle_ctx->uidle_enabled;
+	*uidle_state = uidle_ctx->uidle_state;
+	hfi_adapter_remove_listener_by_packet_id(&hfi_kms->hfi_client, packet_id);
+
+end:
+	kfree(uidle_ctx);
+	return rc;
+}
+
+int hfi_kms_set_uidle_perf_cnt(struct hfi_kms *hfi_kms, u32 val)
+{
+	struct hfi_cmdbuf_t *cmd_buf;
+	struct hfi_display_dbg_property dbg_prop = {0};
+	int rc;
+
+	if (!hfi_kms)
+		return -EINVAL;
+
+	cmd_buf = hfi_adapter_get_cmd_buf(&hfi_kms->hfi_client,
+			MSM_DRV_HFI_ID, HFI_CMDBUF_TYPE_GET_DEBUG_DATA);
+	if (!cmd_buf) {
+		SDE_ERROR("failed to get hfi command buffer\n");
+		return -EINVAL;
+	}
+
+	dbg_prop.display_id = MSM_DRV_HFI_ID;
+	dbg_prop.prop_id = HFI_DISPLAY_DEBUG_UIDLE_CNTR;
+	dbg_prop.value_lsb = val;
+
+	rc = hfi_adapter_add_set_property(&hfi_kms->hfi_client, cmd_buf,
+			HFI_COMMAND_DEBUG_SET_DISPLAY_PROPERTY, MSM_DRV_HFI_ID,
+			HFI_PAYLOAD_TYPE_U32_ARRAY, &dbg_prop, sizeof(dbg_prop),
+			HFI_HOST_FLAGS_NONE);
+	if (rc) {
+		SDE_ERROR("failed to add uidle cntr set property rc:%d\n", rc);
+		hfi_adapter_release_cmd_buf(&hfi_kms->hfi_client, cmd_buf);
+		return rc;
+	}
+
+	SDE_EVT32(MSM_DRV_HFI_ID, HFI_COMMAND_DEBUG_SET_DISPLAY_PROPERTY, val);
+	rc = hfi_adapter_set_cmd_buf(&hfi_kms->hfi_client, cmd_buf);
+	if (rc)
+		SDE_ERROR("failed to set uidle cntr command rc:%d\n", rc);
+
+	return rc;
+}
+
+int hfi_kms_set_uidle_disable(struct hfi_kms *hfi_kms, bool disable)
+{
+	struct hfi_cmdbuf_t *cmd_buf;
+	struct hfi_display_dbg_property dbg_prop = {0};
+	int rc;
+
+	if (!hfi_kms)
+		return -EINVAL;
+
+	cmd_buf = hfi_adapter_get_cmd_buf(&hfi_kms->hfi_client,
+			MSM_DRV_HFI_ID, HFI_CMDBUF_TYPE_GET_DEBUG_DATA);
+	if (!cmd_buf) {
+		SDE_ERROR("failed to get hfi command buffer\n");
+		return -EINVAL;
+	}
+
+	dbg_prop.display_id = MSM_DRV_HFI_ID;
+	dbg_prop.prop_id = HFI_DISPLAY_DEBUG_UIDLE_DISABLE;
+	dbg_prop.value_lsb = disable ? 1 : 0;
+
+	rc = hfi_adapter_add_set_property(&hfi_kms->hfi_client, cmd_buf,
+			HFI_COMMAND_DEBUG_SET_DISPLAY_PROPERTY, MSM_DRV_HFI_ID,
+			HFI_PAYLOAD_TYPE_U32_ARRAY, &dbg_prop, sizeof(dbg_prop),
+			HFI_HOST_FLAGS_NONE);
+	if (rc) {
+		SDE_ERROR("failed to add uidle disable set property rc:%d\n", rc);
+		hfi_adapter_release_cmd_buf(&hfi_kms->hfi_client, cmd_buf);
+		return rc;
+	}
+
+	SDE_EVT32(MSM_DRV_HFI_ID, HFI_COMMAND_DEBUG_SET_DISPLAY_PROPERTY, disable);
+	rc = hfi_adapter_set_cmd_buf(&hfi_kms->hfi_client, cmd_buf);
+	if (rc)
+		SDE_ERROR("failed to send uidle disable command rc:%d\n", rc);
+
+	return rc;
+}
+
+#if IS_ENABLED(CONFIG_QTI_HFI_CORE) && IS_ENABLED(CONFIG_QTI_HW_FENCE)
+static int hfi_kms_hw_fence_init(struct hfi_kms *hfi_kms)
+{
+	struct synx_initialization_params synx_params = {0};
+	struct hfi_shared_addr_map addr_map = {0};
+	struct hfi_hwfence_data *hwfence_data;
+	int ret, tmp_ret;
+
+	if (!hfi_kms) {
+		SDE_ERROR("invalid hfi hwfence data\n");
+		return -EINVAL;
+	}
+
+	/* Initialize hwfence data structure */
+	hwfence_data = kzalloc(sizeof(struct hfi_hwfence_data), GFP_KERNEL);
+	if (!hwfence_data)
+		return -ENOMEM;
+
+	/* Initialize synx to get physical address and size */
+	synx_params.name = "hfi-core-client";
+	synx_params.id = SYNX_CLIENT_HW_FENCE_DCP0_CTX0;
+	synx_params.ptr = &hwfence_data->mem_descriptor;
+
+	hwfence_data->hw_fence_handle = synx_initialize(&synx_params);
+	if (IS_ERR_OR_NULL(hwfence_data->hw_fence_handle)) {
+		SDE_INFO("synx_initialize failed %ld\n", PTR_ERR(hwfence_data->hw_fence_handle));
+		ret = -EINVAL;
+		goto error;
+	}
+
+	/* Initialize hwfence data */
+	hwfence_data->dma_context = dma_fence_context_alloc(1);
+	hwfence_data->max_displays = HFI_HWFENCE_MAX_DISPLAYS;
+	atomic_set(&hwfence_data->hw_fence_array_seqno, 0);
+	hwfence_data->client_id = SYNX_CLIENT_HW_FENCE_DCP0_CTX0;
+
+	/* Map memory for hwfence using SMMU via hfi_adapter exported API */
+	addr_map.alloc_info.size_allocated = hwfence_data->mem_descriptor.size;
+	addr_map.alloc_info.phy_addr = hwfence_data->mem_descriptor.dev_addr;
+	addr_map.alloc_info.cpu_va = hwfence_data->mem_descriptor.vaddr;
+
+	ret = hfi_adapter_map_iova_cached(&hfi_kms->hfi_client, &addr_map);
+	if (ret) {
+		SDE_ERROR("failed to map DCP hw fence memory ret:%d\n", ret);
+		tmp_ret = synx_uninitialize(hwfence_data->hw_fence_handle);
+		if (tmp_ret)
+			SDE_ERROR("synx_uninitialize failed: %d\n", tmp_ret);
+		goto error;
+	}
+
+	/* Store mapped IOVA address in hwfence data for DCP firmware access */
+	hwfence_data->mem_descriptor.vaddr = (void *)addr_map.alloc_info.mapped_iova;
+	hfi_kms->hfi_hw_fence_data = hwfence_data;
+
+	return 0;
+
+error:
+	kfree(hwfence_data);
+	return ret;
+}
+
+static int hfi_kms_hw_fence_deinit(struct hfi_kms *hfi_kms)
+{
+	struct hfi_hwfence_data *hwfence_data;
+	int ret = 0;
+
+	if (!hfi_kms) {
+		SDE_INFO("invalid hfi hwfence data\n");
+		return -EINVAL;
+	}
+
+	hwfence_data = hfi_kms->hfi_hw_fence_data;
+
+	/* Check if hw_fence_handle is valid before attempting to deinitialize */
+	if (!hwfence_data || IS_ERR_OR_NULL(hwfence_data->hw_fence_handle)) {
+		SDE_INFO("HW fence handle is invalid, skipping deinit\n");
+		return 0;
+	}
+
+	/* Unmap memory for hwfence using smmu via hfi_adapter exported API */
+	if (hwfence_data->mem_descriptor.vaddr) {
+		ret = hfi_adapter_unmap_iova(&hfi_kms->hfi_client,
+			(unsigned long)hwfence_data->mem_descriptor.vaddr,
+			hwfence_data->mem_descriptor.size);
+		if (ret)
+			SDE_ERROR("failed to unmap DCP hw fence memory: %d\n", ret);
+
+		hwfence_data->mem_descriptor.vaddr = NULL;
+	}
+
+	/* Uninitialize synx */
+	ret = synx_uninitialize(hwfence_data->hw_fence_handle);
+	if (ret) {
+		SDE_ERROR("synx_uninitialize failed: %d\n", ret);
+		return ret;
+	}
+
+	/* Clear hwfence data */
+	hwfence_data->hw_fence_handle = NULL;
+	kfree(hfi_kms->hfi_hw_fence_data);
+	hfi_kms->hfi_hw_fence_data = NULL;
+
+	SDE_INFO("HW fence deinitialized successfully\n");
+	return 0;
+}
+
+static int _set_hw_fence_config(struct hfi_kms *hfi_kms)
+{
+	int ret;
+	struct hfi_cmdbuf_t *cmd_buf;
+	struct hfi_buff hw_fence_cfg = {};
+
+	if (!hfi_kms) {
+		SDE_ERROR("invalid hfi_kms\n");
+		return -EINVAL;
+	}
+
+	cmd_buf = hfi_adapter_get_cmd_buf(&hfi_kms->hfi_client,
+			MSM_DRV_HFI_ID, HFI_CMDBUF_TYPE_DEVICE_INFO);
+	if (!cmd_buf) {
+		SDE_ERROR("failed to get hfi command buffer\n");
+		return -EINVAL;
+	}
+
+	hw_fence_cfg.addr_l =
+			(u32)(uintptr_t)hfi_kms->hfi_hw_fence_data->mem_descriptor.vaddr;
+	hw_fence_cfg.size = hfi_kms->hfi_hw_fence_data->mem_descriptor.size;
+
+	ret = hfi_adapter_add_set_property(&hfi_kms->hfi_client, cmd_buf,
+			HFI_COMMAND_DEVICE_HWFENCE_HFI_CONFIG, MSM_DRV_HFI_ID,
+			HFI_PAYLOAD_TYPE_U32_ARRAY, &hw_fence_cfg, sizeof(hw_fence_cfg),
+			HFI_TX_FLAGS_NON_DISCARDABLE);
+	if (ret) {
+		SDE_ERROR("failed to set hfi property for hw fence config\n");
+		return -EINVAL;
+	}
+
+	ret = hfi_adapter_set_cmd_buf(&hfi_kms->hfi_client, cmd_buf);
+	if (ret) {
+		SDE_ERROR("failed to send DEVICE_HWFENCE_HFI_CONFIG\n");
+		return ret;
+	}
+
+	return ret;
+}
+
+int hfi_kms_init_hw_fence_config(struct hfi_kms *hfi_kms)
+{
+	struct hfi_hwfence_data *hwfence_data = NULL;
+	int ret;
+
+	if (!hfi_kms) {
+		SDE_ERROR("invalid hfi_kms\n");
+		return -EINVAL;
+	}
+
+	if (!hfi_kms->hfi_hw_fence_data) { /* initialize hfi_hw_fence_data on first invocation */
+		ret = hfi_kms_hw_fence_init(hfi_kms);
+		if (ret || IS_ERR_OR_NULL(hfi_kms->hfi_hw_fence_data)) {
+			SDE_INFO("Failed to initialize hw-fence session info ret:%d\n", ret);
+			return -EINVAL;
+		}
+	}
+
+	hwfence_data = hfi_kms->hfi_hw_fence_data;
+	ret = _set_hw_fence_config(hfi_kms);
+	if (ret)
+		SDE_ERROR("failed to send HFI HW FENCE config to FW ret:%d\n", ret);
+
+	return 0;
+}
+#else
+static int hfi_kms_hw_fence_deinit(struct hfi_kms *hfi_kms)
+{
+	SDE_INFO("HFI hw fence not enabled\n");
+	return 0;
+}
+#endif /* CONFIG_QTI_HW_FENCE && CONFIG_QTI_HFI_CORE */
+
+int hfi_kms_init(struct sde_kms *sde_kms)
+{
+	struct hfi_kms *hfi_kms;
+	struct hfi_catalog_base *hfi_cfg;
+
+	if (!sde_kms)
+		return -EINVAL;
+
+	hfi_kms = kvzalloc(sizeof(*hfi_kms), GFP_KERNEL);
+	if (!hfi_kms) {
+		SDE_ERROR("failed to allocate hfi_kms\n");
+		return -ENOMEM;
+	}
+	hfi_cfg = kvzalloc(sizeof(*hfi_cfg), GFP_KERNEL);
+	if (!hfi_cfg)
+		return -ENOMEM;
+
+	hfi_kms->catalog = hfi_cfg;
+	atomic_set(&hfi_kms->cat_init_done, 0);
+	sde_kms->hfi_kms = hfi_kms;
+	sde_kms->hal_ops = hfi_hal_funcs;
+	hfi_kms->base = sde_kms;
+
+	return 0;
+}
+
+int hfi_kms_destroy(struct sde_kms *sde_kms)
+{
+	int ret;
+
+	if (!sde_kms || !sde_kms->hfi_kms || !sde_kms->hfi_kms->catalog) {
+		SDE_ERROR("invalid hfi kms for deinit\n");
+		return -EINVAL;
+	}
+
+	ret = hfi_kms_hw_fence_deinit(sde_kms->hfi_kms);
+	if (ret)
+		SDE_INFO("Failed to deinit hfi hw-fence ret:%d\n", ret);
+
+	kvfree(sde_kms->hfi_kms->catalog);
+	kvfree(sde_kms->hfi_kms);
+	sde_kms->hfi_kms = NULL;
+
+	return 0;
+}
+
+void hfi_kms_resource_vote_hfi_prop_handler(u32 obj_uid, u32 CMD_ID, void *payload, u32 size,
+			struct hfi_prop_listener *resource_vote_listener)
+{
+	struct msm_drm_private *priv;
+	struct sde_kms *sde_kms;
+	struct hfi_kms *hfi_kms;
+	u32 bus_id, i, prop_count;
+	struct hfi_kv_pairs *kv_pairs;
+	struct hfi_bw_config bw_config = {0};
+	struct dss_module_power *mp;
+	struct sde_power_handle *phandle;
+	u32 dirty[SDE_POWER_HANDLE_DBUS_ID_MAX] = {0,};
+	u32 rc;
+	u32 enable;
+
+	if (!payload || !resource_vote_listener)
+		return;
+
+	hfi_kms = container_of(resource_vote_listener, struct hfi_kms, resource_vote_listener);
+
+	sde_kms = hfi_kms->base;
+	priv = sde_kms->dev->dev_private;
+	phandle = &priv->phandle;
+	mp = &phandle->mp;
+
+	if (CMD_ID == HFI_COMMAND_DEVICE_CALLBACK_RESOURCE_VOTE) {
+		prop_count = size/sizeof(struct hfi_kv_pairs);
+		kv_pairs = payload;
+		//HFI_UNPACK_KEY(kv_pairs[i].key, property_id, version, size);
+		for (i = 0; i < prop_count; i++) {
+			switch (kv_pairs[i].key) {
+			case HFI_PROPERTY_DEVICE_CORE_IB:
+				bw_config.ib_vote[SDE_POWER_HANDLE_DBUS_ID_MNOC] =
+					*(u64 *)kv_pairs[i].value_ptr;
+				dirty[SDE_POWER_HANDLE_DBUS_ID_MNOC] = 1;
+				break;
+			case HFI_PROPERTY_DEVICE_CORE_AB:
+				bw_config.ab_vote[SDE_POWER_HANDLE_DBUS_ID_MNOC] =
+					*(u64 *)kv_pairs[i].value_ptr;
+				dirty[SDE_POWER_HANDLE_DBUS_ID_MNOC] = 1;
+				break;
+			case HFI_PROPERTY_DEVICE_LLCC_IB:
+				bw_config.ib_vote[SDE_POWER_HANDLE_DBUS_ID_LLCC] =
+					*(u64 *)kv_pairs[i].value_ptr;
+				dirty[SDE_POWER_HANDLE_DBUS_ID_LLCC] = 1;
+				break;
+			case HFI_PROPERTY_DEVICE_LLCC_AB:
+				bw_config.ab_vote[SDE_POWER_HANDLE_DBUS_ID_LLCC] =
+					*(u64 *)kv_pairs[i].value_ptr;
+				dirty[SDE_POWER_HANDLE_DBUS_ID_LLCC] = 1;
+				break;
+			case HFI_PROPERTY_DEVICE_DRAM_IB:
+				bw_config.ib_vote[SDE_POWER_HANDLE_DBUS_ID_EBI] =
+					*(u64 *)kv_pairs[i].value_ptr;
+				dirty[SDE_POWER_HANDLE_DBUS_ID_EBI] = 1;
+				break;
+			case HFI_PROPERTY_DEVICE_DRAM_AB:
+				bw_config.ab_vote[SDE_POWER_HANDLE_DBUS_ID_EBI] =
+					*(u64 *)kv_pairs[i].value_ptr;
+				dirty[SDE_POWER_HANDLE_DBUS_ID_EBI] = 1;
+				break;
+			case HFI_PROPERTY_DEVICE_CORE_POWER_RAIL:
+				enable = *(u32 *)kv_pairs[i].value_ptr;
+				rc = msm_dss_enable_vreg(mp->vreg_config, mp->num_vreg,
+						enable);
+				break;
+			}
+		}
+
+		for (bus_id = 0; bus_id < SDE_POWER_HANDLE_DBUS_ID_MAX; bus_id++) {
+			if (dirty[bus_id]) {
+				rc = sde_power_data_bus_set_quota(phandle,
+						bus_id,
+						bw_config.ab_vote[bus_id],
+						bw_config.ib_vote[bus_id]);
+				if (rc)
+					pr_err("set quota failed\n");
+			}
+		}
+	}
+}
+
+#if IS_ENABLED(CONFIG_DRM_SDE_LSR)
+static u32 _hfi_kms_read_lsr_init_caps(struct hfi_catalog_base *catalog,
+		u32 hfi_prop, u32 *payload, u32 max_words)
+{
+	u32 read = 0;
+	u32 prop_id = HFI_PROP_ID(hfi_prop);
+
+	if (!catalog || !payload)
+		return -EINVAL;
+
+	switch (prop_id) {
+	case HFI_PROPERTY_DEVICE_INIT_LSR_WB_CSC_LAYER_INDICES:
+		if (!max_words || max_words <= payload[0] || payload[0] > DPU_MAX_SSPP_COUNT) {
+			SDE_ERROR("invalid csc indices in the packet\n");
+			return read;
+		}
+
+		catalog->csc_count = payload[read++];
+		for (int i = 0; i < catalog->csc_count; i++, read++)
+			catalog->csc_indices[i] = payload[read];
+		break;
+	case HFI_PROPERTY_DEVICE_INIT_LSR_WB_REPROJ_LAYER_INDICES:
+		if (!max_words || max_words <= payload[0] || payload[0] > DPU_MAX_SSPP_COUNT) {
+			SDE_ERROR("invalid gcx indices in the packet\n");
+			return read;
+		}
+
+		catalog->repro_count = payload[read++];
+		for (int i = 0; i < catalog->repro_count; i++, read++)
+			catalog->repro_indices[i] = payload[read];
+		break;
+	case HFI_PROPERTY_DEVICE_INIT_LSR_WB_CSC_INDICES:
+		if (payload[0] > MAX_BLOCKS) {
+			SDE_ERROR("invalid csc wb indices in the packet\n");
+			return read;
+		}
+
+		catalog->csc_wb_count = payload[read++];
+		for (int i = 0; i < catalog->csc_wb_count; i++, read++)
+			catalog->csc_wb_indices[i] = payload[read];
+
+		break;
+	case HFI_PROPERTY_DEVICE_INIT_LSR_WB_REPROJ_INDICES:
+		if (payload[0] > MAX_BLOCKS) {
+			SDE_ERROR("invalid repro wb indices in the packet\n");
+			return read;
+		}
+
+		catalog->repro_wb_count = payload[read++];
+		for (int i = 0; i < catalog->repro_wb_count; i++, read++)
+			catalog->repro_wb_indices[i] = payload[read];
+		break;
+	}
+
+	return read;
+}
+#else
+static u32 _hfi_kms_read_lsr_init_caps(struct hfi_catalog_base *catalog,
+		u32 hfi_prop, u32 *payload, u32 max_words)
+{
+	return 0;
+}
+#endif

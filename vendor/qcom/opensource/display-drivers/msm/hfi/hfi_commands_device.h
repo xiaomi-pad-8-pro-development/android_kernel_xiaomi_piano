@@ -1,0 +1,567 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ */
+
+#ifndef __H_HFI_COMMANDS_DEVICE_H__
+#define __H_HFI_COMMANDS_DEVICE_H__
+
+/*
+ * This is documentation file. Not used for header inclusion.
+ */
+
+/*
+ * All Device level commands begin here.
+ * "1st MSB byte = 0x01"
+ */
+#define HFI_COMMAND_DEVICE_BEGIN                                     0x01000000
+
+/*
+ * hfi_header sample for any device command:
+ * hfi_header.cmd_buff_info.size          : (sizeof(hfi_header) +
+ *                                            sizeof(hfi_packet)
+ *           .cmd_buff_info.type          : HFI_DEVICE
+ *           .device_id                   : 0
+ *           .object_id                   : n/a
+ *           .timestamp_hi                : ts_hi
+ *           .timestamp_lo                : ts_lo
+ *           .header_id                   : unique id
+ *           .num_packets                 : 'n' packets depending upon the
+ *                                          packet cmd
+ *
+ * hfi_packet sample for any device packet:
+ * hfi_packet.payload_info.size           : sizeof(hfi_packet)
+ *                                          (including payload size)
+ *           .payload_info.type           : one of enum
+ *                                          'hfi_packet_payload_type'
+ *           .cmd                         : HFI_COMMAND_DEVICE_XXX
+ *           .flags (Host to DCP)         : HFI_TX_FLAGS_XXX
+ *                                          (enum hfi_packet_tx_flags)
+ *                  (DCP to Host)         : HFI_RX_FLAGS_XXX
+ *                                          (enum hfi_packet_rx_flags)
+ *           .id                          : 0
+ *           .packet_id                   : unique id
+ */
+
+/*
+ * HFI_COMMAND_DEVICE_INIT - This command is used to initialize a device.
+ *                       From host to dcp, this command triggers the
+ *                       initialization of the device. This does not hold any
+ *                       payload during communication.
+ *                       As a response from DCP to host, this command packet
+ *                       is returned along with firmware version as payload.
+ *                       Accompying this packet are all other packets required
+ *                       for initialization of a device.
+ *
+ * Host to DCP:
+ * hfi_header.num_packets                 : 1
+ *
+ * hfi_packet.payload_info.type           : HFI_PAYLOAD_NONE
+ *           .cmd                         : HFI_COMMAND_DEVICE_INIT
+ *           .flags                       : HFI_TX_FLAGS_INTR_REQUIRED |
+ *                                          HFI_TX_FLAGS_RESPONSE_REQUIRED |
+ *                                          HFI_TX_FLAGS_NON_DISCARDABLE
+ *
+ * DCP to Host:
+ * hfi_header.num_packets                 : 7
+ *
+ * hfi_packet.payload_info.type           : HFI_PAYLOAD_U32_ARRAY
+ *           .cmd                         : HFI_COMMAND_DEVICE_INIT
+ *           .flags                       : HFI_RX_FLAGS_SUCCESS
+ *           .payload                     : <key, value> pair of
+ *                                          dcp / mdss hw versions and dcp fw
+ *                                          version.
+ */
+#define HFI_COMMAND_DEVICE_INIT                                      0x01000001
+
+/*
+ * In response to HFI_COMMAND_DEVICE_INIT command sent by host, DCP sends
+ * multiple packets required for device initialization along with returning
+ * HFI_COMMAND_DEVICE_INIT command packet as the first packet. Following
+ * packets are detailed below:
+ * HFI_COMMAND_DEVICE_INIT_DEVICE_CAPS - Response packet [2] of
+ *                                      HFI_COMMAND_DEVICE_INIT. This command
+ *                                      carries the data specific to basic
+ *                                      device setup.
+ * Data Contents:
+ *  - HFI_PROPERTY_DEVICE_INIT_VIG_INDICES
+ *  - HFI_PROPERTY_DEVICE_INIT_DMA_INDICES
+ *  - HFI_PROPERTY_DEVICE_INIT_MAX_DISPLAY_COUNT
+ *  - HFI_PROPERTY_DEVICE_INIT_WB_INDICES
+ *  - HFI_PROPERTY_DEVICE_INIT_MAX_WB_LINEAR_RESOLUTION
+ *  - HFI_PROPERTY_DEVICE_INIT_MAX_WB_UBWC_RESOLUTION
+ *  - HFI_PROPERTY_DEVICE_INIT_DSI_INDICES
+ *  - HFI_PROPERTY_DEVICE_INIT_MAX_DSI_RESOLUTION
+ *  - HFI_PROPERTY_DEVICE_INIT_DP_INDICES
+ *  - HFI_PROPERTY_DEVICE_INIT_MAX_DP_RESOLUTION
+ *  - HFI_PROPERTY_DEVICE_INIT_DS_INDICES
+ *  - HFI_PROPERTY_DEVICE_INIT_MAX_DS_RESOLUTION
+ *
+ * hfi_packet.payload_info.type        : HFI_PAYLOAD_U32_ARRAY
+ *           .cmd                      : HFI_COMMAND_DEVICE_INIT_DEVICE_CAPS
+ *           .flags                    : HFI_RX_FLAGS_SUCCESS
+ *           .payload                  : <key/value> pairs of Device properties
+ *                                        (refer HFI_PROPERTY_DEVICE_INIT_XXX /
+ *                                         Data Contents property definitions
+ *                                         for this)
+ */
+#define HFI_COMMAND_DEVICE_INIT_DEVICE_CAPS                  0x01000002
+
+/*
+ * HFI_COMMAND_DEVICE_INIT_VIG_CAPS - Response packet [3] of
+ *                                    HFI_COMMAND_DEVICE_INIT. This command
+ *                                    carries the data specific to VIG layers.
+ * Data layout (Array sizes are variable and determined at runtime):
+ *  @num_of_vig_formats: Number of formats supported by VIG
+ *  @vig_format: Array of formats supported by VIG
+ *  @vig_props: Array of vig properties <key, value> pairs.
+ *  struct vig_data {
+ *      u32 num_of_vig_formats;
+ *      enum hfi_color_formats vig_format[num_of_vig_formats];
+ *      struct property_data vig_props;
+ *  }
+ *
+ * hfi_packet.payload_info.type        : HFI_PAYLOAD_U32_ARRAY
+ *           .cmd                      : HFI_COMMAND_DEVICE_INIT_VIG_CAPS
+ *           .flags                    : HFI_RX_FLAGS_SUCCESS
+ *           .payload                  : struct vig_data
+ */
+#define HFI_COMMAND_DEVICE_INIT_VIG_CAPS                             0x01000003
+
+/*
+ * HFI_COMMAND_DEVICE_INIT_DMA_CAPS - Response packet [4] of
+ *                                    HFI_COMMAND_DEVICE_INIT. This command
+ *                                    carries the data specific to DMA layers.
+ * Data layout (Array sizes are variable and determined at runtime):
+ *  @num_of_dma_formats: Number of formats supported by DMA
+ *  @dma_format: Array of formats supported by DMA
+ *  @dma_props: Array of dma properties <key, value> pairs.
+ *  struct dma_data {
+ *      u32 num_of_dma_formats;
+ *      enum hfi_color_formats dma_format[num_of_dma_formats];
+ *      struct property_data dma_props;
+ *  }
+ * hfi_packet.payload_info.type        : HFI_PAYLOAD_U32_ARRAY
+ *           .cmd                      : HFI_COMMAND_DEVICE_INIT_DMA_CAPS
+ *           .flags                    : HFI_RX_FLAGS_SUCCESS
+ *           .payload                  : struct dma_data
+ */
+#define HFI_COMMAND_DEVICE_INIT_DMA_CAPS                             0x01000004
+
+/*
+ * HFI_COMMAND_DEVICE_INIT_COMMON_LAYER_CAPS - Response packet [5] of
+ *                                             HFI_COMMAND_DEVICE_INIT. This
+ *                                             command carries the data common
+ *                                             to both VIG and DMA layers.
+ * Data layout:
+ *  @common_props: Array of common (vig /dma) properties <key, value> pairs.
+ *  struct common_data {
+ *      struct property_data common_props;
+ *  }
+ * hfi_packet.payload_info.type        : HFI_PAYLOAD_U32_ARRAY
+ *           .cmd                      : HFI_COMMAND_DEVICE_INIT_COMMON_LAYER_CAPS
+ *           .flags                    : HFI_RX_FLAGS_SUCCESS
+ *           .payload                  : struct common_data
+ */
+#define HFI_COMMAND_DEVICE_INIT_COMMON_LAYER_CAPS                    0x01000005
+
+/*
+ * HFI_COMMAND_DEVICE_INIT_DISPLAY_CAPS - Response packet [6] of
+ *                                        HFI_COMMAND_DEVICE_INIT. This command
+ *                                        carries the data specific to display.
+ * Data Contents:
+ *  - HFI_DISPLAY_PROPERTY_XXX
+ * Data layout:
+ *  @display_props: Array of display properties <key, value> pairs.
+ *  struct display_data {
+ *      struct property_data display_props;
+ *  }
+ * hfi_packet.payload_info.type        : HFI_PAYLOAD_U32_ARRAY
+ *           .cmd                      : HFI_COMMAND_DEVICE_INIT_DISPLAY_CAPS
+ *           .flags                    : HFI_RX_FLAGS_SUCCESS
+ *           .payload                  : struct display_data
+ */
+#define HFI_COMMAND_DEVICE_INIT_DISPLAY_CAPS                         0x01000006
+
+/*
+ * HFI_COMMAND_DEVICE_INIT_DISPLAY_WB_CAPS - Response packet [7] of
+ *                                           HFI_COMMAND_DEVICE_INIT. This
+ *                                           command carries the data specific
+ *                                           to display writeback block.
+ * Data Contents:
+ *  - HFI_DISPLAY_WB_PROPERTY_XXX
+ * Data layout (Array sizes are variable and determined at runtime):
+ *  @num_of_wb_formats: Number of formats supported by Writeback block
+ *  @wb_format: Array of formats supported by Writeback block
+ *  @display_wb_props: Array of writeback block properties <key, value> pairs.
+ *  struct display_wb_data {
+ *      u32 num_of_wb_formats;
+ *      enum hfi_color_formats wb_format[num_of_wb_formats];
+ *      struct property_data display_wb_props;
+ *  }
+ * hfi_packet.payload_info.type        : HFI_PAYLOAD_U32_ARRAY
+ *           .cmd                      : HFI_COMMAND_DEVICE_INIT_DISPLAY_WB_CAPS
+ *           .flags                    : HFI_RX_FLAGS_SUCCESS
+ *           .payload                  : struct display_wb_data
+ */
+#define HFI_COMMAND_DEVICE_INIT_DISPLAY_WB_CAPS                      0x01000007
+
+/*
+ * HFI_COMMAND_DEVICE_RESOURCE_REGISTER - This is a host command sent to DCP to
+ *                                        register all resources like clocks
+ *                                        and bandwidths. This command is sent
+ *                                        to DCP as part of device
+ *                                        initialization process. All resources
+ *                                        (BWs properties) are added
+ *                                        to the payload on this command packet.
+ *                                        DCP is expected to read through this
+ *                                        list of property IDs to register
+ *                                        itself with all the clocks and BWs.
+ * Data layout:
+ *  struct resources_register {
+ *      u32 num_of_resources;
+ *      // property ids array of clks and BWs
+ *      u32 resource_property_id[num_of_resources];
+ *  }
+ *
+ * hfi_header.num_packets              : 1
+ *
+ * hfi_packet.payload_info.type        : HFI_PAYLOAD_U32
+ *           .cmd                      : HFI_COMMAND_DEVICE_RESOURCE_REGISTER
+ *           .flags                    : HFI_TX_FLAGS_RESPONSE_REQUIRED |
+ *                                          HFI_TX_FLAGS_NON_DISCARDABLE
+ *           .payload                  : struct resources_register
+ */
+#define HFI_COMMAND_DEVICE_RESOURCE_REGISTER                         0x01000008
+
+/*
+ * HFI_COMMAND_DEVICE_CALLBACK_RESOURCE_VOTE - This is the callback command
+ *                                             sent from DCP to host to request
+ *                                             required resource voting for the
+ *                                             value derived by DCP.
+ * Data Layout:
+ *  struct resource_vote {
+ *      // <key/value> pairs of clks and BWs
+ *      struct property_data_u64 vote_props;
+ *  }
+ *
+ * hfi_header.num_packets           : 1
+ *
+ * hfi_packet.payload_info.type     : HFI_PAYLOAD_U64
+ *           .cmd                   : HFI_COMMAND_DEVICE_CALLBACK_RESOURCE_VOTE
+ *           .flags                 : HFI_RX_FLAGS_NONE
+ *           .payload               : struct resource_vote
+ */
+#define HFI_COMMAND_DEVICE_CALLBACK_RESOURCE_VOTE                    0x01000009
+
+/*
+ * HFI_COMMAND_DEVICE_INIT_VIG_R1_CAPS - Response packet [8] of
+ *                                    HFI_COMMAND_DEVICE_INIT. This command
+ *                                    carries the data specific to VIG layers for rect 1.
+ * Data layout (Array sizes are variable and determined at runtime):
+ *  @num_of_vig_formats: Number of formats supported by VIG rect 1
+ *  @vig_format: Array of formats supported by VIG rect 1
+ *  @vig_props: Array of vig rect 1 properties <key, value> pairs.
+ *  struct vig_r1_data {
+ *      u32 num_of_vig_formats;
+ *      enum hfi_color_formats vig_format[num_of_vig_formats];
+ *      struct property_data vig_props;
+ *  }
+ *
+ * hfi_packet.payload_info.type        : HFI_PAYLOAD_U32_ARRAY
+ *           .cmd                      : HFI_COMMAND_DEVICE_INIT_VIG_R1_CAPS
+ *           .flags                    : HFI_RX_FLAGS_SUCCESS
+ *           .payload                  : struct vig_r1_data
+ */
+#define HFI_COMMAND_DEVICE_INIT_VIG_R1_CAPS                          0x0100000A
+
+/*
+ * HFI_COMMAND_DEVICE_INIT_DMA_R1_CAPS - Response packet [9] of
+ *                                    HFI_COMMAND_DEVICE_INIT. This command
+ *                                    carries the data specific to DMA layers for rect 1.
+ * Data layout (Array sizes are variable and determined at runtime):
+ *  @num_of_dma_formats: Number of formats supported by DMA Rect 1
+ *  @dma_format: Array of formats supported by DMA Rect 1
+ *  @dma_props: Array of dma rect 1 properties <key, value> pairs.
+ *  struct dma_r1_data {
+ *      u32 num_of_dma_formats;
+ *      enum hfi_color_formats dma_format[num_of_dma_formats];
+ *      struct property_data dma_props;
+ *  }
+ * hfi_packet.payload_info.type        : HFI_PAYLOAD_U32_ARRAY
+ *           .cmd                      : HFI_COMMAND_DEVICE_INIT_DMA_R1_CAPS
+ *           .flags                    : HFI_RX_FLAGS_SUCCESS
+ *           .payload                  : struct dma_r1_data
+ */
+#define HFI_COMMAND_DEVICE_INIT_DMA_R1_CAPS                          0x0100000B
+
+/**
+ * HFI_COMMAND_DEVICE_LUT_DMA_LAST_CMD - This command is used to send the allocated
+ *                                    REG-DMA Last Command buffer address and size
+ *                                    from Host to DCP.
+ * Host to DCP:
+ * hfi_header.num_packets                 : 1
+ *
+ * Data layout:
+ * struct hfi_buff_dpu - hfi buffer accessible by dpu
+ * @flags    :  flags
+ * @iova     :  input and output virtual address
+ * @len      :  length of buffer
+ * struct hfi_buff_dpu {
+ *      u32 flags;
+ *      u32 iova;
+ *      u32 len;
+ * }
+ *
+ * hfi_packet.payload_info.type        : HFI_PAYLOAD_U32_ARRAY
+ *           .cmd                      : HFI_COMMAND_DEVICE_LUT_DMA_LAST_CMD
+ *           .flags                    : HFI_TX_FLAGS_NONE
+ *           .payload                  : struct hfi_buff_dpu
+ */
+#define HFI_COMMAND_DEVICE_LUT_DMA_LAST_CMD                          0x0100000C
+
+/**
+ * HFI_COMMAND_DEVICE_DEINIT - This command is used to de-initialize the device.
+ *
+ * Host to DCP:
+ *
+ * hfi_header.num_packets                 : 1
+ *
+ * hfi_packet.payload_info (type)         : HFI_PAYLOAD_U32
+ *           .cmd                         : HFI_COMMAND_DEVICE_DEINIT
+ *           .flags                       : HFI_TX_FLAGS_INTR_REQUIRED |
+ *                                        : HFI_TX_FLAGS_RESPONSE_REQUIRED |
+ *                                        : HFI_TX_FLAGS_NON_DISCARDABLE
+ *           .payload                     : 32-bits reserved field
+ *
+ * DCP to Host:
+ *
+ * hfi_header.num_packets                 : 1
+ *
+ * hfi_packet.payload_info (type)         : HFI_PAYLOAD_NONE
+ *           .cmd                         : HFI_COMMAND_DEVICE_DEINIT
+ *           .flags                       : HFI_RX_FLAGS_SUCCESS
+ */
+#define HFI_COMMAND_DEVICE_DEINIT                                    0x0100000D
+
+/*
+ * HFI_COMMAND_DEVICE_INIT_LSR_WB_CSC_LAYER_CAPS - Response packet [10] of
+ *                                                         HFI_COMMAND_DEVICE_INIT. This command
+ *                                                         carries data specific to LSR WB CSC
+ *                                                         layers.
+ * Data Contents:
+ *  - HFI_DISPLAY_LSR_WB_CSC_LAYER_PROPERTY_XXX
+ * Data layout (Array sizes are variable and determined at runtime):
+ *  @num_of_lsr_wb_csc_layer_formats: Number of formats supported by LSR WB CSC layers.
+ *  @lsr_wb_csc_layer_format: Array of formats supported by LSR WB CSC layers.
+ *  @display_lsr_wb_csc_layer_props: Array of writeback LSR WB CSC layer
+ *                                               properties <key, value> pairs.
+ *  struct display_lsr_wb_csc_layer_data {
+ *      u32 num_of_lsr_wb_csc_layer_formats;
+ *      enum hfi_color_formats lsr_wb_csc_layer_format[num_of_lsr_wb_csc_layer_formats];
+ *      struct property_data display_lsr_wb_csc_layer_props;
+ *  }
+ * hfi_packet.payload_info.type        : HFI_PAYLOAD_U32_ARRAY
+ *           .cmd                      : HFI_COMMAND_DEVICE_INIT_LSR_WB_CSC_LAYER_CAPS
+ *           .flags                    : HFI_RX_FLAGS_SUCCESS
+ *           .payload                  : struct display_lsr_wb_csc_layer_data
+ */
+#define HFI_COMMAND_DEVICE_INIT_LSR_WB_CSC_LAYER_CAPS        0x0100000E
+
+/*
+ * HFI_COMMAND_DEVICE_INIT_LSR_WB_REPROJ_LAYER_CAPS - Response packet [11] of
+ *                                                            HFI_COMMAND_DEVICE_INIT. This command
+ *                                                            carries data specific to LSR WB
+ *                                                            REPROJ layers.
+ * Data Contents:
+ *  - HFI_DISPLAY_LSR_WB_REPROJ_LAYER_PROPERTY_XXX
+ * Data layout (Array sizes are variable and determined at runtime):
+ *  @num_of_lsr_wb_reproj_layer_formats: Number of formats supported by LSR WB REPROJ layers.
+ *  @lsr_wb_reproj_layer_format: Array of formats supported by LSR WB REPROJ layers.
+ *  @display_lsr_wb_reproj_layer_props: Array of LSR WB REPROJ layer properties <key, value> pairs.
+ *  struct display_lsr_wb_reproj_layer_data {
+ *      u32 num_of_lsr_wb_reproj_layer_formats;
+ *      enum hfi_color_formats lsr_wb_reproj_layer_format[num_of_lsr_wb_reproj_layer_formats];
+ *      struct property_data display_lsr_wb_reproj_layer_props;
+ *  }
+ * hfi_packet.payload_info.type        : HFI_PAYLOAD_U32_ARRAY
+ *           .cmd                      : HFI_COMMAND_DEVICE_INIT_LSR_WB_REPROJ_LAYER_CAPS
+ *           .flags                    : HFI_RX_FLAGS_SUCCESS
+ *           .payload                  : struct display_lsr_wb_reproj_layer_data
+ */
+#define HFI_COMMAND_DEVICE_INIT_LSR_WB_REPROJ_LAYER_CAPS             0x0100000F
+
+
+/*
+ * HFI_COMMAND_DEVICE_INIT_DISPLAY_LSR_WB_CSC_CAPS - Response packet [12] of
+ *                                                   HFI_COMMAND_DEVICE_INIT. This command carries
+ *                                                   data specific to display writeback LSR WB CSC
+ *                                                   block output format.
+ * Data Contents:
+ *  - HFI_DISPLAY_LSR_WB_CSC_PROPERTY_XXX
+ * Data layout (Array sizes are variable and determined at runtime):
+ *  @num_of_lsr_wb_csc_formats: Number of formats supported by LSR WB CSC block.
+ *  @lsr_wb_csc_format: Array of formats supported by LSR WB CSC block.
+ *  @display_lsr_wb_csc_props: Array of LSR WB CSC block properties <key, value> pairs.
+ *  struct display_lsr_wb_csc_data {
+ *      u32 num_of_lsr_wb_csc_formats;
+ *      enum hfi_color_formats lsr_wb_csc_format[num_of_lsr_wb_csc_formats];
+ *      struct property_data display_lsr_wb_csc_props;
+ *  }
+ * hfi_packet.payload_info.type        : HFI_PAYLOAD_U32_ARRAY
+ *           .cmd                      : HFI_COMMAND_DEVICE_INIT_DISPLAY_LSR_WB_CSC_CAPS
+ *           .flags                    : HFI_RX_FLAGS_SUCCESS
+ *           .payload                  : struct display_lsr_wb_csc_data
+ */
+#define HFI_COMMAND_DEVICE_INIT_DISPLAY_LSR_WB_CSC_CAPS              0x01000010
+
+/*
+ * HFI_COMMAND_DEVICE_INIT_DISPLAY_LSR_WB_REPROJ_CAPS - Response packet [13] of
+ *                                                      HFI_COMMAND_DEVICE_INIT. This command
+ *                                                      carries data specific to display writeback
+ *                                                      LSR WB REPROJ block output format.
+ * Data Contents:
+ *  - HFI_DISPLAY_LSR_WB_REPROJ_PROPERTY_XXX
+ * Data layout (Array sizes are variable and determined at runtime):
+ *  @num_of_lsr_wb_reproj_formats: Number of formats supported by LSR WB REPROJ block.
+ *  @lsr_wb_reproj_format: Array of formats supported by LSR WB REPROJ block.
+ *  @display_lsr_wb_reproj_props: Array of LSR WB REPROJ block properties <key, value> pairs.
+ *  struct display_lsr_wb_reproj_data {
+ *      u32 num_of_lsr_wb_reproj_formats;
+ *      enum hfi_color_formats lsr_wb_reproj_format[num_of_lsr_wb_reproj_formats];
+ *      struct property_data display_lsr_wb_reproj_props;
+ *  }
+ * hfi_packet.payload_info.type        : HFI_PAYLOAD_U32_ARRAY
+ *           .cmd                      : HFI_COMMAND_DEVICE_INIT_DISPLAY_LSR_WB_REPROJ_CAPS
+ *           .flags                    : HFI_RX_FLAGS_SUCCESS
+ *           .payload                  : struct display_lsr_wb_reproj_data
+ */
+#define HFI_COMMAND_DEVICE_INIT_DISPLAY_LSR_WB_REPROJ_CAPS           0x01000011
+
+/*
+ * HFI_COMMAND_DEVICE_HWFENCE_HFI_CONFIG - This is a host command sent to DCP to configure the
+ *                                         HFI queue for HW Fence. This command is sent to
+ *                                         DCP as part of device initialization process.
+ * Data layout:
+ *  struct hfi_buff
+ *
+ * hfi_header.num_packets              : 1
+ *
+ * hfi_packet.payload_info.type        : HFI_PAYLOAD_U32
+ *           .cmd                      : HFI_COMMAND_DEVICE_HWFENCE_HFI_CONFIG
+ *           .flags                    : HFI_TX_FLAGS_RESPONSE_REQUIRED |
+ *                                          HFI_TX_FLAGS_NON_DISCARDABLE
+ *           .payload                  : struct hfi_buff
+ */
+#define HFI_COMMAND_DEVICE_HWFENCE_HFI_CONFIG                        0x01000012
+
+/*
+ * HFI_COMMAND_DEVICE_HOT_PLUG_DETECT
+ * Host command sent to DCP to update pluggable display about hot plug configuration
+ *
+ * Host to DCP:
+ *
+ * hfi_header.num_packets             : 1
+ *
+ *     Hfi packet layout        : Value
+ *     hfi_packet.payload_info (type): HFI_PAYLOAD_U32
+ *     hfi_packet.cmd           : HFI_COMMAND_DEVICE_HOT_PLUG_DETECT
+ *     hfi_packet.flags         : HFI_TX_FLAGS_RESPONSE_REQUIRED
+ * HFI_TX_FLAGS_NON_DISCARDABLE
+ *     hfi_packet.payload       : struct device_hotplug_info
+ *
+ * Below pseudo-code, illustrates the memory layout of the payload sent by host.
+ *
+ * struct device_hotplug_info {
+ *     struct hfi_device_hotplug_config config;
+ *     u32 hfi_buf_cnt;
+ *     struct hfi_buff edid_modes_buf[hfi_buf_cnt];
+ * };
+ *
+ * config
+ *   Hot-plug configuration details for the connected device.
+ *   - Contains orientation, port, pin configuration, and state information
+ *   - Provides interface-specific connection parameters
+ *
+ * hfi_buf_cnt
+ *   Number of shared buffers (edid_modes_buf) added below. It is target-specific based on the
+ *   maximum number of streams supported per DisplayPort output port. This value should be
+ *   greater than 0 for PLUG command. For UNPLUG, it shall be set to 0.
+ *
+ * edid_modes_buf
+ *   Buffers initialized by client, one per stream, and provided to DCP. Once the hotplug is
+ *   successfully handled, firmware shall pack the following information into these buffers and
+ *   send them back to host as payload for HFI_COMMAND_DISPLAY_EVENT_EDID_INFO.
+ *
+ *   Below table describes the payload in the shared buffer:
+ *
+ * Payload    | Size  | Value                          | Description
+ *------------|-------|--------------------------------|-------------------------------
+ * 0          | u32   | raw_edid_size                  | Size of Raw EDID data in bytes (N)
+ * [1..N]     | u8*N  | raw_edid_data                  | Raw EDID data read from sink. Depending
+ *            |       |                                | on sink capabalities, this could have
+ *            |       |                                | 1 to many blocks of edid data, where each
+ *            |       |                                | block has 128 bytes of data.
+ * N+1        | u32   | num_modes                      | Number of modes supported for this sink (M)
+ * ^          | ^     | mode_info_1                    | Extended mode information for each mode
+ * ^          | ^     | ^                              | packed as an array of type:
+ * ^          | ^     | ^                              | struct hfi_display_mode_extended_info
+ * ^          | ^     | mode_info_M                    |
+ *
+ *   Extended Display Identification Data (EDID):
+ *   - Contains display capabilities, supported resolutions, and timing information
+ *   - Populated when device is connected and EDID is successfully read
+ *   - Used for display mode negotiation and capability determination
+ *   - Buffer may be empty if EDID read fails or device doesn't support EDID
+ *
+ *   Extended mode information:
+ *   - Derived from EDID data and device capabilities
+ *   - Contains timing parameters, refresh rates, and format information
+ *   - Used by display subsystem for mode selection and validation
+ *   - May include both standard and custom display modes
+ *
+ */
+#define HFI_COMMAND_DEVICE_HOT_PLUG_DETECT                           0x01000013
+
+/*
+ * HFI_COMMAND_DEVICE_RESOURCE_CTRL -   This command is used to support display virtualization.
+					This command is set to configure the resources that
+					needs to be lent across VMs
+ *
+ * Host to DCP:
+ * hfi_header.num_packets                 : 1
+ *
+ * Data layout:
+ *  struct hfi_device_resource_config
+ *
+ * hfi_packet.payload_info.type        : HFI_PAYLOAD_U32_ARRAY
+ *           .cmd                      : HFI_COMMAND_DEVICE_RESOURCE_CTRL
+ *           .flags                    : HFI_HOST_FLAGS_RESPONSE_REQUIRED |
+						HFI_HOST_FLAGS_NON_DISCARDABLE
+ *           .payload                  : struct hfi_device_resource_config
+ */
+#define HFI_COMMAND_DEVICE_RESOURCE_CTRL                             0x01000014
+
+/*
+ * HFI_COMMAND_DEVICE_SUBSYSTEM_RESTART_NOTIFY - Host command sent to DCP to indicate a
+ *                           subsystem error. This command is sent as a
+ *                           notification to DCP that other subsystems are restarting.
+ *
+ * Host to DCP:
+ * hfi_header.num_packets             : 1
+ *
+ * Data layout:
+ *  struct hfi_device_ssr_info
+ *
+ * hfi_packet.payload_info.type       : HFI_PAYLOAD_U32
+ *           .cmd                     : HFI_COMMAND_DEVICE_SUBSYSTEM_RESTART_NOTIFY
+ *           .flags                   : HFI_TX_FLAGS_RESPONSE_REQUIRED(optional) |
+ *                                      HFI_TX_FLAGS_NON_DISCARDABLE
+ *           .payload                 : struct hfi_device_ssr_info
+ */
+#define HFI_COMMAND_DEVICE_SUBSYSTEM_RESTART_NOTIFY                  0x01000015
+
+#define HFI_COMMAND_DEVICE_END                                       0x01FFFFFF
+
+#endif // __H_HFI_COMMANDS_DEVICE_H__
+

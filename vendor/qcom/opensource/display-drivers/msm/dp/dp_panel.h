@@ -1,0 +1,203 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
+ */
+
+#ifndef _DP_PANEL_H_
+#define _DP_PANEL_H_
+
+#include <drm/sde_drm.h>
+
+#include "dp_aux.h"
+#include "dp_link.h"
+#include "sde_edid_parser.h"
+#include "sde_connector.h"
+#include "msm_drv.h"
+#include "dp_panel_tu.h"
+#include "dp_client.h"
+
+#define DP_RECEIVER_DSC_CAP_SIZE    15
+#define DP_RECEIVER_FEC_STATUS_SIZE 3
+#define DP_RECEIVER_EXT_CAP_SIZE 4
+/*
+ * A source initiated power down flag is set
+ * when the DP is powered off while physical
+ * DP cable is still connected i.e. without
+ * HPD or not initiated by sink like HPD_IRQ.
+ * This can happen if framework reboots or
+ * device suspends.
+ */
+#define DP_PANEL_SRC_INITIATED_POWER_DOWN BIT(0)
+
+#define DP_EXT_REC_CAP_FIELD BIT(7)
+
+enum dp_lane_count {
+	DP_LANE_COUNT_1	= 1,
+	DP_LANE_COUNT_2	= 2,
+	DP_LANE_COUNT_4	= 4,
+};
+
+#define DP_MAX_DOWNSTREAM_PORTS 0x10
+
+struct dp_panel;
+
+struct dp_panel_in {
+	struct device *dev;
+	struct dp_aux *aux;
+	struct dp_link *link;
+	struct dp_catalog_panel *catalog;
+	struct drm_connector *connector;
+	struct dp_panel *base_panel;
+	struct dp_parser *parser;
+};
+
+struct dp_dsc_caps {
+	bool dsc_capable;
+	u8 version;
+	bool block_pred_en;
+	u8 color_depth;
+};
+
+struct dp_audio;
+
+#define DP_PANEL_CAPS_DSC	BIT(0)
+
+struct dp_panel {
+	struct list_head list_node;
+
+	/* dpcd raw data */
+	u8 dpcd[DP_RECEIVER_CAP_SIZE + DP_RECEIVER_EXT_CAP_SIZE + 1];
+	u8 lttpr_common_caps[DP_LTTPR_COMMON_CAP_SIZE];
+	u8 ds_ports[DP_MAX_DOWNSTREAM_PORTS];
+	u8 dsc_dpcd[DP_RECEIVER_DSC_CAP_SIZE + 1];
+	u8 fec_dpcd;
+	u8 fec_sts_dpcd[DP_RECEIVER_FEC_STATUS_SIZE + 1];
+
+	struct drm_dp_link link_info;
+	struct sde_edid_ctrl *edid_ctrl;
+	struct dp_panel_info pinfo;
+	bool video_test;
+	bool spd_enabled;
+
+	u32 vic;
+	u32 max_pclk_khz;
+	s64 mst_target_sc;
+	u32 id;
+
+	/* debug */
+	u32 max_bw_code;
+	u32 lane_count;
+	u32 link_bw_code;
+	u32 max_supported_bpp;
+
+	/* By default, stream_id is assigned to DP_INVALID_STREAM.
+	 * Client sets the stream id value using set_stream_id interface.
+	 */
+	enum dp_stream_id stream_id;
+	int vcpi;
+
+	u32 channel_start_slot;
+	u32 channel_total_slots;
+	u32 pbn;
+
+	u32 dsc_blks_in_use;
+	u32 max_lm;
+	/* DRM connector assosiated with this panel */
+	struct drm_connector *connector;
+
+	struct dp_audio *audio;
+	bool audio_supported;
+
+	struct dp_dsc_caps sink_dsc_caps;
+	bool dsc_feature_enable;
+	bool fec_feature_enable;
+	bool dsc_en;
+	bool fec_en;
+	bool widebus_en;
+	bool dsc_continuous_pps;
+	bool mst_state;
+	bool pclk_on;
+	u32 pclk_factor;
+
+	/* override debug option */
+	bool mst_hide;
+	bool mode_override;
+	int override_h;
+	int override_v;
+	int override_fps;
+	int override_ar;
+
+	s64 fec_overhead_fp;
+
+	int (*init)(struct dp_panel *dp_panel, bool skip_op);
+	struct dp_display_mode mode;
+
+	int (*deinit)(struct dp_panel *dp_panel, u32 flags);
+	int (*hw_cfg)(struct dp_panel *dp_panel, bool enable);
+	int (*read_sink_caps)(struct dp_panel *dp_panel,
+		struct drm_connector *connector, bool multi_func);
+	u32 (*get_mode_bpp)(struct dp_panel *dp_panel, u32 mode_max_bpp,
+			u32 mode_pclk_khz, bool dsc_en);
+	int (*get_modes)(struct dp_panel *dp_panel,
+		struct drm_connector *connector, struct dp_display_mode *mode);
+	void (*handle_sink_request)(struct dp_panel *dp_panel);
+	int (*setup_hdr)(struct dp_panel *dp_panel,
+		struct drm_msm_ext_hdr_metadata *hdr_meta,
+			bool dhdr_update, u64 core_clk_rate, bool flush);
+	int (*set_colorspace)(struct dp_panel *dp_panel,
+		u32 colorspace);
+	void (*tpg_config)(struct dp_panel *dp_panel, u32 pattern);
+	int (*spd_config)(struct dp_panel *dp_panel);
+	bool (*hdr_supported)(struct dp_panel *dp_panel);
+
+	int (*set_stream_info)(struct dp_panel *dp_panel,
+			enum dp_stream_id stream_id, u32 ch_start_slot,
+			u32 ch_tot_slots, u32 pbn, int vcpi);
+
+	int (*read_sink_status)(struct dp_panel *dp_panel, u8 *sts, u32 size);
+	int (*update_edid)(struct dp_panel *dp_panel, struct edid *edid);
+	bool (*read_mst_cap)(struct dp_panel *dp_panel);
+	int (*convert_to_dp_mode)(struct dp_panel *dp_panel,
+		const struct drm_display_mode *drm_mode,
+		struct dp_display_mode *dp_mode);
+	void (*update_pps)(struct dp_panel *dp_panel, char *pps_cmd);
+	int (*sink_crc_enable)(struct dp_panel *dp_panel, bool enable);
+	int (*get_src_crc)(struct dp_panel *dp_panel, u16 *crc);
+	int (*get_sink_crc)(struct dp_panel *dp_panel, u16 *crc);
+	bool (*get_panel_on)(struct dp_panel *dp_panel);
+	void (*set_lttpr_mode)(struct dp_panel *dp_panel, bool is_transparent);
+	struct dp_display_mode *(*get_mode)(struct dp_panel *dp_panel);
+};
+
+/**
+ * is_link_rate_valid() - validates the link rate
+ * @lane_rate: link rate requested by the sink
+ *
+ * Returns true if the requested link rate is supported.
+ */
+static inline bool is_link_rate_valid(u32 bw_code)
+{
+	return ((bw_code == DP_LINK_BW_1_62) ||
+		(bw_code == DP_LINK_BW_2_7) ||
+		(bw_code == DP_LINK_BW_5_4) ||
+		(bw_code == DP_LINK_BW_8_1));
+}
+
+/**
+ * dp_link_is_lane_count_valid() - validates the lane count
+ * @lane_count: lane count requested by the sink
+ *
+ * Returns true if the requested lane count is supported.
+ */
+static inline bool is_lane_count_valid(u32 lane_count)
+{
+	return (lane_count == DP_LANE_COUNT_1) ||
+		(lane_count == DP_LANE_COUNT_2) ||
+		(lane_count == DP_LANE_COUNT_4);
+}
+
+struct dp_panel *dp_panel_get(struct dp_panel_in *in);
+void dp_panel_put(struct dp_panel *dp_panel);
+void dp_panel_get_dto_params(u32 pclk_factor, struct dp_dsc_dto_params *dsc_params);
+#endif /* _DP_PANEL_H_ */

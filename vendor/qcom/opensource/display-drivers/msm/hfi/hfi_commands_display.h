@@ -1,0 +1,672 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ */
+
+#ifndef __H_HFI_COMMANDS_DISPLAY_H__
+#define __H_HFI_COMMANDS_DISPLAY_H__
+
+/*
+ * This is documentation file. Not used for header inclusion.
+ */
+
+/*
+ * All Display level commands begin here.
+ * "1st MSB byte = 0x02"
+ */
+#define HFI_COMMAND_DISPLAY_BEGIN                                     0x02000000
+
+/*
+ * hfi_header sample for any display command:
+ * hfi_header.cmd_buff_info.size          : (sizeof(hfi_header) +
+ *                                            sizeof(hfi_packet))
+ *           .cmd_buff_info.type          : HFI_DISPLAY
+ *           .device_id                   : 0
+ *           .object_id                   : n/a
+ *           .timestamp_hi                : ts_hi
+ *           .timestamp_lo                : ts_lo
+ *           .header_id                   : unique id
+ *           .num_packets                 : 'n' packets depending upon the
+ *                                          packet cmd
+ *
+ * hfi_packet sample for any display packet:
+ * hfi_packet.payload_info.size           : sizeof(hfi_packet)
+ *                                          (including payload size)
+ *           .payload_info.type           : one of enum
+ *                                          'hfi_packet_payload_type'
+ *           .cmd                         : HFI_COMMAND_DISPLAY_XXX
+ *           .flags (Host to DCP)         : HFI_TX_FLAGS_XXX
+ *                                          (enum hfi_packet_host_flags)
+ *                  (DCP to Host)         : HFI_RX_FLAGS_XXX
+ *                                          (enum hfi_fw_host_flags)
+ *           .id                          : display id
+ *           .packet_id                   : unique id
+ */
+
+/*
+ * HFI_COMMAND_DISPLAY_SET_PROPERTY  - This command sets display property.
+ *                                     From host to DCP, this command sets different Properties
+ *                                     for configuring/re-configuring a Display at run-time.
+ *                                     This command holds properties IDs to set in the payload.
+ *
+ * Host to DCP:
+ * hfi_header.num_packets                 : 1
+ *
+ * Data Contents:
+ *  - HFI_DISPLAY_PROPERTY_XXX
+ * Data layout:
+ *  struct display_data {
+ *      struct property_data display_props;
+ *  }
+ *
+ * hfi_packet.payload_info.type           : HFI_PAYLOAD_U32_ARRAY
+ *           .cmd                         : HFI_COMMAND_DISPLAY_SET_PROPERTY
+ *           .flags                       : HFI_TX_FLAGS_INTR_REQUIRED(optional) |
+ *                                          HFI_TX_FLAGS_RESPONSE_REQUIRED(optional) |
+ *                                          HFI_TX_FLAGS_NON_DISCARDABLE
+ *           .id                          : Bits 0:15 carry the display id for which the
+ *                                          properties are applicable
+ *           .payload                     : struct display_data
+ */
+#define HFI_COMMAND_DISPLAY_SET_PROPERTY                              0x02000001
+
+/*
+ * HFI_COMMAND_DISPLAY_GET_PROPERTY - This is a host command sent to DCP to get display/layer
+ *                                     properties. This command holds the property ID in the
+ *                                     payload.
+ *
+ * Host to DCP:
+ * hfi_header.num_packets                 : 1
+ *
+ * hfi_packet.payload_info.type           : HFI_PAYLOAD_U32
+ *           .cmd                         : HFI_COMMAND_DISPLAY_GET_PROPERTY
+ *           .flags                       : HFI_TX_FLAGS_INTR_REQUIRED |
+ *                                          HFI_TX_FLAGS_RESPONSE_REQUIRED |
+ *                                          HFI_TX_FLAGS_NON_DISCARDABLE
+ *           .id                          : Bits 0:15 carry the display id for which the properties
+ *                                          are applicable
+ *           .payload                     : property_id
+ */
+#define HFI_COMMAND_DISPLAY_GET_PROPERTY                              0x02000002
+
+/*
+ * HFI_COMMAND_DISPLAY_FRAME_TRIGGER - This is a host command sent to DCP to commit the info from
+ *                                     previous packets. This command holds commit flags.
+ *
+ * Host to DCP:
+ * hfi_header.num_packets                 : 1
+ *
+ * hfi_packet.payload_info.type           : HFI_PAYLOAD_U32
+ *           .cmd                         : HFI_COMMAND_DISPLAY_FRAME_TRIGGER
+ *           .flags                       : HFI_TX_FLAGS_INTR_REQUIRED |
+ *                                          HFI_TX_FLAGS_RESPONSE_REQUIRED |
+ *                                          HFI_TX_FLAGS_NON_DISCARDABLE
+ *           .id                          : Bits 0:15 carry the display id for which the properties
+ *                                          are applicable
+ *(u32_value).payload [0]                 : one of the commit flags in enum hfi_display_commit_flag
+ */
+#define HFI_COMMAND_DISPLAY_FRAME_TRIGGER                             0x02000003
+
+/*
+ * HFI_COMMAND_DISPLAY_EVENT_REGISTER - This a host command sent to DCP to register for an
+ *                                      event notification.The event ID is given in the payload
+ *                                      of this command.
+ *
+ * Host to DCP:
+ * hfi_header.num_packets                 : 1
+ *
+ * hfi_packet.payload_info.type           : HFI_PAYLOAD_U32
+ *           .cmd                         : HFI_COMMAND_DISPLAY_EVENT_REGISTER
+ *           .flags                       : HFI_TX_FLAGS_INTR_REQUIRED(optional) |
+ *                                          HFI_TX_FLAGS_RESPONSE_REQUIRED(optional) |
+ *                                          HFI_TX_FLAGS_NON_DISCARDABLE
+ *           .id                          : Bits 0:15 carry the display id for which the properties
+ *                                          are applicable
+ *           .payload                     : one of the event id's in enum hfi_display_event_id
+ */
+#define HFI_COMMAND_DISPLAY_EVENT_REGISTER                            0x02000004
+
+/*
+ * HFI_COMMAND_DISPLAY_EVENT_DEREGISTER - This is a host command sent to DCP to unregister the event
+ *                                        in the payload. The event ID is given in the payload of
+ *                                        this command.
+ *
+ * Host to DCP:
+ * hfi_header.num_packets                 : 1
+ *
+ * hfi_packet.payload_info.type           : HFI_PAYLOAD_U32
+ *           .cmd                         : HFI_COMMAND_DISPLAY_EVENT_DEREGISTER
+ *           .flags                       : HFI_TX_FLAGS_INTR_REQUIRED |
+ *                                          HFI_TX_FLAGS_RESPONSE_REQUIRED |
+ *                                          HFI_TX_FLAGS_NON_DISCARDABLE
+ *           .id                          : Bits 0:15 carry the display id for which the properties
+ *                                          are applicable
+ *           .payload                     : one of the event id's in enum hfi_display_event_id
+ */
+#define HFI_COMMAND_DISPLAY_EVENT_DEREGISTER                          0x02000005
+
+/*
+ * HFI_COMMAND_DISPLAY_ENABLE  -       From host to DCP, this command is used to enable the display
+ *                                     and send panel ON commands.
+ *
+ * Host to DCP:
+ * hfi_header.num_packets                 : 1
+ *
+ * hfi_packet.payload_info.type           : HFI_PAYLOAD_U32_ARRAY
+ *           .cmd                         : HFI_COMMAND_DISPLAY_ENABLE
+ *           .flags                       : HFI_TX_FLAGS_INTR_REQUIRED(optional) |
+ *                                          HFI_TX_FLAGS_RESPONSE_REQUIRED |
+ *                                          HFI_TX_FLAGS_NON_DISCARDABLE
+ *           .id                          : Bits 0:15 carry the display id
+ *           .packet_id                   : unique id
+ *           .payload                     : None
+ */
+#define HFI_COMMAND_DISPLAY_ENABLE                                    0x02000006
+
+/*
+ * HFI_COMMAND_DISPLAY_POST_ENABLE  -  From host to DCP, this command is used to send display
+ *                                     post ON commands.
+ *
+ * Host to DCP:
+ * hfi_header.num_packets                 : 1
+ *
+ * hfi_packet.payload_info.type           : HFI_PAYLOAD_NONE
+ *           .cmd                         : HFI_COMMAND_DISPLAY_POST_ENABLE
+ *           .flags                       : HFI_TX_FLAGS_INTR_REQUIRED(optional) |
+ *                                          HFI_TX_FLAGS_RESPONSE_REQUIRED |
+ *                                          HFI_TX_FLAGS_NON_DISCARDABLE
+ *           .id                          : Bits 0:15 carry the display id
+ *           .packet_id                   : unique id
+ *           .payload                     : None
+ */
+#define HFI_COMMAND_DISPLAY_POST_ENABLE                               0x02000007
+
+/*
+ * HFI_COMMAND_DISPLAY_DISABLE  -  From host to DCP, this command is used to send
+ *                                 display pre-off commands.
+ *
+ * Host to DCP:
+ * hfi_header.num_packets                 : 1
+ *
+ * hfi_packet.payload_info.type           : HFI_PAYLOAD_NONE
+ *           .cmd                         : HFI_COMMAND_DISPLAY_DISABLE
+ *           .flags                       : HFI_TX_FLAGS_INTR_REQUIRED(optional) |
+ *                                          HFI_TX_FLAGS_RESPONSE_REQUIRED |
+ *                                          HFI_TX_FLAGS_NON_DISCARDABLE
+ *           .id                          : Bits 0:15 carry the display id
+ *           .packet_id                   : unique id
+ *           .payload                     : None
+ */
+#define HFI_COMMAND_DISPLAY_DISABLE                                   0x02000008
+
+/*
+ * HFI_COMMAND_DISPLAY_POST_DISABLE  -  From host to DCP, this command is used to send
+ *                                      display off commands.
+ *
+ * Host to DCP:
+ * hfi_header.num_packets                 : 1
+ *
+ * hfi_packet.payload_info.type           : HFI_PAYLOAD_NONE
+ *           .cmd                         : HFI_COMMAND_DISPLAY_POST_DISABLE
+ *           .flags                       : HFI_TX_FLAGS_INTR_REQUIRED(optional) |
+ *                                          HFI_TX_FLAGS_RESPONSE_REQUIRED |
+ *                                          HFI_TX_FLAGS_NON_DISCARDABLE
+ *           .id                          : Bits 0:15 carry the display id
+ *           .packet_id                   : unique id
+ *           .payload                     : None
+ */
+#define HFI_COMMAND_DISPLAY_POST_DISABLE                              0x02000009
+
+/*
+ * HFI_COMMAND_DISPLAY_SET_MODE  - From host to DCP, this command gives final mode to
+ *                                 DCP which is already validated by mode_validate.
+ *
+ * Host to DCP:
+ * hfi_header.num_packets                 : 1
+ *
+ * hfi_packet.payload_info.type           : HFI_PAYLOAD_U32_ARRAY
+ *           .cmd                         : HFI_COMMAND_DISPLAY_SET_MODE
+ *           .flags                       : HFI_TX_FLAGS_INTR_REQUIRED(optional) |
+ *                                          HFI_TX_FLAGS_RESPONSE_REQUIRED |
+ *                                          HFI_TX_FLAGS_NON_DISCARDABLE
+ *           .id                          : Bits 0:15 carry the display id
+ *           .packet_id                   : unique id
+ *           .payload                     : struct hfi_buff for struct hfi_display_mode_info
+ */
+#define HFI_COMMAND_DISPLAY_SET_MODE                                  0x0200000A
+
+/*
+ * HFI_COMMAND_DISPLAY_MODE_VALIDATE  - From Host to DCP, this command provides mode to
+ *                                      DCP for validation.
+ *
+ * Host to DCP:
+ * hfi_header.num_packets                 : 1
+ *
+ * hfi_packet.payload_info.type           : HFI_PAYLOAD_U32_ARRAY
+ *           .cmd                         : HFI_COMMAND_DISPLAY_MODE_VALIDATE
+ *           .flags                       : HFI_TX_FLAGS_INTR_REQUIRED(optional) |
+ *                                          HFI_TX_FLAGS_RESPONSE_REQUIRED |
+ *                                          HFI_TX_FLAGS_NON_DISCARDABLE
+ *           .id                          : Bits 0:15 carry the display id
+ *           .packet_id                   : unique id
+ *           .payload                     : struct hfi_buff for struct hfi_display_mode_info
+ */
+#define HFI_COMMAND_DISPLAY_MODE_VALIDATE                             0x0200000B
+
+/*
+ * HFI_COMMAND_DISPLAY_POWER_CONTROL  -    From DCP to Host, this command
+ *                                         tells Host to power ON/OFF Panel/Controller/Phy
+ *                                         power supplies. It will also handle Panel Reset
+ *                                         with HFI_PANEL_POWER.
+ *                                         HFI_TRUE(Enable)/HFI_FALSE(Disable).
+ *
+ * DCP to Host:
+ * hfi_header.num_packets                 : 1
+ *
+ * hfi_packet.payload_info.type           : HFI_PAYLOAD_U32
+ *           .cmd                         : HFI_COMMAND_DISPLAY_POWER_CONTROL
+ *           .flags                       : HFI_TX_FLAGS_INTR_REQUIRED(optional) |
+ *                                          HFI_TX_FLAGS_RESPONSE_REQUIRED |
+ *                                          HFI_TX_FLAGS_NON_DISCARDABLE
+ *           .id                          : Bits 0:15 carry the display id
+ *           .packet_id                   : unique id
+ *           .payload[0]                  : Bitmask of enum hfi_display_power_control
+ *           .payload[1]                  : HFI_TRUE / HFI_FALSE
+ */
+#define HFI_COMMAND_DISPLAY_POWER_CONTROL                             0x0200000C
+
+/*
+ * HFI_COMMAND_DISPLAY_POWER_REGISTER  -    From Host to DCP, this command
+ *                                          tells Host to register power with DCP. DCP
+ *                                          response is HFI_COMMAND_DISPLAY_POWER_CONTROL.
+ *
+ *
+ * Host to DCP:
+ * hfi_header.num_packets                 : 1
+ *
+ * hfi_packet.payload_info.type           : HFI_PAYLOAD_NONE
+ *           .cmd                         : HFI_COMMAND_DISPLAY_POST_DISABLE
+ *           .flags                       : HFI_TX_FLAGS_INTR_REQUIRED(optional) |
+ *                                          HFI_TX_FLAGS_RESPONSE_REQUIRED |
+ *                                          HFI_TX_FLAGS_NON_DISCARDABLE
+ *           .id                          : Bits 0:15 carry the display id
+ *           .packet_id                   : unique id
+ *           .payload                     : None
+ */
+#define HFI_COMMAND_DISPLAY_POWER_REGISTER                            0x0200000D
+
+/*
+ * HFI_COMMAND_DISPLAY_TRANSFER_DCS_CMD  -  From Host to DCP, this command
+ *                                          instructs DCP to send DCS commands to the panel.
+ *
+ * Host to DCP:
+ * hfi_header.num_packets                 : 1
+ *
+ * hfi_packet.payload_info.type           : HFI_PAYLOAD_U32_ARRAY
+ *           .cmd                         : HFI_COMMAND_DISPLAY_TRANSFER_DCS_CMD
+ *           .flags                       : HFI_TX_FLAGS_INTR_REQUIRED(optional) |
+ *                                          HFI_TX_FLAGS_RESPONSE_REQUIRED |
+ *                                          HFI_TX_FLAGS_NON_DISCARDABLE
+ *           .id                          : Bits 0:15 carry the display id
+ *           .packet_id                   : unique id
+ *           .payload                     : struct hfi_dsi_cmd_desc
+ */
+#define HFI_COMMAND_DISPLAY_TRANSFER_DCS_CMD                          0x0200000E
+
+/*!
+ * HFI_COMMAND_DISPLAY_IDLE_TIMER_CONTROL - From Host to DCP, this command tells DCP to modify the
+ *                                          idle timer, see enum hfi_display_idle_timer_control
+ *                                          for more info.
+ *
+ * Host to DCP:
+ * hfi_header.num_packets                 : 1
+ *
+ * Hfi packet layout                      | Value
+ *----------------------------------------|---------------------------------
+ * hfi_packet.payload_info.type           | HFI_PAYLOAD_U32
+ * hfi_packet.cmd                         | HFI_COMMAND_DISPLAY_IDLE_TIMER_CONTROL
+ * hfi_packet.flags                       | HFI_TX_FLAGS_NON_DISCARDABLE
+ * hfi_packet.id                          | Bits 0:15 carry the display id
+ * hfi_packet.packet_id                   | unique id
+ * hfi_packet.payload[0]                  | enum hfi_display_idle_timer_control
+ */
+#define HFI_COMMAND_DISPLAY_IDLE_TIMER_CONTROL                        0x0200000F
+
+/*
+ * HFI_COMMAND_DISPLAY_SET_DP_TU   -        From Host to DCP, this command tells DCP to modify the
+ *                                          TU (Transfer Unit) params to the below payload.
+ *
+ * Host to DCP:
+ * hfi_header.num_packets                 : 1
+ *
+ *     Hfi packet layout        : Value
+ *     hfi_packet.payload_info.type: HFI_PAYLOAD_U32_ARRAY
+ *     hfi_packet.cmd           : HFI_COMMAND_DISPLAY_SET_DP_TU
+ *     hfi_packet.flags         : HFI_TX_FLAGS_NON_DISCARDABLE
+ *     hfi_packet.id            : Bits 0:15 carry the display id
+ *     hfi_packet.packet_id     : unique id
+ *     hfi_packet.payload       : struct hfi_display_dp_tu
+ */
+#define HFI_COMMAND_DISPLAY_SET_DP_TU                                 0x02000010
+
+/*
+ * HFI_COMMAND_DISPLAY_CONFIG_HDR  -  From Host to DCP, this command
+ *                                    configures High Dynamic Range settings for the display.
+ *
+ * hfi_packet.payload_info.type           : HFI_PAYLOAD_U32_ARRAY
+ *           .cmd                         : HFI_COMMAND_DISPLAY_CONFIG_HDR
+ *           .flags                       : HFI_TX_FLAGS_RESPONSE_REQUIRED
+ *                                          HFI_TX_FLAGS_NON_DISCARDABLE
+ *           .id                          : Bits 0:15 carry the display id
+ *           .packet_id                   : unique id
+ *           .payload                     : struct hfi_display_hdr_cfg
+ */
+#define HFI_COMMAND_DISPLAY_CONFIG_HDR                                0x02000011
+
+/*
+ * HFI_COMMAND_DISPLAY_AUDIO_CONFIG  -  From host to DCP, this command is used to configure
+ *                                      external display audio parameters.
+ *
+ * Host to DCP:
+ *
+ * hfi_header.num_packets                 : 1
+ *
+ * Below table describes the hfi_packet layout (Only data that would change per command is listed
+ * below, other fields can be found in display_header_data_page)
+ *
+ *     Hfi packet layout        : Value
+ *     hfi_packet.payload_info (type): HFI_PAYLOAD_U32_ARRAY
+ *     hfi_packet.cmd           : HFI_COMMAND_DISPLAY_AUDIO_CONFIG
+ *     hfi_packet.flags         : HFI_TX_FLAGS_INTR_REQUIRED(optional) \
+ *     ^                        : HFI_TX_FLAGS_RESPONSE_REQUIRED(optional) \
+ *     ^                        : HFI_TX_FLAGS_NON_DISCARDABLE
+ *     hfi_packet.id            : Bits 0:15 carry the display id
+ *     hfi_packet.packet_id     : unique id
+ *     hfi_packet.payload       : struct hfi_audio_config
+ */
+#define HFI_COMMAND_DISPLAY_AUDIO_CONFIG                              0x02000012
+
+/*
+ * HFI_COMMAND_DISPLAY_AUDIO_CONTROL  - From host to DCP, this command is used to enable/disable
+ *                                      DisplayPort audio using previously configured parameters.
+ *                                      DCP enables audio if payload is HFI_TRUE and disables audio
+ *                                      if payload is HFI_FALSE.
+ *
+ * Host to DCP:
+ *
+ * hfi_header.num_packets                 : 1
+ *
+ * Below table describes the hfi_packet layout (Only data that would change per command is listed
+ * below, other fields can be found in display_header_data_page)
+ *
+ *     Hfi packet layout        : Value
+ *     hfi_packet.payload_info (type): HFI_PAYLOAD_NONE
+ *     hfi_packet.cmd           : HFI_COMMAND_DISPLAY_AUDIO_CONTROL
+ *     hfi_packet.flags         : HFI_TX_FLAGS_INTR_REQUIRED(optional) \
+ *     ^                        : HFI_TX_FLAGS_RESPONSE_REQUIRED(optional) \
+ *     ^                        : HFI_TX_FLAGS_NON_DISCARDABLE
+ *     hfi_packet.id            : Bits 0:15 carry the display id
+ *     hfi_packet.packet_id     : unique id
+ *     hfi_packet.payload       : HFI_TRUE / HFI_FALSE
+ */
+#define HFI_COMMAND_DISPLAY_AUDIO_CONTROL                             0x02000013
+
+/*
+ * HFI_COMMAND_DISPLAY_SET_COLORSPACE  -  From host to DCP, this command is used to set
+ *                                        the colorspace configuration for DisplayPort.
+ *
+ * Host to DCP:
+ *
+ * hfi_header.num_packets                 : 1
+ *
+ * Below table describes the hfi_packet layout (Only data that would change per command is listed
+ * below, other fields can be found in display_header_data_page)
+ *
+ *     Hfi packet layout        : Value
+ *     hfi_packet.payload_info (type): HFI_PAYLOAD_U32_ARRAY
+ *     hfi_packet.cmd           : HFI_COMMAND_DISPLAY_SET_COLORSPACE
+ *     hfi_packet.flags         : HFI_TX_FLAGS_NON_DISCARDABLE
+ *     hfi_packet.id            : Bits 0:15 carry the display id
+ *     hfi_packet.packet_id     : unique id
+ *     hfi_packet.payload       : enum hfi_colorimetry
+ */
+#define HFI_COMMAND_DISPLAY_SET_COLORSPACE                            0x02000014
+
+/*
+ * HFI_COMMAND_DISPLAY_HDCP1X_AKSV  -  From Host to DCP, this command
+ *                                     provides AKSV values for HDCP 1.x authentication.
+ *
+ * Host to DCP:
+ * hfi_header.num_packets                 : 1
+ *
+ * Below table describes the hfi_packet layout (Only data that would change per command is listed
+ * below, other fields can be found in display_header_data_page)
+ *
+ *     Hfi packet layout        : Value
+ *     hfi_packet.payload_info (type): HFI_PAYLOAD_U64
+ *     hfi_packet.cmd           : HFI_COMMAND_DISPLAY_HDCP1X_AKSV
+ *     hfi_packet.flags         : HFI_TX_FLAGS_RESPONSE_REQUIRED
+ *     ^                        : HFI_TX_FLAGS_NON_DISCARDABLE
+ *     hfi_packet.id            : Bits 0:15 carry the display id
+ *     hfi_packet.packet_id     : unique id
+ *     hfi_packet.payload       : 40 bit aksv (Authentication and Key Selection Vector)
+ */
+#define HFI_COMMAND_DISPLAY_HDCP1X_AKSV                               0x02000015
+
+/*
+ * HFI_COMMAND_DISPLAY_HDCP2X_RESPONSE  -  From Host to DCP, this command
+ *                                          provides response messages for HDCP 2.x authentication.
+ *
+ * Host to DCP:
+ * hfi_header.num_packets                 : 1
+ *
+ * Below table describes the hfi_packet layout (Only data that would change per command is listed
+ * below, other fields can be found in display_header_data_page)
+ *
+ *     Hfi packet layout        : Value
+ *     hfi_packet.payload_info (type): HFI_PAYLOAD_U32_ARRAY
+ *     hfi_packet.cmd           : HFI_COMMAND_DISPLAY_HDCP2X_RESPONSE
+ *     hfi_packet.flags         : HFI_TX_FLAGS_RESPONSE_REQUIRED
+ *     ^                        : HFI_TX_FLAGS_NON_DISCARDABLE
+ *     hfi_packet.id            : Bits 0:15 carry the display id
+ *     hfi_packet.packet_id     : unique id
+ *     hfi_packet.payload       : struct hfi_hdcp2_response
+ */
+#define HFI_COMMAND_DISPLAY_HDCP2X_RESPONSE                           0x02000016
+
+/*
+ * HFI_COMMAND_DISPLAY_HDCP_FEATURE_SUPPORTED  -  From Host to DCP, this command
+ *                                                provides HDCP feature provisioning status.
+ *
+ * Host to DCP:
+ * hfi_header.num_packets                 : 1
+ *
+ * Below table describes the hfi_packet layout (Only data that would change per command is listed
+ * below, other fields can be found in display_header_data_page)
+ *
+ *     Hfi packet layout        : Value
+ *     hfi_packet.payload_info (type): HFI_PAYLOAD_U32_ARRAY
+ *     hfi_packet.cmd           : HFI_COMMAND_DISPLAY_HDCP_FEATURE_SUPPORTED
+ *     hfi_packet.flags         : HFI_TX_FLAGS_RESPONSE_REQUIRED
+ *     ^                        : HFI_TX_FLAGS_NON_DISCARDABLE
+ *     hfi_packet.id            : Bits 0:15 carry the display id
+ *     hfi_packet.packet_id     : unique id
+ *     hfi_packet.payload[0]    : hdcp1x_provisioned (boolean)
+ *     hfi_packet.payload[1]    : hdcp2x_provisioned (boolean)
+ */
+#define HFI_COMMAND_DISPLAY_HDCP_FEATURE_SUPPORTED                    0x02000017
+
+/*
+ * HFI_COMMAND_DISPLAY_DSI_CUSTOM_DCS_CMDS_SET_REMAP - From Host to DCP, this command specifies the
+ *                                                     mapping between hfi_panel_dcs_command_type
+ *                                                     values and custom command types. This command
+ *                                                     tells DCP which hfi_panel_dcs_command_type
+ *                                                     should be replaced with a custom command
+ *                                                     type. OEMs can define custom command types at
+ *                                                     host level which can be used to remap
+ *                                                     hfi_panel_dcs_command_type values.
+ *
+ * Host to DCP:
+ * hfi_header.num_packets                 : 1
+ *
+ * Validation requirements:
+ *      - count must be > 0 and <= total entries in hfi_panel_dcs_command_type
+ *      - cmd_type must be a valid hfi_panel_dcs_command_type value
+ *      - custom_cmd_type must be a valid custom command type within the custom dcs commands indices
+ *        from HFI_PROPERTY_PANEL_DSI_CUSTOM_DCS_CMDS_SET_INFO or is within the
+ *        hfi_panel_dcs_command_type range, if commands go back to the default.
+ *
+ * Below table describes the hfi_packet layout (Only data that would change per command is listed
+ * below, other fields can be found in display_header_data_page)
+ *
+ *     Hfi packet layout        : Value
+ *     hfi_packet.payload_info (type): HFI_PAYLOAD_U32_ARRAY
+ *     hfi_packet.cmd           : HFI_COMMAND_DISPLAY_DSI_CUSTOM_DCS_CMDS_SET_REMAP
+ *     hfi_packet.flags         : HFI_TX_FLAGS_INTR_REQUIRED(optional) |
+ *     ^                        : HFI_TX_FLAGS_RESPONSE_REQUIRED(optional) |
+ *     ^                        : HFI_TX_FLAGS_NON_DISCARDABLE
+ *     hfi_packet.id            : Bits 0:15 carry the display id
+ *     hfi_packet.packet_id     : unique id
+ *     hfi_packet.payload[0]    : count of remapping entries
+ *     hfi_packet.payload[1..]  : struct hfi_cmd_set_remap[count]
+ */
+#define HFI_COMMAND_DISPLAY_DSI_CUSTOM_DCS_CMDS_SET_REMAP             0x02000018
+
+/*
+ * HFI_COMMAND_DISPLAY_DSI_CUSTOM_DCS_CMDS_SET_REPLACE - From Host to DCP, this command instructs
+ *                                                       DCP to replace the standard DCS command
+ *                                                       metadata for one or more command types with
+ *                                                       user-defined commands. The payload begins
+ *                                                       with a u32 count field followed by an array
+ *                                                       of hfi_dsi_dcs_cmd_set_replace_entry
+ *                                                       structs, one per command type being
+ *                                                       replaced.
+ *
+ * Host to DCP:
+ * hfi_header.num_packets                 : 1
+ *
+ * Validation requirements:
+ *      - count must be > 0 and <= total entries in hfi_panel_dcs_command_type
+ *      - cmd_type in each entry must be a valid hfi_panel_dcs_command_type value
+ *      - count_cmds in each entry must be > 0
+ *      - dpu_buff_type_offset must be >= the start of the reserved region within the
+ *        DPU-mapped command payload buffer (established during panel init via
+ *        HFI_PROPERTY_PANEL_DPU_ADDRESS), and dpu_buff_type_offset + total size of
+ *        count_cmds commands must not exceed the bounds of that reserved region
+ *      - hfi_buff_struct_offset must be >= the start of the reserved region within the
+ *        DCP-mapped command descriptor buffer (established during panel init via
+ *        HFI_PROPERTY_PANEL_DCP_ADDRESS), and hfi_buff_struct_offset + total size of
+ *        count_cmds command metadata entries must not exceed the bounds of that reserved region
+ *
+ * Data layout:
+ * struct dsi_hfi_dcs_cmd_set_replace_payload {
+ *     u32 count;                                                // Number of replacement entries(N)
+ *     struct hfi_dsi_dcs_cmd_set_replace_entry entries[count]; // Array of replacement entries
+ * };
+ *
+ * Below table describes the hfi_packet layout (Only data that would change per command is listed
+ * below, other fields can be found in display_header_data_page)
+ *
+ *     Hfi packet layout        : Value
+ *     hfi_packet.payload_info (type): HFI_PAYLOAD_U32_ARRAY
+ *     hfi_packet.cmd           : HFI_COMMAND_DISPLAY_DSI_CUSTOM_DCS_CMDS_SET_REPLACE
+ *     hfi_packet.flags         : HFI_TX_FLAGS_INTR_REQUIRED(optional) |
+ *     ^                        : HFI_TX_FLAGS_RESPONSE_REQUIRED(optional) |
+ *     ^                        : HFI_TX_FLAGS_NON_DISCARDABLE
+ *     hfi_packet.id            : Bits 0:15 carry the display id
+ *     hfi_packet.packet_id     : unique id
+ *     hfi_packet.payload       : struct dsi_hfi_dcs_cmd_set_replace_payload
+ */
+#define HFI_COMMAND_DISPLAY_DSI_CUSTOM_DCS_CMDS_SET_REPLACE           0x02000019
+
+/*!
+ * HFI_COMMAND_DISPLAY_BATCH_MODE  -  From Host to DCP, this command denotes the start or end of
+ *                                    batch mode for display. HFI_COMMAND_DISPLAY_BATCH_MODE
+ *                                    must be set before this command.
+ *
+ * Host to DCP:
+ * hfi_header.num_packets                 : 1
+ *
+ * Below table describes the hfi_packet layout (Only data that would change per command is listed
+ * below, other fields can be found in @ref display_header_data_page)
+ *
+ * Hfi packet layout                      | Value
+ *----------------------------------------|---------------------------------
+ * hfi_packet.payload_info (type)         | HFI_PAYLOAD_U32_ARRAY
+ * hfi_packet.cmd                         | HFI_COMMAND_DISPLAY_BATCH_MODE
+ * hfi_packet.flags                       | HFI_TX_FLAGS_NON_DISCARDABLE
+ * hfi_packet.id                          | Bits 0:15 carry the display id
+ * hfi_packet.packet_id                   | unique id
+ * hfi_packet.payload                     | struct hfi_batch_mode_info
+ */
+#define HFI_COMMAND_DISPLAY_BATCH_MODE                                0x0200001A
+
+/*!
+ * HFI_COMMAND_DISPLAY_HFI_SUBSYSTEM_CONFIG - Host command sent to DCP to configure the
+ *                                            HFI queue for a subsystem. This command is sent after
+ *                                            enabling the display and before batch mode start
+ *                                            of the use case.
+ *
+ * Host to DCP:
+ *
+ * hfi_header.num_packets             : 1
+ *
+ * Hfi packet layout                  | Value
+ *------------------------------------|------------------------------------------------
+ * hfi_packet.payload_info (type)     | HFI_PAYLOAD_U32_ARRAY
+ * hfi_packet.cmd                     | HFI_COMMAND_DISPLAY_HFI_SUBSYSTEM_CONFIG
+ * hfi_packet.flags                   | HFI_TX_FLAGS_RESPONSE_REQUIRED |
+ *                                    | HFI_TX_FLAGS_NON_DISCARDABLE
+ * hfi_packet.id                      | Bits 0:15 carry the display id
+ * hfi_packet.packet_id               | unique id
+ * hfi_packet.payload[0]              | enum hfi_subsystem_type
+ * hfi_packet.payload[1..]            | struct hfi_buff
+ */
+#define HFI_COMMAND_DISPLAY_HFI_SUBSYSTEM_CONFIG                      0x0200001B
+
+/*
+ * HFI_COMMAND_DISPLAY_EXEC_DCS_CMD_TYPE - From Host to DCP, this command instructs DCP to
+ *                                         immediately execute the DCS command set identified
+ *                                         by the given command type. This allows the host to
+ *                                         trigger a specific pre-configured DCS command type
+ *                                         (e.g., LP1, LP2, NOLP, QSYNC_ONS, QSYNC_OFFS, or an
+ *                                         OEM-defined custom type).
+ *
+ * The cmd_type payload field accepts either:
+ *   - A valid value from enum hfi_panel_dcs_command_type
+ *   - A custom command type index within the range established by
+ *     HFI_PROPERTY_PANEL_DSI_CUSTOM_DCS_CMDS_SET_INFO (i.e., [start_index,
+ *     start_index + count))
+ *
+ * Host to DCP:
+ * hfi_header.num_packets                 : 1
+ *
+ * Validation requirements:
+ *      - cmd_type must be either a valid hfi_panel_dcs_command_type value, or a valid
+ *        custom command type index within the range defined by
+ *        HFI_PROPERTY_PANEL_DSI_CUSTOM_DCS_CMDS_SET_INFO
+ *      - The DCS command set for the specified cmd_type must have been previously configured
+ *        via HFI_PROPERTY_PANEL_DCS_CMD_INFO during panel initialization
+ *
+ * Below table describes the hfi_packet layout (Only data that would change per command is listed
+ * below, other fields can be found in display_header_data_page)
+ *
+ *     Hfi packet layout        : Value
+ *     hfi_packet.payload_info (type): HFI_PAYLOAD_U32_ARRAY
+ *     hfi_packet.cmd           : HFI_COMMAND_DISPLAY_EXEC_DCS_CMD_TYPE
+ *     hfi_packet.flags         : HFI_TX_FLAGS_INTR_REQUIRED(optional) |
+ *     ^                        : HFI_TX_FLAGS_RESPONSE_REQUIRED(optional) |
+ *     ^                        : HFI_TX_FLAGS_NON_DISCARDABLE
+ *     hfi_packet.id            : Bits 0:15 carry the display id
+ *     hfi_packet.packet_id     : unique id
+ *     hfi_packet.payload[0]    : u32 cmd_type - one of enum hfi_panel_dcs_command_type, or a
+ *     ^                        : custom command type index from
+ *     ^                        : HFI_PROPERTY_PANEL_DSI_CUSTOM_DCS_CMDS_SET_INFO
+ *     hfi_packet.payload[1]    : u32 cmd_flags - Reserved for future use
+ *     hfi_packet.payload[2]    : u32 reserved - Reserved for future use
+ */
+#define HFI_COMMAND_DISPLAY_EXEC_DCS_CMD_TYPE                         0x0200001C
+
+#define HFI_COMMAND_DISPLAY_END                                       0x02FFFFFF
+
+#endif // __H_HFI_COMMANDS_DISPLAY_H__
