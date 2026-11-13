@@ -263,10 +263,31 @@ int Nanosic_i2c_write(struct nano_i2c_client *i2c_client, void *buf, size_t len)
  *   
  ** */
 
+/* bytes a packet takes in the buffer, 0 for the rest of it */
+static int Nanosic_i2c_packet_len(unsigned char id)
+{
+	switch (id) {
+	case 0x5:
+		return 9;
+	case 0x6:
+		return 5;
+	case 0x2:
+		return 8;
+	case 0x19:
+		return NANOSIC_TOUCH_REPORT_LEN;
+	case 0x22:
+		return 16;
+	case 0x23:
+		return 32;
+	default:
+		return 0;
+	}
+}
+
 int Nanosic_i2c_parse(char *data, size_t datalen)
 {
 	char *p = data;
-	char left;
+	int left;
 	unsigned char first_byte; /*fixed data 0x57*/
 	unsigned char second_byte; /*sqe*/
 	unsigned char third_byte; /*fixed data 0x39 , 0x4A , 0x5B , 0x6C*/
@@ -274,7 +295,7 @@ int Nanosic_i2c_parse(char *data, size_t datalen)
 		fourth_byte; /*fixed data 0x2: mouse  0x5: keyboard 0x19: touch*/
 	unsigned short seq = 0;
 
-	if (datalen < 0) {
+	if (datalen < 3) {
 		dbgprint(ERROR_LEVEL, "invalid data length\n");
 		return -1;
 	}
@@ -310,10 +331,21 @@ int Nanosic_i2c_parse(char *data, size_t datalen)
 
 	rawdata_show("_rawdata_", data, datalen);
 
-	while (left > 0) {
+	/*
+	 * char is unsigned on arm64, so a packet longer than what is left
+	 * used to wrap the count around and parse the stack after the buffer
+	 * as more key and touch reports. Stop at a packet that does not fit.
+	 */
+	while (left >= 3) {
 		STREAM_TO_UINT8(fourth_byte, p);
 		STREAM_TO_UINT16(seq, p);
 		p -= 3;
+
+		if (Nanosic_i2c_packet_len(fourth_byte) > left) {
+			dbgprint(ERROR_LEVEL, "truncated packet 0x%02x, %d left\n",
+				 fourth_byte, left);
+			break;
+		}
 
 		switch (fourth_byte) {
 		case 0x5:
