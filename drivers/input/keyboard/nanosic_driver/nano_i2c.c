@@ -189,6 +189,8 @@ int Nanosic_i2c_read(struct nano_i2c_client *i2c_client, void *buf, size_t len)
 	addr[0] = i2c_client->i2c_slave_addr;
 
 	adap = i2c_get_adapter(i2c_client->i2c_bus_id);
+	if (!adap)
+		return -1;
 	/*
 	 * Send out the register address...
 	 */
@@ -213,6 +215,7 @@ int Nanosic_i2c_read(struct nano_i2c_client *i2c_client, void *buf, size_t len)
 	}
 
 	mutex_unlock(&i2c_client->read_mutex);
+	i2c_put_adapter(adap);
 
 	return len;
 }
@@ -236,6 +239,8 @@ int Nanosic_i2c_write(struct nano_i2c_client *i2c_client, void *buf, size_t len)
 	Nanosic_PM_try_wakeup(i2c_client);
 
 	adap = i2c_get_adapter(i2c_client->i2c_bus_id);
+	if (!adap)
+		return -1;
 
 	tmp_buf[0] = i2c_client->i2c_slave_addr;
 	memcpy(tmp_buf + const_iaddr_bytes, buf, len);
@@ -254,6 +259,7 @@ int Nanosic_i2c_write(struct nano_i2c_client *i2c_client, void *buf, size_t len)
 	}
 
 	mutex_unlock(&i2c_client->write_mutex);
+	i2c_put_adapter(adap);
 
 	return len;
 }
