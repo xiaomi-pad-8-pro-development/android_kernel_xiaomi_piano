@@ -182,10 +182,18 @@ static int nanosic_803_probe(struct i2c_client *client)
     if(IS_ERR_OR_NULL(vddh_reg))
         dbgprint(ERROR_LEVEL,"Failed to get vddh_reg\n");
 */
+	/* the interrupt and the panel notifier use the key cache */
+	ret = Nanosic_cache_init();
+	if (ret < 0) {
+		dbgprint(ERROR_LEVEL, "Nanosic cache init ERROR!\n");
+		goto _err1;
+	}
+	Nanosic_edge_filter_init(of_node);
+
 	/*initialize chardev module*/
 	ret = Nanosic_chardev_register();
 	if (ret < 0)
-		goto _err1;
+		goto _err_cache;
 
 	/*initialize input module*/
 	ret = Nanosic_input_register();
@@ -213,19 +221,11 @@ static int nanosic_803_probe(struct i2c_client *client)
 	i2c_set_clientdata(client, I2client);
 	gI2c_client = I2client;
 	gI2c_client->dev = &(client->dev);
-	Nanosic_edge_filter_init(of_node);
 	device_init_wakeup(&client->dev, true);
 
 	ret = xiaomi_keyboard_init(I2client);
 	if (ret < 0)
 		goto _err_keyboard;
-	/*initialize timer for test*/
-
-	ret = Nanosic_cache_init();
-	if (ret < 0) {
-		dbgprint(ERROR_LEVEL, "Nanosic cache init ERROR!\n");
-		goto _err4;
-	}
 
 	initial = true;
 	/* create the input devices if the keyboard is already attached */
@@ -234,8 +234,6 @@ static int nanosic_803_probe(struct i2c_client *client)
 
 	return 0;
 
-_err4:
-	Nanosic_cache_release();
 _err_keyboard:
 	xiaomi_keyboard_remove();
 _err3:
@@ -248,6 +246,8 @@ _err3:
 	Nanosic_input_release();
 _err2:
 	Nanosic_chardev_release();
+_err_cache:
+	Nanosic_cache_release();
 _err1:
 	Nanosic_switch_regulator(false);
 	return -1;
