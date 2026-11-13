@@ -5,6 +5,7 @@
  */
 
 #define CREATE_TRACE_POINTS
+#include <linux/vmalloc.h>
 #include "msm_vidc_debug.h"
 #include "msm_vidc_driver.h"
 #include "msm_vidc.h"
@@ -678,7 +679,7 @@ static ssize_t inst_info_read(struct file *file, char __user *buf,
 			"type: %s\n", i == INPUT_PORT ?
 			"Output" : "Capture");
 		cur += write_str(cur, end - cur, "count: %u\n",
-				inst->bufq[i].vb2q->num_buffers);
+				vb2_get_num_buffers(inst->bufq[i].vb2q));
 
 		for (j = 0; j < f->fmt.pix_mp.num_planes; j++)
 			cur += write_str(cur, end - cur,

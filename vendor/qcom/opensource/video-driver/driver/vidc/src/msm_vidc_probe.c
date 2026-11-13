@@ -721,7 +721,7 @@ static int msm_vidc_remove_context_bank(struct platform_device *pdev)
 	return 0;
 }
 
-static int msm_vidc_remove(struct platform_device *pdev)
+static void msm_vidc_remove(struct platform_device *pdev)
 {
 	/*
 	 * Sub devices remove will be triggered by of_platform_depopulate()
@@ -729,13 +729,12 @@ static int msm_vidc_remove(struct platform_device *pdev)
 	 * sub-device remove.
 	 */
 	if (is_video_device(&pdev->dev))
-		return msm_vidc_remove_video_device(pdev);
+		msm_vidc_remove_video_device(pdev);
 	else if (is_video_context_bank_device(&pdev->dev))
-		return msm_vidc_remove_context_bank(pdev);
-
-	/* How did we end up here? */
-	WARN_ON(1);
-	return -EINVAL;
+		msm_vidc_remove_context_bank(pdev);
+	else
+		/* How did we end up here? */
+		WARN_ON(1);
 }
 
 static int msm_vidc_probe_video_device(struct platform_device *pdev)
