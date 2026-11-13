@@ -124,6 +124,67 @@ static int _sde_core_perf_crtc_cesta_update(struct sde_kms *sde_kms, struct sde_
 	return 0;
 }
 
+#ifdef MI_DISPLAY_MODIFY
+static int mi_sde_core_perf_crtc_cesta_update(struct sde_kms *sde_kms, struct sde_crtc *sde_crtc,
+		struct sde_crtc_state *sde_cstate, struct sde_core_perf_params *perf,
+		enum sde_perf_commit_state commit_state, bool check)
+{
+	struct sde_cesta_params params = {0,};
+
+	mutex_lock(&sde_crtc->crtc_cesta_client_lock);
+
+	if (!sde_crtc || !sde_crtc->cesta_client) {
+		mutex_unlock(&sde_crtc->crtc_cesta_client_lock);
+		return 0;
+	}
+
+	/*
+	 * In cases of no clk/bw votes provided by client or perf-mode changed through debugfs
+	 * vote for only the IB for all clients, so that the max vote will not be aggregated
+	 * over all the cesta clients
+	 */
+	if (!sde_cstate->bw_control || (sde_kms->perf.perf_tune.mode != SDE_PERF_MODE_NORMAL))
+		params.max_vote = true;
+
+	perf->ubwc_clk_rate = sde_crtc_get_property(sde_cstate, CRTC_PROP_UBWC_CLK);
+
+	if (commit_state != SDE_PERF_DISABLE_COMMIT) {
+		if (params.max_vote) {
+			params.data.core_clk_rate_ab = 0;
+			params.data.core_clk_rate_ib = sde_kms->perf.max_core_clk_rate;
+			params.data.bw_ab = 0;
+			params.data.bw_ib = sde_kms->catalog->perf.max_bw_high * 1000ull;
+		} else {
+			params.data.core_clk_rate_ab = perf->ubwc_clk_rate;
+			params.data.core_clk_rate_ib = perf->core_clk_rate;
+			params.data.bw_ab = perf->bw_ctl[SDE_POWER_HANDLE_DBUS_ID_MNOC];
+			params.data.bw_ib = perf->max_per_pipe_ib[SDE_POWER_HANDLE_DBUS_ID_MNOC];
+		}
+	}
+
+	params.enable = (commit_state == SDE_PERF_DISABLE_COMMIT) ? false : true;
+	params.post_commit = (commit_state == SDE_PERF_COMPLETE_COMMIT) ? true : false;
+	params.pwr_st_override = ((commit_state == SDE_PERF_ENABLE_COMMIT)
+					|| (commit_state == SDE_PERF_DISABLE_COMMIT)
+					|| (sde_crtc->cesta_client->enabled != params.enable))
+						? true : false;
+	if (check) {
+		int ret = sde_cesta_clk_bw_check(sde_crtc->cesta_client, &params);
+		mutex_unlock(&sde_crtc->crtc_cesta_client_lock);
+		return ret;
+        }
+
+	sde_cesta_clk_bw_update(sde_crtc->cesta_client, &params);
+	mutex_unlock(&sde_crtc->crtc_cesta_client_lock);
+	SDE_EVT32(DRMID(&sde_crtc->base), params.enable, params.post_commit, params.pwr_st_override,
+			commit_state, params.max_vote, params.data.core_clk_rate_ab,
+			params.data.core_clk_rate_ib, params.data.bw_ab, params.data.bw_ib);
+
+	return 0;
+}
+#endif
+
+
 static void _sde_core_perf_calc_crtc(struct sde_kms *kms,
 		struct drm_crtc *crtc,
 		struct drm_crtc_state *state,
@@ -267,8 +328,13 @@ int sde_core_perf_crtc_check(struct drm_crtc *crtc,
 
 	/* do cesta check and return early, when sde cesta is enabled */
 	if (sde_cesta_is_enabled(DPUID(kms->dev)))
+#ifdef MI_DISPLAY_MODIFY
+		return mi_sde_core_perf_crtc_cesta_update(kms, sde_crtc, sde_cstate,
+						&sde_cstate->new_perf, SDE_PERF_NONE_COMMIT, true);
+#else
 		return _sde_core_perf_crtc_cesta_update(kms, sde_crtc, sde_cstate,
 						&sde_cstate->new_perf, SDE_PERF_NONE_COMMIT, true);
+#endif
 
 	/* reserve core clk */
 	current_clk_rate = kms->perf.core_clk_rate;

@@ -220,12 +220,30 @@ module_entry(
             "msm/dsi/dsi_panel.c",
             "msm/dsi/dsi_clk_manager.c",
             "msm/dsi/dsi_display_test.c",
+            "msm/dsi/mi_backlight_ktz8866.c",
         ],
         "CONFIG_DSI_PARSER": [
             "msm/dsi/dsi_parser.c",
         ],
         "CONFIG_THERMAL_OF": [
             "msm/msm_cooling_device.c",
+        ],
+        "MI_DISPLAY_MODIFY": [
+            "msm/mi_disp/mi_disp_core.c",
+            "msm/mi_disp/mi_disp_feature.c",
+            "msm/mi_disp/mi_disp_sysfs.c",
+            "msm/mi_disp/mi_disp_file.c",
+            "msm/mi_disp/mi_disp_procfs.c",
+            "msm/mi_disp/mi_disp_debugfs.c",
+            "msm/mi_disp/mi_disp_log.c",
+            "msm/mi_disp/mi_disp_flatmode.c",
+            "msm/mi_disp/mi_disp_lhbm.c",
+            "msm/mi_disp/mi_disp_parser.c",
+            "msm/mi_disp/mi_dsi_display.c",
+            "msm/mi_disp/mi_dsi_panel.c",
+            "msm/mi_disp/mi_sde_encoder.c",
+            "msm/mi_disp/mi_sde_connector.c",
+            "msm/mi_disp/mi_disp_print.c",
         ],
         "CONFIG_DRM_MSM": [
             "msm/msm_atomic.c",
@@ -263,6 +281,9 @@ module_entry(
 
     # Configs are handled by config_options = []
     config_deps = {
+        "MI_DISPLAY_MODIFY": [
+            "//soc-repo:%b/drivers/soc/qcom/smem",
+        ],
         "CONFIG_QTI_HW_FENCE": [
             "//vendor/qcom/opensource/mm-drivers/hw_fence:%b_msm_hw_fence",
             "//vendor/qcom/opensource/synx-kernel:%b_modules",

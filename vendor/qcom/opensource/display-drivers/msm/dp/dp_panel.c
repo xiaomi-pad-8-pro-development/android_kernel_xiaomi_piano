@@ -887,7 +887,11 @@ static int dp_panel_read_edid(struct dp_panel *dp_panel,
 		(void **)&dp_panel->edid_ctrl);
 	if (!dp_panel->edid_ctrl->edid) {
 		DP_ERR("EDID read failed\n");
+#ifdef MI_DISPLAY_MODIFY
+		ret = -ENOLINK;
+#else
 		ret = -EINVAL;
+#endif
 		goto end;
 	}
 end:
@@ -2187,7 +2191,11 @@ static int dp_panel_convert_to_dp_mode(struct dp_panel *dp_panel,
 			return -EAGAIN;
 		}
 
+#ifdef MI_DISPLAY_MODIFY
+		rc = sde_dsc_populate_dsc_config(&comp_info->dsc_info.config, 0, 0);
+#else
 		rc = sde_dsc_populate_dsc_config(&comp_info->dsc_info.config, 0);
+#endif
 		if (rc) {
 			DP_DEBUG("failed populating dsc params \n");
 			dp_mode->capabilities &= ~DP_PANEL_CAPS_DSC;

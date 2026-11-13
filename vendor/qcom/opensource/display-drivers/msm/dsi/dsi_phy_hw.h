@@ -144,6 +144,10 @@ struct dsi_phy_cfg {
 	enum dsi_phy_type phy_type;
 	unsigned long bit_clk_rate_hz;
 	struct dsi_split_link_config split_link;
+#ifdef MI_DISPLAY_MODIFY
+	unsigned long clk_strength;
+	unsigned long deemph_eq_strength;
+#endif
 	u32 data_lanes;
 };
 
@@ -393,6 +397,10 @@ struct dsi_phy_hw_ops {
 	 * @prepare:	  specify if PLL needs to be turned on or off.
 	 */
 	int (*pll_toggle[MSM_DISP_OP_MAX])(void *pll, bool prepare);
+#ifdef MI_DISPLAY_MODIFY
+	/* get_phy_timing() - read back the PHY timing registers (Xiaomi) */
+	void (*get_phy_timing)(struct dsi_phy_hw *phy, u32 *phy_timming, u32 size);
+#endif
 
 };
 
