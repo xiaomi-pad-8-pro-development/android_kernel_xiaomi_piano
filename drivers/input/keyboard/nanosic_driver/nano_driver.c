@@ -380,12 +380,16 @@ static void keyboard_early_resume_work(struct work_struct *work)
 {
 	int ret = 0;
 	dbgprint(ALERT_LEVEL, "keyboard_early_resume_work: enter\n");
+	/*
+	 * Mark the panel on first, so a key the worker parses meanwhile is
+	 * sent after the cached ones instead of cached behind the flush.
+	 */
+	g_panel_status = true;
 	ret = Nanosic_cache_put();
 	if (ret < 0)
 		dbgprint(ERROR_LEVEL,
 			 "keyboard_early_resume_work: Nanosic_cache_put err:%d\n",
 			 ret);
-	g_panel_status = true;
 	Nanosic_GPIO_sleep(true);
 	Nanosic_workQueue_schedule(gI2c_client->worker);
 }
