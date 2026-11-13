@@ -1,0 +1,16 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ */
+
+/dts-v1/;
+
+#include "prime-lemans-vm.dtsi"
+#include "prime-lemans-vm-mt-la.dtsi"
+
+/ {
+	model = "Qualcomm Technologies, Inc. Lemans Multi LA Prime Virtual Machine";
+	compatible = "qcom,lemans", "qcom,quinvm";
+	qcom,board-id = <0x0 0x2100001>;
+	qcom,sdp = <0x2c6>;
+};

@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/i2c/renesas,slg4dc.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Renesas SLG4DC Low Power Driver IC
+
+maintainers:
+  - Rajesh Bharathwaj <rabharat@qti.qualcomm.com>
+
+properties:
+  compatible:
+    enum:
+      - renesas,slg4dc
+
+  reg:
+    maxItems: 1
+
+required:
+  - compatible
+  - reg
+
+unevaluatedProperties: false
+
+examples:
+  - |
+    #include <dt-bindings/interrupt-controller/arm-gic.h>
+    i2c {
+      #address-cells = <1>;
+      #size-cells = <0>;
+
+      powerdriver@04 {
+        compatible = "renesas,slg4dc";
+        reg = <0x04>;
+      };
+    };
+
+...

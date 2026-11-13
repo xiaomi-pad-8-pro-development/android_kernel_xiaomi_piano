@@ -1,0 +1,100 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/soc/qcom/qcom,pdr-monitor.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Qualcomm Protection Domain Restart (PDR) Monitor
+
+maintainers:
+  - Naina Mehta <nainmeht@qti.qualcomm.com>
+
+description: |
+  The PDR monitor driver provides crash monitoring and symbolized stack trace
+  logging for Qualcomm DSP subsystem protection domains. It registers with the
+  PDR service to receive notifications when protection domains crash and logs
+  detailed crash information including symbolized stack traces.
+
+properties:
+  compatible:
+    const: qcom,pdr-monitor
+
+patternProperties:
+  "^pd-":
+    type: object
+    description: |
+      Child nodes represent individual protection domains to monitor.
+      Each child node must be named with the "pd-" prefix followed by a
+      descriptive identifier. Each node describes a specific PD with its
+      service identifiers and SMEM configuration for crash data retrieval.
+
+    properties:
+      service-name:
+        $ref: /schemas/types.yaml#/definitions/string
+        description: |
+          PDR service name used to register for notifications.
+          Examples: "avs/audio", "tms/servreg", "kernel/elf_loader"
+
+      service-path:
+        $ref: /schemas/types.yaml#/definitions/string
+        description: |
+          PDR service path identifying the protection domain.
+          Examples: "msm/adsp/audio_pd", "msm/cdsp/root_pd"
+
+      qcom,smem-id:
+        $ref: /schemas/types.yaml#/definitions/uint32
+        description: |
+          SMEM item ID containing crash stack trace data for this PD.
+
+      qcom,smem-host:
+        $ref: /schemas/types.yaml#/definitions/uint32
+        description: |
+          SMEM host ID for the subsystem hosting this PD.
+
+    required:
+      - service-name
+      - service-path
+      - qcom,smem-id
+      - qcom,smem-host
+
+    additionalProperties: false
+
+required:
+  - compatible
+
+additionalProperties: false
+
+examples:
+  - |
+    pdr_monitor {
+        compatible = "qcom,pdr-monitor";
+
+        pd-adsp-audio {
+            service-name = "avs/audio";
+            service-path = "msm/adsp/audio_pd";
+            qcom,smem-id = <421>;
+            qcom,smem-host = <1>;
+        };
+
+        pd-adsp-sensor {
+            service-name = "sns/sensor";
+            service-path = "msm/adsp/sensor_pd";
+            qcom,smem-id = <422>;
+            qcom,smem-host = <1>;
+        };
+
+        pd-cdsp-root {
+            service-name = "tms/cdsp";
+            service-path = "msm/cdsp/root_pd";
+            qcom,smem-id = <424>;
+            qcom,smem-host = <2>;
+        };
+
+        pd-wpss-root {
+            service-name = "kernel/elf_loader";
+            service-path = "msm/wpss/root_pd";
+            qcom,smem-id = <426>;
+            qcom,smem-host = <6>;
+        };
+    };
+

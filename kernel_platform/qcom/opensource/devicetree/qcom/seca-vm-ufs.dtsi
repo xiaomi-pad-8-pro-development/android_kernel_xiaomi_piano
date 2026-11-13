@@ -1,0 +1,31 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ */
+
+#include <dt-bindings/gpio/gpio.h>
+
+&soc {
+	ufshc2_mem: ufshc@1d84000 {
+		compatible = "qcom,sa8255p-ufshc";
+		reg = <0x1d84000 0x3000>,
+		      <0x1da5000 0x2000>,
+		      <0x1da4000 0x10>;
+		reg-names = "ufs_mem", "mcq_sqd", "mcq_vs";
+
+		interrupts = <GIC_SPI 4431 IRQ_TYPE_LEVEL_HIGH>;
+		lanes-per-direction = <2>;
+		#reset-cells = <1>;
+
+		msi-parent = <&gic_its 0x14E0>;
+
+		iommus = <&apps_smmu_0 0x14E0 0x0>;
+		qcom,iommu-dma = "bypass";
+
+		dma-coherent;
+		power-domains = <&scmi_power 25>;
+		power-domain-names = "power";
+
+		status = "disabled";
+	};
+};

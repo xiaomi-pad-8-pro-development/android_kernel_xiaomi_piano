@@ -1,0 +1,187 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ */
+
+#include <dt-bindings/clock/qcom,glymur-gcc.h>
+#include "mahua-pmic-overlay.dtsi"
+
+&soc {
+
+};
+
+&smb2370_l_e2 {
+	status = "disabled";
+};
+
+&pmk8850_vadc {
+	pmh0101_sys_therm7 {
+		reg = <PMH0101_ADC5_GEN4_AMUX_THM1_100K_PU(0, PMH0101_SID)>;
+		label = "pmh0101_sys_therm7";
+		qcom,ratiometric;
+		qcom,hw-settle-time = <200>;
+		qcom,adc-tm-type = <1>;
+	};
+};
+
+&thermal_zones {
+	/* SYS_THERM7 */
+	sys-therm-7 {
+		thermal-sensors = <&pmk8850_vadc
+			PMH0101_ADC5_GEN4_AMUX_THM6_GPIO3_100K_PU(0, PMH0101_SID)>;
+
+		trips {
+			active-config0 {
+				temperature = <125000>;
+				hysteresis = <1000>;
+				type = "passive";
+			};
+
+			active-config1 {
+				temperature = <125000>;
+				hysteresis = <1000>;
+				type = "passive";
+			};
+		};
+	};
+};
+
+&ucsi {
+	connector@0 {
+		compatible = "usb-c-connector";
+		reg = <0>;
+
+		power-role = "dual";
+		data-role = "dual";
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+
+				pmic_glink_hs_in: endpoint {
+					remote-endpoint = <&usb_ss0_dwc3_hs>;
+				};
+			};
+
+			port@1 {
+				reg = <1>;
+
+				pmic_glink_ss_in: endpoint {
+					remote-endpoint = <&usb_ss0_qmpphy_out>;
+				};
+			};
+		};
+	};
+};
+
+&smb2370_0_eusb2_repeater {
+	status = "okay";
+	vdd18-supply = <&L15B_E0>;
+	vdd3-supply = <&L7B_E0>;
+};
+
+&usb2_phy_0 {
+	phys = <&smb2370_0_eusb2_repeater>;
+	status = "okay";
+};
+
+&usb3_phy_0 {
+	status = "okay";
+};
+
+&usb_ss0 {
+	status = "okay";
+};
+
+&dwc3_0 {
+	dr_mode = "peripheral";
+	maximum-speed = "high-speed";
+};
+
+&usb_ss0_qmpphy_out {
+	remote-endpoint = <&pmic_glink_ss_in>;
+};
+
+&usb_ss0_dwc3_hs {
+	remote-endpoint = <&pmic_glink_hs_in>;
+};
+
+&ufsphy_mem {
+	vdda-phy-supply = <&pm_f10_c_l1>;
+	vdda-phy-max-microamp = <215800>;
+
+	vdda-pll-supply = <&pm_f10_f_l4_e1>;
+	vdda-pll-max-microamp = <18340>;
+
+	vdda-qref-supply = <&pm_f10_f_l1_e1>;
+	vdda-qref-max-microamp = <30000>;
+
+	vdda-refgen-supply = <&pm_f10_c_l1>;
+	vdda-refgen-max-microamp = <219070>;
+
+	status = "okay";
+};
+
+&ufshc_mem {
+
+	resets = <&gcc GCC_UFS_PHY_BCR>;
+	reset-names = "rst";
+
+	vcc-supply = <&pmh0101_l17>;
+	vcc-max-microamp = <1200000>;
+
+	vccq-supply = <&pmh0101_l12>;
+	vccq-max-microamp = <1200000>;
+
+	qcom,vddp-ref-clk-supply = <&pm_f10_f_l1_e1>;
+	qcom,vddp-ref-clk-max-microamp = <850>;
+
+	qcom,vccq-parent-supply = <&pm_f10_f_s7>;
+	qcom,vccq-parent-max-microamp = <1200000>;
+
+	status = "okay";
+};
+
+&regulator_ocp_notifier {
+	periph-1c1-supply = <&L1B>;
+	periph-1c2-supply = <&L2B>;
+	periph-1c7-supply = <&L7B>;
+	periph-1c8-supply = <&L8B>;
+	periph-1c9-supply = <&L9B>;
+	periph-1ca-supply = <&L10B>;
+	periph-1cb-supply = <&L11B>;
+	periph-1cc-supply = <&L12B>;
+	periph-1cf-supply = <&L15B>;
+	periph-1d1-supply = <&L17B>;
+	periph-1d2-supply = <&L18B>;
+	periph-1e4-supply = <&BOB1>;
+	periph-1e6-supply = <&BOB2>;
+	periph-29b-supply = <&S1C_LEVEL>;
+	periph-2c1-supply = <&L1C>;
+	periph-2c2-supply = <&L2C>;
+	periph-2c3-supply = <&L3C>;
+	periph-2c4-supply = <&L4C>;
+	periph-59b-supply = <&S1F_LEVEL>;
+	periph-59e-supply = <&S2F_LEVEL>;
+	periph-5a1-supply = <&S3F_LEVEL>;
+	periph-5a7-supply = <&S5F_LEVEL>;
+	periph-5ad-supply = <&S7F>;
+	periph-5b0-supply = <&S8F>;
+	periph-5b3-supply = <&S9F>;
+	periph-5b6-supply = <&S10F_LEVEL>;
+	periph-5c1-supply = <&L1F_E1>;
+	periph-5c2-supply = <&L2F>;
+	periph-5c3-supply = <&L3F>;
+	periph-5c4-supply = <&L4F_LEVEL>;
+	periph-7aa-supply = <&S6H_LEVEL>;
+	periph-7ad-supply = <&S7H>;
+	periph-7b0-supply = <&S8H>;
+	periph-7c1-supply = <&L1H>;
+	periph-7c2-supply = <&L2H>;
+	periph-7c3-supply = <&L3H>;
+	periph-7c4-supply = <&L4H>;
+	periph-b9b-supply = <&S1L>;
+};

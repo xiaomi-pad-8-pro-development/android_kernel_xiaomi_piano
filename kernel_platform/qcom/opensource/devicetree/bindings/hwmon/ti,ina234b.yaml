@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/hwmon/ti,ina234b.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Texas Instruments INA234b power/voltage monitor
+
+maintainers:
+  - Rajesh Bharathwaj <rabharat@qti.qualcomm.com>
+
+description: |
+  The INA234b is a high-side current shunt and power monitor with
+  an I2C interface.
+
+properties:
+  compatible:
+    enum:
+      - ti,ina234b
+
+  reg:
+    maxItems: 1
+
+required:
+  - compatible
+  - reg
+
+unevaluatedProperties: false
+
+examples:
+  - |
+    #include <dt-bindings/interrupt-controller/arm-gic.h>
+    i2c {
+      #address-cells = <1>;
+      #size-cells = <0>;
+
+      power-sensor@44 {
+        compatible = "ti,ina234b";
+        reg = <0x44>;
+      };
+    };
+
+...

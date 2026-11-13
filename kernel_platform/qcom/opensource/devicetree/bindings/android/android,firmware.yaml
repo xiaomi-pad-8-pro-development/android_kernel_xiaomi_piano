@@ -1,0 +1,103 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/android/android,firmware.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Android Firmware
+
+description: |
+  The android,firmware node describes configuration parameters for the Android
+  firmware. It is typically a child node of the top-level firmware node and
+  contains sub-nodes for verified boot metadata (vbmeta) and filesystem table
+  (fstab) configuration.
+
+maintainers:
+  - Sameer Sharma <samsha@qti.qualcomm.com>
+
+properties:
+  compatible:
+    const: android,firmware
+
+  boot_devices:
+    $ref: /schemas/types.yaml#/definitions/string
+    description:
+      Comma-separated list of block device paths used for booting Android.
+
+  vbmeta:
+    type: object
+    description: Verified Boot Metadata configuration node.
+    properties:
+      compatible:
+        const: android,vbmeta
+      parts:
+        $ref: /schemas/types.yaml#/definitions/string
+        description:
+          Comma-separated list of partitions included in verified boot.
+    required:
+      - compatible
+    additionalProperties: false
+
+  fstab:
+    type: object
+    description: Filesystem table node for Android mount point definitions.
+    properties:
+      compatible:
+        const: android,fstab
+      vendor:
+        type: object
+        description: Android vendor partition mount configuration.
+        properties:
+          compatible:
+            const: android,vendor
+          dev:
+            $ref: /schemas/types.yaml#/definitions/string
+            description: Block device path for the vendor partition.
+          type:
+            $ref: /schemas/types.yaml#/definitions/string
+            description: Filesystem type (e.g. ext4).
+          mnt_flags:
+            $ref: /schemas/types.yaml#/definitions/string
+            description: Mount flags for the vendor partition.
+          fsmgr_flags:
+            $ref: /schemas/types.yaml#/definitions/string
+            description: Filesystem manager flags.
+          status:
+            $ref: /schemas/types.yaml#/definitions/string
+        required:
+          - compatible
+        additionalProperties: false
+    required:
+      - compatible
+    additionalProperties: false
+
+required:
+  - compatible
+
+additionalProperties: false
+
+examples:
+  - |
+    firmware {
+        android {
+            compatible = "android,firmware";
+            boot_devices = "vdevs/1c0f0000.virtio_blk";
+
+            vbmeta {
+                compatible = "android,vbmeta";
+                parts = "vbmeta,system,vendor";
+            };
+
+            fstab {
+                compatible = "android,fstab";
+                vendor {
+                    compatible = "android,vendor";
+                    dev = "/dev/block/platform/vdevs/1c0f0000.virtio_blk/vdc";
+                    type = "ext4";
+                    mnt_flags = "ro,barrier=1,discard";
+                    fsmgr_flags = "wait";
+                    status = "disabled";
+                };
+            };
+        };
+    };

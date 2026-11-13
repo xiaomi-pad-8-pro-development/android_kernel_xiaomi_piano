@@ -1,0 +1,184 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ */
+
+#include "mahua-pmic-overlay.dtsi"
+
+&pmh0101_gpios {
+	nvme_reg_en: nvme-reg-en-state {
+		pins = "gpio14";
+		function = "normal";
+		bias-disable;
+	};
+};
+
+&pmh0110_f_e0_gpios {
+	touch_avdd_default: touch_avdd_default {
+		pins = "gpio6";
+		function = "normal";
+		input-disable;
+		output-enable;
+		bias-disable;
+		power-source = <0>;
+		qcom,drive-strength = <2>;
+	};
+};
+
+&soc {
+	 nvme_vreg: nvme_vreg {
+		compatible = "regulator-fixed";
+		regulator-name = "nvme_vreg";
+		gpio = <&pmh0101_gpios 14 GPIO_ACTIVE_HIGH>;
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		enable-active-high;
+		regulator-boot-on;
+		startup-delay-us = <40000>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&nvme_reg_en>;
+	};
+
+	touch_vcc: touch_gpio_regulator@0 {
+		compatible = "qti-regulator-fixed";
+		regulator-name = "touch_vcc";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-enable-ramp-delay = <233>;
+		gpio = <&pmh0110_f_e0_gpios 6 0>;
+		enable-active-high;
+		proxy-supply = <&touch_vcc>;
+		qcom,proxy-consumer-enable;
+		pinctrl-names = "default";
+		pinctrl-0 = <&touch_avdd_default>;
+	};
+};
+
+&pcie5 {
+	vreg-3p3-supply = <&nvme_vreg>;
+};
+
+&qupv3_se8_i2c {
+	clock-frequency = <400000>;
+	status = "okay";
+
+	touchscreen@38 {
+		compatible = "hid-over-i2c";
+		reg = <0x38>;
+
+		hid-descr-addr = <0x1>;
+		interrupts-extended = <&tlmm 51 IRQ_TYPE_LEVEL_LOW>;
+		reset-gpios = <&tlmm 48 GPIO_ACTIVE_LOW>;
+		post-power-on-delay-ms = <100>;
+
+		vdd-supply = <&touch_vcc>;
+		vddl-supply = <&L15B>;
+
+		pinctrl-0 = <&ts_int_conn>, <&ts_rst_conn>;
+		pinctrl-names = "default";
+	};
+};
+
+&ucsi {
+	connector@0 {
+		compatible = "usb-c-connector";
+		reg = <0>;
+
+		power-role = "dual";
+		data-role = "dual";
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+
+				pmic_glink_hs_in: endpoint {
+					remote-endpoint = <&usb_ss0_dwc3_hs>;
+				};
+			};
+
+			port@1 {
+				reg = <1>;
+
+				pmic_glink_ss_in: endpoint {
+					remote-endpoint = <&usb_ss0_qmpphy_out>;
+				};
+			};
+		};
+	};
+};
+
+&smb2370_0_eusb2_repeater {
+	status = "okay";
+	vdd18-supply = <&L15B_E0>;
+	vdd3-supply = <&L7B_E0>;
+};
+
+&usb2_phy_0 {
+	phys = <&smb2370_0_eusb2_repeater>;
+	status = "okay";
+};
+
+&usb3_phy_0 {
+	status = "okay";
+};
+
+&usb_ss0 {
+	status = "okay";
+};
+
+&dwc3_0 {
+	dr_mode = "peripheral";
+	maximum-speed = "high-speed";
+};
+
+&usb_ss0_qmpphy_out {
+	remote-endpoint = <&pmic_glink_ss_in>;
+};
+
+&usb_ss0_dwc3_hs {
+	remote-endpoint = <&pmic_glink_hs_in>;
+};
+
+&regulator_ocp_notifier {
+	periph-1c1-supply = <&L1B>;
+	periph-1c2-supply = <&L2B>;
+	periph-1c7-supply = <&L7B>;
+	periph-1c8-supply = <&L8B>;
+	periph-1c9-supply = <&L9B>;
+	periph-1ca-supply = <&L10B>;
+	periph-1cb-supply = <&L11B>;
+	periph-1cc-supply = <&L12B>;
+	periph-1cf-supply = <&L15B>;
+	periph-1d1-supply = <&L17B>;
+	periph-1d2-supply = <&L18B>;
+	periph-1e4-supply = <&BOB1>;
+	periph-1e6-supply = <&BOB2>;
+	periph-29b-supply = <&S1C_LEVEL>;
+	periph-2c1-supply = <&L1C>;
+	periph-2c2-supply = <&L2C>;
+	periph-2c3-supply = <&L3C>;
+	periph-2c4-supply = <&L4C>;
+	periph-59b-supply = <&S1F_LEVEL>;
+	periph-59e-supply = <&S2F_LEVEL>;
+	periph-5a1-supply = <&S3F_LEVEL>;
+	periph-5a7-supply = <&S5F_LEVEL>;
+	periph-5ad-supply = <&S7F>;
+	periph-5b0-supply = <&S8F>;
+	periph-5b3-supply = <&S9F>;
+	periph-5b6-supply = <&S10F_LEVEL>;
+	periph-5c1-supply = <&L1F_E1>;
+	periph-5c2-supply = <&L2F>;
+	periph-5c3-supply = <&L3F>;
+	periph-5c4-supply = <&L4F_LEVEL>;
+	periph-7aa-supply = <&S6H_LEVEL>;
+	periph-7ad-supply = <&S7H>;
+	periph-7b0-supply = <&S8H>;
+	periph-7c1-supply = <&L1H>;
+	periph-7c2-supply = <&L2H>;
+	periph-7c3-supply = <&L3H>;
+	periph-7c4-supply = <&L4H>;
+	periph-b9b-supply = <&S1L>;
+};
