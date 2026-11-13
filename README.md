@@ -1,7 +1,7 @@
 # Kernel 6.12 bring-up for the Xiaomi Pad 8 Pro (piano)
 
 Research branch, not used by any ROM build. The daily kernel stays on
-`seventeen` (android15-6.6).
+`6.6` (android15-6.6).
 
 The 6.12 kernel is Qualcomm KERNEL.PLATFORM.5.0 r48-00400 (ACK
 android16-6.12.81 plus the sun SoC drivers), with `common`
@@ -74,6 +74,13 @@ source, so piano's own drivers are ported from 6.6.
     the first N modules of modules.load, for bisecting
   - `r612.sh <N>` (Mac) flashes a round on slot a, waits for fastboot,
     restores the 6.6 slot and saves the boot log
+  - `sign612.sh <slot a backup>` signs a round for slot a with the
+    slot's own vbmeta; `round612.sh <name>` (Mac) boots a signed round on
+    slot a and ends in recovery with the logs; `restore612.sh` (Mac)
+    puts the 6.6 slot a back
+  - `dlkm612-block.sh <tag> <module.ko>...` repacks vendor_dlkm with
+    modules blocklisted; `swapko612.sh <target> <module.ko>` rebuilds one
+    module into vendor_dlkm and re-signs
 
 ## Debugging
 
