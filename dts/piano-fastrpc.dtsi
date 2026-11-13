@@ -1,0 +1,237 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * FastRPC nodes for the 6.12 dsp-kernel driver. CLO's 6.12 sun devicetree
+ * has none; these come from the stock piano 6.6 devicetree, with phandles
+ * mapped to the 6.12 labels. This driver names domains by type (lpass,
+ * nsp) and registers the legacy adsp/cdsp device names from them.
+ */
+
+&remoteproc_adsp_glink {
+	qcom,fastrpc {
+		qcom,vmids = <0x16 0x25>;
+		memory-region = <&adsp_mem_heap>;
+		label = "lpass";
+		dsp-type = <2>;
+		instance-id = <0>;
+		qcom,intents = <0x181 0x40>;
+		qcom,glink-channels = "fastrpcglink-apps-dsp";
+		compatible = "qcom,fastrpc";
+
+		compute-cb@1 {
+			pd-type = <0x01>;
+			qcom,iova-best-fit;
+			dma-coherent;
+			qcom,iommu-faults = "stall-disable\0HUPCF";
+			iommus = <&apps_smmu 0x1003 0x80>, <&apps_smmu 0x1043 0x20>;
+			reg = <0x03>;
+			compatible = "qcom,fastrpc-compute-cb";
+		};
+
+		compute-cb@2 {
+			pd-type = <0x03>;
+			qcom,iova-best-fit;
+			dma-coherent;
+			qcom,nsessions = <0x08>;
+			qcom,iommu-faults = "stall-disable\0HUPCF";
+			iommus = <&apps_smmu 0x1004 0x80>, <&apps_smmu 0x1044 0x20>;
+			reg = <0x04>;
+			compatible = "qcom,fastrpc-compute-cb";
+		};
+
+		compute-cb@3 {
+			pd-type = <0x02>;
+			qcom,iova-best-fit;
+			dma-coherent;
+			qcom,iommu-faults = "stall-disable\0HUPCF";
+			iommus = <&apps_smmu 0x1005 0x80>, <&apps_smmu 0x1045 0x20>;
+			reg = <0x05>;
+			compatible = "qcom,fastrpc-compute-cb";
+		};
+
+		compute-cb@4 {
+			pd-type = <0x05>;
+			qcom,iova-best-fit;
+			dma-coherent;
+			qcom,iommu-faults = "stall-disable\0HUPCF";
+			iommus = <&apps_smmu 0x1006 0x80>, <&apps_smmu 0x1046 0x20>;
+			reg = <0x06>;
+			compatible = "qcom,fastrpc-compute-cb";
+		};
+
+		compute-cb@5 {
+			pd-type = <0x07>;
+			qcom,iova-max-align-shift = <0x09>;
+			qcom,iova-best-fit;
+			dma-coherent;
+			qcom,iommu-faults = "stall-disable\0HUPCF";
+			iommus = <&apps_smmu 0x1007 0x40>, <&apps_smmu 0x1067 0x00>, <&apps_smmu 0x1087 0x00>;
+			reg = <0x07>;
+			compatible = "qcom,fastrpc-compute-cb";
+		};
+
+		compute-cb@6 {
+			pd-type = <0x07>;
+			qcom,iova-max-align-shift = <0x09>;
+			qcom,iova-best-fit;
+			dma-coherent;
+			qcom,iommu-faults = "stall-disable\0HUPCF";
+			iommus = <&apps_smmu 0x1008 0x80>, <&apps_smmu 0x1048 0x20>;
+			reg = <0x08>;
+			compatible = "qcom,fastrpc-compute-cb";
+		};
+	};
+};
+
+&remoteproc_cdsp_glink {
+	qcom,fastrpc {
+		qcom,single-core-latency-vote;
+		qcom,rpc-latency-us = <0xeb>;
+		qcom,fastrpc-gids = <0xb5c>;
+		label = "nsp";
+		dsp-type = <1>;
+		instance-id = <0>;
+		qcom,intents = <0x3fa 0x40>;
+		qcom,glink-channels = "fastrpcglink-apps-dsp";
+		compatible = "qcom,fastrpc";
+
+		compute-cb@1 {
+			pd-type = <0x01>;
+			qcom,iova-best-fit;
+			dma-coherent;
+			qcom,iommu-faults = "stall-disable\0HUPCF";
+			iommus = <&apps_smmu 0x19c1 0x00>, <&apps_smmu 0xc21 0x00>, <&apps_smmu 0xc01 0x40>;
+			reg = <0x01>;
+			compatible = "qcom,fastrpc-compute-cb";
+		};
+
+		compute-cb@2 {
+			pd-type = <0x07>;
+			qcom,iova-max-align-shift = <0x09>;
+			qcom,iova-best-fit;
+			dma-coherent;
+			qcom,iommu-faults = "stall-disable\0HUPCF";
+			iommus = <&apps_smmu 0x1962 0x00>, <&apps_smmu 0xc02 0x20>, <&apps_smmu 0xc42 0x00>, <&apps_smmu 0x19c2 0x00>;
+			reg = <0x02>;
+			compatible = "qcom,fastrpc-compute-cb";
+		};
+
+		compute-cb@3 {
+			pd-type = <0x07>;
+			qcom,iova-max-align-shift = <0x09>;
+			qcom,iova-best-fit;
+			dma-coherent;
+			qcom,iommu-faults = "stall-disable\0HUPCF";
+			iommus = <&apps_smmu 0x1963 0x00>, <&apps_smmu 0xc23 0x00>, <&apps_smmu 0xc03 0x40>, <&apps_smmu 0x19c3 0x00>;
+			reg = <0x03>;
+			compatible = "qcom,fastrpc-compute-cb";
+		};
+
+		compute-cb@4 {
+			pd-type = <0x07>;
+			qcom,iova-max-align-shift = <0x09>;
+			qcom,iova-best-fit;
+			dma-coherent;
+			qcom,iommu-faults = "stall-disable\0HUPCF";
+			iommus = <&apps_smmu 0x1964 0x00>, <&apps_smmu 0xc24 0x00>, <&apps_smmu 0xc04 0x40>, <&apps_smmu 0x19c4 0x00>;
+			reg = <0x04>;
+			compatible = "qcom,fastrpc-compute-cb";
+		};
+
+		compute-cb@5 {
+			alloc-size-range = <0x4000000 0xffffffff>;
+			pd-type = <0x09>;
+			qcom,iova-max-align-shift = <0x09>;
+			qcom,iova-best-fit;
+			dma-coherent;
+			qcom,iommu-faults = "stall-disable\0HUPCF";
+			iommus = <&apps_smmu 0x1965 0x00>, <&apps_smmu 0xc25 0x00>, <&apps_smmu 0xc05 0x40>, <&apps_smmu 0x19c5 0x00>;
+			reg = <0x05>;
+			compatible = "qcom,fastrpc-compute-cb";
+		};
+
+		compute-cb@6 {
+			alloc-size-range = <0x4000000 0xffffffff>;
+			pd-type = <0x09>;
+			qcom,iova-max-align-shift = <0x09>;
+			qcom,iova-best-fit;
+			dma-coherent;
+			qcom,iommu-faults = "stall-disable\0HUPCF";
+			iommus = <&apps_smmu 0x1966 0x00>, <&apps_smmu 0xc06 0x20>, <&apps_smmu 0xc46 0x00>, <&apps_smmu 0x19c6 0x00>;
+			reg = <0x06>;
+			compatible = "qcom,fastrpc-compute-cb";
+		};
+
+		compute-cb@7 {
+			alloc-size-range = <0x1000000 0xffffffff>;
+			pd-type = <0x09>;
+			qcom,iova-max-align-shift = <0x09>;
+			qcom,iova-best-fit;
+			dma-coherent;
+			qcom,iommu-faults = "stall-disable\0HUPCF";
+			iommus = <&apps_smmu 0x1967 0x00>, <&apps_smmu 0xc27 0x00>, <&apps_smmu 0xc07 0x40>, <&apps_smmu 0x19c7 0x00>;
+			reg = <0x07>;
+			compatible = "qcom,fastrpc-compute-cb";
+		};
+
+		compute-cb@8 {
+			alloc-size-range = <0x1000000 0xffffffff>;
+			pd-type = <0x09>;
+			qcom,iova-max-align-shift = <0x09>;
+			qcom,iova-best-fit;
+			dma-coherent;
+			qcom,iommu-faults = "stall-disable\0HUPCF";
+			iommus = <&apps_smmu 0x1968 0x00>, <&apps_smmu 0xc08 0x20>, <&apps_smmu 0xc48 0x00>, <&apps_smmu 0x19c8 0x00>;
+			reg = <0x08>;
+			compatible = "qcom,fastrpc-compute-cb";
+		};
+
+		compute-cb@9 {
+			pd-type = <0x06>;
+			qcom,iova-best-fit;
+			dma-coherent;
+			qcom,nsessions = <0x03>;
+			qcom,iommu-vmid = <0x0a>;
+			qcom,iommu-faults = "stall-disable\0HUPCF";
+			iommus = <&apps_smmu 0x1969 0x00>, <&apps_smmu 0xc29 0x00>, <&apps_smmu 0xc09 0x40>, <&apps_smmu 0x19c9 0x00>;
+			qcom,secure-context-bank;
+			reg = <0x09>;
+			compatible = "qcom,fastrpc-compute-cb";
+		};
+
+		compute-cb@10 {
+			alloc-size-range = <0x00 0xffffffff>;
+			pd-type = <0x09>;
+			qcom,iova-max-align-shift = <0x09>;
+			qcom,iova-best-fit;
+			dma-coherent;
+			qcom,iommu-faults = "stall-disable\0HUPCF";
+			iommus = <&apps_smmu 0x196c 0x00>, <&apps_smmu 0xc2c 0x00>, <&apps_smmu 0xc0c 0x40>, <&apps_smmu 0x19cc 0x00>;
+			reg = <0x0c>;
+			compatible = "qcom,fastrpc-compute-cb";
+		};
+
+		compute-cb@11 {
+			alloc-size-range = <0x00 0xffffffff>;
+			pd-type = <0x09>;
+			qcom,iova-max-align-shift = <0x09>;
+			qcom,iova-best-fit;
+			dma-coherent;
+			qcom,iommu-faults = "stall-disable\0HUPCF";
+			iommus = <&apps_smmu 0x196d 0x00>, <&apps_smmu 0xc0d 0x20>, <&apps_smmu 0xc2e 0x00>, <&apps_smmu 0xc4d 0x00>, <&apps_smmu 0x19cd 0x00>;
+			reg = <0x0d>;
+			compatible = "qcom,fastrpc-compute-cb";
+		};
+
+		compute-cb@12 {
+			alloc-size-range = <0x00 0xffffffff>;
+			pd-type = <0x09>;
+			qcom,iova-max-align-shift = <0x09>;
+			qcom,iova-best-fit;
+			dma-coherent;
+			qcom,iommu-faults = "stall-disable\0HUPCF";
+			iommus = <&apps_smmu 0x196e 0x00>, <&apps_smmu 0xc0e 0x40>, <&apps_smmu 0x19ce 0x00>;
+			reg = <0x0e>;
+			compatible = "qcom,fastrpc-compute-cb";
+		};
+	};
+};
