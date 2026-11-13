@@ -75,7 +75,7 @@ int md_eva_dump(const char* name, u64 virt, u64 phys, u64 size)
 	if (msm_minidump_enabled()) {
 		dprintk(CVP_INFO, "Minidump is enabled!\n");
 
-		strlcpy(md_entry.name, name, sizeof(md_entry.name));
+		strscpy(md_entry.name, name, sizeof(md_entry.name));
 		md_entry.virt_addr = (uintptr_t)virt;
 		md_entry.phys_addr = phys;
 		md_entry.size = size;
@@ -160,7 +160,7 @@ void add_va_node_to_list(enum cvp_dump_type type, void *buff_va, u32 buff_size,
 
 	temp_node->va_md_buff = buff_va;
 	temp_node->va_md_buff_size = buff_size;
-	strlcpy(temp_node->region_name, region_name,
+	strscpy(temp_node->region_name, region_name,
 		sizeof(temp_node->region_name));
 	temp_node->copy = copy;
 
@@ -257,7 +257,7 @@ static int eva_hfiq_list_notif_handler(struct notifier_block *this,
 			}
 		}
 		entry.size = cursor->va_md_buff_size;
-		strlcpy(entry.owner, cursor->region_name, sizeof(entry.owner));
+		strscpy(entry.owner, cursor->region_name, sizeof(entry.owner));
 		entry.cb = NULL;
 
 		if (msm_cvp_minidump_enable) {
@@ -298,7 +298,7 @@ static int eva_struct_list_notif_handler(struct notifier_block *this,
 			}
 		}
 		entry.size = cursor->va_md_buff_size;
-		strlcpy(entry.owner, cursor->region_name, sizeof(entry.owner));
+		strscpy(entry.owner, cursor->region_name, sizeof(entry.owner));
 		entry.cb = NULL;
 
 		if (msm_cvp_minidump_enable) {

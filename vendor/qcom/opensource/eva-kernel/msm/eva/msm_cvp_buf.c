@@ -74,7 +74,7 @@ int print_smem(u32 tag, const char *str, struct msm_cvp_inst *inst,
 	if (smem->dma_buf) {
 		i = get_pkt_index_from_type(smem->pkt_type);
 		if (i > 0)
-			strlcpy(name, cvp_hfi_defs[i].name, PKT_NAME_LEN);
+			strscpy(name, cvp_hfi_defs[i].name, PKT_NAME_LEN);
 
 		if (!atomic_read(&smem->refcount))
 			dprintk(tag,
@@ -241,32 +241,16 @@ static bool __is_buf_valid(struct msm_cvp_inst *inst,
 static struct file *msm_cvp_fget(unsigned int fd, struct task_struct *task,
 			fmode_t mask, unsigned int refs)
 {
-	struct files_struct *files = task->files;
-	struct file *file;
-
-	if (!files)
+	/*
+	 * files_lookup_fd_rcu() is gone in 6.12 and fget_task() is not
+	 * exported. Buffers are mapped from the client's ioctl, so its file
+	 * table is the current one; fget() already skips FMODE_PATH files.
+	 */
+	if (!task->files || task->files != current->files) {
+		dprintk(CVP_ERR, "%s: fd %u not from the client\n", __func__, fd);
 		return NULL;
-
-	rcu_read_lock();
-loop:
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 13, 0))
-	file = fcheck_files(files, fd);
-#else
-	file = files_lookup_fd_rcu(files, fd);
-#endif
-	if (file) {
-		/* File object ref couldn't be taken.
-		 * dup2() atomicity guarantee is the reason
-		 * we loop to catch the new file (or NULL pointer)
-		 */
-		if (file->f_mode & mask)
-			file = NULL;
-		else if (!get_file_rcu(file))
-			goto loop;
 	}
-	rcu_read_unlock();
-
-	return file;
+	return mask == FMODE_PATH ? fget(fd) : NULL;
 }
 
 static struct dma_buf *cvp_dma_buf_get(struct file *file, int fd,
