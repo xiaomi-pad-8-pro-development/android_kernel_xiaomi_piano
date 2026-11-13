@@ -36,6 +36,10 @@ Updated 2026-11-13.
    out of vendor_dlkm by dlkm612.sh.
 10. Full test on 6.12.96: Wi-Fi speed, charging, audio, fingerprint,
     camera, pen, reading mode, overnight sleep and battery drain.
+11. Convert the branch to full source once 6.12 passes the tests: one
+    tree with kernel_platform/common (Google 6.12 plus Qualcomm) and every
+    Qualcomm techpack under vendor/, like a Xiaomi OSS kernel release,
+    with each piano change as its own commit on top.
 
 ## Not needed on piano
 
