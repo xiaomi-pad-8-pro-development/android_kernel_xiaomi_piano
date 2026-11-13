@@ -119,7 +119,7 @@ void Nanosic_edge_filter(u8 *report, size_t len)
 {
 	bool touching[CONTACTS] = { false };
 	int slot_of[CONTACTS];
-	int i, fingers = 0, hidden = 0;
+	int i, fingers = 0;
 	unsigned long flags;
 
 	if (!edge_filter || !cfg.ready || len < COUNT_OFFSET + 1)
@@ -168,12 +168,13 @@ void Nanosic_edge_filter(u8 *report, size_t len)
 			slots[s].state = SLOT_NORMAL;
 			continue;
 		}
+		/*
+		 * Keep the contact count: hid-multitouch reads that many
+		 * contacts in order and counts a lifted one too, so lowering it
+		 * would drop a finger that follows the hidden palm.
+		 */
 		c[0] &= ~(FLAG_TIP | FLAG_IN_RANGE | FLAG_VALID);
-		hidden++;
 	}
-
-	if (hidden && report[COUNT_OFFSET] >= hidden)
-		report[COUNT_OFFSET] -= hidden;
 
 	spin_unlock_irqrestore(&filter_lock, flags);
 }
