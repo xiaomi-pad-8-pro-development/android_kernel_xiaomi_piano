@@ -290,12 +290,12 @@ static int ut_test_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int ut_test_remove(struct platform_device *pdev)
+static void ut_test_remove(struct platform_device *pdev)
 {
 	struct ut_test *ut = platform_get_drvdata(pdev);
 
 	class_unregister(&ut->class);
-	return 0;
+	return;
 }
 
 static const struct of_device_id ut_test_of_match[] = {

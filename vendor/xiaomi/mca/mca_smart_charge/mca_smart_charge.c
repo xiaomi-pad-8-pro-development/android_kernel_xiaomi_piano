@@ -880,8 +880,8 @@ update_smart_bypass_temp_section(struct smart_charge_info *info,
 			info->bypass_temp_index = i;
 		}
 
-		mca_log_err("for_bypass board_temp:%d, cur_temp_index:%d\n",
-			    board_temp, report_index);
+		mca_log_info("for_bypass board_temp:%d, cur_temp_index:%d\n",
+			     board_temp, report_index);
 		return;
 	}
 
@@ -899,12 +899,12 @@ static void smart_charge_check_bypass_status(struct smart_charge_info *info)
 	}
 
 	if (!once_flag) {
-		mca_log_err("for_bypass start time\n");
+		mca_log_info("for_bypass start time\n");
 		info->bypass_start_time = ktime_get_boottime();
 	} else {
 		if (ktime_get_boottime() >
 		    info->bypass_start_time + SMART_BYPASS_DEBOUNCE_NS) {
-			mca_log_err("for_bypass exit bypass\n");
+			mca_log_info("for_bypass exit bypass\n");
 			mca_vote(info->smartchg_set_fcc_voter, "smart_bypass",
 				 false, 0);
 			info->bypass_exit_flag = true;
@@ -914,9 +914,9 @@ static void smart_charge_check_bypass_status(struct smart_charge_info *info)
 	}
 	once_flag = prev ^ 1;
 debounce:
-	mca_log_err("for_bypass Debounce: %lld s\n",
-		    (ktime_get_boottime() - info->bypass_start_time) /
-			    NSEC_PER_SEC);
+	mca_log_info("for_bypass Debounce: %lld s\n",
+		     (ktime_get_boottime() - info->bypass_start_time) /
+			     NSEC_PER_SEC);
 }
 
 static const int smart_bypass_med_scenes[] = { 0x08, 0x0b, 0x1c,
@@ -947,12 +947,12 @@ static void smart_charge_handle_bypass_chg(struct smart_charge_info *info)
 
 	soc = strategy_class_fg_ops_get_soc();
 	if (soc < info->bypass_entry_soc || soc > info->bypass_exit_soc) {
-		mca_log_err("for_bypass soc not in range, quit bypass mode\n");
+		mca_log_info("for_bypass soc not in range, quit bypass mode\n");
 		state = 0;
 		goto report;
 	}
 	if (info->wls_online) {
-		mca_log_err("for_bypass wlschg online, quit bypass mode\n");
+		mca_log_info("for_bypass wlschg online, quit bypass mode\n");
 		state = 0;
 		goto report;
 	}
@@ -982,8 +982,8 @@ static void smart_charge_handle_bypass_chg(struct smart_charge_info *info)
 	}
 
 report:
-	mca_log_err("for_bypass [%d->%d] fcc[%d %d]\n", info->last_bypass_state,
-		    state, fcc, info->last_bypass_fcc);
+	mca_log_info("for_bypass [%d->%d] fcc[%d %d]\n", info->last_bypass_state,
+		     state, fcc, info->last_bypass_fcc);
 	if (info->last_bypass_state != state) {
 		info->last_bypass_state = state;
 		if (state == 0)
@@ -1480,8 +1480,13 @@ static int smart_charge_cal_checksum(struct smart_charge_info *info)
 		return -1;
 	}
 
-	for (i = sizeof(int); i < total_len; i++)
+	/* Byte sum of the buffer with the checksum field taken as zero. */
+	for (i = 0; i < total_len; i++) {
+		if (i >= offsetof(struct smart_basp_header, checksum) &&
+		    i < offsetof(struct smart_basp_header, checksum) + sizeof(u32))
+			continue;
 		checksum += (uint8_t)temp_buff[i];
+	}
 
 	mca_log_err("cal checksum %d, origin checksum %d\n", checksum,
 		    basp_header->checksum);
@@ -1863,7 +1868,7 @@ error1:
 	return -1;
 }
 
-static int smart_charge_remove(struct platform_device *pdev)
+static void smart_charge_remove(struct platform_device *pdev)
 {
 	struct smart_charge_info *info = platform_get_drvdata(pdev);
 
@@ -1875,7 +1880,7 @@ static int smart_charge_remove(struct platform_device *pdev)
 	mca_event_block_notify_unregister(MCA_EVENT_TYPE_PANEL,
 					  &info->panel_nb);
 
-	return 0;
+	return;
 }
 
 static const struct of_device_id match_table[] = {

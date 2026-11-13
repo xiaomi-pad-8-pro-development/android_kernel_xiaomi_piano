@@ -139,13 +139,13 @@ error:
 	return rc;
 }
 
-static int business_battery_remove(struct platform_device *pdev)
+static void business_battery_remove(struct platform_device *pdev)
 {
 	//struct business_battery *battery = platform_get_drvdata(pdev);
 
 	//cancel_work_sync(&battery->event_process_work);
 
-	return 0;
+	return;
 }
 
 static void business_battery_shutdown(struct platform_device *pdev)

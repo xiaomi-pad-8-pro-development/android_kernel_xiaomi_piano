@@ -2429,10 +2429,10 @@ static const struct of_device_id match_table[] = {
 	{},
 };
 
-static int mca_wireless_revchg_remove(struct platform_device *pdev)
+static void mca_wireless_revchg_remove(struct platform_device *pdev)
 {
 	strategy_wireless_rev_remove_group(&pdev->dev);
-	return 0;
+	return;
 }
 
 static void mca_wireless_revchg_shutdown(struct platform_device *pdev)

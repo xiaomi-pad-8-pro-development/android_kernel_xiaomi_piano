@@ -1098,7 +1098,7 @@ static int qbg_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int qbg_remove(struct platform_device *pdev)
+static void qbg_remove(struct platform_device *pdev)
 {
 	struct qbg_info *info = platform_get_drvdata(pdev);
 
@@ -1106,7 +1106,7 @@ static int qbg_remove(struct platform_device *pdev)
 		mca_sysfs_remove_group("xm_power", info->sysfs_dev,
 				       &qbg_sysfs_attr_group);
 
-	return 0;
+	return;
 }
 
 static const struct of_device_id qbg_of_match[] = {

@@ -1088,9 +1088,9 @@ static int platform_cp_class_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int platform_cp_class_remove(struct platform_device *pdev)
+static void platform_cp_class_remove(struct platform_device *pdev)
 {
-	return 0;
+	return;
 }
 
 static void platform_cp_class_shutdown(struct platform_device *pdev)

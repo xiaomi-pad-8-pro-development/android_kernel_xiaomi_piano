@@ -348,9 +348,9 @@ static int mca_vbat_ovp_mon_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int mca_vbat_ovp_mon_remove(struct platform_device *pdev)
+static void mca_vbat_ovp_mon_remove(struct platform_device *pdev)
 {
-	return 0;
+	return;
 }
 
 static void mca_vbat_ovp_mon_shutdown(struct platform_device *pdev)

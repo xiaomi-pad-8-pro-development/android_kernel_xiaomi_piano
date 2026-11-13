@@ -7,11 +7,9 @@
  * BASP (battery aging safety/spec) blob layout, parsed by mca_smart_charge.c
  * from mmap'd memory via sizeof()/offsetof().
  *
- * WARNING: the open-source drop ships NO definition for these structs. The
- * layout below is INFERRED from field usage only and is NOT verified against
- * the real binary format. It lets the module build; the BAA/spec-override
- * runtime path is unreliable and should be treated as unsupported until the
- * true layout is obtained.
+ * The open-source drop ships no definition for these structs. The layout was
+ * confirmed on piano (2026-11-10) against the buffer the stock battery
+ * anti-aging service sends: total_len 496, checksum 12642, counts 2/9/2/2/0/0.
  */
 struct smart_batt_spec_curve {
 	int mv;
@@ -42,9 +40,9 @@ struct smart_batt_spec {
 };
 
 struct smart_basp_header {
-	u32 type;
 	u32 total_len;
 	u32 checksum;
+	u32 type;
 	u32 jeita_ffc_term_size;
 	u32 jeita_normal_term_size;
 	u32 wired_ffc_size;

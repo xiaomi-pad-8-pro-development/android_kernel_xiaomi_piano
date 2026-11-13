@@ -563,13 +563,13 @@ static int slg2_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int slg2_remove(struct platform_device *pdev)
+static void slg2_remove(struct platform_device *pdev)
 {
 	struct slg2_info *info = platform_get_drvdata(pdev);
 
 	onewire_auth_remove_chip(&info->chip);
 
-	return 0;
+	return;
 }
 
 static const struct of_device_id slg2_of_match[] = {

@@ -4923,13 +4923,13 @@ static void strategy_wireless_stop_irq_worker(struct strategy_wireless_dev *info
 	cancel_delayed_work_sync(&info->process_irq_work);
 }
 
-static int basic_wireless_class_remove(struct platform_device *pdev)
+static void basic_wireless_class_remove(struct platform_device *pdev)
 {
 	struct strategy_wireless_dev *info = platform_get_drvdata(pdev);
 
 	strategy_wireless_stop_irq_worker(info);
 	strategy_wireless_remove_group(&pdev->dev);
-	return 0;
+	return;
 }
 
 static void basic_wireless_class_shutdown(struct platform_device *pdev)

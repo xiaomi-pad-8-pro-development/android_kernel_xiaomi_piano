@@ -19,6 +19,7 @@
 
 #include <crypto/ecdh.h>
 #include <crypto/internal/ecc.h>
+#include <crypto/hash.h>
 #include <crypto/sha2.h>
 #include <linux/device.h>
 #include <linux/gpio/consumer.h>
@@ -30,10 +31,23 @@
 #include <linux/slab.h>
 #include <linux/string.h>
 #include <linux/workqueue.h>
-#include <asm/unaligned.h>
+#include <linux/unaligned.h>
 #include <mca/common/mca_log.h>
 #include <mca/common/mca_smem.h>
 #include <mca/hardware/onewire_auth.h>
+
+/* GKI does not export the sha256() library helper; use the hash API. */
+static int piano_sha256(const u8 *data, unsigned int len, u8 *out)
+{
+	struct crypto_shash *tfm = crypto_alloc_shash("sha256", 0, 0);
+	int ret;
+
+	if (IS_ERR(tfm))
+		return PTR_ERR(tfm);
+	ret = crypto_shash_tfm_digest(tfm, data, len, out);
+	crypto_free_shash(tfm);
+	return ret;
+}
 
 #ifndef MCA_LOG_TAG
 #define MCA_LOG_TAG "onewire_auth_core"
@@ -108,7 +122,7 @@ int onewire_auth_ecdsa_verify(const u8 *pub_x, const u8 *pub_y,
 	    vli_is_zero(s, ndigits) || vli_cmp(s, curve->n, ndigits) >= 0)
 		return -EBADMSG;
 
-	sha256(msg, len, digest);
+	piano_sha256(msg, len, digest);
 	ow_be_to_vli(digest, hash, ndigits);
 
 	/* u1 = hash / s, u2 = r / s, then R = u1 * G + u2 * Q */
@@ -574,7 +588,7 @@ static int onewire_auth_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int onewire_auth_remove(struct platform_device *pdev)
+static void onewire_auth_remove(struct platform_device *pdev)
 {
 	struct onewire_auth_info *info = platform_get_drvdata(pdev);
 
@@ -584,7 +598,7 @@ static int onewire_auth_remove(struct platform_device *pdev)
 
 	cancel_delayed_work_sync(&info->detect_work);
 
-	return 0;
+	return;
 }
 
 static const struct of_device_id onewire_auth_of_match[] = {

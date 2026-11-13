@@ -62,9 +62,9 @@ static int business_misc_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int business_misc_remove(struct platform_device *pdev)
+static void business_misc_remove(struct platform_device *pdev)
 {
-	return 0;
+	return;
 }
 
 static void business_misc_shutdown(struct platform_device *pdev)

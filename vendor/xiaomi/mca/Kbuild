@@ -1,0 +1,28 @@
+# Xiaomi MCA charging stack for the Pad 8 Pro (piano), built out of tree
+# against the Qualcomm 6.12 kernel. The options match piano_defconfig on 6.6
+# and are exported, since each subfolder is read by its own make.
+MCA_ROOT := $(if $(filter /%,$(KBUILD_EXTMOD)),$(KBUILD_EXTMOD),$(abspath $(srctree)/$(KBUILD_EXTMOD)))
+
+MCA_MODULES := XM_POWER_SUPPLY MCA_PROTOCOL_PD MCA_PROTOCOL_QC \
+	MCA_EXTERNAL_FG MCA_ONEWIRE_AUTH MCA_ONEWIRE_AUTH_ACL16_SLG2 \
+	MCA_ONEWIRE_AUTH_DS28E30 MCA_EXTERNAL_CP MCA_EXTERNAL_CP_SC8541 \
+	MCA_EXTERNAL_WIRELESS MCA_EXTERNAL_WIRELESS_SC96231 MCA_EXTERNAL_BOOST \
+	MCA_QCOM_SUBPMIC MCA_QCOM_ADSP MCA_QCOM_SYSFS MCA_QCOM_SMEM \
+	MCA_QCOM_PANEL MCA_UT_TEST CHARGER_PARTITION MI_HARDWARE_ID MIEV
+$(foreach m,$(MCA_MODULES),$(eval export CONFIG_$(m) := m))
+subdir-ccflags-y += $(foreach m,$(MCA_MODULES),-DCONFIG_$(m)_MODULE=1)
+subdir-ccflags-y += -I$(MCA_ROOT)/include -I$(MCA_ROOT)/hwid -I$(MCA_ROOT)/miev
+# The soc-repo modules these call into are not in the base kernel config, so
+# without these the headers compile in their -ENODEV stubs. The battery
+# charger one is mca_qcom_subpmic_proxy itself: it provides that API, and
+# its symbol versions must match the header the flash LED driver used.
+subdir-ccflags-y += -DCONFIG_QTI_PMIC_GLINK_MODULE=1 \
+	-DCONFIG_QCOM_FSA4480_I2C_MODULE=1 -DCONFIG_QCOM_PANEL_EVENT_NOTIFIER_MODULE=1 \
+	-DCONFIG_QTI_BATTERY_CHARGER_MODULE=1
+
+# fsa4480: the 6.12 sun build leaves out this USB-C switch, which piano has.
+obj-m += hwid/ miev/ fsa4480/
+obj-m += mca_common/ mca_shared_memory/ mca_platform/ mca_protocol/
+obj-m += mca_strategy/ mca_business/ mca_hardware_monitor/
+obj-m += mca_smart_charge/ mca_hardware_ic/
+obj-m += mca_qcom_subpmic_proxy/ mca_qcom_sysfs/ mca_ut_test/
