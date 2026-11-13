@@ -1233,10 +1233,9 @@ static const struct component_master_ops cam_req_mgr_component_master_ops = {
 	.unbind = cam_req_mgr_component_master_unbind,
 };
 
-static int cam_req_mgr_remove(struct platform_device *pdev)
+static void cam_req_mgr_remove(struct platform_device *pdev)
 {
 	component_master_del(&pdev->dev, &cam_req_mgr_component_master_ops);
-	return 0;
 }
 
 static int cam_req_mgr_probe(struct platform_device *pdev)

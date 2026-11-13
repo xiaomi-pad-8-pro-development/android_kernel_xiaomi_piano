@@ -4,6 +4,7 @@
 #include "cam_eeprom_dev.h"
 #include "cam_ois_dev.h"
 #include "cam_dump_util.h"
+#include <linux/vmalloc.h>
 #include <media/cam_req_mgr.h>
 
 #define INC_HEAD(head, max_entries, ret) \
@@ -163,7 +164,7 @@ int cam_debug_record_key_message(int subdev_id,void *ctrl,void *info,uint64_t re
 			cam_key_buffer->event_id[EVENT_ISP_SOF][index].opcode = EVENT_ISP_SOF;
 			if(soc_info)
 			{
-				strlcpy(cam_key_buffer->event_id[EVENT_ISP_SOF][index].u.frame_info.dev_name,soc_info->dev_name,CAM_SENSOR_NAME_MAX_LENGTH);
+				strscpy(cam_key_buffer->event_id[EVENT_ISP_SOF][index].u.frame_info.dev_name,soc_info->dev_name,CAM_SENSOR_NAME_MAX_LENGTH);
 			}
 			cam_key_buffer->event_id[EVENT_ISP_SOF][index].u.frame_info.frame_id = ctx_isp->frame_id;
 			CAM_CONVERT_TIMESTAMP_FORMAT(ts,cam_key_buffer->event_id[EVENT_ISP_SOF][index].ts_h,
@@ -206,7 +207,7 @@ int cam_debug_record_key_message(int subdev_id,void *ctrl,void *info,uint64_t re
 			soc_info = &s_ctrl->soc_info;
 			if(soc_info)
 			{
-				strlcpy(cam_key_buffer->event_id[EVENT_ISP_EOF][index].u.frame_info.dev_name,soc_info->dev_name,CAM_SENSOR_NAME_MAX_LENGTH);
+				strscpy(cam_key_buffer->event_id[EVENT_ISP_EOF][index].u.frame_info.dev_name,soc_info->dev_name,CAM_SENSOR_NAME_MAX_LENGTH);
 			}
 			cam_key_buffer->event_id[EVENT_ISP_EOF][index].u.frame_info.frame_id = ctx_isp->frame_id;
 		}
@@ -244,7 +245,7 @@ int cam_debug_record_key_message(int subdev_id,void *ctrl,void *info,uint64_t re
 			soc_info = &s_ctrl->soc_info;
 			if(soc_info)
 			{
-				strlcpy(cam_key_buffer->event_id[EVENT_ISP_EPOCH][index].u.frame_info.dev_name,soc_info->dev_name,CAM_SENSOR_NAME_MAX_LENGTH);
+				strscpy(cam_key_buffer->event_id[EVENT_ISP_EPOCH][index].u.frame_info.dev_name,soc_info->dev_name,CAM_SENSOR_NAME_MAX_LENGTH);
 			}
 			cam_key_buffer->event_id[EVENT_ISP_EPOCH][index].u.frame_info.frame_id = ctx_isp->frame_id;
 		}

@@ -248,10 +248,9 @@ static int cam_lrme_dev_probe(struct platform_device *pdev)
 	return rc;
 }
 
-static int cam_lrme_dev_remove(struct platform_device *pdev)
+static void cam_lrme_dev_remove(struct platform_device *pdev)
 {
 	component_del(&pdev->dev, &cam_lrme_component_ops);
-	return 0;
 }
 
 static const struct of_device_id cam_lrme_dt_match[] = {

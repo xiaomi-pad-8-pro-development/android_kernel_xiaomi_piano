@@ -1,3 +1,4 @@
+#include <linux/vmalloc.h>
 #include <linux/module.h>
 #include <linux/firmware.h>
 #include <cam_sensor_cmn_header.h>

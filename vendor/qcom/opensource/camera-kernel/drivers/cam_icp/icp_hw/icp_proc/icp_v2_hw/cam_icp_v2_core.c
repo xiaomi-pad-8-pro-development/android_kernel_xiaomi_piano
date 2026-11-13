@@ -4,6 +4,7 @@
  * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
+#include <linux/vmalloc.h>
 #include <linux/devcoredump.h>
 #include <linux/of_address.h>
 #include <linux/soc/qcom/mdt_loader.h>

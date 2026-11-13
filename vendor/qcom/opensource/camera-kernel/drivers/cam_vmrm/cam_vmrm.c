@@ -2783,11 +2783,10 @@ static int cam_vmrm_intf_probe(struct platform_device *pdev)
 	return rc;
 }
 
-static int cam_vmrm_intf_remove(struct platform_device *pdev)
+static void cam_vmrm_intf_remove(struct platform_device *pdev)
 {
 	CAM_DBG(CAM_VMRM, "Removing the vmrm_intf driver");
 	component_del(&pdev->dev, &cam_vmrm_intf_ops);
-	return 0;
 }
 
 struct platform_driver cam_vmrm_intf_driver = {

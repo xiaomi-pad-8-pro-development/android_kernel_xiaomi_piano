@@ -245,10 +245,9 @@ int cam_ofe_probe(struct platform_device *pdev)
 	return rc;
 }
 
-static int cam_ofe_remove(struct platform_device *pdev)
+static void cam_ofe_remove(struct platform_device *pdev)
 {
 	component_del(&pdev->dev, &cam_ofe_component_ops);
-	return 0;
 }
 
 static const struct of_device_id cam_ofe_dt_match[] = {

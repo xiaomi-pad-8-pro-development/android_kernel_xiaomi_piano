@@ -5802,7 +5802,7 @@ static int cam_smmu_probe(struct platform_device *pdev)
 	return rc;
 }
 
-static int cam_smmu_remove(struct platform_device *pdev)
+static void cam_smmu_remove(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 
@@ -5819,10 +5819,8 @@ static int cam_smmu_remove(struct platform_device *pdev)
 		component_del(&pdev->dev, &cam_smmu_fw_dev_component_ops);
 	} else {
 		CAM_ERR(CAM_SMMU, "Unrecognized child device: %s", pdev->name);
-		return -ENODEV;
+		return;
 	}
-
-	return 0;
 }
 
 struct platform_driver cam_smmu_driver = {

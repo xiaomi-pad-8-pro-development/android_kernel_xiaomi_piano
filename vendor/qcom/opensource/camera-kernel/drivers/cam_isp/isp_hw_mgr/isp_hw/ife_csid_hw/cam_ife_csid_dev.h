@@ -11,7 +11,7 @@
 irqreturn_t cam_ife_csid_irq(int irq_num, void *data);
 
 int cam_ife_csid_probe(struct platform_device *pdev);
-int cam_ife_csid_remove(struct platform_device *pdev);
+void cam_ife_csid_remove(struct platform_device *pdev);
 
 /**
  * @brief : API to register CSID hw to platform framework.

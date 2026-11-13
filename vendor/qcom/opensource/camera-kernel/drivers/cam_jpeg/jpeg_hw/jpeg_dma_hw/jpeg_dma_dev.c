@@ -229,10 +229,9 @@ const static struct component_ops cam_jpeg_dma_component_ops = {
 	.unbind = cam_jpeg_dma_component_unbind,
 };
 
-static int cam_jpeg_dma_remove(struct platform_device *pdev)
+static void cam_jpeg_dma_remove(struct platform_device *pdev)
 {
 	component_del(&pdev->dev, &cam_jpeg_dma_component_ops);
-	return 0;
 }
 
 static int cam_jpeg_dma_probe(struct platform_device *pdev)

@@ -1,13 +1,26 @@
 load("//build/kernel/kleaf:kernel.bzl", "ddk_module")
 load("//build/bazel_common_rules/dist:dist.bzl", "copy_to_dist_dir")
-load("//msm-kernel:target_variants.bzl", "get_all_variants", "get_arch_of_target")
 load(":project_defconfig.bzl", "get_project_defconfig")
 
 def _define_module(target, variant):
     tv = "{}_{}".format(target, variant)
+    # KP 5.0 builds the vendor modules against the soc-repo kernel.
     deps = [
         ":camera_headers",
-        "//msm-kernel:all_headers",
+        "//soc-repo:all_headers",
+        "//soc-repo:{}/drivers/firmware/qcom/qcom-scm".format(tv),
+        "//soc-repo:{}/drivers/iommu/qcom_iommu_util".format(tv),
+        "//soc-repo:{}/drivers/soc/qcom/mem_buf/mem_buf_dev".format(tv),
+        "//soc-repo:{}/drivers/soc/qcom/crm-v2".format(tv),
+        "//soc-repo:{}/drivers/clk/qcom/clk-qcom".format(tv),
+        "//soc-repo:{}/drivers/soc/qcom/qcom_rpmh".format(tv),
+        "//soc-repo:{}/drivers/soc/qcom/socinfo".format(tv),
+        "//soc-repo:{}/drivers/soc/qcom/llcc-qcom".format(tv),
+        "//soc-repo:{}/drivers/soc/qcom/mdt_loader".format(tv),
+        "//soc-repo:{}/drivers/leds/flash/leds-qcom-flash".format(tv),
+        "//soc-repo:{}/drivers/soc/qcom/qcom_va_minidump".format(tv),
+        "//soc-repo:{}/drivers/leds/leds-qti-flash".format(tv),
+        "//soc-repo:{}/drivers/video/backlight/qcom-spmi-wled".format(tv),
     ]
 
     # Generate the defconfig file dynamically
@@ -252,7 +265,7 @@ def _define_module(target, variant):
         deps = deps,
         kconfig = "Kconfig",
         defconfig = "{}_defconfig_generated".format(tv),
-        kernel_build = "//msm-kernel:{}".format(tv),
+        kernel_build = "//soc-repo:{}_base_kernel".format(tv),
     )
     ddk_module(
         name = "{}_cameralog".format(tv),
@@ -261,7 +274,7 @@ def _define_module(target, variant):
             "drivers/cam_log/cam_log.c",
         ],
         deps = deps,
-        kernel_build = "//msm-kernel:{}".format(tv),
+        kernel_build = "//soc-repo:{}_base_kernel".format(tv),
     )
     ddk_module(
         name = "{}_cameramsger".format(tv),
@@ -273,8 +286,10 @@ def _define_module(target, variant):
             "drivers/cam_msger/cam_binder.c",
             "drivers/cam_msger/cam_msger_common.c",
         ],
+        # snd_message keeps a 2.4 KiB message on the stack.
+        copts = ["-Wframe-larger-than=4096"],
         deps = deps,
-        kernel_build = "//msm-kernel:{}".format(tv),
+        kernel_build = "//soc-repo:{}_base_kernel".format(tv),
     )
     copy_to_dist_dir(
         name = "{}_camera_dist".format(tv),
@@ -291,10 +306,4 @@ def _define_module(target, variant):
     )
 
 def define_camera_module():
-    pairs = []
-    for target, variant in get_all_variants():
-        arch = get_arch_of_target(target)
-        if arch == target:
-            pairs.append((target, variant))
-    for (t, v) in pairs:
-        _define_module(t, v)
+    _define_module("sun", "perf")

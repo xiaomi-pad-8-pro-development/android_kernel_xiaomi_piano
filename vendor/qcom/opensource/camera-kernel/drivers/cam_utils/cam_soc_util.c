@@ -3050,7 +3050,9 @@ static int cam_soc_util_request_gpio_table(
 			}
 		}
 	} else {
-		gpio_free_array(gpio_tbl, size);
+		/* gpio_free_array() is gone since 6.11. */
+		for (i = 0; i < size; i++)
+			gpio_free(gpio_tbl[i].gpio);
 	}
 
 	return rc;

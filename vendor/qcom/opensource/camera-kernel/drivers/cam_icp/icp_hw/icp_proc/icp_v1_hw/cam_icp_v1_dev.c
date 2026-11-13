@@ -257,10 +257,9 @@ int cam_icp_v1_probe(struct platform_device *pdev)
 	return rc;
 }
 
-static int cam_icp_v1_remove(struct platform_device *pdev)
+static void cam_icp_v1_remove(struct platform_device *pdev)
 {
 	component_del(&pdev->dev, &cam_icp_v1_component_ops);
-	return 0;
 }
 
 static const struct of_device_id cam_icp_v1_dt_match[] = {

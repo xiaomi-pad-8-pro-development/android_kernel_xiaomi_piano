@@ -214,10 +214,9 @@ static int cam_fd_hw_dev_probe(struct platform_device *pdev)
 	return rc;
 }
 
-static int cam_fd_hw_dev_remove(struct platform_device *pdev)
+static void cam_fd_hw_dev_remove(struct platform_device *pdev)
 {
 	component_del(&pdev->dev, &cam_fd_hw_dev_component_ops);
-	return 0;
 }
 
 static const struct of_device_id cam_fd_hw_dt_match[] = {

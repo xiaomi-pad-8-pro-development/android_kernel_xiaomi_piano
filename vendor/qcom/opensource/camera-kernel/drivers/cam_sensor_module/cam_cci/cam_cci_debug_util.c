@@ -3,6 +3,7 @@
  * Copyright (c) 2017-2022, The Linux Foundation. All rights reserved.
  */
 
+#include <linux/vmalloc.h>
 #include "cam_cci_debug_util.h"
 
 static int cam_cci_debug_str_show(struct seq_file *s, void *ignored)
