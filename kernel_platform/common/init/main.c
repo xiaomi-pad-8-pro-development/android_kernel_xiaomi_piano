@@ -25,6 +25,8 @@
 #include <linux/delay.h>
 #include <linux/ioport.h>
 #include <linux/init.h>
+
+void piano_reset_point(int n);
 #include <linux/initrd.h>
 #include <linux/memblock.h>
 #include <linux/acpi.h>
@@ -1098,6 +1100,7 @@ void start_kernel(void)
 	sort_main_extable();
 	trap_init();
 	mm_core_init();
+	piano_reset_point(4);
 	poking_init();
 	ftrace_init();
 
@@ -1110,6 +1113,7 @@ void start_kernel(void)
 	 * time - but meanwhile we still have a functioning scheduler.
 	 */
 	sched_init();
+	piano_reset_point(5);
 
 	if (WARN(!irqs_disabled(),
 		 "Interrupts were enabled *very* early, fixing it\n"))
@@ -1150,6 +1154,7 @@ void start_kernel(void)
 	softirq_init();
 	timekeeping_init();
 	time_init();
+	piano_reset_point(6);
 
 	/* This must be after timekeeping is initialized */
 	random_init();
@@ -1174,6 +1179,7 @@ void start_kernel(void)
 	 * this. But we do want output early, in case something goes wrong.
 	 */
 	console_init();
+	piano_reset_point(7);
 	if (panic_later)
 		panic("Too many boot %s vars at `%s'", panic_later,
 		      panic_param);
@@ -1239,6 +1245,7 @@ void start_kernel(void)
 	kcsan_init();
 
 	/* Do the rest non-__init'ed, we're now alive */
+	piano_reset_point(8);
 	rest_init();
 
 	/*
@@ -1613,6 +1620,7 @@ static int __ref kernel_init(void *unused)
 	kgdb_free_init_mem();
 	exit_boot_config();
 	free_initmem();
+	piano_reset_point(10);
 	mark_readonly();
 
 	/*
@@ -1715,6 +1723,7 @@ static noinline void __init kernel_init_freeable(void)
 	page_alloc_init_late();
 
 	do_basic_setup();
+	piano_reset_point(9);
 
 	kunit_run_all_tests();
 

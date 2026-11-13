@@ -6,6 +6,7 @@
  */
 #include "compress.h"
 #include <linux/lz4.h>
+#include <trace/hooks/lz4_decompress.h>
 
 #ifndef LZ4_DISTANCE_MAX	/* history window size */
 #define LZ4_DISTANCE_MAX 65535	/* set to maximum value by default */
@@ -209,6 +210,7 @@ static int z_erofs_lz4_decompress_mem(struct z_erofs_decompress_req *rq, u8 *dst
 	unsigned int inputmargin;
 	u8 *out, *headpage, *src;
 	int ret, maptype;
+	bool lz4_decompression_bypass = false;
 
 	DBG_BUGON(*rq->in == NULL);
 	headpage = kmap_local_page(*rq->in);
@@ -234,6 +236,12 @@ static int z_erofs_lz4_decompress_mem(struct z_erofs_decompress_req *rq, u8 *dst
 		return PTR_ERR(src);
 
 	out = dst + rq->pageofs_out;
+	trace_android_vh_lz4_decompress_bypass(src + inputmargin, out,
+		rq->inputsize, rq->outputsize, rq->inplace_io, &ret,
+		&lz4_decompression_bypass);
+	if (lz4_decompression_bypass)
+		goto bypass_decompression;
+
 	/* legacy format could compress extra data in a pcluster. */
 	if (rq->partial_decoding || !support_0padding)
 		ret = LZ4_decompress_safe_partial(src + inputmargin, out,
@@ -242,6 +250,7 @@ static int z_erofs_lz4_decompress_mem(struct z_erofs_decompress_req *rq, u8 *dst
 		ret = LZ4_decompress_safe(src + inputmargin, out,
 					  rq->inputsize, rq->outputsize);
 
+bypass_decompression:
 	if (ret != rq->outputsize) {
 		erofs_err(rq->sb, "failed to decompress %d in[%u, %u] out[%u]",
 			  ret, rq->inputsize, inputmargin, rq->outputsize);

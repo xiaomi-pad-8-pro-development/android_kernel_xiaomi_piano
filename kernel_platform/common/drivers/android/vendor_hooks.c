@@ -59,6 +59,7 @@
 #include <trace/hooks/rwsem.h>
 #include <trace/hooks/psi.h>
 #include <trace/hooks/bl_hib.h>
+#include <trace/hooks/lz4_decompress.h>
 #include <trace/hooks/futex.h>
 #include <trace/hooks/bug.h>
 #include <trace/hooks/logbuf.h>
@@ -818,3 +819,4 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_io_schedule_prepare);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_rvh_rq_qos_wait);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_wbt_track);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_wbt_wait);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_lz4_decompress_bypass);

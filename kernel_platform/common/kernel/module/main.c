@@ -3685,6 +3685,9 @@ static int idempotent_init_module(struct file *f, const char __user * uargs, int
 	return idempotent_wait_for_completion(&idem);
 }
 
+static bool piano_skip_old_modules;
+core_param(piano_skip_old_modules, piano_skip_old_modules, bool, 0644);
+
 SYSCALL_DEFINE3(finit_module, int, fd, const char __user *, uargs, int, flags)
 {
 	int err;
@@ -3704,6 +3707,15 @@ SYSCALL_DEFINE3(finit_module, int, fd, const char __user *, uargs, int, flags)
 	f = fdget(fd);
 	err = idempotent_init_module(fd_file(f), uargs, flags);
 	fdput(f);
+	/*
+	 * Bring-up only: while 6.12 boots with every module in its ramdisk, the
+	 * 6.6 dlkm partitions are still mounted and vendor_modprobe.sh stops at
+	 * their first module. Report those as loaded so boot carries on.
+	 */
+	if (err == -ENOEXEC && piano_skip_old_modules) {
+		pr_info("piano: load of an old module failed (-ENOEXEC), reporting success\n");
+		err = 0;
+	}
 	return err;
 }
 

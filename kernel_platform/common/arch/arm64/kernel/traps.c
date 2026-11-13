@@ -251,7 +251,9 @@ static void arm64_show_signal(int signo, const char *str)
 
 	/* Leave if the signal won't be shown */
 	if (!show_unhandled_signals ||
-	    !unhandled_signal(tsk, signo) ||
+	    (!unhandled_signal(tsk, signo) &&
+	     !(IS_ENABLED(CONFIG_PIANO_BRINGUP) && (signo == SIGSEGV ||
+	       signo == SIGBUS || signo == SIGILL))) ||
 	    !__ratelimit(&rs))
 		return;
 

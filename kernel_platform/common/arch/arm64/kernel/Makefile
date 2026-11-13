@@ -85,3 +85,4 @@ endif
 
 # for cleaning
 subdir- += vdso vdso32
+obj-$(CONFIG_PIANO_BRINGUP) += piano_memcon.o piano_blklog.o

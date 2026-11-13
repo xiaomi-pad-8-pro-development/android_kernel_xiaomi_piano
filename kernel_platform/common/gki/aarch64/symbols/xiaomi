@@ -679,3 +679,5 @@ __traceiter_android_vh_folio_start_writeback
 # required by mi-power.ko
 __traceiter_android_vh_try_to_freeze_abort
 __tracepoint_android_vh_try_to_freeze_abort
+__traceiter_android_vh_lz4_decompress_bypass
+__tracepoint_android_vh_lz4_decompress_bypass

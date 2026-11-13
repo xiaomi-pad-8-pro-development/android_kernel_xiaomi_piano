@@ -7,6 +7,7 @@
  */
 
 #include <linux/acpi.h>
+#include <linux/arm-smccc.h>
 #include <linux/export.h>
 #include <linux/kernel.h>
 #include <linux/stddef.h>
@@ -279,6 +280,29 @@ u64 cpu_logical_map(unsigned int cpu)
 	return __cpu_logical_map[cpu];
 }
 
+
+/*
+ * Bring-up test only: piano_reset_at=N on the command line resets the board
+ * through PSCI when boot reaches point N, which shows how far it gets.
+ */
+static int piano_reset_at = -1;
+
+/* Reads the command line on the first call, while init memory still exists. */
+void __ref piano_reset_point(int n)
+{
+	struct arm_smccc_res res;
+	const char *p;
+
+	if (!IS_ENABLED(CONFIG_PIANO_BRINGUP))
+		return;
+	if (piano_reset_at < 0) {
+		p = strstr(boot_command_line, "piano_reset_at=");
+		piano_reset_at = p ? simple_strtol(p + 15, NULL, 10) : 0;
+	}
+	if (n == piano_reset_at)
+		arm_smccc_smc(0x84000009, 0, 0, 0, 0, 0, 0, 0, &res);
+}
+
 void __init __no_sanitize_address setup_arch(char **cmdline_p)
 {
 	setup_initial_init_mm(_text, _etext, _edata, _end);
@@ -289,8 +313,15 @@ void __init __no_sanitize_address setup_arch(char **cmdline_p)
 
 	early_fixmap_init();
 	early_ioremap_init();
+#ifdef CONFIG_PIANO_BRINGUP
+	{
+		extern void piano_memcon_early_init(void);
+		piano_memcon_early_init();
+	}
+#endif
 
 	setup_machine_fdt(__fdt_pointer);
+	piano_reset_point(1);
 
 	/*
 	 * Initialise the static keys early as they may be enabled by the
@@ -333,6 +364,13 @@ void __init __no_sanitize_address setup_arch(char **cmdline_p)
 	arm64_memblock_init();
 
 	paging_init();
+	piano_reset_point(2);
+#ifdef CONFIG_PIANO_BRINGUP
+	{
+		extern void piano_memcon_init(void);
+		piano_memcon_init();
+	}
+#endif
 
 	acpi_table_upgrade();
 
@@ -358,6 +396,7 @@ void __init __no_sanitize_address setup_arch(char **cmdline_p)
 	init_bootcpu_ops();
 	smp_init_cpus();
 	smp_build_mpidr_hash();
+	piano_reset_point(3);
 
 #ifdef CONFIG_ARM64_SW_TTBR0_PAN
 	/*

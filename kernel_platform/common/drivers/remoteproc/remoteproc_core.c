@@ -1670,13 +1670,58 @@ disable_iommu:
  * to unregister the device. one other option is just to use kref here,
  * that might be cleaner).
  */
+/*
+ * A remote processor can be registered from the first-stage ramdisk, before
+ * the partition holding its firmware is mounted. Its auto-boot request then
+ * fails once and the processor stays off. Retry for a while instead.
+ */
+struct rproc_auto_boot_retry {
+	struct delayed_work work;
+	struct rproc *rproc;
+	unsigned int tries;
+};
+
+static void rproc_auto_boot_retry_fn(struct work_struct *work)
+{
+	struct rproc_auto_boot_retry *r = container_of(to_delayed_work(work),
+					struct rproc_auto_boot_retry, work);
+	struct rproc *rproc = r->rproc;
+
+	if (rproc->state != RPROC_OFFLINE || !rproc_boot(rproc)) {
+		put_device(&rproc->dev);
+		kfree(r);
+		return;
+	}
+	if (++r->tries >= 60) {
+		dev_err(&rproc->dev, "auto boot failed: no firmware %s after %u tries\n",
+			rproc->firmware, r->tries);
+		put_device(&rproc->dev);
+		kfree(r);
+		return;
+	}
+	schedule_delayed_work(&r->work, 2 * HZ);
+}
+
 static void rproc_auto_boot_callback(const struct firmware *fw, void *context)
 {
 	struct rproc *rproc = context;
+	struct rproc_auto_boot_retry *r;
 
-	rproc_boot(rproc);
+	if (fw || rproc->state != RPROC_OFFLINE) {
+		rproc_boot(rproc);
+		release_firmware(fw);
+		return;
+	}
 
-	release_firmware(fw);
+	dev_info(&rproc->dev, "firmware %s not available yet, retrying auto boot\n",
+		 rproc->firmware);
+	r = kzalloc(sizeof(*r), GFP_KERNEL);
+	if (!r)
+		return;
+	r->rproc = rproc;
+	get_device(&rproc->dev);
+	INIT_DELAYED_WORK(&r->work, rproc_auto_boot_retry_fn);
+	schedule_delayed_work(&r->work, 2 * HZ);
 }
 
 static int rproc_trigger_auto_boot(struct rproc *rproc)

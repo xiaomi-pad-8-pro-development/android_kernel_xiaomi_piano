@@ -20,4 +20,12 @@ config ARM64_RELOC_TEST
 	depends on m
 	tristate "Relocation testing module"
 
+config PIANO_BRINGUP
+	bool "Xiaomi Pad 8 Pro (piano) bring-up debug tools"
+	help
+	  Builds the piano bring-up aids: the memcon RAM console that
+	  survives a warm reset, the block-device kernel log, the
+	  piano_reset_at= boot checkpoints and the extra unhandled-signal
+	  reports. Test builds only; leave it off for releases.
+
 source "drivers/hwtracing/coresight/Kconfig"
