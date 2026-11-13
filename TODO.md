@@ -21,8 +21,9 @@ Updated 2026-11-13.
    charging is untested.
 6. CIFS hangs boot when loaded early, so it is left out. Load it after
    boot or find what it waits for.
-7. perf.patch is behind the builder tree by about 30 Xiaomi module
-   files; some may belong in xiaomi-ports.patch.
+7. Build and test the Xiaomi modules added from dada-closed-modules
+   (mi_mempool, minet, mi_wmark, scene_swappiness, mist and its hooks).
+   They are in the patches but have not been compiled on 6.12 yet.
 
 ## Release cleanup
 
