@@ -12,7 +12,7 @@ mca 049b1543d1ea 52 files
 camera-kernel 049b1543d1ea 62 files
 eva-kernel 049b1543d1ea 13 files
 video-driver 3a4122e9707d 13 files
-input 049b1543d1ea 14 files
+input 049b1543d1ea 21 files
 soc-repo d08fc44 27 files
 perf 049b1543d1ea 105 files
 ksu d92f18cbe947 33 files (after common.patch)

@@ -551,11 +551,135 @@ index 5231811..32e8780 100644
  
  /* -------------------------------------------------------------------- */
  /* fingerprint chip hardware configuration				*/
+diff --git a/nanosic/nano_cache.c b/nanosic/nano_cache.c
+index 24d8698..f57c7b3 100644
+--- a/nanosic/nano_cache.c
++++ b/nanosic/nano_cache.c
+@@ -100,7 +100,8 @@ int Nanosic_cache_put(void)
+ 	if (timer_pending(&input_cache->cache_timer))
+ 		del_timer_sync(&input_cache->cache_timer);
+ 
+-	spin_lock(&input_cache->cache_spinlock);
++	/* the cache timer takes this lock in softirq context */
++	spin_lock_bh(&input_cache->cache_spinlock);
+ 
+ 	while (input_cache->cache_cnt) {
+ 		read_pos = input_cache->cache_read_pos % MAX_CACHE_BLOCKS;
+@@ -113,7 +114,7 @@ int Nanosic_cache_put(void)
+ 		input_cache->cache_cnt--;
+ 	}
+ 
+-	spin_unlock(&input_cache->cache_spinlock);
++	spin_unlock_bh(&input_cache->cache_spinlock);
+ 	return 0;
+ }
+ 
+@@ -135,7 +136,8 @@ int Nanosic_cache_insert(EM_PacketType type, void *data, size_t datalen)
+ 
+ 	rawdata_show("cache insert", data, datalen);
+ 
+-	spin_lock(&input_cache->cache_spinlock);
++	/* the cache timer takes this lock in softirq context */
++	spin_lock_bh(&input_cache->cache_spinlock);
+ 
+ 	if (input_cache->cache_cnt < MAX_CACHE_BLOCKS) {
+ 		write_pos = input_cache->cache_write_pos % MAX_CACHE_BLOCKS;
+@@ -151,7 +153,7 @@ int Nanosic_cache_insert(EM_PacketType type, void *data, size_t datalen)
+ 		ret = -1;
+ 		dbgprint(DEBUG_LEVEL, "cache is full\n");
+ 	}
+-	spin_unlock(&input_cache->cache_spinlock);
++	spin_unlock_bh(&input_cache->cache_spinlock);
+ 
+ 	return ret;
+ }
 diff --git a/nanosic/nano_chardev.c b/nanosic/nano_chardev.c
-index e1d93a0..439689b 100644
+index e1d93a0..5373442 100644
 --- a/nanosic/nano_chardev.c
 +++ b/nanosic/nano_chardev.c
-@@ -502,7 +502,6 @@ static char *Nanosic_chardev_devnode(const struct device *dev, umode_t *mode)
+@@ -33,6 +33,7 @@
+ #include "nano_macro.h"
+ #include <linux/uaccess.h>
+ #include <linux/sched/signal.h>
++#include <linux/poll.h>
+ 
+ /*buffer节点默认缓冲个数*/
+ #define NANODEV_BUFSIZE (10)
+@@ -244,7 +245,7 @@ static int Nanosic_chardev_fops_open(struct inode *inode, struct file *file)
+ 	nanosic_client_t *client = NULL;
+ 
+ 	client = kzalloc(sizeof(nanosic_client_t), GFP_KERNEL);
+-	if (IS_ERR(client))
++	if (!client)
+ 		return -ENOMEM;
+ 
+ 	client->read_pos = 0;
+@@ -276,10 +277,25 @@ static int Nanosic_chardev_fops_open(struct inode *inode, struct file *file)
+  * process has a file open.
+  ** */
+ 
+-static unsigned int Nanosic_chardev_fops_poll(struct file *file,
+-					      struct poll_table_struct *wait)
++static __poll_t Nanosic_chardev_fops_poll(struct file *file,
++					  struct poll_table_struct *wait)
+ {
+-	return -ENOSYS;
++	nanosic_client_t *client = (nanosic_client_t *)file->private_data;
++	__poll_t mask = 0;
++
++	if (IS_ERR_OR_NULL(client))
++		return EPOLLERR;
++
++	poll_wait(file, &client->waitq, wait);
++
++	spin_lock(&client_registry_lock);
++	if (client->read_pos != client->write_pos)
++		mask |= EPOLLIN | EPOLLRDNORM;
++	if (client->exit)
++		mask |= EPOLLHUP;
++	spin_unlock(&client_registry_lock);
++
++	return mask;
+ }
+ 
+ /** ***************************************************************************
+@@ -307,6 +323,7 @@ static ssize_t Nanosic_chardev_fops_read(struct file *file, char __user *user,
+ 					 size_t size, loff_t *loff)
+ {
+ 	Q_buffer_t *buf = NULL;
++	uint8_t data[I2C_DATA_LENGTH_READ];
+ 	int retval = 0;
+ 	uint8_t read_pos;
+ 	int length;
+@@ -356,18 +373,23 @@ static ssize_t Nanosic_chardev_fops_read(struct file *file, char __user *user,
+ 	length = buf->datalen > size ? size : buf->datalen;
+ 	dbgprint(DEBUG_LEVEL, "length %d\n", length);
+ 
+-	if (copy_to_user(user, buf->data, length)) {
+-		/*Partial buffer consumption*/
++	/* copy_to_user() may fault and sleep, so not under the spinlock */
++	memcpy(data, buf->data, length);
++	spin_unlock(&client_registry_lock);
++
++	if (copy_to_user(user, data, length)) {
++		/*Partial buffer consumption, leave the packet queued*/
+ 		retval = -EFAULT;
+-		goto _out;
++		goto _unlocked;
+ 	}
+ 
++	spin_lock(&client_registry_lock);
+ 	client->read_pos = read_pos;
+-
+ 	retval = length;
+ 
+ _out:
+ 	spin_unlock(&client_registry_lock);
++_unlocked:
+ 	/*size_t 使用%zu进行打印*/
+ 	dbgprint(DEBUG_LEVEL, "retval %d\n", retval);
+ 
+@@ -502,7 +524,6 @@ static char *Nanosic_chardev_devnode(const struct device *dev, umode_t *mode)
   ** */
  static const struct file_operations nanosic_cdev_fops = {
  	.owner = THIS_MODULE,
@@ -563,8 +687,110 @@ index e1d93a0..439689b 100644
  	.open = Nanosic_chardev_fops_open,
  	.release = Nanosic_chardev_fops_release,
  	.write = Nanosic_chardev_fops_write,
+diff --git a/nanosic/nano_driver.c b/nanosic/nano_driver.c
+index 9a608f4..67fb0ee 100644
+--- a/nanosic/nano_driver.c
++++ b/nanosic/nano_driver.c
+@@ -182,10 +182,18 @@ static int nanosic_803_probe(struct i2c_client *client)
+     if(IS_ERR_OR_NULL(vddh_reg))
+         dbgprint(ERROR_LEVEL,"Failed to get vddh_reg\n");
+ */
++	/* the interrupt and the panel notifier use the key cache */
++	ret = Nanosic_cache_init();
++	if (ret < 0) {
++		dbgprint(ERROR_LEVEL, "Nanosic cache init ERROR!\n");
++		goto _err1;
++	}
++	Nanosic_edge_filter_init(of_node);
++
+ 	/*initialize chardev module*/
+ 	ret = Nanosic_chardev_register();
+ 	if (ret < 0)
+-		goto _err1;
++		goto _err_cache;
+ 
+ 	/*initialize input module*/
+ 	ret = Nanosic_input_register();
+@@ -213,19 +221,11 @@ static int nanosic_803_probe(struct i2c_client *client)
+ 	i2c_set_clientdata(client, I2client);
+ 	gI2c_client = I2client;
+ 	gI2c_client->dev = &(client->dev);
+-	Nanosic_edge_filter_init(of_node);
+ 	device_init_wakeup(&client->dev, true);
+ 
+ 	ret = xiaomi_keyboard_init(I2client);
+ 	if (ret < 0)
+ 		goto _err_keyboard;
+-	/*initialize timer for test*/
+-
+-	ret = Nanosic_cache_init();
+-	if (ret < 0) {
+-		dbgprint(ERROR_LEVEL, "Nanosic cache init ERROR!\n");
+-		goto _err4;
+-	}
+ 
+ 	initial = true;
+ 	/* create the input devices if the keyboard is already attached */
+@@ -234,10 +234,9 @@ static int nanosic_803_probe(struct i2c_client *client)
+ 
+ 	return 0;
+ 
+-_err4:
+-	Nanosic_cache_release();
+ _err_keyboard:
+ 	xiaomi_keyboard_remove();
++	Nanosic_PM_health_stop(I2client);
+ _err3:
+ 	/* the wakeup interrupt uses gI2c_client, so free it first */
+ 	Nanosic_GPIO_release();
+@@ -248,6 +247,8 @@ _err3:
+ 	Nanosic_input_release();
+ _err2:
+ 	Nanosic_chardev_release();
++_err_cache:
++	Nanosic_cache_release();
+ _err1:
+ 	Nanosic_switch_regulator(false);
+ 	return -1;
+@@ -265,6 +266,8 @@ static void nanosic_803_remove(struct i2c_client *client)
+ 
+ 	/* Stop panel work before releasing its input and I2C devices. */
+ 	xiaomi_keyboard_remove();
++	/* and the controller check, which resets the 803x through the gpios */
++	Nanosic_PM_health_stop(I2client);
+ 
+ 	/*release chardev module*/
+ 	Nanosic_chardev_release();
+@@ -380,12 +383,16 @@ static void keyboard_early_resume_work(struct work_struct *work)
+ {
+ 	int ret = 0;
+ 	dbgprint(ALERT_LEVEL, "keyboard_early_resume_work: enter\n");
++	/*
++	 * Mark the panel on first, so a key the worker parses meanwhile is
++	 * sent after the cached ones instead of cached behind the flush.
++	 */
++	g_panel_status = true;
+ 	ret = Nanosic_cache_put();
+ 	if (ret < 0)
+ 		dbgprint(ERROR_LEVEL,
+ 			 "keyboard_early_resume_work: Nanosic_cache_put err:%d\n",
+ 			 ret);
+-	g_panel_status = true;
+ 	Nanosic_GPIO_sleep(true);
+ 	Nanosic_workQueue_schedule(gI2c_client->worker);
+ }
+@@ -404,6 +411,9 @@ static void keyboard_resume_work(struct work_struct *work)
+ 		dbgprint(ERROR_LEVEL,
+ 			 "keyboard_resume_work: Nanosic_Hall_notify err:%d\n",
+ 			 ret);
++	/* a cover attached before suspend should still answer */
++	if (gHallStatus & 0x1)
++		Nanosic_PM_health_start(gI2c_client);
+ }
+ 
+ /* the screen is about to turn off, tell the keypad while the 803x is awake */
 diff --git a/nanosic/nano_edge_filter.c b/nanosic/nano_edge_filter.c
-index ee4925c..bfc8a6f 100644
+index ee4925c..6a30f29 100644
 --- a/nanosic/nano_edge_filter.c
 +++ b/nanosic/nano_edge_filter.c
 @@ -11,7 +11,7 @@
@@ -576,6 +802,174 @@ index ee4925c..bfc8a6f 100644
  #include "nano_macro.h"
  
  #define CONTACTS 3
+@@ -31,12 +31,19 @@ struct edge_area {
+ 	u32 min, max;
+ };
+ 
+-static struct {
++struct edge_config {
++	u32 pid;
+ 	struct edge_area left, right, top, bottom;
+ 	u32 one_swipe;	/* squared distance a lone edge contact must move */
+ 	u32 two_swipe;	/* squared distance with another finger down */
+-	bool ready;
+-} cfg;
++};
++
++#define MAX_CONFIGS 4
++
++static struct edge_config configs[MAX_CONFIGS];
++static int nr_configs;
++/* Config of the attached cover, NULL while none is attached or known. */
++static const struct edge_config *cfg;
+ 
+ enum slot_state { SLOT_FREE, SLOT_NORMAL, SLOT_SHIELDED };
+ 
+@@ -59,29 +66,72 @@ static void read_area(struct device_node *np, const char *side,
+ 	of_property_read_u32(np, name, &area->max);
+ }
+ 
+-/* Takes the first touchpad config; the piano keyboards share edge widths. */
++/*
++ * Reads every "nanosic-pid-<hex pid>" touchpad config. Configs with another
++ * compatible, like pid_1294_extend, are alternatives stock switches to on
++ * request and are not used here.
++ */
+ void Nanosic_edge_filter_init(struct device_node *node)
+ {
+-	struct device_node *configs, *np;
++	struct device_node *parent, *np;
++	struct edge_config *c;
++	const char *compat;
+ 
+-	configs = of_get_child_by_name(node, "touchpad-configs");
+-	if (!configs)
+-		return;
+-	np = of_get_next_available_child(configs, NULL);
+-	of_node_put(configs);
+-	if (!np)
++	nr_configs = 0;
++	parent = of_get_child_by_name(node, "touchpad-configs");
++	if (!parent)
+ 		return;
++	for_each_available_child_of_node(parent, np) {
++		if (nr_configs >= MAX_CONFIGS) {
++			of_node_put(np);
++			break;
++		}
++		c = &configs[nr_configs];
++		if (of_property_read_string(np, "compatible", &compat) ||
++		    sscanf(compat, "nanosic-pid-%x", &c->pid) != 1)
++			continue;
++		read_area(np, "left", &c->left);
++		read_area(np, "right", &c->right);
++		read_area(np, "top", &c->top);
++		read_area(np, "bottom", &c->bottom);
++		c->one_swipe = 40000;
++		c->two_swipe = 2500;
++		of_property_read_u32(np, "touchpad,one-swipe-dis-limit",
++				     &c->one_swipe);
++		of_property_read_u32(np, "touchpad,two-swipe-dis-limit",
++				     &c->two_swipe);
++		nr_configs++;
++	}
++	of_node_put(parent);
++}
++
++/*
++ * Picks the config for the attached cover from the pid in its version reply,
++ * or none (pid 0) on detach. An unknown pid gets no filtering: edges meant
++ * for another touchpad could hide real fingers, and a missed palm is the
++ * lesser fault.
++ */
++void Nanosic_edge_filter_set_pid(u16 pid)
++{
++	const struct edge_config *found = NULL;
++	unsigned long flags;
++	int i;
+ 
+-	read_area(np, "left", &cfg.left);
+-	read_area(np, "right", &cfg.right);
+-	read_area(np, "top", &cfg.top);
+-	read_area(np, "bottom", &cfg.bottom);
+-	cfg.one_swipe = 40000;
+-	cfg.two_swipe = 2500;
+-	of_property_read_u32(np, "touchpad,one-swipe-dis-limit", &cfg.one_swipe);
+-	of_property_read_u32(np, "touchpad,two-swipe-dis-limit", &cfg.two_swipe);
+-	of_node_put(np);
+-	cfg.ready = true;
++	for (i = 0; i < nr_configs; i++)
++		if (configs[i].pid == pid)
++			found = &configs[i];
++
++	spin_lock_irqsave(&filter_lock, flags);
++	if (found != cfg) {
++		cfg = found;
++		for (i = 0; i < CONTACTS; i++)
++			slots[i].state = SLOT_FREE;
++	}
++	spin_unlock_irqrestore(&filter_lock, flags);
++
++	if (pid)
++		dbgprint(INFO_LEVEL, "touchpad pid %04x, edge filter %s\n", pid,
++			 found ? "on" : "off");
+ }
+ 
+ static bool in_area(const struct edge_area *area, u16 v)
+@@ -91,8 +141,8 @@ static bool in_area(const struct edge_area *area, u16 v)
+ 
+ static bool on_edge(u16 x, u16 y)
+ {
+-	return in_area(&cfg.left, x) || in_area(&cfg.right, x) ||
+-	       in_area(&cfg.top, y) || in_area(&cfg.bottom, y);
++	return in_area(&cfg->left, x) || in_area(&cfg->right, x) ||
++	       in_area(&cfg->top, y) || in_area(&cfg->bottom, y);
+ }
+ 
+ static u32 moved(int slot, u16 x, u16 y)
+@@ -119,13 +169,17 @@ void Nanosic_edge_filter(u8 *report, size_t len)
+ {
+ 	bool touching[CONTACTS] = { false };
+ 	int slot_of[CONTACTS];
+-	int i, fingers = 0, hidden = 0;
++	int i, fingers = 0;
+ 	unsigned long flags;
+ 
+-	if (!edge_filter || !cfg.ready || len < COUNT_OFFSET + 1)
++	if (!edge_filter || len < COUNT_OFFSET + 1)
+ 		return;
+ 
+ 	spin_lock_irqsave(&filter_lock, flags);
++	if (!cfg) {
++		spin_unlock_irqrestore(&filter_lock, flags);
++		return;
++	}
+ 
+ 	for (i = 0; i < CONTACTS; i++) {
+ 		u8 *c = report + CONTACT_BASE + i * CONTACT_SIZE;
+@@ -164,16 +218,17 @@ void Nanosic_edge_filter(u8 *report, size_t len)
+ 			continue;
+ 		if (moved(s, get_unaligned_le16(c + 4),
+ 			  get_unaligned_le16(c + 6)) >
+-		    (fingers ? cfg.two_swipe : cfg.one_swipe)) {
++		    (fingers ? cfg->two_swipe : cfg->one_swipe)) {
+ 			slots[s].state = SLOT_NORMAL;
+ 			continue;
+ 		}
++		/*
++		 * Keep the contact count: hid-multitouch reads that many
++		 * contacts in order and counts a lifted one too, so lowering it
++		 * would drop a finger that follows the hidden palm.
++		 */
+ 		c[0] &= ~(FLAG_TIP | FLAG_IN_RANGE | FLAG_VALID);
+-		hidden++;
+ 	}
+ 
+-	if (hidden && report[COUNT_OFFSET] >= hidden)
+-		report[COUNT_OFFSET] -= hidden;
+-
+ 	spin_unlock_irqrestore(&filter_lock, flags);
+ }
 diff --git a/nanosic/nano_firmware.c b/nanosic/nano_firmware.c
 index 269a12a..58197ab 100644
 --- a/nanosic/nano_firmware.c
@@ -589,6 +983,385 @@ index 269a12a..58197ab 100644
  #include "nano_macro.h"
  
  #define FW_NAME "MCU_Upgrade.bin"
+diff --git a/nanosic/nano_gpio.c b/nanosic/nano_gpio.c
+index e0fdfbc..9dfb7b6 100644
+--- a/nanosic/nano_gpio.c
++++ b/nanosic/nano_gpio.c
+@@ -316,7 +316,7 @@ int Nanosic_GPIO_recovery(struct nano_i2c_client *client, char *data,
+ 		g_wakeup_irqno = gpio_to_irq(gpio_status_pin);
+ 		err = request_threaded_irq(
+ 			g_wakeup_irqno, NULL, Nanosic_wakeup_irq,
+-			IRQF_TRIGGER_FALLING | IRQF_ONESHOT | IRQF_NO_SUSPEND,
++			IRQF_TRIGGER_RISING | IRQF_ONESHOT,
+ 			"8030_io_wakeup", (void *)&gpio_status_pin);
+ 		if (err < 0) {
+ 			dbgprint(
+diff --git a/nanosic/nano_i2c.c b/nanosic/nano_i2c.c
+index 298e4f5..ac9596a 100644
+--- a/nanosic/nano_i2c.c
++++ b/nanosic/nano_i2c.c
+@@ -23,6 +23,7 @@
+ #include <linux/i2c.h>
+ #include <linux/interrupt.h>
+ #include <linux/gpio.h>
++#include <linux/unaligned.h>
+ //#include <linux/sys_config.h>
+ 
+ #include "nano_macro.h"
+@@ -68,12 +69,22 @@ static bool Nanosic_i2c_specified_packets_detect(char *data)
+ 		STREAM_TO_UINT8(len, data);
+ 		STREAM_TO_UINT16(version, data);
+ 		snprintf(gVers176x, sizeof(gVers176x), "%x", version);
++		/* touchpad version, then the cover pid */
++		if (len >= 7)
++			Nanosic_edge_filter_set_pid(get_unaligned_le16(data + 3));
+ 		return true;
+ 	} else if (command == 0xA2 && source == FIELD_176X &&
+ 		   object == FIELD_HOST) {
++		bool was_attached = gHallStatus & 0x1;
++
+ 		data += 4;
+ 		STREAM_TO_UINT8(gHallStatus, data);
++		if (!(gHallStatus & 0x1))
++			Nanosic_edge_filter_set_pid(0);
+ 		Nanosic_input_hall_changed();
++		Nanosic_PM_health_reply(gI2c_client);
++		if (!was_attached && (gHallStatus & 0x1))
++			Nanosic_PM_health_start(gI2c_client);
+ 	}
+ 
+ 	return false;
+@@ -189,6 +200,8 @@ int Nanosic_i2c_read(struct nano_i2c_client *i2c_client, void *buf, size_t len)
+ 	addr[0] = i2c_client->i2c_slave_addr;
+ 
+ 	adap = i2c_get_adapter(i2c_client->i2c_bus_id);
++	if (!adap)
++		return -1;
+ 	/*
+ 	 * Send out the register address...
+ 	 */
+@@ -213,6 +226,7 @@ int Nanosic_i2c_read(struct nano_i2c_client *i2c_client, void *buf, size_t len)
+ 	}
+ 
+ 	mutex_unlock(&i2c_client->read_mutex);
++	i2c_put_adapter(adap);
+ 
+ 	return len;
+ }
+@@ -236,6 +250,8 @@ int Nanosic_i2c_write(struct nano_i2c_client *i2c_client, void *buf, size_t len)
+ 	Nanosic_PM_try_wakeup(i2c_client);
+ 
+ 	adap = i2c_get_adapter(i2c_client->i2c_bus_id);
++	if (!adap)
++		return -1;
+ 
+ 	tmp_buf[0] = i2c_client->i2c_slave_addr;
+ 	memcpy(tmp_buf + const_iaddr_bytes, buf, len);
+@@ -254,6 +270,7 @@ int Nanosic_i2c_write(struct nano_i2c_client *i2c_client, void *buf, size_t len)
+ 	}
+ 
+ 	mutex_unlock(&i2c_client->write_mutex);
++	i2c_put_adapter(adap);
+ 
+ 	return len;
+ }
+@@ -263,10 +280,31 @@ int Nanosic_i2c_write(struct nano_i2c_client *i2c_client, void *buf, size_t len)
+  *   
+  ** */
+ 
++/* bytes a packet takes in the buffer, 0 for the rest of it */
++static int Nanosic_i2c_packet_len(unsigned char id)
++{
++	switch (id) {
++	case 0x5:
++		return 9;
++	case 0x6:
++		return 5;
++	case 0x2:
++		return 8;
++	case 0x19:
++		return NANOSIC_TOUCH_REPORT_LEN;
++	case 0x22:
++		return 16;
++	case 0x23:
++		return 32;
++	default:
++		return 0;
++	}
++}
++
+ int Nanosic_i2c_parse(char *data, size_t datalen)
+ {
+ 	char *p = data;
+-	char left;
++	int left;
+ 	unsigned char first_byte; /*fixed data 0x57*/
+ 	unsigned char second_byte; /*sqe*/
+ 	unsigned char third_byte; /*fixed data 0x39 , 0x4A , 0x5B , 0x6C*/
+@@ -274,7 +312,7 @@ int Nanosic_i2c_parse(char *data, size_t datalen)
+ 		fourth_byte; /*fixed data 0x2: mouse  0x5: keyboard 0x19: touch*/
+ 	unsigned short seq = 0;
+ 
+-	if (datalen < 0) {
++	if (datalen < 3) {
+ 		dbgprint(ERROR_LEVEL, "invalid data length\n");
+ 		return -1;
+ 	}
+@@ -310,11 +348,22 @@ int Nanosic_i2c_parse(char *data, size_t datalen)
+ 
+ 	rawdata_show("_rawdata_", data, datalen);
+ 
+-	while (left > 0) {
++	/*
++	 * char is unsigned on arm64, so a packet longer than what is left
++	 * used to wrap the count around and parse the stack after the buffer
++	 * as more key and touch reports. Stop at a packet that does not fit.
++	 */
++	while (left >= 3) {
+ 		STREAM_TO_UINT8(fourth_byte, p);
+ 		STREAM_TO_UINT16(seq, p);
+ 		p -= 3;
+ 
++		if (Nanosic_i2c_packet_len(fourth_byte) > left) {
++			dbgprint(ERROR_LEVEL, "truncated packet 0x%02x, %d left\n",
++				 fourth_byte, left);
++			break;
++		}
++
+ 		switch (fourth_byte) {
+ 		case 0x5:
+ 			/*05 00 00 52 00 00 00 00 00 上*/
+diff --git a/nanosic/nano_input.c b/nanosic/nano_input.c
+index 59dd4a9..7ace0ed 100644
+--- a/nanosic/nano_input.c
++++ b/nanosic/nano_input.c
+@@ -386,6 +386,12 @@ static void Nanosic_input_hall_work(struct work_struct *work)
+ 	}
+ }
+ 
++/* whether the hid devices of the keyboard exist */
++bool Nanosic_input_attached(void)
++{
++	return READ_ONCE(gVirtualDevAttached);
++}
++
+ /** ************************************************************************/ /**
+  *  @func Nanosic_input_hall_changed
+  *
+diff --git a/nanosic/nano_macro.h b/nanosic/nano_macro.h
+index 6303347..e165f5e 100644
+--- a/nanosic/nano_macro.h
++++ b/nanosic/nano_macro.h
+@@ -15,6 +15,7 @@
+ #include <linux/input.h>
+ #include <linux/input/mt.h>
+ #include <linux/timer.h>
++#include <linux/workqueue.h>
+ #include <linux/timex.h>
+ #include <linux/rtc.h>
+ #include <linux/soc/qcom/panel_event_notifier.h>
+@@ -95,6 +96,14 @@ struct nano_i2c_client {
+ 	struct spinlock input_report_lock;
+ 	struct mutex pm_mutex;
+ 	struct timer_list pm_timer;
++	/* checks that the 803x answers and the keyboard shows up */
++	struct delayed_work health_work;
++	atomic_t health_replies;
++	atomic_t health_busy;
++	bool health_off;
++	bool health_sent;
++	int health_attempt;
++	int health_baseline;
+ };
+ 
+ /*input数据包类型*/
+@@ -117,10 +126,12 @@ struct device_node;
+ #define NANOSIC_TOUCH_REPORT_LEN 27
+ void Nanosic_edge_filter_init(struct device_node *node);
+ void Nanosic_edge_filter(u8 *report, size_t len);
++void Nanosic_edge_filter_set_pid(u16 pid);
+ #else
+ #define NANOSIC_TOUCH_REPORT_LEN 21
+ static inline void Nanosic_edge_filter_init(struct device_node *node) {}
+ static inline void Nanosic_edge_filter(u8 *report, size_t len) {}
++static inline void Nanosic_edge_filter_set_pid(u16 pid) {}
+ #endif
+ ;
+ 
+@@ -303,6 +314,10 @@ extern int Nanosic_cache_put(void);
+ extern void Nanosic_PM_init(struct nano_i2c_client *i2c_client);
+ extern void Nanosic_PM_try_wakeup(struct nano_i2c_client *i2c_client);
+ extern void Nanosic_PM_free(struct nano_i2c_client *i2c_client);
++extern void Nanosic_PM_health_start(struct nano_i2c_client *i2c_client);
++extern void Nanosic_PM_health_reply(struct nano_i2c_client *i2c_client);
++extern void Nanosic_PM_health_stop(struct nano_i2c_client *i2c_client);
++extern bool Nanosic_input_attached(void);
+ extern int Nanosic_firmware_load(struct nano_i2c_client *i2c_client);
+ 
+ extern char gVers803x[21];
+diff --git a/nanosic/nano_pm.c b/nanosic/nano_pm.c
+index 984291d..840e88e 100644
+--- a/nanosic/nano_pm.c
++++ b/nanosic/nano_pm.c
+@@ -7,12 +7,18 @@
+  * line, and once the bus has been idle for a while it drops the pin again.
+  * A controller that never wakes up has no firmware running, so it is reset
+  * and gets its firmware uploaded again.
++ *
++ * Once a cover is attached, and after resume with a cover attached, a check
++ * asks the 803x for the hall status and expects an answer and the keyboard
++ * input devices within HEALTH_CHECK_MS. If either is missing the 803x is
++ * reset the same way, at most HEALTH_RETRIES times with a growing delay.
+  */
+ 
+ #include <linux/delay.h>
+ #include <linux/device.h>
+ #include <linux/jiffies.h>
+ #include <linux/timer.h>
++#include <linux/workqueue.h>
+ #include "nano_macro.h"
+ 
+ /* how long the 803x stays awake after the last transfer */
+@@ -22,6 +28,10 @@
+ /* how long the 803x gets to raise its interrupt line once woken up */
+ #define PM_WAKEUP_TIMEOUT_MS 100
+ 
++#define HEALTH_CHECK_MS 2000
++#define HEALTH_RETRIES 3
++#define HEALTH_BACKOFF_MS 1000
++
+ static void Nanosic_PM_expire(struct timer_list *t)
+ {
+ 	struct nano_i2c_client *i2c_client = from_timer(i2c_client, t, pm_timer);
+@@ -40,6 +50,16 @@ static void Nanosic_PM_hold(struct nano_i2c_client *i2c_client)
+ 	mod_timer(&i2c_client->pm_timer, jiffies + msecs_to_jiffies(idle_ms));
+ }
+ 
++/* pm_mutex held: reset the 803x and upload its firmware again */
++static void Nanosic_PM_reload(struct nano_i2c_client *i2c_client)
++{
++	Nanosic_GPIO_reset();
++	Nanosic_firmware_load(i2c_client);
++	/* let the firmware start */
++	msleep(500);
++	Nanosic_PM_hold(i2c_client);
++}
++
+ void Nanosic_PM_try_wakeup(struct nano_i2c_client *i2c_client)
+ {
+ 	int i;
+@@ -59,11 +79,7 @@ void Nanosic_PM_try_wakeup(struct nano_i2c_client *i2c_client)
+ 
+ 		if (i == PM_WAKEUP_TIMEOUT_MS) {
+ 			dbgprint(ERROR_LEVEL, "803x did not wake up, reloading it\n");
+-			Nanosic_GPIO_reset();
+-			Nanosic_firmware_load(i2c_client);
+-			/* let the firmware start */
+-			msleep(500);
+-			Nanosic_PM_hold(i2c_client);
++			Nanosic_PM_reload(i2c_client);
+ 		}
+ 
+ 		/* give the i2c controller of the 803x time to come up */
+@@ -73,14 +89,98 @@ void Nanosic_PM_try_wakeup(struct nano_i2c_client *i2c_client)
+ 	mutex_unlock(&i2c_client->pm_mutex);
+ }
+ 
++static void Nanosic_PM_health_work(struct work_struct *work)
++{
++	struct nano_i2c_client *i2c_client =
++		container_of(to_delayed_work(work), struct nano_i2c_client,
++			     health_work);
++	bool answered, ok;
++
++	if (READ_ONCE(i2c_client->health_off))
++		goto done;
++
++	if (!i2c_client->health_sent) {
++		i2c_client->health_baseline =
++			atomic_read(&i2c_client->health_replies);
++		i2c_client->health_sent = true;
++		Nanosic_i2c_request_hall_status(i2c_client);
++		queue_delayed_work(system_freezable_wq, &i2c_client->health_work,
++				   msecs_to_jiffies(HEALTH_CHECK_MS));
++		return;
++	}
++	i2c_client->health_sent = false;
++
++	answered = atomic_read(&i2c_client->health_replies) !=
++		   i2c_client->health_baseline;
++	/* the input devices are only expected with a cover attached */
++	ok = answered && (!(gHallStatus & 0x1) || Nanosic_input_attached());
++	if (ok) {
++		if (i2c_client->health_attempt)
++			dbgprint(ALERT_LEVEL, "803x answers again after %d resets\n",
++				 i2c_client->health_attempt);
++		goto done;
++	}
++
++	if (i2c_client->health_attempt >= HEALTH_RETRIES) {
++		dbgprint(ERROR_LEVEL,
++			 "keyboard cover not working after %d controller resets: %s\n",
++			 HEALTH_RETRIES,
++			 answered ? "no keyboard input device" : "803x does not answer");
++		goto done;
++	}
++
++	i2c_client->health_attempt++;
++	dbgprint(INFO_LEVEL, "%s, resetting the 803x (%d of %d)\n",
++		 answered ? "no keyboard input device" : "803x does not answer",
++		 i2c_client->health_attempt, HEALTH_RETRIES);
++	mutex_lock(&i2c_client->pm_mutex);
++	Nanosic_PM_reload(i2c_client);
++	mutex_unlock(&i2c_client->pm_mutex);
++	queue_delayed_work(system_freezable_wq, &i2c_client->health_work,
++			   msecs_to_jiffies(HEALTH_BACKOFF_MS
++					    << (i2c_client->health_attempt - 1)));
++	return;
++
++done:
++	i2c_client->health_attempt = 0;
++	atomic_set(&i2c_client->health_busy, 0);
++}
++
++/* starts a check unless one is already running */
++void Nanosic_PM_health_start(struct nano_i2c_client *i2c_client)
++{
++	if (IS_ERR_OR_NULL(i2c_client) || READ_ONCE(i2c_client->health_off))
++		return;
++	if (atomic_cmpxchg(&i2c_client->health_busy, 0, 1))
++		return;
++	queue_delayed_work(system_freezable_wq, &i2c_client->health_work, 0);
++}
++
++/* the 803x answered a hall status request */
++void Nanosic_PM_health_reply(struct nano_i2c_client *i2c_client)
++{
++	if (!IS_ERR_OR_NULL(i2c_client))
++		atomic_inc(&i2c_client->health_replies);
++}
++
++void Nanosic_PM_health_stop(struct nano_i2c_client *i2c_client)
++{
++	if (IS_ERR_OR_NULL(i2c_client))
++		return;
++	WRITE_ONCE(i2c_client->health_off, true);
++	cancel_delayed_work_sync(&i2c_client->health_work);
++}
++
+ void Nanosic_PM_init(struct nano_i2c_client *i2c_client)
+ {
+ 	mutex_init(&i2c_client->pm_mutex);
+ 	timer_setup(&i2c_client->pm_timer, Nanosic_PM_expire, 0);
++	INIT_DELAYED_WORK(&i2c_client->health_work, Nanosic_PM_health_work);
+ }
+ 
+ void Nanosic_PM_free(struct nano_i2c_client *i2c_client)
+ {
++	Nanosic_PM_health_stop(i2c_client);
+ 	timer_delete_sync(&i2c_client->pm_timer);
+ 	pm_relax(i2c_client->dev);
+ }
 diff --git a/ntag/ntag_i2c_drv.c b/ntag/ntag_i2c_drv.c
 index 0b442ce..93b6a06 100644
 --- a/ntag/ntag_i2c_drv.c
