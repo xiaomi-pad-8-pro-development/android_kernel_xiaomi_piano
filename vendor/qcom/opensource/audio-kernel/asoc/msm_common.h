@@ -42,6 +42,16 @@ typedef enum snd_card_status_t {
 	SND_CARD_STATUS_ONLINE  = 1,
 } snd_card_status_t;
 
+/* Xiaomi: smart PA (speaker amplifier) types, set by the amplifier drivers */
+enum {
+	SMARTPA_NONE = 0,
+	SMARTPA_FS19XX,
+	SMARTPA_SIA91XX,
+	SMARTPA_MAX,
+};
+
+int get_smartpa_type(void);
+
 struct msm_common_pdata {
 	uint8_t *aud_dev_state;
 	struct kobject aud_dev_kobj;

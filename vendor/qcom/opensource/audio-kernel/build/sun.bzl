@@ -37,6 +37,8 @@ def define_sun():
             "lpass_cdc_tx_macro_dlkm",
             "wsa883x_dlkm",
             "wsa884x_dlkm",
+            "wcd937x_dlkm",
+            "wcd937x_slave_dlkm",
             "wcd938x_dlkm",
             "wcd938x_slave_dlkm",
             "wcd9378_dlkm",
@@ -45,7 +47,8 @@ def define_sun():
             "wcd939x_slave_dlkm",
             "lpass_bt_swr_dlkm",
             "qmp_dlkm",
-            "simple_amp_dlkm"
+            "simple_amp_dlkm",
+            "fs19xx_dlkm"
         ],
         config_options = [
             "CONFIG_SND_SOC_SUN",
@@ -54,6 +57,7 @@ def define_sun():
             "CONFIG_DIGITAL_CDC_RSC_MGR",
             "CONFIG_SOUNDWIRE_MSTR_CTRL",
             "CONFIG_SWRM_VER_2P0",
+            "CONFIG_BOLERO_VER_2P85",
             "CONFIG_WCD9XXX_CODEC_CORE_V2",
             "CONFIG_MSM_CDC_PINCTRL",
             "CONFIG_SND_SOC_WCD_IRQ",
@@ -64,5 +68,6 @@ def define_sun():
             "CONFIG_MSM_EXT_DISPLAY",
             "CONFIG_SND_SOC_QMP",
             "CONFIG_SND_SOC_SIMPLE_AMP",
+            "CONFIG_SND_SOC_FS19XX",
         ]
     )

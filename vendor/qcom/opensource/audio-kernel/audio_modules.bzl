@@ -475,6 +475,24 @@ audio_modules.register(
             ":%b_swr_dlkm",
 	   ],
 )
+# >>>> FS19XX MODULE (Xiaomi) <<<<
+audio_modules.register(
+    name = "fs19xx_dlkm",
+    path = ASOC_CODECS_PATH + "/fs19xx",
+    config_option = "CONFIG_SND_SOC_FS19XX",
+    srcs = [
+        "fsm_core.c",
+        "fs1958.c",
+        "fsm_i2c.c",
+        "fsm_firmware.c",
+        "fsm_class.c",
+        "fsm_misc.c",
+        "fsm_q6afe.c",
+        "fsm_mtk_ipi.c",
+        "fsm_codec.c",
+    ],
+    deps = [":%b_machine_dlkm"],
+)
 # >>>> WSA884X MODULE <<<<
 audio_modules.register(
     name = "wsa884x_dlkm",

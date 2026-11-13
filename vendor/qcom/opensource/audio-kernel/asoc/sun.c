@@ -1175,6 +1175,97 @@ static struct snd_soc_dai_link msm_mi2s_dai_links[] = {
 	},
 };
 
+
+/*
+ * Xiaomi smart PA: the speaker amplifiers (FS19xx or SIA91xx, on SEC TDM on
+ * piano) register their DAIs here, and the TDM links use them as codecs.
+ */
+#define PA_NAME_MAX		24
+#define SMARTPA_MAX_NUM		4
+static char smartpa_num;
+static char smartpa_type[PA_NAME_MAX] = "none";
+static int smartpa_count;
+static bool smartpa_linked;
+static struct snd_soc_dai_link_component smartpa_dails[SMARTPA_MAX_NUM];
+
+static const char * const smartpa_cust_name[SMARTPA_MAX] = {
+	[SMARTPA_NONE] = "none",
+	[SMARTPA_FS19XX] = "fs19xx",
+	[SMARTPA_SIA91XX] = "sia91xx",
+};
+
+bool check_smartpa_type(const char *name)
+{
+	return !strcmp(smartpa_type, "none") || !strcmp(smartpa_type, name);
+}
+EXPORT_SYMBOL_GPL(check_smartpa_type);
+
+int get_smartpa_type(void)
+{
+	return smartpa_num;
+}
+EXPORT_SYMBOL_GPL(get_smartpa_type);
+
+int set_smartpa_type(const char *name, unsigned int size)
+{
+	int i;
+
+	if (size >= PA_NAME_MAX)
+		return -EINVAL;
+
+	for (i = 0; i < SMARTPA_MAX; i++) {
+		if (!strncmp(name, smartpa_cust_name[i], size)) {
+			smartpa_num = i;
+			break;
+		}
+	}
+	if (i == SMARTPA_MAX) {
+		pr_err("%s: unknown smart PA %s\n", __func__, name);
+		return -EINVAL;
+	}
+
+	memcpy(smartpa_type, name, size);
+	smartpa_type[size] = '\0';
+	pr_info("%s: smartpa_type %s\n", __func__, smartpa_type);
+	return 0;
+}
+EXPORT_SYMBOL_GPL(set_smartpa_type);
+
+#define SMARTPA_NAME_SIZE	32
+/* The component name ASoC gives the device (see fmt_single_name in soc-core) */
+static char *smartpa_component_name(struct device *dev)
+{
+	char name[SMARTPA_NAME_SIZE];
+	unsigned int id1, id2;
+
+	strscpy(name, dev_name(dev), SMARTPA_NAME_SIZE);
+	if (!strstr(name, dev->driver->name) &&
+			sscanf(name, "%x-%x", &id1, &id2) == 2) {
+		char tmp[SMARTPA_NAME_SIZE];
+
+		snprintf(tmp, SMARTPA_NAME_SIZE, "%s.%s", dev->driver->name, name);
+		strscpy(name, tmp, SMARTPA_NAME_SIZE);
+	}
+
+	return kstrdup(name, GFP_KERNEL);
+}
+
+void set_smartpa_codec(struct device *dev, const char *dai_name)
+{
+	if (!dev || !dai_name || smartpa_count >= SMARTPA_MAX_NUM) {
+		pr_err("%s: no device or DAI, or too many amplifiers\n", __func__);
+		return;
+	}
+
+	smartpa_dails[smartpa_count].of_node = NULL;
+	smartpa_dails[smartpa_count].name = smartpa_component_name(dev);
+	smartpa_dails[smartpa_count].dai_name = dai_name;
+	dev_info(dev, "%s: %s %s\n", __func__,
+		smartpa_dails[smartpa_count].name, dai_name);
+	smartpa_count++;
+}
+EXPORT_SYMBOL_GPL(set_smartpa_codec);
+
 static struct snd_soc_dai_link msm_tdm_dai_links[] = {
 	{
 		.name = LPASS_BE_PRI_TDM_RX_0,
@@ -2295,6 +2386,47 @@ void msm_common_set_pdata(struct snd_soc_card *card,
 	pdata->common_pdata = common_pdata;
 }
 
+/* Point the SEC TDM links at the amplifiers once they have registered. */
+static void smartpa_dai_link_select(void)
+{
+	int i;
+
+	if (smartpa_linked || !smartpa_count)
+		return;
+
+	for (i = 0; i < ARRAY_SIZE(msm_tdm_dai_links); i++) {
+		struct snd_soc_dai_link *l = &msm_tdm_dai_links[i];
+
+		if (strcmp(l->name, LPASS_BE_SEC_TDM_RX_0) &&
+				strcmp(l->name, LPASS_BE_SEC_TDM_TX_0))
+			continue;
+		l->codecs = smartpa_dails;
+		l->num_codecs = smartpa_count;
+		pr_info("%s: %s uses %d amplifiers\n", __func__, l->name,
+			smartpa_count);
+	}
+	smartpa_linked = true;
+}
+
+static ssize_t smartpa_type_show(struct kobject *kobj,
+				struct kobj_attribute *attr, char *buf)
+{
+	return sysfs_emit(buf, "%s\n", smartpa_type);
+}
+
+static struct kobj_attribute smartpa_type_attr = __ATTR_RO(smartpa_type);
+
+static void smartpa_sysfs_init(void)
+{
+	static struct kobject *kobj;
+
+	if (kobj)
+		return;
+	kobj = kobject_create_and_add("smartpa", kernel_kobj);
+	if (!kobj || sysfs_create_file(kobj, &smartpa_type_attr.attr))
+		pr_err("%s: failed to create /sys/kernel/smartpa\n", __func__);
+}
+
 static int msm_asoc_machine_probe(struct platform_device *pdev)
 {
 	struct snd_soc_card *card = NULL;
@@ -2329,6 +2461,9 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 	/* Check if WSA2 Backends were used for dedicated usecase */
 	pdata->dedicated_wsa2 = of_find_property(pdev->dev.of_node,
 				"qcom,dedicated-wsa2", NULL);
+
+	smartpa_dai_link_select();
+	smartpa_sysfs_init();
 
 	card = populate_snd_card_dailinks(&pdev->dev, pdata->wsa_max_devs);
 	if (!card) {
@@ -2373,6 +2508,27 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 
 	/* parse upd configuration */
 	msm_parse_upd_configuration(pdev, pdata);
+
+	/* PIANODBG: name every DAI the card is still waiting for. */
+	{
+		int i, j;
+
+		for (i = 0; i < card->num_links; i++) {
+			struct snd_soc_dai_link *l = &card->dai_link[i];
+
+			for (j = 0; j < l->num_cpus; j++)
+				if (!snd_soc_find_dai(&l->cpus[j]))
+					dev_err(&pdev->dev, "PIANOSND link %s cpu %s/%s missing\n",
+						l->name, l->cpus[j].name ?: "(of)",
+						l->cpus[j].dai_name ?: "-");
+			for (j = 0; j < l->num_codecs; j++)
+				if (!snd_soc_find_dai(&l->codecs[j]))
+					dev_err(&pdev->dev, "PIANOSND link %s codec %s/%s missing\n",
+						l->name, l->codecs[j].name ?: (l->codecs[j].of_node ?
+						l->codecs[j].of_node->full_name : "-"),
+						l->codecs[j].dai_name ?: "-");
+		}
+	}
 
 	ret = devm_snd_soc_register_card(&pdev->dev, card);
 	if (ret == -EPROBE_DEFER) {
