@@ -100,7 +100,8 @@ int Nanosic_cache_put(void)
 	if (timer_pending(&input_cache->cache_timer))
 		del_timer_sync(&input_cache->cache_timer);
 
-	spin_lock(&input_cache->cache_spinlock);
+	/* the cache timer takes this lock in softirq context */
+	spin_lock_bh(&input_cache->cache_spinlock);
 
 	while (input_cache->cache_cnt) {
 		read_pos = input_cache->cache_read_pos % MAX_CACHE_BLOCKS;
@@ -113,7 +114,7 @@ int Nanosic_cache_put(void)
 		input_cache->cache_cnt--;
 	}
 
-	spin_unlock(&input_cache->cache_spinlock);
+	spin_unlock_bh(&input_cache->cache_spinlock);
 	return 0;
 }
 
@@ -135,7 +136,8 @@ int Nanosic_cache_insert(EM_PacketType type, void *data, size_t datalen)
 
 	rawdata_show("cache insert", data, datalen);
 
-	spin_lock(&input_cache->cache_spinlock);
+	/* the cache timer takes this lock in softirq context */
+	spin_lock_bh(&input_cache->cache_spinlock);
 
 	if (input_cache->cache_cnt < MAX_CACHE_BLOCKS) {
 		write_pos = input_cache->cache_write_pos % MAX_CACHE_BLOCKS;
@@ -151,7 +153,7 @@ int Nanosic_cache_insert(EM_PacketType type, void *data, size_t datalen)
 		ret = -1;
 		dbgprint(DEBUG_LEVEL, "cache is full\n");
 	}
-	spin_unlock(&input_cache->cache_spinlock);
+	spin_unlock_bh(&input_cache->cache_spinlock);
 
 	return ret;
 }
