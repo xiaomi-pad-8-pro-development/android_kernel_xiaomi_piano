@@ -23,6 +23,7 @@
 #include <linux/i2c.h>
 #include <linux/interrupt.h>
 #include <linux/gpio.h>
+#include <asm/unaligned.h>
 //#include <linux/sys_config.h>
 
 #include "nano_macro.h"
@@ -68,11 +69,16 @@ static bool Nanosic_i2c_specified_packets_detect(char *data)
 		STREAM_TO_UINT8(len, data);
 		STREAM_TO_UINT16(version, data);
 		snprintf(gVers176x, sizeof(gVers176x), "%x", version);
+		/* touchpad version, then the cover pid */
+		if (len >= 7)
+			Nanosic_edge_filter_set_pid(get_unaligned_le16(data + 3));
 		return true;
 	} else if (command == 0xA2 && source == FIELD_176X &&
 		   object == FIELD_HOST) {
 		data += 4;
 		STREAM_TO_UINT8(gHallStatus, data);
+		if (!(gHallStatus & 0x1))
+			Nanosic_edge_filter_set_pid(0);
 		Nanosic_input_hall_changed();
 	}
 

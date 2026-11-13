@@ -117,10 +117,12 @@ struct device_node;
 #define NANOSIC_TOUCH_REPORT_LEN 27
 void Nanosic_edge_filter_init(struct device_node *node);
 void Nanosic_edge_filter(u8 *report, size_t len);
+void Nanosic_edge_filter_set_pid(u16 pid);
 #else
 #define NANOSIC_TOUCH_REPORT_LEN 21
 static inline void Nanosic_edge_filter_init(struct device_node *node) {}
 static inline void Nanosic_edge_filter(u8 *report, size_t len) {}
+static inline void Nanosic_edge_filter_set_pid(u16 pid) {}
 #endif
 ;
 

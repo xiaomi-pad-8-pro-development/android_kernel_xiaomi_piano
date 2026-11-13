@@ -31,12 +31,19 @@ struct edge_area {
 	u32 min, max;
 };
 
-static struct {
+struct edge_config {
+	u32 pid;
 	struct edge_area left, right, top, bottom;
 	u32 one_swipe;	/* squared distance a lone edge contact must move */
 	u32 two_swipe;	/* squared distance with another finger down */
-	bool ready;
-} cfg;
+};
+
+#define MAX_CONFIGS 4
+
+static struct edge_config configs[MAX_CONFIGS];
+static int nr_configs;
+/* Config of the attached cover, NULL while none is attached or known. */
+static const struct edge_config *cfg;
 
 enum slot_state { SLOT_FREE, SLOT_NORMAL, SLOT_SHIELDED };
 
@@ -59,29 +66,72 @@ static void read_area(struct device_node *np, const char *side,
 	of_property_read_u32(np, name, &area->max);
 }
 
-/* Takes the first touchpad config; the piano keyboards share edge widths. */
+/*
+ * Reads every "nanosic-pid-<hex pid>" touchpad config. Configs with another
+ * compatible, like pid_1294_extend, are alternatives stock switches to on
+ * request and are not used here.
+ */
 void Nanosic_edge_filter_init(struct device_node *node)
 {
-	struct device_node *configs, *np;
+	struct device_node *parent, *np;
+	struct edge_config *c;
+	const char *compat;
 
-	configs = of_get_child_by_name(node, "touchpad-configs");
-	if (!configs)
+	nr_configs = 0;
+	parent = of_get_child_by_name(node, "touchpad-configs");
+	if (!parent)
 		return;
-	np = of_get_next_available_child(configs, NULL);
-	of_node_put(configs);
-	if (!np)
-		return;
+	for_each_available_child_of_node(parent, np) {
+		if (nr_configs >= MAX_CONFIGS) {
+			of_node_put(np);
+			break;
+		}
+		c = &configs[nr_configs];
+		if (of_property_read_string(np, "compatible", &compat) ||
+		    sscanf(compat, "nanosic-pid-%x", &c->pid) != 1)
+			continue;
+		read_area(np, "left", &c->left);
+		read_area(np, "right", &c->right);
+		read_area(np, "top", &c->top);
+		read_area(np, "bottom", &c->bottom);
+		c->one_swipe = 40000;
+		c->two_swipe = 2500;
+		of_property_read_u32(np, "touchpad,one-swipe-dis-limit",
+				     &c->one_swipe);
+		of_property_read_u32(np, "touchpad,two-swipe-dis-limit",
+				     &c->two_swipe);
+		nr_configs++;
+	}
+	of_node_put(parent);
+}
 
-	read_area(np, "left", &cfg.left);
-	read_area(np, "right", &cfg.right);
-	read_area(np, "top", &cfg.top);
-	read_area(np, "bottom", &cfg.bottom);
-	cfg.one_swipe = 40000;
-	cfg.two_swipe = 2500;
-	of_property_read_u32(np, "touchpad,one-swipe-dis-limit", &cfg.one_swipe);
-	of_property_read_u32(np, "touchpad,two-swipe-dis-limit", &cfg.two_swipe);
-	of_node_put(np);
-	cfg.ready = true;
+/*
+ * Picks the config for the attached cover from the pid in its version reply,
+ * or none (pid 0) on detach. An unknown pid gets no filtering: edges meant
+ * for another touchpad could hide real fingers, and a missed palm is the
+ * lesser fault.
+ */
+void Nanosic_edge_filter_set_pid(u16 pid)
+{
+	const struct edge_config *found = NULL;
+	unsigned long flags;
+	int i;
+
+	for (i = 0; i < nr_configs; i++)
+		if (configs[i].pid == pid)
+			found = &configs[i];
+
+	spin_lock_irqsave(&filter_lock, flags);
+	if (found != cfg) {
+		cfg = found;
+		for (i = 0; i < CONTACTS; i++)
+			slots[i].state = SLOT_FREE;
+	}
+	spin_unlock_irqrestore(&filter_lock, flags);
+
+	if (pid)
+		dbgprint(INFO_LEVEL, "touchpad pid %04x, edge filter %s\n", pid,
+			 found ? "on" : "off");
 }
 
 static bool in_area(const struct edge_area *area, u16 v)
@@ -91,8 +141,8 @@ static bool in_area(const struct edge_area *area, u16 v)
 
 static bool on_edge(u16 x, u16 y)
 {
-	return in_area(&cfg.left, x) || in_area(&cfg.right, x) ||
-	       in_area(&cfg.top, y) || in_area(&cfg.bottom, y);
+	return in_area(&cfg->left, x) || in_area(&cfg->right, x) ||
+	       in_area(&cfg->top, y) || in_area(&cfg->bottom, y);
 }
 
 static u32 moved(int slot, u16 x, u16 y)
@@ -122,10 +172,14 @@ void Nanosic_edge_filter(u8 *report, size_t len)
 	int i, fingers = 0;
 	unsigned long flags;
 
-	if (!edge_filter || !cfg.ready || len < COUNT_OFFSET + 1)
+	if (!edge_filter || len < COUNT_OFFSET + 1)
 		return;
 
 	spin_lock_irqsave(&filter_lock, flags);
+	if (!cfg) {
+		spin_unlock_irqrestore(&filter_lock, flags);
+		return;
+	}
 
 	for (i = 0; i < CONTACTS; i++) {
 		u8 *c = report + CONTACT_BASE + i * CONTACT_SIZE;
@@ -164,7 +218,7 @@ void Nanosic_edge_filter(u8 *report, size_t len)
 			continue;
 		if (moved(s, get_unaligned_le16(c + 4),
 			  get_unaligned_le16(c + 6)) >
-		    (fingers ? cfg.two_swipe : cfg.one_swipe)) {
+		    (fingers ? cfg->two_swipe : cfg->one_swipe)) {
 			slots[s].state = SLOT_NORMAL;
 			continue;
 		}
