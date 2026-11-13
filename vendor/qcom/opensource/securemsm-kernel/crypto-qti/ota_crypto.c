@@ -3,7 +3,7 @@
  * QTI Over the Air (OTA) Crypto driver
  *
  * Copyright (c) 2010-2014,2017-2020 The Linux Foundation. All rights reserved.
- * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/types.h>
@@ -671,7 +671,7 @@ static int qcota_probe(struct platform_device *pdev)
 	rc = alloc_chrdev_region(&qcota_device_no, 0, 1, QCOTA_DEV);
 	if (rc < 0) {
 		pr_err("alloc_chrdev_region failed %d\n", rc);
-		goto exit_free_pqce;
+		return rc;
 	}
 
 #if (KERNEL_VERSION(6, 3, 0) <= LINUX_VERSION_CODE)
@@ -765,18 +765,12 @@ exit_destroy_class:
 	class_destroy(driver_class);
 exit_unreg_chrdev_region:
 	unregister_chrdev_region(qcota_device_no, 1);
-exit_free_pqce:
+
 	kfree(pqce);
 	return rc;
 }
 
-#if (KERNEL_VERSION(6, 10, 0) >= LINUX_VERSION_CODE)
-#define QCRYPTO_REMOVE_RETURN_VAL 0
 static int qcota_remove(struct platform_device *pdev)
-#else
-#define QCRYPTO_REMOVE_RETURN_VAL
-static void qcota_remove(struct platform_device *pdev)
-#endif
 {
 	struct ota_dev_control *podev;
 	struct ota_qce_dev *pqce;
@@ -784,7 +778,7 @@ static void qcota_remove(struct platform_device *pdev)
 
 	pqce = platform_get_drvdata(pdev);
 	if (!pqce)
-		return QCRYPTO_REMOVE_RETURN_VAL;
+		return 0;
 	if (pqce->qce)
 		qce_close(pqce->qce);
 
@@ -809,7 +803,7 @@ ret:
 
 	tasklet_kill(&pqce->done_tasklet);
 	kfree(pqce);
-	return QCRYPTO_REMOVE_RETURN_VAL;
+	return 0;
 }
 
 static const struct of_device_id qcota_match[] = {

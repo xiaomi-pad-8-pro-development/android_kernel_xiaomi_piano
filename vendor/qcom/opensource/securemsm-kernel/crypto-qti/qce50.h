@@ -1,15 +1,12 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
- * Copyright (c) 2024-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _DRIVERS_CRYPTO_MSM_QCE50_H_
 #define _DRIVERS_CRYPTO_MSM_QCE50_H_
 
-#include "qce.h"
 #include "linux/msm-sps.h"
-#include "qce.h"
 
 /* MAX Data xfer block size between BAM and CE */
 #define MAX_CE_BAM_BURST_SIZE   0x40
@@ -87,7 +84,6 @@ struct qce_cmdlist_info {
 	struct sps_command_element *encr_mask_2;
 	struct sps_command_element *encr_mask_3;
 	struct sps_command_element *encr_xts_du_size;
-	struct sps_command_element *km_key_index;
 	struct sps_command_element *pattern_info;
 	struct sps_command_element *block_offset;
 
@@ -192,22 +188,21 @@ struct qce_ce_cfg_reg_setting {
 };
 
 struct ce_bam_info {
-	int				bam_irq;
+	uint32_t			bam_irq;
 	uint32_t			bam_mem;
 	void __iomem			*bam_iobase;
 	uint32_t			ce_device;
 	uint32_t			ce_hw_instance;
 	uint32_t			bam_ee;
-	unsigned int			pipe_pair_index[QCE_PIPE_LAST];
-	unsigned int			src_pipe_index[QCE_PIPE_LAST];
-	unsigned int			dest_pipe_index[QCE_PIPE_LAST];
+	unsigned int			pipe_pair_index[QCE_OFFLOAD_OPER_LAST];
+	unsigned int			src_pipe_index[QCE_OFFLOAD_OPER_LAST];
+	unsigned int			dest_pipe_index[QCE_OFFLOAD_OPER_LAST];
 	unsigned long			bam_handle;
 	int				ce_burst_size;
 	uint32_t			minor_version;
 	uint32_t			major_version;
-	uint32_t			step_version;
-	struct qce_sps_ep_conn_data	producer[QCE_PIPE_LAST];
-	struct qce_sps_ep_conn_data	consumer[QCE_PIPE_LAST];
+	struct qce_sps_ep_conn_data	producer[QCE_OFFLOAD_OPER_LAST];
+	struct qce_sps_ep_conn_data	consumer[QCE_OFFLOAD_OPER_LAST];
 };
 
 /* SPS data structure with buffers, commandlists & commmand pointer lists */
@@ -234,7 +229,6 @@ struct ce_request_info {
 	enum qce_xfer_type_enum	xfer_type;
 	struct ce_sps_data ce_sps;
 	qce_comp_func_ptr_t qce_cb;	/* qce callback function pointer */
-	qce_error_func_ptr_t qce_err_cb;
 	void *user;
 	void *areq;
 	int assoc_nents;
@@ -249,12 +243,7 @@ struct ce_request_info {
 	dma_addr_t phy_ota_dst;
 	unsigned int ota_size;
 	unsigned int req_len;
-	enum qce_offload_op_enum offload_op;
-	enum qce_pipe_enum  pipe_index;
-	u32 key_index;
-	bool use_drm_key_sids;
-	bool results_dump_enabled;
-	bool smmu_mapped_by_request;
+	unsigned int offload_op;
 };
 
 struct qce_driver_stats {

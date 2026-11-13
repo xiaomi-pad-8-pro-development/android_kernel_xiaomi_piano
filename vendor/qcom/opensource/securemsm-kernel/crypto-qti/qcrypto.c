@@ -3,7 +3,7 @@
  * QTI Crypto driver
  *
  * Copyright (c) 2010-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -1342,12 +1342,7 @@ static void _qcrypto_remove_engine(struct crypto_engine *pengine)
 
 	cancel_work_sync(&pengine->bw_reaper_ws);
 	cancel_work_sync(&pengine->bw_allocate_ws);
-
-	#if (KERNEL_VERSION(6, 15, 0) > LINUX_VERSION_CODE)
 	del_timer_sync(&pengine->bw_reaper_timer);
-	#else
-	timer_delete_sync(&pengine->bw_reaper_timer);
-	#endif
 
 	if (pengine->icc_path)
 		icc_put(pengine->icc_path);
@@ -1370,13 +1365,7 @@ static void _qcrypto_remove_engine(struct crypto_engine *pengine)
 	}
 }
 
-#if (KERNEL_VERSION(6, 10, 0) >= LINUX_VERSION_CODE)
-#define QCRYPTO_REMOVE_RETURN_VAL 0
-static int _qcrypto_remove(struct platform_device *pdev)
-#else
-#define QCRYPTO_REMOVE_RETURN_VAL
 static void _qcrypto_remove(struct platform_device *pdev)
-#endif
 {
 	struct crypto_engine *pengine;
 	struct crypto_priv *cp;
@@ -1384,7 +1373,7 @@ static void _qcrypto_remove(struct platform_device *pdev)
 	pengine = platform_get_drvdata(pdev);
 
 	if (!pengine)
-		return QCRYPTO_REMOVE_RETURN_VAL;
+		return;
 	cp = pengine->pcp;
 	mutex_lock(&cp->engine_lock);
 	_qcrypto_remove_engine(pengine);
@@ -1392,7 +1381,7 @@ static void _qcrypto_remove(struct platform_device *pdev)
 	if (pengine->qce)
 		qce_close(pengine->qce);
 	kfree_sensitive(pengine);
-	return QCRYPTO_REMOVE_RETURN_VAL;
+	return;
 }
 
 static int _qcrypto_check_aes_keylen(struct crypto_priv *cp, unsigned int len)
@@ -3824,7 +3813,7 @@ static int _sha_update(struct ahash_request  *req, uint32_t sha_block_size)
 	len = rctx->trailing_buf_len;
 	sg_last = req->src;
 
-	while (len < nbytes && sg_last) {
+	while (len < nbytes) {
 		if ((len + sg_last->length) > nbytes)
 			break;
 		len += sg_last->length;
@@ -3847,8 +3836,6 @@ static int _sha_update(struct ahash_request  *req, uint32_t sha_block_size)
 			req->src = rctx->sg;
 			sg_mark_end(&rctx->sg[0]);
 		} else {
-			if (!sg_last)
-				return -EINVAL;
 			sg_mark_end(sg_last);
 			memset(rctx->sg, 0, sizeof(rctx->sg));
 			sg_set_buf(&rctx->sg[0], staging,
@@ -3857,11 +3844,8 @@ static int _sha_update(struct ahash_request  *req, uint32_t sha_block_size)
 			sg_chain(rctx->sg, 2, req->src);
 			req->src = rctx->sg;
 		}
-	} else {
-		if (!sg_last)
-			return -EINVAL;
+	} else
 		sg_mark_end(sg_last);
-	}
 
 	req->nbytes = nbytes;
 	rctx->trailing_buf_len = trailing_buf_len;
@@ -5324,11 +5308,7 @@ static int _qcrypto_engine_in_use(struct crypto_engine *pengine)
 
 static void _qcrypto_do_suspending(struct crypto_engine *pengine)
 {
-	#if (KERNEL_VERSION(6, 15, 0) > LINUX_VERSION_CODE)
 	del_timer_sync(&pengine->bw_reaper_timer);
-	#else
-	timer_delete_sync(&pengine->bw_reaper_timer);
-	#endif
 	qcrypto_ce_set_bus(pengine, false);
 }
 

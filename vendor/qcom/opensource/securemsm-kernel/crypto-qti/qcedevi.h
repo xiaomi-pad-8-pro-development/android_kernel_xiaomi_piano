@@ -3,7 +3,7 @@
  * QTI crypto Driver
  *
  * Copyright (c) 2014-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023-2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __CRYPTO_MSM_QCEDEVI_H
@@ -11,11 +11,9 @@
 
 #include <linux/interrupt.h>
 #include <linux/cdev.h>
-#include <linux/qcedev.h>
 #include <crypto/hash.h>
 #include "qcom_crypto_device.h"
 #include "fips_status.h"
-#include "qcedev.h"
 #include "qce.h"
 #include "qcedev_smmu.h"
 
@@ -60,7 +58,7 @@ struct qcedev_async_req {
 	union {
 		struct qcedev_cipher_op_req	cipher_op_req;
 		struct qcedev_sha_op_req	sha_op_req;
-		struct qcedev_extended_cipher_req	offload_cipher_op_req;
+		struct qcedev_offload_cipher_op_req	offload_cipher_op_req;
 	};
 
 	union {
@@ -72,7 +70,6 @@ struct qcedev_async_req {
 	wait_queue_head_t			wait_q;
 	uint16_t				state;
 	bool					timed_out;
-	bool					failed;
 };
 
 /**********************************************************************

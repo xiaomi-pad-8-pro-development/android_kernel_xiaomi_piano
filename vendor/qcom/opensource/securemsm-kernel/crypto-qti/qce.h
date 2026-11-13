@@ -3,7 +3,6 @@
  * QTI Crypto Engine driver API
  *
  * Copyright (c) 2010-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2024-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __CRYPTO_MSM_QCE_H
@@ -39,8 +38,6 @@
 #define AES256_KEY_SIZE			32
 #define MAX_CIPHER_KEY_SIZE		AES256_KEY_SIZE
 
-#define QCE_KEY_INDEX_INVALID ((u32) -1)
-
 /* iv length in bytes */
 #define AES_IV_LENGTH			16
 #define DES_IV_LENGTH                   8
@@ -62,10 +59,8 @@
 #define CRYPTO_AVG_BW			384
 #define CRYPTO_PEAK_BW			384
 
-struct qce_error;
 typedef void (*qce_comp_func_ptr_t)(void *areq,
 		unsigned char *icv, unsigned char *iv, int ret);
-typedef void (*qce_error_func_ptr_t)(void *areq, struct qce_error *qce_err);
 
 /* Cipher algorithms supported */
 enum qce_cipher_alg_enum {
@@ -121,17 +116,6 @@ enum qce_offload_op_enum {
 	QCE_OFFLOAD_OPER_LAST
 };
 
-/* Offload operation type */
-enum qce_pipe_enum {
-	QCE_PIPE_KERNEL_KERNEL = 0, /* kernel pipe */
-	QCE_PIPE_HLOS_HLOS = 1,
-	QCE_PIPE_HLOS_HLOS_1 = 2,
-	QCE_PIPE_HLOS_CPB = 3,
-	QCE_PIPE_HLOS_CPB_1 = 4,
-	QCE_PIPE_CPB_HLOS = 5,
-	QCE_PIPE_LAST
-};
-
 /* Algorithms/features supported in CE HW engine */
 struct ce_hw_support {
 	bool sha1_hmac_20; /* Supports 20 bytes of HMAC key*/
@@ -167,7 +151,6 @@ struct qce_sha_req {
 	unsigned char *digest;		/* sha digest  */
 	struct scatterlist *src;	/* pointer to scatter list entry */
 	uint32_t  auth_data[4];		/* byte count */
-	unsigned int key_index;
 	unsigned char *authkey;		/* auth key */
 	unsigned int  authklen;		/* auth key length */
 	bool first_blk;			/* first block indicator */
@@ -181,7 +164,6 @@ struct qce_sha_req {
 struct qce_req {
 	enum qce_req_op_enum op;	/* operation type */
 	qce_comp_func_ptr_t qce_cb;	/* call back */
-	qce_error_func_ptr_t qce_err_cb;	/* call back */
 	void *areq;
 	enum qce_cipher_alg_enum   alg;	/* cipher algorithms*/
 	enum qce_cipher_dir_enum dir;	/* encryption? decryption? */
@@ -196,7 +178,6 @@ struct qce_req {
 	struct scatterlist *asg;	/* Formatted associated data sg  */
 	unsigned char *enckey;		/* cipher key  */
 	unsigned int encklen;		/* cipher key length */
-	unsigned int key_index;		/* cipher key length */
 	unsigned char *iv;		/* initialization vector */
 	unsigned int ivsize;		/* initialization vector size*/
 	unsigned int iv_ctr_size;	/* iv increment counter size*/
@@ -210,7 +191,6 @@ struct qce_req {
 	unsigned int block_offset;	/* partial first block for AES CTR */
 	bool is_copy_op;		/* copy buffers without crypto ops */
 	int current_req_info;
-	bool is_smmu_mapped;	/* flag for if IO data is SMMU mapped already. */
 };
 
 struct qce_pm_table {
@@ -221,15 +201,10 @@ struct qce_pm_table {
 extern struct qce_pm_table qce_pm_table;
 
 struct qce_error {
-	bool no_error;
-	bool timer_error;
-	bool key_paused;
-	bool generic_error;
-	bool key_index_oob; /* Out Of Bounds (OOB) */
-	bool key_empty;
-	bool key_usage;
-	bool key_auth;
-	bool key_size;
+    bool no_error;
+    bool timer_error;
+    bool key_paused;
+    bool generic_error;
 };
 
 void *qce_open(struct platform_device *pdev, int *rc);
@@ -246,5 +221,4 @@ void qce_dump_req(void *handle);
 void qce_get_crypto_status(void *handle, struct qce_error *error);
 int qce_manage_timeout(void *handle, int req_info);
 int qce_set_irqs(void *handle, bool enable);
-bool qce_supports_core_irqs(void *handle);
 #endif /* __CRYPTO_MSM_QCE_H */
