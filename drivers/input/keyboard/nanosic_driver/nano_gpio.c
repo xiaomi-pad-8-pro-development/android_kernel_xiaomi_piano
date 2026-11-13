@@ -316,7 +316,7 @@ int Nanosic_GPIO_recovery(struct nano_i2c_client *client, char *data,
 		g_wakeup_irqno = gpio_to_irq(gpio_status_pin);
 		err = request_threaded_irq(
 			g_wakeup_irqno, NULL, Nanosic_wakeup_irq,
-			IRQF_TRIGGER_FALLING | IRQF_ONESHOT | IRQF_NO_SUSPEND,
+			IRQF_TRIGGER_RISING | IRQF_ONESHOT,
 			"8030_io_wakeup", (void *)&gpio_status_pin);
 		if (err < 0) {
 			dbgprint(
