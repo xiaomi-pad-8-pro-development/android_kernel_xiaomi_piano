@@ -245,7 +245,7 @@ static int Nanosic_chardev_fops_open(struct inode *inode, struct file *file)
 	nanosic_client_t *client = NULL;
 
 	client = kzalloc(sizeof(nanosic_client_t), GFP_KERNEL);
-	if (IS_ERR(client))
+	if (!client)
 		return -ENOMEM;
 
 	client->read_pos = 0;
