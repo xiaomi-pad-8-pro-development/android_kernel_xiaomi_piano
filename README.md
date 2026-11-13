@@ -42,13 +42,16 @@ source, so piano's own drivers are ported from 6.6.
   `include/`) to `vendor/xiaomi/perf`, drop the Kconfig files and
   `mi_ubt/test`, and apply it there. Build with
   `tools/bazel build //vendor/xiaomi/perf:sun_perf_perf`.
-  Then apply `xiaomi-ports.patch` in the same folder: millet_pkg,
+  It also adds the ported Xiaomi modules: millet_pkg,
   binder_gki, millet_binder, mi_wq_dynamic_priority, mi_ubt_test,
   bootinfo, dynamic_readahead, debug_ext, xm_power, mi_memory,
   mi_power, bootmonitor, dump_display and swinfo (the last three from
   Xiaomi's piano-w-oss kernel source), and hid_xiaomi, the 6.6 Focus Pen
   report filter, which the 6.12 GKI does not build. dump_display and swinfo are partial ports of the stock binaries: the
   parts fed by Xiaomi's UFS and qcom_stats changes are stubbed.
+  mi_mempool, minet, mi_wmark and scene_swappiness come from the GPL
+  source in klarnet2009/dada-closed-modules, which matches the piano
+  stock binaries.
   `soc-repo.patch` goes in `kernel_platform/soc-repo`: it enables the IR
   blaster (Xiaomi's 6.6 `ir-spi`), the hardware RNG and USB audio
   offload.
