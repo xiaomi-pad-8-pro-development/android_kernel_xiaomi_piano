@@ -81,13 +81,24 @@ def create_module_registry(hdrs = []):
 
 def define_target_variant_modules(target, variant, registry, modules, config_options = []):
     kernel_build = "{}_{}".format(target, variant)
-    kernel_build_label = "//msm-kernel:{}".format(kernel_build)
+    kernel_build_label = "//soc-repo:{}_base_kernel".format(kernel_build)
     modules = [registry.get(module_name) for module_name in modules]
     options = _get_kernel_build_options(modules, config_options)
     build_print = lambda message: print("{}: {}".format(kernel_build, message))
     formatter = lambda s: s.replace("%b", kernel_build).replace("%t", target)
 
-    headers = ["//msm-kernel:all_headers"] + registry.hdrs
+    # KP 5.0 builds the vendor modules against the soc-repo kernel.
+    soc = ["//soc-repo:{}/drivers/{}".format(kernel_build, d) for d in [
+        "firmware/qcom/qcom-scm",
+        "iommu/qcom_iommu_util",
+        "soc/qcom/mem_buf/mem_buf_dev",
+        "soc/qcom/socinfo",
+        "soc/qcom/llcc-qcom",
+        "soc/qcom/mdt_loader",
+        "soc/qcom/qcom_va_minidump",
+        "clk/qcom/clk-qcom",
+    ]]
+    headers = ["//soc-repo:all_headers"] + soc + registry.hdrs
     all_module_rules = []
 
     for module in modules:

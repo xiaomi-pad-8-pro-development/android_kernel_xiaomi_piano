@@ -30,7 +30,7 @@ TRACE_EVENT(tracing_mark_write,
 	),
 	TP_fast_assign(
 		__entry->pid = pid;
-		__assign_str(trace_name, name);
+		__assign_str(trace_name);
 		__entry->trace_begin = trace_begin;
 		),
 	TP_printk("%s|%d|%s", __entry->trace_begin ? "B" : "E",
@@ -57,7 +57,7 @@ TRACE_EVENT(tracing_eva_frame_from_sw,
 	),
 	TP_fast_assign(
 		__entry->aon_cycles = aon_cycles;
-		__assign_str(trace_name, name);
+		__assign_str(trace_name);
 		__entry->session_id = session_id;
 		__entry->stream_id  = stream_id;
 		__entry->packet_id  = packet_id;
@@ -81,7 +81,7 @@ TRACE_EVENT(tracing_eva_frame_from_fw,
 	),
 
 	TP_fast_assign(
-		__assign_str(trace_name, trace);
+		__assign_str(trace_name);
 	),
 
 	TP_printk("%s", __get_str(trace_name))

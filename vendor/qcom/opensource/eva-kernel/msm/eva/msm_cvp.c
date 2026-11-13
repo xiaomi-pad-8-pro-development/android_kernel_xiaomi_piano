@@ -4,6 +4,7 @@
  * Copyright (c) 2023-2025, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
+#include <linux/vmalloc.h>
 #include "msm_cvp.h"
 #include "cvp_hfi.h"
 #include "cvp_core_hfi.h"

@@ -244,7 +244,7 @@ struct msm_cvp_inst *msm_cvp_open(int session_type, struct task_struct *task)
 
 	inst->debugfs_root =
 		msm_cvp_debugfs_init_inst(inst, core->debugfs_root);
-	strlcpy(inst->proc_name, task->comm, TASK_COMM_LEN);
+	strscpy(inst->proc_name, task->comm, TASK_COMM_LEN);
 
 	return inst;
 fail_init:
