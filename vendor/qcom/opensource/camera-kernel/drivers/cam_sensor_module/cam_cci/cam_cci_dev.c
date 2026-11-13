@@ -909,10 +909,9 @@ static int cam_cci_platform_probe(struct platform_device *pdev)
 	return rc;
 }
 
-static int cam_cci_device_remove(struct platform_device *pdev)
+static void cam_cci_device_remove(struct platform_device *pdev)
 {
 	component_del(&pdev->dev, &cam_cci_component_ops);
-	return 0;
 }
 
 static const struct of_device_id cam_cci_dt_match[] = {

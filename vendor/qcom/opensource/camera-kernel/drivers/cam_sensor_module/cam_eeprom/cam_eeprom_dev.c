@@ -696,10 +696,9 @@ static int32_t cam_eeprom_platform_driver_probe(
 	return rc;
 }
 
-static int cam_eeprom_platform_driver_remove(struct platform_device *pdev)
+static void cam_eeprom_platform_driver_remove(struct platform_device *pdev)
 {
 	component_del(&pdev->dev, &cam_eeprom_component_ops);
-	return 0;
 }
 
 static const struct of_device_id cam_eeprom_dt_match[] = {

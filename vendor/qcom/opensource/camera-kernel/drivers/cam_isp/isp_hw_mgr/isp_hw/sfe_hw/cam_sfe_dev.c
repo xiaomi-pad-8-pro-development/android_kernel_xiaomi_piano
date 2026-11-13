@@ -247,10 +247,9 @@ int cam_sfe_probe(struct platform_device *pdev)
 	return rc;
 }
 
-int cam_sfe_remove(struct platform_device *pdev)
+void cam_sfe_remove(struct platform_device *pdev)
 {
 	component_del(&pdev->dev, &cam_sfe_component_ops);
-	return 0;
 }
 
 int cam_sfe_hw_init(struct cam_isp_hw_intf_data **sfe_hw, uint32_t hw_idx)

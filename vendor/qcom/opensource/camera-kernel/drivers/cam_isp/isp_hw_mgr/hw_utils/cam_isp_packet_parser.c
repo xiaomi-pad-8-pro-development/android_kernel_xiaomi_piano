@@ -4,6 +4,7 @@
  * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
+#include <linux/vmalloc.h>
 #include <media/cam_defs.h>
 #include <media/cam_isp.h>
 #include "cam_mem_mgr.h"

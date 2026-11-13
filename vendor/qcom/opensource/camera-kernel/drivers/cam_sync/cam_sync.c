@@ -4,6 +4,7 @@
  * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
+#include <linux/vmalloc.h>
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/irqflags.h>
@@ -2942,10 +2943,9 @@ static int cam_sync_probe(struct platform_device *pdev)
 	return rc;
 }
 
-static int cam_sync_remove(struct platform_device *pdev)
+static void cam_sync_remove(struct platform_device *pdev)
 {
 	component_del(&pdev->dev, &cam_sync_component_ops);
-	return 0;
 }
 
 static const struct of_device_id cam_sync_dt_match[] = {

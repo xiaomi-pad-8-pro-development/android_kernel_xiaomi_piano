@@ -225,10 +225,9 @@ const static struct component_ops cam_cre_subdev_component_ops = {
 	.unbind = cam_cre_subdev_component_unbind,
 };
 
-static int cam_cre_subdev_remove(struct platform_device *pdev)
+static void cam_cre_subdev_remove(struct platform_device *pdev)
 {
 	component_del(&pdev->dev, &cam_cre_subdev_component_ops);
-	return 0;
 }
 
 static int cam_cre_subdev_probe(struct platform_device *pdev)

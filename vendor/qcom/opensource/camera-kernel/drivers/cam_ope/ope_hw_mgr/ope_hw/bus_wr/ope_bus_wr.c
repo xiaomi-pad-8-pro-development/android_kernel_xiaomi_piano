@@ -4,6 +4,7 @@
  * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
+#include <linux/vmalloc.h>
 #include <linux/of.h>
 #include <linux/debugfs.h>
 #include <linux/videodev2.h>

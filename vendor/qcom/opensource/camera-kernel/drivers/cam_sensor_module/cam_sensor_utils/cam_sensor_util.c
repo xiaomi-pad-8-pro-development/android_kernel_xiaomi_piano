@@ -4,6 +4,7 @@
  * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
+#include <linux/vmalloc.h>
 #include <linux/kernel.h>
 #include <clocksource/arm_arch_timer.h>
 #include "cam_sensor_util.h"

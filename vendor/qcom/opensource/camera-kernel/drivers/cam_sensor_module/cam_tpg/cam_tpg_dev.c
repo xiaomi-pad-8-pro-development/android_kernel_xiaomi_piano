@@ -388,10 +388,9 @@ static int32_t cam_tpg_platform_probe(struct platform_device *pdev)
 }
 
 
-static int32_t cam_tpg_device_remove(struct platform_device *pdev)
+static void cam_tpg_device_remove(struct platform_device *pdev)
 {
 	component_del(&pdev->dev, &cam_tpg_component_ops);
-	return 0;
 }
 
 static const struct of_device_id cam_tpg_dt_match[] = {

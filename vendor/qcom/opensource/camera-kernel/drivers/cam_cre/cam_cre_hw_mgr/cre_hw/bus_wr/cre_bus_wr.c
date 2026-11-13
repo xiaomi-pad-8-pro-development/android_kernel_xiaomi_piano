@@ -3,6 +3,7 @@
  * Copyright (c) 2021, The Linux Foundation. All rights reserved.
  * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
+#include <linux/vmalloc.h>
 #include <linux/delay.h>
 #include "cam_io_util.h"
 #include "cam_hw_intf.h"
