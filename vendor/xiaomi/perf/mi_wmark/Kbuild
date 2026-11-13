@@ -1,0 +1,2 @@
+# From klarnet2009/dada-closed-modules (GPL-2.0), Xiaomi 15 (SM8750); same code as piano stock.
+obj-$(CONFIG_MI_WMARK) += mi_wmark.o

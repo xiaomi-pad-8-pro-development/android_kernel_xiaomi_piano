@@ -1,0 +1,5 @@
+# Out-of-tree / kp50 vendor/xiaomi/perf style.
+# export CONFIG_MILLET_BINDER_GKI := m  (needs millet_core.ko, CONFIG_MILLET_CORE)
+# binder_internal.h / binder_alloc.h come from the kernel tree.
+ccflags-y += -I$(srctree)/drivers/android
+obj-$(CONFIG_MILLET_BINDER_GKI) += binder_gki.o

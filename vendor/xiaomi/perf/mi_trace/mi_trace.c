@@ -423,7 +423,7 @@ hook_events_fail:
 	return ret;
 }
 
-static int mi_trace_remove(struct platform_device *pdev)
+static void mi_trace_remove(struct platform_device *pdev)
 {
 	enabled = 0;
 	mi_trace_destory_procfs();
@@ -433,7 +433,6 @@ static int mi_trace_remove(struct platform_device *pdev)
 		msm_minidump_remove_region(&mtp.md_entry[i]);
 
 	pr_err("%s\n", __func__);
-	return 0;
 }
 
 static const struct of_device_id mi_trace_match_table[] = {

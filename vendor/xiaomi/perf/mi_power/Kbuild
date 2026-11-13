@@ -1,0 +1,7 @@
+# export CONFIG_MI_POWER := m
+# Needs soc-repo symbols: qcom_smem_get (smem), qcom_scm_set_download_mode
+# (qcom-scm), debug_pintctrl_msm_enable/disable (pinctrl-msm). In kleaf add
+# their *_Module.symvers to KBUILD_EXTRA_SYMBOLS (perf/Kbuild already globs
+# soc-repo/sun_perf/*) and deps: smem, qcom-scm, pinctrl-msm.
+ccflags-y += -I$(src)
+obj-$(CONFIG_MI_POWER) += mi_power.o

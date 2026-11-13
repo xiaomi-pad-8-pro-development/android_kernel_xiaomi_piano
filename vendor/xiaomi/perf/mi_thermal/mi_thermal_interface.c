@@ -23,9 +23,7 @@
 #include <mca/common/mca_event.h>
 #include <mca/smartchg/smart_chg_class.h>
 #endif
-#include "../../base/base.h"
 
-#include "../thermal_core.h"
 
 #if defined(CONFIG_DRM_PANEL)
 static struct drm_panel *prim_panel;
@@ -1254,47 +1252,60 @@ out:
 	return 0;
 }
 
+/*
+ * The thermal class is private to the thermal core. A cooling device is
+ * a member of it, so register a throwaway one to find it.
+ */
+static int mi_class_probe_get_state(struct thermal_cooling_device *cdev,
+				    unsigned long *state)
+{
+	*state = 0;
+	return 0;
+}
+
+static int mi_class_probe_set_state(struct thermal_cooling_device *cdev,
+				    unsigned long state)
+{
+	return 0;
+}
+
+static const struct thermal_cooling_device_ops mi_class_probe_ops = {
+	.get_max_state = mi_class_probe_get_state,
+	.get_cur_state = mi_class_probe_get_state,
+	.set_cur_state = mi_class_probe_set_state,
+};
+
+static const struct class *mi_thermal_get_class(void)
+{
+	static const struct class *cls;
+	struct thermal_cooling_device *cdev;
+
+	if (cls)
+		return cls;
+	cdev = thermal_cooling_device_register("mi_thermal_probe", NULL,
+					       &mi_class_probe_ops);
+	if (IS_ERR(cdev)) {
+		pr_err("%s: cannot find the thermal class: %ld\n", __func__,
+		       PTR_ERR(cdev));
+		return NULL;
+	}
+	cls = cdev->device.class;
+	thermal_cooling_device_unregister(cdev);
+	return cls;
+}
+
 static void create_thermal_message_node(void)
 {
 	int ret = 0;
-	struct kernfs_node *sysfs_sd = NULL;
-	struct kernfs_node *thermal_sd = NULL;
-	struct kernfs_node *class_sd = NULL;
-	const struct class *cls = NULL;
-	struct subsys_private *cp = NULL;
-	struct kobject *kobj_tmp = NULL;
+	const struct class *cls = mi_thermal_get_class();
 
-	sysfs_sd = kernel_kobj->sd->parent;
-	if (!sysfs_sd) {
-		printk(KERN_ERR "%s: sysfs_sd is NULL\n", __func__);
-	} else {
-		class_sd = kernfs_find_and_get(sysfs_sd, "class");
-		if (!class_sd) {
-			printk(KERN_ERR "%s:can not find class_sd\n", __func__);
-		} else {
-			thermal_sd = kernfs_find_and_get(class_sd, "thermal");
-			if (thermal_sd) {
-				kobj_tmp = (struct kobject *)thermal_sd->priv;
-				if (kobj_tmp) {
-					cp = to_subsys_private(kobj_tmp);
-					cls = cp->class;
-				} else {
-					printk(KERN_ERR
-					       "%s:can not find thermal kobj\n",
-					       __func__);
-				}
-			} else {
-				printk(KERN_ERR "%s:can not find thermal_sd\n",
-				       __func__);
-			}
-		}
-	}
 	if (!mi_thermal_dev.class && cls) {
 		mi_thermal_dev.class = cls;
 		mi_thermal_dev.dev = device_create(mi_thermal_dev.class, NULL,
 						   'H', NULL,
 						   "thermal_message");
-		if (!mi_thermal_dev.dev) {
+		if (IS_ERR_OR_NULL(mi_thermal_dev.dev)) {
+			mi_thermal_dev.dev = NULL;
 			pr_err("%s create device dev err\n", __func__);
 			return;
 		}
@@ -1312,43 +1323,14 @@ static void create_thermal_message_node(void)
 static void create_mi_powersave_node(void)
 {
 	int ret = 0;
-	struct kernfs_node *sysfs_sd = NULL;
-	struct kernfs_node *thermal_sd = NULL;
-	struct kernfs_node *class_sd = NULL;
-	const struct class *cls = NULL;
-	struct subsys_private *cp = NULL;
-	struct kobject *kobj_tmp = NULL;
+	const struct class *cls = mi_thermal_get_class();
 
-	sysfs_sd = kernel_kobj->sd->parent;
-	if (!sysfs_sd) {
-		printk(KERN_ERR "%s: sysfs_sd is NULL\n", __func__);
-	} else {
-		class_sd = kernfs_find_and_get(sysfs_sd, "class");
-		if (!class_sd) {
-			printk(KERN_ERR "%s:can not find class_sd\n", __func__);
-		} else {
-			thermal_sd = kernfs_find_and_get(class_sd, "thermal");
-			if (thermal_sd) {
-				kobj_tmp = (struct kobject *)thermal_sd->priv;
-				if (kobj_tmp) {
-					cp = to_subsys_private(kobj_tmp);
-					cls = cp->class;
-				} else {
-					printk(KERN_ERR
-					       "%s:can not find thermal kobj\n",
-					       __func__);
-				}
-			} else {
-				printk(KERN_ERR "%s:can not find thermal_sd\n",
-				       __func__);
-			}
-		}
-	}
 	if (!mi_powersave_dev.class && cls) {
 		mi_powersave_dev.class = cls;
 		mi_powersave_dev.dev = device_create(mi_powersave_dev.class, NULL,
 						     'H', NULL, "power_save");
-		if (!mi_powersave_dev.dev) {
+		if (IS_ERR_OR_NULL(mi_powersave_dev.dev)) {
+			mi_powersave_dev.dev = NULL;
 			pr_err("%s create device dev err\n", __func__);
 			return;
 		}

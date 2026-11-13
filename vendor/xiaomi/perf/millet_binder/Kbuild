@@ -1,0 +1,5 @@
+# Out-of-tree / kp50 vendor/xiaomi/perf style.
+# export CONFIG_MILLET_BINDER := m  (needs millet_core.ko, millet_pkg.ko,
+# binder_gki.ko; shares binder_gki/binder_gki.h)
+ccflags-y += -I$(src)/../binder_gki
+obj-$(CONFIG_MILLET_BINDER) += millet_binder.o

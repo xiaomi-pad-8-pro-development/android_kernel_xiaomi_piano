@@ -1,0 +1,4 @@
+# export CONFIG_MI_MEMORY := m
+# Uses only vmlinux exports (ufshcd_read_desc_param,
+# ufshcd_query_descriptor_retry, scsi_*, utf16s_to_utf8s). Load after ufs_qcom.
+obj-$(CONFIG_MI_MEMORY) += mi_memory.o

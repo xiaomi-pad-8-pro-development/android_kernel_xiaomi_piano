@@ -1,0 +1,40 @@
+# Xiaomi kernel helpers for piano, from the 6.6 tree (seventeen). The
+# mca headers in include/ are copies; mi_thermal_interface calls into mca.
+PERF_ROOT := $(if $(filter /%,$(KBUILD_EXTMOD)),$(KBUILD_EXTMOD),$(abspath $(srctree)/$(KBUILD_EXTMOD)))
+
+export CONFIG_MI_BOOT_TIME := m
+export CONFIG_KSHRINK_SLABD := m
+export CONFIG_MI_RMAP_EFFICIENCY := m
+export CONFIG_MI_STACK := m
+export CONFIG_MI_BOOT_MONITOR := m
+export CONFIG_MI_DUMP_DISPLAY := m
+export CONFIG_MI_SOFTWARE_INFO := m
+export CONFIG_PIANO_HID_XIAOMI := m
+export CONFIG_MI_TRACE := m
+export CONFIG_MI_UBT := m
+export CONFIG_PRINTK_ENHANCE := m
+export CONFIG_MI_THERMAL_INTERFACE := m
+export CONFIG_LZ4ASM := m
+export CONFIG_PERF_ACTUATOR := m
+export CONFIG_PLAT_COMMON := m
+export CONFIG_MI_RTG := m
+export CONFIG_MILLET_CORE := m
+export CONFIG_MI_RT_MOD := m
+export CONFIG_MI_UBT_TEST := m
+export CONFIG_MI_WQ_DYNAMIC_PRIORITY := m
+export CONFIG_MILLET_PKG := m
+export CONFIG_MILLET_BINDER_GKI := m
+export CONFIG_MILLET_BINDER := m
+export CONFIG_MI_MEMORY := m
+export CONFIG_MI_POWER := m
+export CONFIG_SCENE_SWAPPINESS := m
+export CONFIG_MI_WMARK := m
+export CONFIG_MINET := m
+export CONFIG_MI_MEMPOOL := m
+subdir-ccflags-y += -I$(PERF_ROOT)/include
+# minidump and the panel event notifier are soc-repo modules the base
+# kernel config does not know, so without these their headers compile to
+# stubs.
+subdir-ccflags-y += -DCONFIG_QCOM_MINIDUMP_MODULE=1 -DCONFIG_QCOM_PANEL_EVENT_NOTIFIER_MODULE=1
+
+obj-m += boottime/ kshrink_slabd/ mi_rmap_efficiency/ mi_stack/ mi_trace/ mi_ubt/ printk_enhance/ mi_thermal/ lz4asm/ perf_actuator/ plat_common/ rtg/ millet/ rt_mod/ mi_wq_dynamic_priority/ millet_pkg/ binder_gki/ millet_binder/ bootinfo/ dynamic_readahead/ debug_ext/ xm_power/ mi_memory/ mi_power/ bootmonitor/ dump_display/ swinfo/ hid_xiaomi/ mi_mempool/ minet/ mi_wmark/ scene_swappiness/

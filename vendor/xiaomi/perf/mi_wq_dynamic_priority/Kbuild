@@ -1,0 +1,5 @@
+# Out-of-tree / kp50 vendor/xiaomi/perf style.
+# export CONFIG_MI_WQ_DYNAMIC_PRIORITY := m
+# Optional: CONFIG_MI_WQ_DYNPRIO_XR_QI=y only if a 6.12 xr_qi.ko that
+# exports get_task_qos_lvl() exists (it does not today).
+obj-$(CONFIG_MI_WQ_DYNAMIC_PRIORITY) += mi_wq_dynamic_priority.o
