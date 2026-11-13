@@ -155,6 +155,7 @@ def define_target_variant_module(target, variant):
                   "//soc-repo:all_headers",
                   "//soc-repo:{}/drivers/clk/qcom/clk-qcom".format(tv),
                   "//soc-repo:{}/drivers/devfreq/governor_msm_adreno_tz".format(tv),
+                  "//soc-repo:{}/drivers/soc/qcom/dcvs/mist".format(tv),
                   "//soc-repo:{}/drivers/firmware/qcom/qcom-scm".format(tv),
                   "//soc-repo:{}/drivers/hwtracing/coresight/coresight".format(tv),
                   "//soc-repo:{}/drivers/iommu/qcom_iommu_util".format(tv),
