@@ -5,6 +5,7 @@
  */
 
 #include "adreno.h"
+#include <soc/qcom/mist_hooks.h>
 #include "adreno_hfi.h"
 #include "adreno_snapshot.h"
 #include "adreno_sysfs.h"
@@ -1155,7 +1156,7 @@ static void adreno_hwsched_issuecmds(struct adreno_device *adreno_dev)
 	if (!adreno_gpu_fault(adreno_dev))
 		hwsched_issuecmds(adreno_dev);
 
-	if (hwsched->inflight > 0) {
+	if (hwsched->inflight > 0 && !mi_gpu_flt_working(false, NULL)) {
 		kgsl_mutex_lock(&device->mutex);
 		kgsl_pwrscale_update(device);
 		kgsl_start_idle_timer(device);
@@ -1918,10 +1919,57 @@ void adreno_hwsched_deregister_hw_fence(struct adreno_device *adreno_dev)
 	clear_bit(ADRENO_HWSCHED_HW_FENCE, &hwsched->flags);
 }
 
+/*
+ * Xiaomi mist GPU frame tracker: kick the devfreq governor now, at most
+ * once per min_interval_ms. Reconstructed from the piano stock msm_kgsl.ko.
+ */
+static struct adreno_device *mi_soc_adreno_dev;
+static DEFINE_MUTEX(mi_soc_gov_lock);
+static ktime_t mi_soc_gov_last;
+
+int mi_soc_gov_update_gpufreq(struct devfreq *devf, unsigned int min_interval_ms)
+{
+	struct adreno_device *adreno_dev = mi_soc_adreno_dev;
+	struct kgsl_device *device;
+	struct kgsl_pwrscale *pwrscale;
+	ktime_t now;
+
+	if (!devf || !adreno_dev)
+		return 0;
+
+	device = KGSL_DEVICE(adreno_dev);
+	pwrscale = &device->pwrscale;
+	if (!pwrscale->enabled)
+		return 0;
+
+	now = ktime_get();
+	if (!mutex_trylock(&mi_soc_gov_lock))
+		return -EBUSY;
+	kgsl_mutex_lock(&device->mutex);
+	if (ktime_ms_delta(now, mi_soc_gov_last) < min_interval_ms) {
+		kgsl_mutex_unlock(&device->mutex);
+		mutex_unlock(&mi_soc_gov_lock);
+		return 0;
+	}
+	mi_soc_gov_last = now;
+	if (device->state != KGSL_STATE_SLUMBER) {
+		kthread_queue_work(pwrscale->devfreq_notify_worker,
+				   &pwrscale->devfreq_notify_work);
+		kgsl_start_idle_timer(device);
+	}
+	kgsl_mutex_unlock(&device->mutex);
+	mutex_unlock(&mi_soc_gov_lock);
+	return 0;
+}
+EXPORT_SYMBOL_GPL(mi_soc_gov_update_gpufreq);
+
 static void adreno_hwsched_dispatcher_close(struct adreno_device *adreno_dev)
 {
 	struct adreno_hwsched *hwsched = &adreno_dev->hwsched;
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
+
+	mi_soc_adreno_dev = NULL;
+	mi_soc_register_freq_adjhook("gpu", MI_SOC_GPU_DEV, NULL);
 
 	if (!IS_ERR_OR_NULL(adreno_dev->scheduler_worker))
 		kthread_destroy_worker(adreno_dev->scheduler_worker);
@@ -2717,6 +2765,9 @@ int adreno_hwsched_init(struct adreno_device *adreno_dev,
 	init_waitqueue_head(&hwf->unack_wq);
 	spin_lock_init(&hwf->lock);
 
+	mi_soc_adreno_dev = adreno_dev;
+	mi_soc_register_freq_adjhook("gpu", MI_SOC_GPU_DEV,
+				     mi_soc_gov_update_gpufreq);
 	return 0;
 }
 

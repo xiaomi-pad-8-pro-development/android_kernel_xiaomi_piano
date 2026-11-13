@@ -8,6 +8,7 @@
 #include <linux/slab.h>
 
 #include "kgsl_bus.h"
+#include <soc/qcom/mist_hooks.h>
 #include "kgsl_device.h"
 #include "kgsl_pwrscale.h"
 #include "kgsl_trace.h"
@@ -151,6 +152,10 @@ void kgsl_pwrscale_update(struct kgsl_device *device)
 
 	pwrscale->next_governor_call = ktime_add_us(t,
 			KGSL_GOVERNOR_CALL_INTERVAL);
+
+	/* Xiaomi mist drives the GPU frequency while its frame tracker works */
+	if (mi_gpu_flt_working(true, __func__))
+		return;
 
 	/* to call update_devfreq() from a kernel thread */
 	if (device->state != KGSL_STATE_SLUMBER)
@@ -823,6 +828,7 @@ static void kgsl_pwrscale_tz_init(struct kgsl_device *device, struct platform_de
 	sched_set_fifo(pwrscale->devfreq_notify_worker->task);
 	pwrscale->next_governor_call = ktime_add_us(ktime_get(),
 			KGSL_GOVERNOR_CALL_INTERVAL);
+	mist_gflt_start(devfreq);
 }
 
 void kgsl_pwrscale_init(struct kgsl_device *device, struct platform_device *pdev)
@@ -866,6 +872,7 @@ static void kgsl_pwrscale_tz_close(struct kgsl_device *device)
 		pwrscale->devfreq_wq = NULL;
 	}
 
+	mist_gflt_stop(device->pwrscale.devfreqptr);
 	devfreq_remove_device(device->pwrscale.devfreqptr);
 	device->pwrscale.devfreqptr = NULL;
 	msm_adreno_tz_exit();
