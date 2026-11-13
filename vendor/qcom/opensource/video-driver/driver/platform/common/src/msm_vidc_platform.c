@@ -25,8 +25,10 @@
 #if defined(CONFIG_MSM_VIDC_SUN)
 #include "msm_vidc_sun.h"
 #include "msm_vidc_iris35.h"
+#if defined(CONFIG_MSM_VIDC_TUNA)
 #include "msm_vidc_tuna.h"
 #include "msm_vidc_kera.h"
+#endif
 #include "msm_vidc_iris33.h"
 #endif
 #if defined(CONFIG_MSM_VIDC_PINEAPPLE)
@@ -228,6 +230,7 @@ static const struct msm_vidc_compat_handle compat_handle[] = {
 		.init_platform              = msm_vidc_init_platform_sun,
 		.init_iris                  = msm_vidc_init_iris35,
 	},
+#if defined(CONFIG_MSM_VIDC_TUNA)
 	{
 		.compat                     = "qcom,tuna-vidc",
 		.init_platform              = msm_vidc_init_platform_tuna,
@@ -238,6 +241,7 @@ static const struct msm_vidc_compat_handle compat_handle[] = {
 		.init_platform              = msm_vidc_init_platform_kera,
 		.init_iris                  = msm_vidc_init_iris33,
 	},
+#endif
 #endif
 };
 

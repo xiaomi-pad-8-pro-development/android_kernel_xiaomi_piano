@@ -2,6 +2,7 @@
 /*
  * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
+#include <linux/vmalloc.h>
 #include <linux/types.h>
 #include <linux/list.h>
 #include <linux/of_address.h>
