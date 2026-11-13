@@ -475,13 +475,13 @@ static int ds28e30_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int ds28e30_remove(struct platform_device *pdev)
+static void ds28e30_remove(struct platform_device *pdev)
 {
 	struct ds28e30_info *info = platform_get_drvdata(pdev);
 
 	onewire_auth_remove_chip(&info->chip);
 
-	return 0;
+	return;
 }
 
 static const struct of_device_id ds28e30_of_match[] = {

@@ -1295,12 +1295,12 @@ static int charger_partition_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int charger_partition_remove(struct platform_device *pdev)
+static void charger_partition_remove(struct platform_device *pdev)
 {
 	cancel_delayed_work(&charger_partition->charger_partition_work);
 	charger_partition_sysfs_remove_group(&pdev->dev);
 	kfree(charger_partition);
-	return 0;
+	return;
 }
 
 static const struct of_device_id match_table[] = {

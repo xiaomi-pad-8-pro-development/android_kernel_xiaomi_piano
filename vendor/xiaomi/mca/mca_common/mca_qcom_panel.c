@@ -219,7 +219,7 @@ static const struct of_device_id match_table[] = {
 	{},
 };
 
-static int mca_panel_remove(struct platform_device *pdev)
+static void mca_panel_remove(struct platform_device *pdev)
 {
 	struct mca_panel_dev *panel_dev = platform_get_drvdata(pdev);
 
@@ -233,7 +233,7 @@ static int mca_panel_remove(struct platform_device *pdev)
 		g_panel = NULL;
 
 	devm_kfree(&pdev->dev, panel_dev);
-	return 0;
+	return;
 }
 
 static void mca_panel_shutdown(struct platform_device *pdev)

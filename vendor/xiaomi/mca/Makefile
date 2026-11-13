@@ -1,15 +1,7 @@
-subdir-ccflags-y += -I$(srctree)/drivers/power/supply/mca/include
-subdir-ccflags-y += -I$(srctree)/drivers/misc/hwid
+# kleaf restores the Module.symvers of the soc-repo dependencies under
+# COMMON_OUT_DIR; hand them to modpost.
+KBUILD_EXTRA_SYMBOLS += $(wildcard $(COMMON_OUT_DIR)/soc-repo/sun_perf/drivers/*/*/*_Module.symvers \
+	$(COMMON_OUT_DIR)/soc-repo/sun_perf/drivers/*/*/*/*_Module.symvers)
 
-obj-$(CONFIG_XM_POWER_SUPPLY)	+= mca_common/
-obj-$(CONFIG_XM_POWER_SUPPLY)	+= mca_shared_memory/
-obj-$(CONFIG_XM_POWER_SUPPLY)	+= mca_platform/
-obj-$(CONFIG_XM_POWER_SUPPLY)	+= mca_protocol/
-obj-$(CONFIG_XM_POWER_SUPPLY)	+= mca_strategy/
-obj-$(CONFIG_XM_POWER_SUPPLY)	+= mca_business/
-obj-$(CONFIG_XM_POWER_SUPPLY)	+= mca_hardware_monitor/
-obj-$(CONFIG_XM_POWER_SUPPLY)	+= mca_smart_charge/
-obj-$(CONFIG_XM_POWER_SUPPLY)	+= mca_hardware_ic/
-obj-$(CONFIG_MCA_QCOM_SUBPMIC)	+= mca_qcom_subpmic_proxy/
-obj-$(CONFIG_MCA_QCOM_SYSFS)	+= mca_qcom_sysfs/
-obj-$(CONFIG_MCA_UT_TEST)	+= mca_ut_test/
+modules modules_install clean:
+	$(MAKE) -C $(KERNEL_SRC) M=$(M) $(KBUILD_OPTIONS) KBUILD_EXTRA_SYMBOLS="$(KBUILD_EXTRA_SYMBOLS)" $@

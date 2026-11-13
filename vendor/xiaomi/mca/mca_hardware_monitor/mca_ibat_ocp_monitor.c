@@ -358,9 +358,9 @@ static int mca_ibat_ocp_mon_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int mca_ibat_ocp_mon_remove(struct platform_device *pdev)
+static void mca_ibat_ocp_mon_remove(struct platform_device *pdev)
 {
-	return 0;
+	return;
 }
 
 static void mca_ibat_ocp_mon_shutdown(struct platform_device *pdev)

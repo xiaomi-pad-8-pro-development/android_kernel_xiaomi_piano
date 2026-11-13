@@ -3475,9 +3475,9 @@ static int strategy_buckchg_class_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int strategy_buckchg_class_remove(struct platform_device *pdev)
+static void strategy_buckchg_class_remove(struct platform_device *pdev)
 {
-	return 0;
+	return;
 }
 
 static void strategy_buckchg_class_shutdown(struct platform_device *pdev)

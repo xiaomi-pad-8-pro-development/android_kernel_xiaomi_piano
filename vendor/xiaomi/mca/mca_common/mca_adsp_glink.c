@@ -9,6 +9,7 @@
 #include <linux/list.h>
 #include <linux/string.h>
 #include <linux/err.h>
+#include <linux/of.h>
 #include <linux/of_device.h>
 #include <linux/soc/qcom/qti_pmic_glink.h>
 #include <mca/common/mca_log.h>
@@ -409,8 +410,14 @@ static int mca_adsp_glink_probe(struct platform_device *pdev)
 	mca->client = pmic_glink_register_client(&pdev->dev, &client_data);
 	if (IS_ERR(mca->client)) {
 		ret = PTR_ERR(mca->client);
-		if (ret == -EPROBE_DEFER)
-			return ret;
+		/*
+		 * 6.12 pmic_glink populates its children before it lists
+		 * itself, so a client probing that early gets -ENODEV.
+		 */
+		if (ret == -EPROBE_DEFER || ret == -ENODEV) {
+			mca_log_err("pmic_glink not ready (%d), deferring\n", ret);
+			return -EPROBE_DEFER;
+		}
 		mca_log_err("Error in registering with pmic_glink %d\n", ret);
 		return ret;
 	}
@@ -439,9 +446,9 @@ static int mca_adsp_glink_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int mca_adsp_glink_remove(struct platform_device *pdev)
+static void mca_adsp_glink_remove(struct platform_device *pdev)
 {
-	return 0;
+	return;
 }
 
 static const struct of_device_id mca_adsp_match_table[] = {

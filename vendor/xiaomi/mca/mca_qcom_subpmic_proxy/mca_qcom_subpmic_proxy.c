@@ -13,6 +13,7 @@
 #include <linux/list.h>
 #include <linux/ktime.h>
 #include <linux/pm_wakeup.h>
+#include <linux/soc/qcom/battery_charger.h>
 
 #include <mca/common/mca_log.h>
 #include <mca/common/mca_event.h>
@@ -174,7 +175,8 @@ int unregister_hboost_event_notifier(struct notifier_block *nb)
 }
 EXPORT_SYMBOL(unregister_hboost_event_notifier);
 
-int qti_battery_charger_get_prop(const char *name, int prop_id, int *val)
+int qti_battery_charger_get_prop(const char *name,
+				 enum battery_charger_prop prop_id, int *val)
 {
 	if (!val)
 		return -EINVAL;
@@ -1295,9 +1297,9 @@ err:
 	return rc;
 }
 
-static int qcom_subpmic_remove(struct platform_device *pdev)
+static void qcom_subpmic_remove(struct platform_device *pdev)
 {
-	return 0;
+	return;
 }
 
 static void qcom_subpmic_shutdown(struct platform_device *pdev)

@@ -631,12 +631,12 @@ static int mca_qcom_sysfs_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int mca_qcom_sysfs_remove(struct platform_device *pdev)
+static void mca_qcom_sysfs_remove(struct platform_device *pdev)
 {
 	struct mca_qcom_sysfs_dev *info = platform_get_drvdata(pdev);
 
 	class_unregister(&info->class);
-	return 0;
+	return;
 }
 
 static const struct of_device_id match_table[] = {

@@ -137,9 +137,9 @@ static int protocol_qc_class_probe(struct platform_device *pdev)
 	return ret;
 }
 
-static int protocol_qc_class_remove(struct platform_device *pdev)
+static void protocol_qc_class_remove(struct platform_device *pdev)
 {
-	return 0;
+	return;
 }
 
 static void protocol_qc_class_shutdown(struct platform_device *pdev)

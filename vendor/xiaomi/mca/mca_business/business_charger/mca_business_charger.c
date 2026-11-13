@@ -2102,10 +2102,10 @@ reg_notify_fail2:
 	return rc;
 }
 
-static int business_charger_remove(struct platform_device *pdev)
+static void business_charger_remove(struct platform_device *pdev)
 {
 	business_charger_sysfs_remove_group(&pdev->dev);
-	return 0;
+	return;
 }
 
 static void business_charger_shutdown(struct platform_device *pdev)

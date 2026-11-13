@@ -86,9 +86,9 @@ static int soc_limit_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int soc_limit_remove(struct platform_device *pdev)
+static void soc_limit_remove(struct platform_device *pdev)
 {
-	return 0;
+	return;
 }
 
 static const struct of_device_id match_table[] = {

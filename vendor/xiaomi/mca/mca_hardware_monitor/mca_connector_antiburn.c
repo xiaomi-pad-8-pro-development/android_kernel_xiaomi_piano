@@ -779,7 +779,7 @@ static const struct of_device_id match_table[] = {
 	{},
 };
 
-static int connector_antiburn_remove(struct platform_device *pdev)
+static void connector_antiburn_remove(struct platform_device *pdev)
 {
 	struct connector_antiburn *conn = platform_get_drvdata(pdev);
 
@@ -793,7 +793,7 @@ static int connector_antiburn_remove(struct platform_device *pdev)
 	mca_event_block_notify_unregister(MCA_EVENT_TYPE_THERMAL_TEMP,
 					  &conn->thermal_board_nb);
 	devm_kfree(&pdev->dev, conn);
-	return 0;
+	return;
 }
 
 static void connector_antiburn_shutdown(struct platform_device *pdev)
