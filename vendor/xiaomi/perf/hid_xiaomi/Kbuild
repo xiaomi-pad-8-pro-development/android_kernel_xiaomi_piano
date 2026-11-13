@@ -1,0 +1,3 @@
+# SPDX-License-Identifier: GPL-2.0
+obj-$(CONFIG_PIANO_HID_XIAOMI) += piano_hid_xiaomi.o
+piano_hid_xiaomi-y := hid-xiaomi.o

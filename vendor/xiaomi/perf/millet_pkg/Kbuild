@@ -1,0 +1,3 @@
+# Out-of-tree / kp50 vendor/xiaomi/perf style.
+# export CONFIG_MILLET_PKG := m  (needs millet_core.ko, CONFIG_MILLET_CORE)
+obj-$(CONFIG_MILLET_PKG) += millet_pkg.o

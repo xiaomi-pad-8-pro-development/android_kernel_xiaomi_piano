@@ -1,0 +1,7 @@
+# Drop into kp50/kernel_platform/vendor/xiaomi/perf/mi_ubt/test/
+# In perf/Kbuild:      export CONFIG_MI_UBT_TEST := m
+# In perf/mi_ubt/Makefile: obj-y += test/
+# In perf/BUILD.bazel outs: "mi_ubt/test/mi_ubt_test.ko"
+# Needs <mi_ubt/mi_ubt.h> (already in perf/include) and mi_ubt.ko's
+# dump_user_backtrace (same kleaf package, so modpost sees it).
+obj-$(CONFIG_MI_UBT_TEST) += mi_ubt_test.o

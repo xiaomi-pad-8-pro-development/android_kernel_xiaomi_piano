@@ -44,7 +44,7 @@
  *	Sven Schmidt <4sschmid@informatik.uni-hamburg.de>
  */
 
-#include <asm/unaligned.h>
+#include <linux/unaligned.h>
 #include <linux/string.h>	 /* memset, memcpy */
 #include <linux/delay.h>
 #include <linux/types.h>
