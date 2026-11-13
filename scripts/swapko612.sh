@@ -4,7 +4,7 @@ set -e
 L=/tmp/piano-kernel-build.log
 mv $L /tmp/piano-kernel-build-$(date +%Y%m%d-%H%M%S).log 2>/dev/null || true
 exec >> $L 2>&1
-KP=/home/alif/kernel/kp50/kernel_platform; ROM=/home/alif/android/evolution-12.3; HOST=$ROM/out/host/linux-x86/bin; W=/home/alif/kernel/dlkm612
+KP=/home/alif/kernel/kp50/kernel_platform; ROM=${ROM:-/home/alif/android/evolution-x}; HOST=$ROM/out/host/linux-x86/bin; W=/home/alif/kernel/dlkm612
 STRIP=$(ls -d $KP/prebuilts/clang/host/linux-x86/clang-r*/bin/llvm-strip | tail -1)
 cd $KP
 while [ $# -ge 2 ]; do

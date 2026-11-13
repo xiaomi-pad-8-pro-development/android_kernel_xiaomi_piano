@@ -2,7 +2,7 @@
 # Repack the 6.12 vendor_dlkm with some modules kept from loading.
 # usage: dlkm612-block.sh <tag> <module.ko>...
 set -euo pipefail
-ROM=/home/alif/android/evolution-12.3; OUTP=$ROM/out/target/product/piano; HOST=$ROM/out/host/linux-x86/bin
+ROM=${ROM:-/home/alif/android/evolution-x}; OUTP=$ROM/out/target/product/piano; HOST=$ROM/out/host/linux-x86/bin
 W=/home/alif/kernel/dlkm612; T=$1; shift
 rm -rf $W/blk-$T && cp -a $W/vendor_dlkm $W/blk-$T
 M=$W/blk-$T/lib/modules

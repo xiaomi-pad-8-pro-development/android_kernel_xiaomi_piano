@@ -6,7 +6,8 @@ set -euo pipefail
 KP=/home/alif/kernel/kp50/kernel_platform
 DIST=$KP/out/msm-kernel-sun-perf/dist
 BIN=$KP/bazel-bin/vendor/qcom/opensource
-HOST=/home/alif/android/evolution-12.3/out/host/linux-x86/bin
+ROM=${ROM:-/home/alif/android/evolution-x}
+HOST=$ROM/out/host/linux-x86/bin
 W=/home/alif/kernel/pack612
 DT=/home/alif/kernel/dt612-out
 VER=$(basename $(ls -d /home/alif/kernel/kp50/kernel_platform/bazel-bin/vendor/qcom/opensource/mm-drivers/msm_ext_display/sun_perf_msm_ext_display/staging/lib/modules/* -td | head -1))

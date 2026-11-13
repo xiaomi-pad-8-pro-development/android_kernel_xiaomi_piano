@@ -6,7 +6,7 @@
 # fails verification of the slot's other partitions.
 # usage: sign612.sh <slot a backup dir with boot_a.img and vbmeta_a.img>
 set -euo pipefail
-R=/home/alif/android/evolution-12.3
+R=${ROM:-/home/alif/android/evolution-x}
 AVB=$R/external/avb
 KEY=$R/piano-local-keys/lineage-23.2-avb.pem
 SLOT=$(realpath $1)
