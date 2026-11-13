@@ -16,13 +16,15 @@ ddk_headers(
 
 PIANO_TOUCH_DEFINES = [
     "CONFIG_TOUCHSCREEN_NT36xxx_HOSTDL_SPI=1",
-    "CONFIG_TOUCHSCREEN_XIAOMI_TOUCHFEATURE",
+    "CONFIG_TOUCHSCREEN_XIAOMI_TOUCHFEATURE=",
     "CONFIG_TOUCHSCREEN_NVT_DEBUG_FS",
     "CONFIG_TOUCH_STYLUS_SUPPORT",
     "TOUCH_THP_SUPPORT",
     "TOUCH_IS_TDDI",
     "TOUCH_STYLUS_SUPPORT",
     "DISABLE_POWER_STATUS",
+    # panel_event_notifier is a soc-repo module the DDK config does not show
+    "CONFIG_QCOM_PANEL_EVENT_NOTIFIER=1",
 ]
 
 ddk_module(
@@ -31,7 +33,7 @@ ddk_module(
     out = "xiaomi_touch.ko",
     srcs = glob(["xiaomi/*.c", "xiaomi/*.h"]),
     local_defines = PIANO_TOUCH_DEFINES,
-    deps = ["//soc-repo:all_headers", ":touch_headers"],
+    deps = ["//soc-repo:all_headers", ":touch_headers", "//soc-repo:sun_perf/drivers/soc/qcom/panel_event_notifier"],
 )
 
 ddk_module(
@@ -45,5 +47,6 @@ ddk_module(
         ":touch_headers",
         ":sun_perf_xiaomi_touch",
         "//soc-repo:sun_perf/drivers/soc/qcom/panel_event_notifier",
+        "//soc-repo:sun_perf/drivers/soc/qcom/smem",
     ],
 )

@@ -79,7 +79,6 @@ int netlink_init(void)
 	netlink_cfg.groups = 0;
 	netlink_cfg.flags = 0;
 	netlink_cfg.input = nl_data_ready;
-	netlink_cfg.cb_mutex = NULL;
 	nl_sk = netlink_kernel_create(&init_net, NETLINK_TEST, &netlink_cfg);
 
 	if (!nl_sk) {
@@ -991,7 +990,7 @@ static int xiaomi_touch_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int xiaomi_touch_remove(struct platform_device *pdev)
+static void xiaomi_touch_remove(struct platform_device *pdev)
 {
 	LOG_INFO("enter");
 	xiaomi_touch_evdev_remove();
@@ -1004,7 +1003,6 @@ static int xiaomi_touch_remove(struct platform_device *pdev)
 	knock_node_release();
 #endif
 	LOG_INFO("over");
-	return 0;
 }
 
 #if defined(TOUCH_PLATFORM_XRING)
