@@ -8,11 +8,11 @@ def _define_module(target, variant):
 
     deps = select({
         "//build/qcom_build_extensions:qtisocrepo_true": ["//soc-repo:all_headers"],
-        "//build/qcom_build_extensions:qtisocrepo_false": ["//msm-kernel:all_headers"],
+        "//build/qcom_build_extensions:qtisocrepo_false": ["//soc-repo:all_headers"],
     })
     kernel_build = select({
         "//build/qcom_build_extensions:qtisocrepo_true": "//soc-repo:{}_base_kernel".format(tv),
-        "//build/qcom_build_extensions:qtisocrepo_false": "//msm-kernel:{}".format(tv),
+        "//build/qcom_build_extensions:qtisocrepo_false": "//soc-repo:{}".format(tv),
     })
 
     ddk_module(
