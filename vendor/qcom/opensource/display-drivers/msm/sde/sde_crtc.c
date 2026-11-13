@@ -1106,6 +1106,9 @@ static void sde_crtc_destroy(struct drm_crtc *crtc)
 
 	drm_crtc_cleanup(crtc);
 	mutex_destroy(&sde_crtc->crtc_lock);
+#ifdef MI_DISPLAY_MODIFY
+	mutex_destroy(&sde_crtc->crtc_cesta_client_lock);
+#endif
 	kvfree(sde_crtc);
 }
 
@@ -6900,8 +6903,14 @@ static void sde_crtc_disable(struct drm_crtc *crtc)
 	/* avoid clk/bw downvote if cont-splash is enabled */
 	if (!in_cont_splash && !sde_crtc->cesta_client)
 		sde_core_perf_crtc_update(crtc, SDE_PERF_DISABLE_COMMIT);
+#ifdef MI_DISPLAY_MODIFY
+	mutex_lock(&sde_crtc->crtc_cesta_client_lock);
+#endif
 
 	sde_crtc->cesta_client = NULL;
+#ifdef MI_DISPLAY_MODIFY
+	mutex_unlock(&sde_crtc->crtc_cesta_client_lock);
+#endif
 
 	/* If enc mask not available, use cached mask to de-register events */
 	if (crtc->state->encoder_mask)
@@ -10186,6 +10195,9 @@ struct drm_crtc *sde_crtc_init(struct drm_device *dev, struct drm_plane *plane)
 	}
 
 	mutex_init(&sde_crtc->crtc_lock);
+#ifdef MI_DISPLAY_MODIFY
+	mutex_init(&sde_crtc->crtc_cesta_client_lock);
+#endif
 	spin_lock_init(&sde_crtc->spin_lock);
 	spin_lock_init(&sde_crtc->event_spin_lock);
 	spin_lock_init(&sde_crtc->frame_data_lock);

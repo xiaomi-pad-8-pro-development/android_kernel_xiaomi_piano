@@ -112,8 +112,16 @@ ddk_headers(
 )
 
 ddk_headers(
+    name = "mi_disp_headers",
+    hdrs = glob([
+      "msm/mi_disp/*.h",
+    ]),
+    includes = ["msm/mi_disp"]
+)
+
+ddk_headers(
     name = "display_drivers_uapi_headers",
-    hdrs = [ ":linux_includes", ":uapi_headers", ":msm_headers",":dp_headers", "dp_hfi_headers", ":dsi_hfi_headers", ":dsi_headers",":hfi_headers",":sde_hfi_headers",":sde_headers",":rotator_headers",":hdmi_headers", ":lsr_headers"]
+    hdrs = [ ":linux_includes", ":uapi_headers", ":msm_headers",":dp_headers", "dp_hfi_headers", ":dsi_hfi_headers", ":dsi_headers",":hfi_headers",":sde_hfi_headers",":sde_headers",":rotator_headers",":hdmi_headers", ":lsr_headers", ":mi_disp_headers"]
 )
 
 load(":targets/sun.bzl", "define_sun")

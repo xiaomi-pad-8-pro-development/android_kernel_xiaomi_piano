@@ -3502,10 +3502,17 @@ int dsi_ctrl_vid_engine_en(struct dsi_ctrl *dsi_ctrl, bool on)
 	return rc;
 }
 
+/* 6.6 never sets AVR on piano's LCD; keep it off unless asked. */
+static bool piano_avr;
+module_param(piano_avr, bool, 0644);
+
 int dsi_ctrl_setup_avr(struct dsi_ctrl *dsi_ctrl, bool enable)
 {
 	if (!dsi_ctrl)
 		return -EINVAL;
+
+	if (!piano_avr)
+		enable = false;
 
 	if (dsi_ctrl->host_config.panel_mode == DSI_OP_VIDEO_MODE) {
 		mutex_lock(&dsi_ctrl->ctrl_lock);

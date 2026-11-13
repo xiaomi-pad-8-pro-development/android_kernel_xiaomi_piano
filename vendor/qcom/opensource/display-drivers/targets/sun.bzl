@@ -25,7 +25,6 @@ def define_sun():
                     "CONFIG_DRM_SDE_WB",
                     "CONFIG_DRM_MSM_REGISTER_LOGGING",
                     "CONFIG_QCOM_MDSS_PLL",
-                    "CONFIG_HDCP_QSEECOM",
                     "CONFIG_DRM_SDE_VM",
                     "CONFIG_QCOM_WCD939X_I2C",
                     "CONFIG_THERMAL_OF",
@@ -35,7 +34,7 @@ def define_sun():
                     "CONFIG_MSM_EXT_DISPLAY",
                     "CONFIG_DRM_LT9611UXD",
                     "CONFIG_DRM_SDE_CESTA",
-                    "CONFIG_SMMU_PROXY",
-                    "CONFIG_DRM_MSM_HDMI"
+                    "CONFIG_DRM_MSM_HDMI",
+                    "MI_DISPLAY_MODIFY"
                 ],
             )
