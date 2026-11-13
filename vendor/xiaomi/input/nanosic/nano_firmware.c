@@ -14,7 +14,7 @@
 #include <linux/i2c.h>
 #include <linux/slab.h>
 #include <linux/string.h>
-#include <asm/unaligned.h>
+#include <linux/unaligned.h>
 #include "nano_macro.h"
 
 #define FW_NAME "MCU_Upgrade.bin"

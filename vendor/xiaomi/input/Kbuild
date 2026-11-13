@@ -1,0 +1,15 @@
+# Xiaomi input drivers for the Pad 8 Pro (piano): the keyboard cover
+# (Nanosic 803), its hall sensors, the FM19511 NFC tag and the
+# fingerprint glue, built out of tree against the Qualcomm 6.12 kernel.
+INPUT_ROOT := $(if $(filter /%,$(KBUILD_EXTMOD)),$(KBUILD_EXTMOD),$(abspath $(srctree)/$(KBUILD_EXTMOD)))
+
+export CONFIG_KEYBOARD_NANO_8030 := m
+export CONFIG_INPUT_XIAOMI_HALL := m
+export CONFIG_FM_NTAG_I2C := m
+export CONFIG_MACH_XIAOMI_PIANO := y
+subdir-ccflags-y += -I$(INPUT_ROOT)/include -DCONFIG_MACH_XIAOMI_PIANO=1
+# The soc-repo modules these call are not in the base kernel config, so
+# without these their headers compile in stubs.
+subdir-ccflags-y += -DCONFIG_QCOM_PANEL_EVENT_NOTIFIER_MODULE=1
+
+obj-m += nanosic/ hall/ ntag/ mi_fp/

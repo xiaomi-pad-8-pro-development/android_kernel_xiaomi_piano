@@ -4,6 +4,8 @@
 ifneq ($(KERNELRELEASE),)
 	mi_fp-objs := fp_driver.o fp_netlink.o fp_platform.o fp_input.o
 	obj-m := mi_fp.o
+	# piano has a side (power key) sensor, not the ultrasonic one
+	ccflags-y += -DCONFIG_SIDE_FINGERPRINT
 
 else
 	KDIR = $(OUT)/obj/KERNEL_OBJ

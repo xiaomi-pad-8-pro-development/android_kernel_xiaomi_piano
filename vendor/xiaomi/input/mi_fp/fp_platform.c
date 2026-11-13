@@ -1,5 +1,5 @@
 #include "fp_driver.h"
-#include "../../../misc/hwid/hwid.h"
+#include <hwid.h>
 
 /* -------------------------------------------------------------------- */
 /* fingerprint chip hardware configuration				*/
