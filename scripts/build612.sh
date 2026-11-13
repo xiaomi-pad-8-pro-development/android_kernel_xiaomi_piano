@@ -18,7 +18,17 @@ sed -i '/"CONFIG_PIANO_BRINGUP"/d' $C
 K=common/arch/arm64/Kconfig.debug
 sed -i '/^\tdefault y # piano bring-up$/d' $K
 [ "${PIANO_BRINGUP:-1}" = 1 ] && sed -i 's/^\tbool "Xiaomi Pad 8 Pro (piano) bring-up debug tools"$/&\n\tdefault y # piano bring-up/' $K
+# dist is never emptied by the build, so a module that is no longer built
+# would stay there from an older kernel and end up in the images.
+D=out/msm-kernel-sun-perf/dist
+rm -rf $D
 ./build_with_bazel.py -t sun perf -s abl --config=stamp || { echo STEP=full FAIL; exit 1; }
+# Every module must match the kernel it ships with.
+V=$(strings $D/Image | sed -n 's/^Linux version \([^ ]*\) .*/\1/p' | head -1)
+for k in $D/*.ko; do
+	m=$(modinfo -F vermagic $k | cut -d' ' -f1)
+	[ "${m%%-*}" = "${V%%-*}" ] || { echo "STEP=vermagic FAIL $(basename $k) $m, kernel $V"; exit 1; }
+done
 # Every techpack module for sun perf, so none is left over from an older
 # build. Camera needs its project flag and builds on its own below.
 T=$(tools/bazel query 'attr(name, "^sun_perf_", kind("ddk_module|kernel_module", //vendor/qcom/opensource/... + //vendor/xiaomi/...)) except //vendor/qcom/opensource/camera-kernel/...' 2>/dev/null)
