@@ -8,7 +8,8 @@ set -x
 KP=/home/alif/kernel/kp50/kernel_platform
 cd $KP || exit 1
 # PIANO_BRINGUP=1 (the default while 6.12 is in testing) builds the memcon
-# RAM console, block log and reset checkpoints; set 0 for a release.
+# RAM console, block log and reset checkpoints. RELEASE=1 turns it off.
+[ "${RELEASE:-0}" = 1 ] && PIANO_BRINGUP=0
 C=soc-repo/configs/sun_perf.bzl
 sed -i '/"CONFIG_PIANO_BRINGUP"/d' $C
 [ "${PIANO_BRINGUP:-1}" = 1 ] && sed -i 's/^    # keep sorted$/&\n    "CONFIG_PIANO_BRINGUP": "y",/' $C

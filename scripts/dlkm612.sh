@@ -60,12 +60,13 @@ rm -f $M/video.ko
 rm -f $M/bootmonitor.ko $M/dump_display.ko $M/swinfo.ko
 # Debug only or not piano hardware: the coresight/STM tracing modules and
 # the WCD937x and simple-amp codecs (piano uses WCD9378 and the FS19xx
-# amps). coresight.ko itself stays: msm_kgsl depends on it. Stop if a kept
+# amps), and the LT9611 HDMI bridges (piano has no HDMI output).
+# coresight.ko itself stays: msm_kgsl depends on it. Stop if a kept
 # module depends on a dropped one.
 # The WLAN host driver builds once per chip; piano has peach v2 (WCN7880),
 # and the others would overflow the 31.8 MB partition. The test drivers
 # are Qualcomm bring-up tools.
-DROP=$(cd $M && ls coresight[-_]*.ko stm[-_]*.ko wcd937x*.ko simple[-_]amp*.ko \
+DROP=$(cd $M && ls coresight[-_]*.ko stm[-_]*.ko wcd937x*.ko simple[-_]amp*.ko lt9611*.ko \
 	qca_cld3_*.ko *_test.ko seccam_test_driver.ko 2>/dev/null | grep -vx qca_cld3_peach_v2.ko || true)
 for k in $DROP; do rm -f $M/$k; done
 for k in $M/*.ko; do

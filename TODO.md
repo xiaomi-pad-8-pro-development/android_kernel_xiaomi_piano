@@ -26,9 +26,13 @@ Updated 2026-11-13.
 
 ## Release cleanup
 
-8. Remove the bring-up options: memcon logging and reset, forced USB
-   device mode, skip_old_modules, the Kconfig.debug default.
-9. Drop the Coresight and STM debug modules (about 20).
+8. Build the release with RELEASE=1, which turns off the memcon RAM
+   console, the block log and the reset checkpoints. The ROM build still
+   adds piano_skip_old_modules, dwc3_msm.piano_force_peripheral and the
+   panic options to the command line; drop them once USB role switching
+   and module loading are tested without them.
+9. Done: the Coresight, STM, test and LT9611 HDMI bridge modules are left
+   out of vendor_dlkm by dlkm612.sh.
 10. Full test on 6.12.96: Wi-Fi speed, charging, audio, fingerprint,
     camera, pen, reading mode, overnight sleep and battery drain.
 
