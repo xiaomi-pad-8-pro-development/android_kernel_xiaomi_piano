@@ -33,6 +33,7 @@
 #include "nano_macro.h"
 #include <linux/uaccess.h>
 #include <linux/sched/signal.h>
+#include <linux/poll.h>
 
 /*buffer节点默认缓冲个数*/
 #define NANODEV_BUFSIZE (10)
@@ -276,10 +277,25 @@ static int Nanosic_chardev_fops_open(struct inode *inode, struct file *file)
  * process has a file open.
  ** */
 
-static unsigned int Nanosic_chardev_fops_poll(struct file *file,
-					      struct poll_table_struct *wait)
+static __poll_t Nanosic_chardev_fops_poll(struct file *file,
+					  struct poll_table_struct *wait)
 {
-	return -ENOSYS;
+	nanosic_client_t *client = (nanosic_client_t *)file->private_data;
+	__poll_t mask = 0;
+
+	if (IS_ERR_OR_NULL(client))
+		return EPOLLERR;
+
+	poll_wait(file, &client->waitq, wait);
+
+	spin_lock(&client_registry_lock);
+	if (client->read_pos != client->write_pos)
+		mask |= EPOLLIN | EPOLLRDNORM;
+	if (client->exit)
+		mask |= EPOLLHUP;
+	spin_unlock(&client_registry_lock);
+
+	return mask;
 }
 
 /** ***************************************************************************
