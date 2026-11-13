@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note */
 /*
  * Copyright (c) 2019, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _UAPI_QCEDEV__H
@@ -14,7 +14,6 @@
 #define QCEDEV_MAX_BEARER	31
 #define QCEDEV_MAX_KEY_SIZE	64
 #define QCEDEV_MAX_IV_SIZE	32
-#define QCEDEV_MAX_MAC_SIZE	64
 
 #define QCEDEV_MAX_BUFFERS      16
 #define QCEDEV_MAX_SHA_DIGEST	32
@@ -25,7 +24,6 @@
 #define QCEDEV_AES_KEY_128	16
 #define QCEDEV_AES_KEY_192	24
 #define QCEDEV_AES_KEY_256	32
-
 /**
  *qcedev_oper_enum: Operation types
  * @QCEDEV_OPER_ENC:		Encrypt
@@ -62,26 +60,14 @@ enum qcedev_offload_oper_enum {
  *qcedev_offload_err_enum: Offload error conditions
  * @QCEDEV_OFFLOAD_NO_ERROR:        Successful crypto operation.
  * @QCEDEV_OFFLOAD_GENERIC_ERROR:   Generic error in crypto status.
- * @QCEDEV_OFFLOAD_KEY_TIMER_EXPIRED_ERROR:     Pipe key timer expired.
+ * @QCEDEV_OFFLOAD_TIMER_EXPIRED_ERROR:     Pipe key timer expired.
  * @QCEDEV_OFFLOAD_KEY_PAUSE_ERROR:     Pipe key pause (means GPCE is paused).
- * @QCEDEV_OFFLOAD_KEY_INDEX_OUT_OF_BOUNDS_ERROR: Key index is too large.
- * @QCEDEV_OFFLOAD_KEY_EMPTY_ERROR:   No key was provided.
- * @QCEDEV_OFFLOAD_KEY_USAGE_ERROR:   Key policy mismatch with request.
- *                                    Ex: Key is CTR key, but CBC was attempted.
- * @QCEDEV_OFFLOAD_KEY_SIZE_ERROR:  Provided key length did not match key size.
- * @QCEDEV_OFFLOAD_KEY_PERM_ERROR:  This Execution Environment is not authorized
- *                                  to use this key.
  */
 enum qcedev_offload_err_enum {
 	QCEDEV_OFFLOAD_NO_ERROR = 0,
 	QCEDEV_OFFLOAD_GENERIC_ERROR = 1,
 	QCEDEV_OFFLOAD_KEY_TIMER_EXPIRED_ERROR = 2,
-	QCEDEV_OFFLOAD_KEY_PAUSE_ERROR = 3,
-	QCEDEV_OFFLOAD_KEY_INDEX_OUT_OF_BOUNDS_ERROR = 4,
-	QCEDEV_OFFLOAD_KEY_EMPTY_ERROR = 5,
-	QCEDEV_OFFLOAD_KEY_USAGE_ERROR = 6,
-	QCEDEV_OFFLOAD_KEY_SIZE_ERROR = 7,
-	QCEDEV_OFFLOAD_KEY_PERM_ERROR = 8,
+	QCEDEV_OFFLOAD_KEY_PAUSE_ERROR = 3
 };
 
 /**
@@ -151,44 +137,6 @@ struct	buf_info {
 };
 
 /**
- * struct buf64_info - Buffer information - 64 bit
- * @len:				Size of the buffer
- * @offset:	Offset from the base address of the buffer
- *				(Used when buffer is allocated using PMEM)
- * @vaddr:			Virtual buffer address pointer
- */
-struct	buf_info_64 {
-	__u64	len;
-	union {
-		__u64	offset;
-		__u8	*vaddr;
-	};
-};
-
-#define QCEDEV_KEY_TYPE_NO_KEY           0 /* Cipher does not use keys. */
-#define QCEDEV_KEY_TYPE_LEGACY_PIPE_KEY  1 /* Implied by offload_op in req. */
-#define QCEDEV_KEY_TYPE_DRM_KEY_INDEX    2 /* Use key_index field. */
-#define QCEDEV_KEY_TYPE_GP_KEY_INDEX     3 /* (WIP) Use key_index field. */
-#define QCEDEV_KEY_TYPE_SOFTWARE_KEY     4 /* (WIP) Use software_key field.*/
-
-/**
- * struct qcedev_key - generic key for qcedev
- * @key_length (IN):     Length of the key in bytes. Always needed. NO_KEY = 0.
- * @key_type (IN):       One of QCEDEV_KEY_TYPE_*.
- *                       Determines which key is used below
- * @software_key (IN):   Software key for the operation.
- * @key_index (OUT):     Index of hardware key in the GPCE Key Table.
- */
-struct qcedev_key {
-	__u32 key_length;
-	__u32 key_type;
-	union {
-		__u8 software_key[QCEDEV_MAX_KEY_SIZE]; /* Not yet supported. Field is reserved. */
-		__u32 key_index;
-	};
-};
-
-/**
  * struct qcedev_vbuf_info - Source and destination Buffer information
  * @src:				Array of buf_info for input/source
  * @dst:				Array of buf_info for output/destination
@@ -196,20 +144,6 @@ struct qcedev_key {
 struct	qcedev_vbuf_info {
 	struct buf_info	src[QCEDEV_MAX_BUFFERS];
 	struct buf_info	dst[QCEDEV_MAX_BUFFERS];
-};
-
-/**
- * struct qcedev_vbuf_info_64 - Source and destination Buffer information 64 bit
- * @src:			Array of buf_info for input/source
- * @dst:			Array of buf_info for output/destination
- * @entries:			Size of the Array of src/dst.
- * @_padding_204:		Padding to maintain 8 byte alignment.
- */
-struct	qcedev_vbuf_info_64 {
-	struct buf_info_64	src[QCEDEV_MAX_BUFFERS];
-	struct buf_info_64	dst[QCEDEV_MAX_BUFFERS];
-	__u32 entries;
-	__u32 _padding_204;
 };
 
 /**
@@ -333,10 +267,6 @@ struct pattern_info {
 
 /**
  * struct qcedev_offload_cipher_op_req - Holds the offload request information
- *                                       Encryption key is stored in pipe, which
- *                                       is chosen through @op parameter.
- *                                       Equivalent to this key-type.
- *                                       QCEDEV_KEY_TYPE_LEGACY_PIPE_KEY
  * @vbuf (IN/OUT):      Stores Source and destination Buffer information.
  *                      Refer to struct qcedev_vbuf_info.
  * @entries (IN):       Number of entries to be processed as part of request.
@@ -383,81 +313,6 @@ struct qcedev_offload_cipher_op_req {
 	__u8 is_copy_op;
 	__u8 encrypt;
 	struct pattern_info pattern_info;
-	enum qcedev_cipher_alg_enum alg;
-	enum qcedev_cipher_mode_enum mode;
-	enum qcedev_offload_oper_enum op;
-	enum qcedev_offload_err_enum err;
-};
-
-/**
- * struct qcedev_extended_cipher_req - Holds the request information
- * @vbuf (IN/OUT):      Stores Source and destination Buffer information.
- *                      Refer to struct qcedev_vbuf_info.
- * @byte_offset (IN):   Offset in the Cipher BLOCK (applicable and to be set
- *                      for AES-128 CTR mode only).
- * @encrypt (IN):       Indicates whether using encrypt or decrypt.
- * @pattern_valid (IN): Indicates the request contains a valid pattern.
- * @is_copy_op (IN):    Indicates an operation where data is not decrypted, only
- *                      copied. Ignored from secure to non-secure buffer to
- *                      protect sensitive data.
- * @in_place_op (IN):   Indicates whether the operation happens in-place,
- *                      src == dst.
- * @_padding_20d:	7 bytes of padding to align iv_ctr_size
- * @iv_ctr_size (IN):   IV counter increment mask size.
- *                      Driver sets the mask value based on this size.
- * @iv_len (IN):        Length of the IV in bytes.
- * @mac_len (IN)[WIP]:  Length of the MAC in bytes.
- * @iv (IN/OUT):        Initialization Vector (IV) data
- *                      This is updated by the driver, incremented by
- *                      number of blocks encrypted/decrypted.
- *                      AES-GCM only supports 12 byte (96 bit) IV.
- * @mac (IN/OUT)[WIP]:  Message Authentication Code (MAC). Input for decrypt,
- *                      output for encrypt. MAC is verified on decrypt.
- *                      ***CHECK THE ERR FIELD FOR MAC_ERROR***
- * @block_offset (IN):  Number of 16-byte blocks to skip. These blocks are not
- *                      encrypted and are simply copied from input to output.
- *                      Similar to AAD for non-AEAD ciphers. No authentication.
- *                      This is ignored for AEAD Ciphers (CCM/GCM).
- * @aad_len (IN)[WIP]:  Length of Additional Authenticated Data (AAD) at the
- *                      beginning of the data, unencrypted.
- *                      CCM requires that aad_len be a multiple of 16.
- *                      GCM does not have this restriction.
- *                      aad_len + implied_cipher_len = data_len.
- *                      Driver adds padding where needed.
- *                      Only used for AEAD Ciphers (CCM, GCM).
- *                      Ignored for other ciphers.
- * @data_len (IN):      Total Length of input/src and output/dst in bytes.
- * @key (IN):           Information about the key used for the operation.
- * @pattern_info (IN):  The pattern to be used for the request.
- * @_padding_2e3:       5 bytes of padding to align iv_ctr_size to align alg
- * @alg (IN):           Type of ciphering algorithm: AES/DES/3DES.
- * @mode (IN):          Mode use when using AES algorithm: ECB/CBC/CTR.
- *                      Applicable when using AES algorithm only.
- * @op (IN):            Type of operation.
- *                      Refer to qcedev_offload_oper_enum.
- * @err (OUT):          Error in crypto status.
- *                      Refer to qcedev_offload_err_enum.
- */
-
-struct qcedev_extended_cipher_req {
-	struct qcedev_vbuf_info_64 vbuf;
-	__u8 byte_offset;
-	__u8 encrypt;
-	__u8 is_pattern_valid;
-	__u8 is_copy_op;
-	__u8 in_place_op;
-	__u8 _padding_20d[7];
-	__u32 iv_ctr_size;
-	__u32 iv_len;
-	__u32 mac_len;
-	__u8 iv[QCEDEV_MAX_IV_SIZE];
-	__u8 mac[QCEDEV_MAX_MAC_SIZE];
-	__u64 block_offset;
-	__u64 aad_len;
-	__u64 data_len;
-	struct qcedev_key key;
-	struct pattern_info pattern_info;
-	__u8 _padding_2e3[5];
 	enum qcedev_cipher_alg_enum alg;
 	enum qcedev_cipher_mode_enum mode;
 	enum qcedev_offload_oper_enum op;
@@ -532,6 +387,4 @@ long qcedev_ioctl(struct file *file,
 	_IOWR(QCEDEV_IOC_MAGIC, 11, struct qcedev_unmap_buf_req)
 #define QCEDEV_IOCTL_OFFLOAD_OP_REQ		\
 	_IOWR(QCEDEV_IOC_MAGIC, 12, struct qcedev_offload_cipher_op_req)
-#define QCEDEV_IOCTL_EXT_CIPHER_OP_REQ		\
-	_IOWR(QCEDEV_IOC_MAGIC, 12, struct qcedev_extended_cipher_req)
 #endif /* _UAPI_QCEDEV__H */
