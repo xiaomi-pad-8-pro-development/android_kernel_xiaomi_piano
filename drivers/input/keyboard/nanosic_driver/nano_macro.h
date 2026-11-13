@@ -15,6 +15,7 @@
 #include <linux/input.h>
 #include <linux/input/mt.h>
 #include <linux/timer.h>
+#include <linux/workqueue.h>
 #include <linux/timex.h>
 #include <linux/rtc.h>
 #include <linux/soc/qcom/panel_event_notifier.h>
@@ -95,6 +96,14 @@ struct nano_i2c_client {
 	struct spinlock input_report_lock;
 	struct mutex pm_mutex;
 	struct timer_list pm_timer;
+	/* checks that the 803x answers and the keyboard shows up */
+	struct delayed_work health_work;
+	atomic_t health_replies;
+	atomic_t health_busy;
+	bool health_off;
+	bool health_sent;
+	int health_attempt;
+	int health_baseline;
 };
 
 /*input数据包类型*/
@@ -305,6 +314,10 @@ extern int Nanosic_cache_put(void);
 extern void Nanosic_PM_init(struct nano_i2c_client *i2c_client);
 extern void Nanosic_PM_try_wakeup(struct nano_i2c_client *i2c_client);
 extern void Nanosic_PM_free(struct nano_i2c_client *i2c_client);
+extern void Nanosic_PM_health_start(struct nano_i2c_client *i2c_client);
+extern void Nanosic_PM_health_reply(struct nano_i2c_client *i2c_client);
+extern void Nanosic_PM_health_stop(struct nano_i2c_client *i2c_client);
+extern bool Nanosic_input_attached(void);
 extern int Nanosic_firmware_load(struct nano_i2c_client *i2c_client);
 
 extern char gVers803x[21];

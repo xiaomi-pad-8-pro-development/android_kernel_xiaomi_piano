@@ -236,6 +236,7 @@ static int nanosic_803_probe(struct i2c_client *client)
 
 _err_keyboard:
 	xiaomi_keyboard_remove();
+	Nanosic_PM_health_stop(I2client);
 _err3:
 	/* the wakeup interrupt uses gI2c_client, so free it first */
 	Nanosic_GPIO_release();
@@ -265,6 +266,8 @@ static void nanosic_803_remove(struct i2c_client *client)
 
 	/* Stop panel work before releasing its input and I2C devices. */
 	xiaomi_keyboard_remove();
+	/* and the controller check, which resets the 803x through the gpios */
+	Nanosic_PM_health_stop(I2client);
 
 	/*release chardev module*/
 	Nanosic_chardev_release();
@@ -408,6 +411,9 @@ static void keyboard_resume_work(struct work_struct *work)
 		dbgprint(ERROR_LEVEL,
 			 "keyboard_resume_work: Nanosic_Hall_notify err:%d\n",
 			 ret);
+	/* a cover attached before suspend should still answer */
+	if (gHallStatus & 0x1)
+		Nanosic_PM_health_start(gI2c_client);
 }
 
 /* the screen is about to turn off, tell the keypad while the 803x is awake */

@@ -75,11 +75,16 @@ static bool Nanosic_i2c_specified_packets_detect(char *data)
 		return true;
 	} else if (command == 0xA2 && source == FIELD_176X &&
 		   object == FIELD_HOST) {
+		bool was_attached = gHallStatus & 0x1;
+
 		data += 4;
 		STREAM_TO_UINT8(gHallStatus, data);
 		if (!(gHallStatus & 0x1))
 			Nanosic_edge_filter_set_pid(0);
 		Nanosic_input_hall_changed();
+		Nanosic_PM_health_reply(gI2c_client);
+		if (!was_attached && (gHallStatus & 0x1))
+			Nanosic_PM_health_start(gI2c_client);
 	}
 
 	return false;
