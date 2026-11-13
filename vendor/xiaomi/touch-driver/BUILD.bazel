@@ -1,0 +1,49 @@
+# Xiaomi touch for the Pad 8 Pro (piano, P81 panel): xiaomi_touch core and
+# the Novatek NT36532 TDDI driver, built against the Qualcomm 6.12 kernel.
+load("//build/kernel/kleaf:kernel.bzl", "ddk_headers", "ddk_module")
+
+package(default_visibility = ["//visibility:public"])
+
+ddk_headers(
+    name = "touch_headers",
+    hdrs = glob([
+        "include/uapi/touch/*.h",
+        "xiaomi/*.h",
+        "p81/nt36532/*.h",
+    ]),
+    includes = ["include/uapi/touch", "xiaomi", "p81/nt36532"],
+)
+
+PIANO_TOUCH_DEFINES = [
+    "CONFIG_TOUCHSCREEN_NT36xxx_HOSTDL_SPI=1",
+    "CONFIG_TOUCHSCREEN_XIAOMI_TOUCHFEATURE",
+    "CONFIG_TOUCHSCREEN_NVT_DEBUG_FS",
+    "CONFIG_TOUCH_STYLUS_SUPPORT",
+    "TOUCH_THP_SUPPORT",
+    "TOUCH_IS_TDDI",
+    "TOUCH_STYLUS_SUPPORT",
+    "DISABLE_POWER_STATUS",
+]
+
+ddk_module(
+    name = "sun_perf_xiaomi_touch",
+    kernel_build = "//soc-repo:sun_perf_base_kernel",
+    out = "xiaomi_touch.ko",
+    srcs = glob(["xiaomi/*.c", "xiaomi/*.h"]),
+    local_defines = PIANO_TOUCH_DEFINES,
+    deps = ["//soc-repo:all_headers", ":touch_headers"],
+)
+
+ddk_module(
+    name = "sun_perf_nt36532_touch",
+    kernel_build = "//soc-repo:sun_perf_base_kernel",
+    out = "nt36532_touch.ko",
+    srcs = glob(["p81/nt36532/*.c", "p81/nt36532/*.h"]),
+    local_defines = PIANO_TOUCH_DEFINES,
+    deps = [
+        "//soc-repo:all_headers",
+        ":touch_headers",
+        ":sun_perf_xiaomi_touch",
+        "//soc-repo:sun_perf/drivers/soc/qcom/panel_event_notifier",
+    ],
+)
