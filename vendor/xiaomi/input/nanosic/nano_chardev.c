@@ -502,7 +502,6 @@ static char *Nanosic_chardev_devnode(const struct device *dev, umode_t *mode)
  ** */
 static const struct file_operations nanosic_cdev_fops = {
 	.owner = THIS_MODULE,
-	.llseek = no_llseek, /* We're a pipe, dude. */
 	.open = Nanosic_chardev_fops_open,
 	.release = Nanosic_chardev_fops_release,
 	.write = Nanosic_chardev_fops_write,

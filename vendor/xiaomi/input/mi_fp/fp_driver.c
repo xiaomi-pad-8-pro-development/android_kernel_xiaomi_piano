@@ -1850,7 +1850,7 @@ err_dts:
 #ifdef CONFIG_FP_MTK_PLATFORM
 static int fp_remove(struct spi_device *driver_device)
 #else
-static int fp_remove(struct platform_device *driver_device)
+static void fp_remove(struct platform_device *driver_device)
 #endif
 {
 	struct fp_device *fp_dev = &fp;
@@ -1924,7 +1924,9 @@ static int fp_remove(struct platform_device *driver_device)
 	xiaomifp_evdev_remove();
 #endif
 	FUNC_EXIT();
+#ifdef CONFIG_FP_MTK_PLATFORM
 	return 0;
+#endif
 }
 
 #ifdef FP_ULTRA_QCOM

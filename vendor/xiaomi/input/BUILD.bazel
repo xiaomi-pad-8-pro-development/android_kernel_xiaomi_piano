@@ -1,0 +1,23 @@
+# Xiaomi input drivers for the Pad 8 Pro (piano): the 6.6 sources, built
+# with their own Makefiles against the Qualcomm 6.12 kernel.
+load("//build/kernel/kleaf:kernel.bzl", "kernel_module")
+
+package(default_visibility = ["//visibility:public"])
+
+kernel_module(
+    name = "sun_perf_input",
+    srcs = glob(["**/*.c", "**/*.h", "**/Makefile", "**/Kbuild"]),
+    outs = [
+        "hall/xiaomi_hall.ko",
+        "mi_fp/mi_fp.ko",
+        "nanosic/nanosic_driver.ko",
+        "ntag/fm_ntag_i2c.ko",
+    ],
+    kernel_build = "//soc-repo:sun_perf_base_kernel",
+    deps = [
+        "//soc-repo:all_headers",
+        "//soc-repo:sun_perf/drivers/soc/qcom/panel_event_notifier",
+        "//soc-repo:sun_perf/kernel/trace/qcom_ipc_logging",
+        "//vendor/xiaomi/mca:sun_perf_mca",
+    ],
+)

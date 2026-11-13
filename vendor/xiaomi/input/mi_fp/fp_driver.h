@@ -12,6 +12,7 @@
 #include <linux/cdev.h>
 #include <linux/input.h>
 #include <linux/device.h>
+#include <linux/platform_device.h>
 #include <linux/mutex.h>
 #include <linux/io.h>
 #include <linux/gpio.h>

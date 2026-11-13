@@ -11,7 +11,7 @@
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/spinlock.h>
-#include <asm/unaligned.h>
+#include <linux/unaligned.h>
 #include "nano_macro.h"
 
 #define CONTACTS 3
