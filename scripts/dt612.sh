@@ -56,6 +56,27 @@ for n in ("pm8550_cam_flash_therm", "pm8550_wlan_therm", "pm8550_pa_therm1",
     s = s[:a] + re.sub(r"\n\t*qcom,adc-tm-type = <1>;", "", s[a:b]) + s[b:]
 open(p, "w").write(s)
 EOF2
+# Qualcomm's MTP sys-therm zones read the same ADC channels as piano's
+# own zones (sys-therm-2 is cpu_therm, -3 flash, -4 wifi, -7 backlight,
+# -8 charger1, -11 conn); a channel binds only its first zone, so piano's
+# never registered and mi_thermald had no inputs for its board sensor.
+# -5 and -6 are MTP PA thermistors piano does not have.
+python3 - $OUT/qcom/sun-pmic-overlay.dtsi <<'EOF3'
+import sys
+p = sys.argv[1]; s = open(p).read()
+for n in (2, 3, 4, 5, 6, 7, 8, 11):
+    a = s.index("\n\tsys-therm-%d {" % n); b = s.index("\n\t};", a) + 4
+    s = s[:a] + s[b:]
+open(p, "w").write(s)
+EOF3
+# sun-thermal-overlay adds trips to sys-therm-2; without its sensor that
+# zone stops thermal_of from finding any zone at all, so drop it too.
+python3 - $OUT/qcom/sun-thermal-overlay.dtsi <<'EOF3'
+import sys
+p = sys.argv[1]; s = open(p).read()
+a = s.index("\n\tsys-therm-2 {"); b = s.index("\n\t};", a) + 4
+open(p, "w").write(s[:a] + s[b:])
+EOF3
 # 6.12 takes the bus and SID as arguments.
 sed -i -E "s/\b(PMIH010X_ADC5_GEN4_[A-Z0-9_]+)\b([^(]|\$)/\1(0, PMIH010X_SID)\2/g" $OUT/qcom/piano-*.dtsi $OUT/qcom/sm8750-*.dtsi
 INC="-I /home/alif/kernel/dt612-extra -I $K/include -I $OUT/qcom -I $OUT/display -I $QDT/bindings -I $K/include -I $K/include/dt-bindings -I $K/arch/arm64/boot/dts -I $QDT/qcom -I $KP/kernel_platform/common/scripts/dtc/include-prefixes -I $KP/kernel_platform/common/include"
