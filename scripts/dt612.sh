@@ -43,6 +43,19 @@ EOF
   done
   grep -c "timing@" $OUT/display/dsi-panel-p81-35-02-0b-dualdsi-dsc-lcd-video.dtsi
 fi
+# The pmk8550 ADC has 2 SDAMs, so at most 15 thermal monitor channels;
+# piano's 10 plus Qualcomm's MTP ones make 19 and the ADC never probes
+# (no board, skin or battery thermal zones). Drop monitoring from the MTP
+# channels piano has no thermistor on; they stay readable over IIO.
+python3 - $OUT/qcom/sun-pmic-overlay.dtsi <<'EOF2'
+import re, sys
+p = sys.argv[1]; s = open(p).read()
+for n in ("pm8550_cam_flash_therm", "pm8550_wlan_therm", "pm8550_pa_therm1",
+          "pm8550_pa_therm2", "pm8550_rear_tof_therm", "pmih010x_wls_therm"):
+    a = s.index("\t" + n + " {"); b = s.index("\t};", a)
+    s = s[:a] + re.sub(r"\n\t*qcom,adc-tm-type = <1>;", "", s[a:b]) + s[b:]
+open(p, "w").write(s)
+EOF2
 # 6.12 takes the bus and SID as arguments.
 sed -i -E "s/\b(PMIH010X_ADC5_GEN4_[A-Z0-9_]+)\b([^(]|\$)/\1(0, PMIH010X_SID)\2/g" $OUT/qcom/piano-*.dtsi $OUT/qcom/sm8750-*.dtsi
 INC="-I /home/alif/kernel/dt612-extra -I $K/include -I $OUT/qcom -I $OUT/display -I $QDT/bindings -I $K/include -I $K/include/dt-bindings -I $K/arch/arm64/boot/dts -I $QDT/qcom -I $KP/kernel_platform/common/scripts/dtc/include-prefixes -I $KP/kernel_platform/common/include"
