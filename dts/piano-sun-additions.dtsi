@@ -28,10 +28,21 @@
 };
 
 /*
- * Bring-up: leave 0xa3500000-0xa35fffff to the early memory console
+ * Bring-up: leave 0xa3500000-0xa3a7ffff to the early memory console
  * (piano_memcon). 6.6 only writes there on a panic, so the log survives
  * the fallback boot into the installed ROM.
  */
+/*
+ * Bring-up: the piano_memcon rings, kept out of the ramoops region so
+ * ramoops cannot write over them. Each boot writes 5 copies of a 0x99000
+ * ring from 0xa3600000 or 0xa3780000, so the region must reach 0xa3a7d000.
+ */
+&reserved_memory {
+	piano_memcon_region: piano-memcon@a3600000 {
+		reg = <0x0 0xa3600000 0x0 0x480000>;
+	};
+};
+
 &ramoops_mem {
 	reg = <0x0 0xa3500000 0x0 0x100000>;
 	/* piano_memcon writes through the linear map. */
