@@ -23,7 +23,7 @@ if [ "${PIANO_BRINGUP:-1}" = 1 ]; then sed -i 's/^\tbool "Xiaomi Pad 8 Pro (pian
 # would stay there from an older kernel and end up in the images.
 D=out/msm-kernel-sun-perf/dist
 rm -rf $D
-./build_with_bazel.py -t sun perf -s abl --config=stamp || { echo STEP=full FAIL; exit 1; }
+./build_with_bazel.py -t sun perf -s abl || { echo STEP=full FAIL; exit 1; }
 # Every module must match the kernel it ships with.
 V=$(strings $D/Image | sed -n 's/^Linux version \([^ ]*\) .*/\1/p' | head -1)
 for k in $D/*.ko; do
