@@ -63,6 +63,14 @@ fi
 # duplicate symbol, again ending first-stage module loading.
 rm -f $M/qti_battery_charger.ko
 sed -i '/^qti_battery_charger\.ko$/d' $M/modules.load $M/modules.load.recovery
+# Both still list qti_battery_charger as a dependency, so in recovery they
+# fail to load and first-stage init stops there: recovery never starts and
+# the tablet loops on the Mi logo. Android loads them later from
+# vendor_dlkm, where a failure is not fatal. The same goes for miscore,
+# whose init fails on 6.12 (its sysctl table is refused), and llcc_perfmon,
+# which Android never loads.
+sed -i -e '/^qcom-hv-haptics\.ko$/d' -e '/^leds-qti-flash\.ko$/d' \
+  -e '/^miscore\.ko$/d' -e '/^llcc_perfmon\.ko$/d' $M/modules.load.recovery
 # The vendor_boot partition is 96 MiB; drop debug info.
 STRIP=$(ls -d $KP/prebuilts/clang/host/linux-x86/clang-r*/bin/llvm-strip | tail -1)
 $STRIP --strip-debug $M/*.ko
