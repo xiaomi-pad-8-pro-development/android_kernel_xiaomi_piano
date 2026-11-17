@@ -1,83 +1,43 @@
-# Kernel 6.12 bring-up for the Xiaomi Pad 8 Pro (piano)
+# Kernel 6.12 for the Xiaomi Pad 8 Pro (piano)
 
-Research branch, not used by any ROM build. The daily kernel stays on
-`seventeen` (android15-6.6).
+The kernel of the 6.12 EvolutionX builds. The 6.6 kernel stays on the
+`6.6` branch (android15-6.6) for the 6.6 builds.
 
 The 6.12 kernel is Qualcomm KERNEL.PLATFORM.5.0 r48-00400 (ACK
-android16-6.12.81 plus the sun SoC drivers), with `common`
-updated to ACK 6.12.96. Xiaomi released no 6.12
-source, so piano's own drivers are ported from 6.6.
+android16-6.12.81 plus the sun SoC drivers), with `common` updated to
+ACK android16-6.12 at 8be1e0b68cce (6.12.96). Xiaomi released no 6.12
+source, so piano's own drivers are ported from 6.6, with the Pad 8 kernel
+tuning on top.
 
 ## Layout
 
-- `patches/` holds one diff per KP 5.0 project, against the commit in
-  `patches/BASE`. Apply them in a KP 5.0 checkout:
-  `kernel_platform/common`, `vendor/qcom/opensource/<project>`.
-  `touch-driver.patch` is against the 6.6 `techpack/touch-driver` of
-  this repository (the commit in `BASE`); copy that folder to
-  `vendor/xiaomi/touch-driver` and apply it there.
-  `mca.patch` is against the commit in its `BASE` line: copy
-  `drivers/power/supply/mca` to `vendor/xiaomi/mca`, with
-  `drivers/misc/hwid` as `hwid/`, `drivers/staging/miev` as `miev/` and
-  `include/miev` as `include/miev`, and apply it there. It builds the
-  Xiaomi charging stack out of tree, with Qualcomm's 6.12 fsa4480 USB-C
-  switch driver, which the sun build leaves out.
-  `camera-kernel.patch` and `eva-kernel.patch` are against the same
-  commit: copy `techpack/camera-kernel` and `techpack/eva-kernel` to
-  `vendor/qcom/opensource/` and apply them there. Xiaomi's camera driver
-  is kept rather than Qualcomm's 6.12 one, since the HyperOS camera HAL
-  is built against its interface.
-  `input.patch` is against the same commit: copy
-  `drivers/input/keyboard/nanosic_driver` to `vendor/xiaomi/input/nanosic`,
-  `drivers/input/misc/xiaomi_hall.c` to `hall/`, `drivers/ntag/fm19511`
-  to `ntag/` and `drivers/input/fingerprint/mi_fp` to `mi_fp/`, and apply
-  it there. It builds the keyboard cover, hall sensor, NFC tag and
-  fingerprint drivers out of tree.
-  `perf.patch` is against the same commit: copy `drivers/xiaomi/`
-  `{boottime,kshrink_slabd,mi_stack,mi_trace,mi_ubt,printk_enhance}`,
-  `drivers/staging/mi_rmap_efficiency`, `drivers/xiaomi/lz4asm`,
-  `drivers/thermal/xiaomi` (as
-  `mi_thermal/`), `include/mi_ubt` and the mca headers
-  `mca/common/mca_event.h` and `mca/smartchg/smart_chg_class.h` (under
-  `include/`) to `vendor/xiaomi/perf`, drop the Kconfig files and
-  `mi_ubt/test`, and apply it there. Build with
-  `tools/bazel build //vendor/xiaomi/perf:sun_perf_perf`.
-  It also adds the ported Xiaomi modules: millet_pkg,
-  binder_gki, millet_binder, mi_wq_dynamic_priority, mi_ubt_test,
-  bootinfo, dynamic_readahead, debug_ext, xm_power, mi_memory,
-  mi_power, bootmonitor, dump_display and swinfo (the last three from
-  Xiaomi's piano-w-oss kernel source), and hid_xiaomi, the 6.6 Focus Pen
-  report filter, which the 6.12 GKI does not build. dump_display and swinfo are partial ports of the stock binaries: the
-  parts fed by Xiaomi's UFS and qcom_stats changes are stubbed.
-  mi_mempool, minet, mi_wmark and scene_swappiness come from the GPL
-  source in klarnet2009/dada-closed-modules, which matches the piano
-  stock binaries.
-  `soc-repo.patch` goes in `kernel_platform/soc-repo`: it enables the IR
-  blaster (Xiaomi's 6.6 `ir-spi`), the hardware RNG and USB audio
-  offload.
-  `ksu.patch` is optional and goes in `kernel_platform/common` after
-  `common.patch`: SUSFS v2.3.0 (susfs4ksu `gki-android16-6.12`, with
-  the `show_smaps_rollup` hunk redone for the KP 5.0 loop) and the
-  KernelSU hooks. Check out KernelSU-Next as on 6.6
-  (`pershoot/KernelSU-Next` `dev-susfs`, commit d21e0a66c887) at
-  `kernel_platform/common/KernelSU-Next`. KSU and KSU_SUSFS default to y
-  in its Kconfig, so applying the patch makes the root build, as
-  `piano_ksu.config` does on 6.6.
-- `scripts/` builds and tests it:
-  - `build612.sh` builds everything: `./build_with_bazel.py -t sun perf -s abl`
-    in `kernel_platform`, every sun_perf techpack and Xiaomi module, then
-    the images. It lists the modules it built so `dlkm612.sh` never packs
-    a stale one left in bazel-bin by an older build
-  - `dt612.sh` merges the piano devicetree, `pack612.sh` packs boot,
-    vendor_boot and dtbo
-  - `dlkm612.sh` builds vendor_dlkm; `dlkm612-first.sh <N>` keeps only
-    the first N modules of modules.load, for bisecting
-  - `r612.sh <N>` (Mac) flashes a round on slot a, waits for fastboot,
-    restores the 6.6 slot and saves the boot log
+This branch is the full source, one commit per change. The old patch
+stack is kept as the tag `archive/6.12-patches`.
+
+| Path | Goes to, in a KP 5.0 checkout |
+| --- | --- |
+| `kernel_platform/common` | `kernel_platform/common` (Google 6.12 plus Qualcomm and piano) |
+| `kernel_platform/soc-repo` | `kernel_platform/soc-repo` (sun SoC drivers, WALT) |
+| `kernel_platform/qcom` | `kernel_platform/qcom` (devicetree) |
+| `vendor/qcom/opensource/*` | the Qualcomm techpacks of the same name |
+| `vendor/xiaomi/*` | Xiaomi drivers built out of tree: `touch-driver`, `mca` (charging), `input` (keyboard cover, hall, NFC tag, fingerprint), `perf` (Xiaomi performance modules) |
+| `dts/` | piano devicetree additions used by `scripts/dt612.sh` |
+| `scripts/` | build, pack and install scripts |
+
+`kernel_platform/common` keeps the KP 5.0 `BUILD.bazel`: the one in newer
+ACK needs a newer Kleaf than KP 5.0 ships.
+
+## Building
+
+`scripts/build612.sh` copies this tree into a KP 5.0 checkout with
+`scripts/sync612.sh` (set `SRC612=none` to build the checkout as it is),
+builds the kernel and the techpacks, then runs `dt612.sh`, `dlkm612.sh`
+and `pack612.sh`. `RELEASE=1` drops the bring-up switches.
+`rel612-final.sh` stages the result in the device tree for a ROM build.
 
 ## Debugging
 
-`common.patch` adds two boot logs, since pstore does not survive a
+`common` adds two boot logs, since pstore does not survive a
 reboot on piano: `piano_memcon` (early RAM console) and `piano_blklog`,
 which writes the kernel log to the `rawdump` partition. The header is
 `PIANOLOG`, then u32 seq and u32 length, with the text at offset 4096.
@@ -99,17 +59,17 @@ ROM install with the bring-up kernel and all of them set:
 | `piano_memcon_copies=1..5` | Copies of the RAM log ring (default 5, voted per bit after a warm reset) |
 | `piano_memcon.reboot_after=<s>` | Restarts into the bootloader after that many seconds |
 
-## LTO
+## Rust and LTO
 
-`gki_defconfig` selects `CONFIG_LTO_CLANG_THIN` (common.patch). Qualcomm's
-`build_with_bazel.py` only rejects the `--lto` flag; with the default
-`--lto=default` Kleaf keeps the defconfig choice, and the DDK modules follow
-the kernel config. The MTE `irg`/`ldg` asm that broke Full LTO on 6.6 is
-already `volatile` here.
+Like Google's `gki_defconfig`, the kernel builds with Rust
+(`CONFIG_RUST`, the Rust binder `ANDROID_BINDER_IPC_RUST`, ashmem and
+wrapfd) and `GENDWARFKSYMS`, which needs LTO off, so there is no LTO.
+The toolchain is the KP 5.0 rustc 1.82.0 and clang r536225. TCP uses BBR
+by default.
 
 ## KernelSU
 
-With `ksu.patch`, KernelSU-Next (built in, GKI2) and SUSFS v2.3.0 work on
+With KernelSU-Next (built in, GKI2) and SUSFS v2.3.0 work on
 the tablet with the KernelSU-Next manager v3.4.2.
 
 ## State (2026-11-05, r50)
@@ -175,7 +135,7 @@ the tablet with the KernelSU-Next manager v3.4.2.
     The perf modules build with no soc-repo include path, so
     vendor/xiaomi/perf/include carries copies of the soc-repo headers
     they use (minidump.h, panel_event_notifier.h, sched/walt.h); keep
-    them in step with soc-repo.patch.
+    them in step with soc-repo.
     Rewrites, rebuilt from disassembly of the stock .ko (static only,
     untested on a device), in `vendor/xiaomi/perf`:
     - perf_actuator: /dev/xr_perf_actuator and /dev/xr_fbt ioctl
