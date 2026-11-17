@@ -2,7 +2,7 @@
 # Repack the 6.12 vendor_dlkm so only the first N modules of modules.load load.
 # usage: dlkm612-first.sh <N>
 set -euo pipefail
-ROM=/home/alif/android/evolution-12.3; OUTP=$ROM/out/target/product/piano; HOST=$ROM/out/host/linux-x86/bin
+ROM=${ROM:-/home/alif/android/evolution-x}; OUTP=$ROM/out/target/product/piano; HOST=$ROM/out/host/linux-x86/bin
 W=/home/alif/kernel/dlkm612; N=$1
 rm -rf $W/first-$N && cp -a $W/vendor_dlkm $W/first-$N
 M=$W/first-$N/lib/modules

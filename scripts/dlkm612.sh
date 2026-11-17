@@ -78,12 +78,20 @@ for k in $M/*.ko; do
 done
 # system_dlkm_a is 7 MiB: strip the GKI modules and compress harder.
 $HOST/fsck.erofs --extract=$W/system_dlkm $DIST/system_dlkm.flatten.erofs.img >/dev/null
+cp $W/system_dlkm/lib/modules/rfkill.ko $W/rfkill-orig.ko
 find $W/system_dlkm -name '*.ko' -exec $STRIP --strip-debug {} +
 # Stripping drops the appended signature, and GKI refuses unsigned
 # system_dlkm modules (EACCES), so sign them again with the build's key.
 # The prebuilt sign-file only does SHA-1, so use openssl and append the
 # same trailer: struct module_signature (PKCS#7, big-endian length), magic.
-CERTS=$KP/bazel-bin/common/kernel_aarch64/certs
+# build_with_bazel.py keeps its own output root; its kernel_aarch64 key is the
+# one the dist Image trusts. bazel-bin is a separate root with its own key.
+CERTS=$(ls -d $KP/bazel-cache/bazel-cache/*/execroot/_main/bazel-out/k8-fastbuild/bin/common/kernel_aarch64/certs | head -1)
+# Check it against the key that signed the original modules: with any other
+# key GKI refuses every re-signed module (rfkill, so no btpower, no sound card, no boot).
+want=$(modinfo -F sig_key $W/rfkill-orig.ko 2>/dev/null)
+have=$(openssl x509 -in $CERTS/signing_key.x509 -noout -serial | sed 's/^serial=//; s/../&:/g; s/:$//')
+[ -z "$want" ] || [ "$want" = "$have" ] || { echo "STEP=dlkm FAIL signing key $have, kernel modules signed with $want"; exit 1; }
 for k in $W/system_dlkm/lib/modules/*.ko; do
 	openssl cms -sign -binary -noattr -nocerts -nosmimecap -md sha256 -outform DER \
 		-signer $CERTS/signing_key.x509 -inkey $CERTS/signing_key.pem \
@@ -92,6 +100,7 @@ for k in $W/system_dlkm/lib/modules/*.ko; do
 open(k,"ab").write(sig + struct.pack(">BBBBB3xI", 0, 0, 2, 0, 0, len(sig)) + b"~Module signature appended~\n")' $k $k.p7s
 	rm $k.p7s
 done
+rm -f $W/rfkill-orig.ko
 # The CIFS set is GKI, but with it system_dlkm overflows its 7389184-byte
 # partition, so it ships in vendor_dlkm, as on 6.6. The files keep the GKI
 # signature added above. Their dependency netfs stays in system_dlkm.
