@@ -311,7 +311,7 @@ def register_modules(registry):
         config = "CONFIG_MI_MIST",
         srcs = [
             # do not sort
-            "drivers/soc/qcom/dcvs/mist/include/soc/qcom/mist_ext.h",
+            "include/soc/qcom/mist_ext.h",
             "drivers/soc/qcom/dcvs/mist/mist.h",
             "drivers/soc/qcom/dcvs/mist/mist_dflt.c",
             "drivers/soc/qcom/dcvs/mist/mist_dflt.h",
