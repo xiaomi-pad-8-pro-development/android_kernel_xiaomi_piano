@@ -7,6 +7,10 @@ exec > $L 2>&1
 set -euo pipefail
 set -x
 KP=/home/alif/kernel/kp50/kernel_platform
+# Build what the 6.12 source branch holds: copy it into the KP 5.0 tree
+# first. SRC612=none builds the KP 5.0 tree as it is.
+SRC612=${SRC612:-/home/alif/kernel/src612}
+if [ "$SRC612" != none ]; then KP=${KP%/kernel_platform} bash $SRC612/scripts/sync612.sh; fi
 cd $KP || exit 1
 # PIANO_BRINGUP=1 (the default while 6.12 is in testing) builds the memcon
 # RAM console, block log and reset checkpoints. RELEASE=1 turns it off.
