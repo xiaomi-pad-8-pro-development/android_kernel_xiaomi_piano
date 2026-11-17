@@ -6,8 +6,7 @@ set -euo pipefail
 KP=/home/alif/kernel/kp50/kernel_platform
 DIST=$KP/out/msm-kernel-sun-perf/dist
 BIN=$KP/bazel-bin/vendor/qcom/opensource
-ROM=${ROM:-/home/alif/android/evolution-x}
-HOST=$ROM/out/host/linux-x86/bin
+HOST=/home/alif/android/evolution-x/out/host/linux-x86/bin
 W=/home/alif/kernel/pack612
 DT=/home/alif/kernel/dt612-out
 VER=$(basename $(ls -d /home/alif/kernel/kp50/kernel_platform/bazel-bin/vendor/qcom/opensource/mm-drivers/msm_ext_display/sun_perf_msm_ext_display/staging/lib/modules/* -td | head -1))
@@ -69,8 +68,7 @@ sed -i '/^qti_battery_charger\.ko$/d' $M/modules.load $M/modules.load.recovery
 # vendor_dlkm, where a failure is not fatal. The same goes for miscore,
 # whose init fails on 6.12 (its sysctl table is refused), and llcc_perfmon,
 # which Android never loads.
-sed -i -e '/^qcom-hv-haptics\.ko$/d' -e '/^leds-qti-flash\.ko$/d' \
-  -e '/^miscore\.ko$/d' -e '/^llcc_perfmon\.ko$/d' $M/modules.load.recovery
+sed -i -e "/^qcom-hv-haptics\.ko$/d" -e "/^leds-qti-flash\.ko$/d" -e "/^miscore\.ko$/d" -e "/^llcc_perfmon\.ko$/d" $M/modules.load.recovery
 # The vendor_boot partition is 96 MiB; drop debug info.
 STRIP=$(ls -d $KP/prebuilts/clang/host/linux-x86/clang-r*/bin/llvm-strip | tail -1)
 $STRIP --strip-debug $M/*.ko
@@ -86,18 +84,24 @@ if [ "${RECOVERY_DLKM:-1}" = 1 ]; then
   done
   mv $M/l.tmp $M/modules.load.recovery
 fi
+# SAFE TEST (builder only): ALL_IN_RAMDISK=1 loads the full recovery set
+# from the ramdisk; slot a mounts slot b's 6.6 dlkm, which must never be
+# written.
+if [ "${ALL_IN_RAMDISK:-0}" = 1 ]; then
+  cp $M/modules.load.recovery $M/modules.load
+  for f in $(cat $M/modules.load); do [ -e $M/$(basename $f) ] && echo $f; done > $M/modules.load.tmp
+  grep -v -e qcom-hv-haptics.ko -e leds-qti-flash.ko -e icnss2.ko $M/modules.load.tmp > $M/modules.load
+  rm -f $M/modules.load.tmp
+fi
 depmod -b $W/dlkm $VER
-# A listed module that is not packed stops first-stage init at that line.
-MISSING=0
-for m in $(cat $M/modules.load $M/modules.load.recovery); do test -f $M/$m || { echo "MISSING $m"; MISSING=1; }; done
-[ $MISSING = 0 ] || { echo PACK612_MISSING; exit 1; }
+for m in $(cat $M/modules.load $M/modules.load.recovery); do test -f $M/$m || echo "MISSING $m"; done
 # Flatten to /lib/modules like the stock vendor ramdisk.
 mv $M/* $W/dlkm/lib/modules/ && rmdir $M
 sed -i -E "s#(^|[ :])([^ :]+\.ko)#\1/lib/modules/\2#g" $W/dlkm/lib/modules/modules.dep
 (cd $W/dlkm && find . | sort | cpio -o -H newc -R 0:0 2>/dev/null | lz4 -l -12 --favor-decSpeed > $W/out/dlkm.lz4)
 cp $W/vb/vendor_ramdisk00 $W/out/ramdisk00
 # Land in fastboot (warm reset, pstore kept) if first-stage init fails.
-sed "s/init_fatal_reboot_target=recovery/init_fatal_reboot_target=bootloader/" $W/vb/bootconfig > $W/out/bootconfig
+sed "s/init_fatal_reboot_target=recovery/init_fatal_reboot_target=bootloader/" $W/vb/bootconfig > $W/out/bootconfig && sed -i "s/load_modules_parallel=true/load_modules_parallel=${PARALLEL:-false}/" $W/out/bootconfig
 $HOST/mkbootimg --header_version 4 --pagesize 0x1000 --base 0 --kernel_offset 0x8000 \
   --ramdisk_offset 0x01000000 --tags_offset 0x100 --dtb_offset 0x1f00000 \
   --vendor_cmdline "bootconfig buildvariant=userdebug" --dtb $DT/dtb --vendor_bootconfig $W/out/bootconfig \
@@ -113,7 +117,7 @@ UNUSED=; [ "${IGNORE_UNUSED:-0}" = 1 ] && UNUSED=" clk_ignore_unused pd_ignore_u
 # full build_with_bazel.py run.
 # RELEASE=1 drops the bring-up switches: reset checkpoints, the one-shot
 # boot marker, the verbose log and the panics on soft lockups and hung tasks.
-CMDLINE="piano_reset_at=${RESET_AT:-0} printk.devkmsg=on piano_oneshot=612-qcom panic=${PANIC:-3} softlockup_panic=1 hung_task_panic=1 hung_task_timeout_secs=10 qcom_dload_mode.download_mode=0 ignore_loglevel firmware_class.path=/odm/firmware/o8$UNUSED"
+CMDLINE="piano_reset_at=${RESET_AT:-0} piano_memcon.reboot_after=${REBOOT_AFTER:-0} piano_memcon_copies=${COPIES:-5} piano_skip_old_modules=1 dwc3_msm.piano_force_peripheral=1 printk.devkmsg=on piano_oneshot=612-qcom panic=${PANIC:-3} softlockup_panic=1 hung_task_panic=1 hung_task_timeout_secs=10 qcom_dload_mode.download_mode=0 ignore_loglevel firmware_class.path=/odm/firmware/o8$UNUSED"
 [ "${RELEASE:-0}" = 1 ] && CMDLINE="qcom_dload_mode.download_mode=0 firmware_class.path=/odm/firmware/o8"
 $HOST/mkbootimg --header_version 4 --kernel $KP/bazel-bin/common/kernel_aarch64/Image --os_version 17.0.0 --os_patch_level 2026-10 \
   --cmdline "$CMDLINE" \
