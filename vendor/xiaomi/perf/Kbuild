@@ -37,4 +37,4 @@ subdir-ccflags-y += -I$(PERF_ROOT)/include
 # stubs.
 subdir-ccflags-y += -DCONFIG_QCOM_MINIDUMP_MODULE=1 -DCONFIG_QCOM_PANEL_EVENT_NOTIFIER_MODULE=1
 
-obj-m += boottime/ kshrink_slabd/ mi_rmap_efficiency/ mi_stack/ mi_trace/ mi_ubt/ printk_enhance/ mi_thermal/ lz4asm/ perf_actuator/ plat_common/ rtg/ millet/ rt_mod/ mi_wq_dynamic_priority/ millet_pkg/ binder_gki/ millet_binder/ bootinfo/ dynamic_readahead/ debug_ext/ xm_power/ mi_memory/ mi_power/ bootmonitor/ dump_display/ swinfo/ hid_xiaomi/ mi_mempool/ minet/ mi_wmark/ scene_swappiness/
+obj-m += boottime/ kshrink_slabd/ mi_rmap_efficiency/ mi_stack/ mi_trace/ mi_ubt/ printk_enhance/ mi_thermal/ lz4asm/ perf_actuator/ plat_common/ rtg/ millet/ rt_mod/ mi_wq_dynamic_priority/ millet_pkg/ binder_gki/ millet_binder/ bootinfo/ dynamic_readahead/ debug_ext/ xm_power/ mi_memory/ mi_power/ bootmonitor/ dump_display/ swinfo/ hid_xiaomi/ mi_mempool/ mi_wmark/ scene_swappiness/ xiaomi_wifi_gpio/ miicmpfilter/ miscore/

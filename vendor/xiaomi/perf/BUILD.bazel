@@ -42,8 +42,10 @@ kernel_module(
         "hid_xiaomi/piano_hid_xiaomi.ko",
         "scene_swappiness/scene_swappiness.ko",
         "mi_wmark/mi_wmark.ko",
-        "minet/minet.ko",
         "mi_mempool/mi_mempool.ko",
+        "xiaomi_wifi_gpio/xiaomi_wifi_gpio.ko",
+        "miicmpfilter/miicmpfilter.ko",
+        "miscore/miscore.ko",
     ],
     kernel_build = "//soc-repo:sun_perf_base_kernel",
     deps = [

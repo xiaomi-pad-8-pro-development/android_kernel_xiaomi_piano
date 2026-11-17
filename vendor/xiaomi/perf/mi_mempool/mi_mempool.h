@@ -61,7 +61,7 @@ static gfp_t order_flags[] = {LOW_ORDER_GFP, HIGH_ORDER_GFP, HIGH_ORDER_GFP,
 static const unsigned int orders[] __attribute__((section(".rodata.adj_whitelist"))) = {0, 1, 4, 5}; /* Orders for mi_mempool to reserve. */
 static unsigned int high_mark_mb[] = {64, 1, 1, 1};/* Reserved upper limit */
 static const unsigned int direct_reclaim_mark_mb[] = {17, 1, 1, 1};
-static unsigned int order_map[MAX_ORDER + 1];
+static unsigned int order_map[MAX_PAGE_ORDER + 1];
 static const unsigned int refill_limited_order[] = {4, 5};
 #define NUM_ORDERS ARRAY_SIZE(orders)
 #define NUM_LIMITED_ORDER ARRAY_SIZE(refill_limited_order)

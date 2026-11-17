@@ -327,9 +327,6 @@ static bool __mi_dynamic_pool_zone_watermark_ok(struct zone *z, unsigned int ord
 	long unusable_free;
 	int o;
 
-	if (!zone_is_suitable(z, order))
-		return false;
-
 	/*
 	 * Access to high atomic reserves is not required, and CMA should not be
 	 * used, since these allocations are non-movable.
