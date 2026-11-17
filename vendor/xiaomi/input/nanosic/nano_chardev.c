@@ -33,6 +33,7 @@
 #include "nano_macro.h"
 #include <linux/uaccess.h>
 #include <linux/sched/signal.h>
+#include <linux/poll.h>
 
 /*buffer节点默认缓冲个数*/
 #define NANODEV_BUFSIZE (10)
@@ -244,7 +245,7 @@ static int Nanosic_chardev_fops_open(struct inode *inode, struct file *file)
 	nanosic_client_t *client = NULL;
 
 	client = kzalloc(sizeof(nanosic_client_t), GFP_KERNEL);
-	if (IS_ERR(client))
+	if (!client)
 		return -ENOMEM;
 
 	client->read_pos = 0;
@@ -276,10 +277,25 @@ static int Nanosic_chardev_fops_open(struct inode *inode, struct file *file)
  * process has a file open.
  ** */
 
-static unsigned int Nanosic_chardev_fops_poll(struct file *file,
-					      struct poll_table_struct *wait)
+static __poll_t Nanosic_chardev_fops_poll(struct file *file,
+					  struct poll_table_struct *wait)
 {
-	return -ENOSYS;
+	nanosic_client_t *client = (nanosic_client_t *)file->private_data;
+	__poll_t mask = 0;
+
+	if (IS_ERR_OR_NULL(client))
+		return EPOLLERR;
+
+	poll_wait(file, &client->waitq, wait);
+
+	spin_lock(&client_registry_lock);
+	if (client->read_pos != client->write_pos)
+		mask |= EPOLLIN | EPOLLRDNORM;
+	if (client->exit)
+		mask |= EPOLLHUP;
+	spin_unlock(&client_registry_lock);
+
+	return mask;
 }
 
 /** ***************************************************************************
@@ -307,6 +323,7 @@ static ssize_t Nanosic_chardev_fops_read(struct file *file, char __user *user,
 					 size_t size, loff_t *loff)
 {
 	Q_buffer_t *buf = NULL;
+	uint8_t data[I2C_DATA_LENGTH_READ];
 	int retval = 0;
 	uint8_t read_pos;
 	int length;
@@ -356,18 +373,23 @@ static ssize_t Nanosic_chardev_fops_read(struct file *file, char __user *user,
 	length = buf->datalen > size ? size : buf->datalen;
 	dbgprint(DEBUG_LEVEL, "length %d\n", length);
 
-	if (copy_to_user(user, buf->data, length)) {
-		/*Partial buffer consumption*/
+	/* copy_to_user() may fault and sleep, so not under the spinlock */
+	memcpy(data, buf->data, length);
+	spin_unlock(&client_registry_lock);
+
+	if (copy_to_user(user, data, length)) {
+		/*Partial buffer consumption, leave the packet queued*/
 		retval = -EFAULT;
-		goto _out;
+		goto _unlocked;
 	}
 
+	spin_lock(&client_registry_lock);
 	client->read_pos = read_pos;
-
 	retval = length;
 
 _out:
 	spin_unlock(&client_registry_lock);
+_unlocked:
 	/*size_t 使用%zu进行打印*/
 	dbgprint(DEBUG_LEVEL, "retval %d\n", retval);
 

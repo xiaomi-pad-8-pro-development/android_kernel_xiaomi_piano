@@ -182,10 +182,18 @@ static int nanosic_803_probe(struct i2c_client *client)
     if(IS_ERR_OR_NULL(vddh_reg))
         dbgprint(ERROR_LEVEL,"Failed to get vddh_reg\n");
 */
+	/* the interrupt and the panel notifier use the key cache */
+	ret = Nanosic_cache_init();
+	if (ret < 0) {
+		dbgprint(ERROR_LEVEL, "Nanosic cache init ERROR!\n");
+		goto _err1;
+	}
+	Nanosic_edge_filter_init(of_node);
+
 	/*initialize chardev module*/
 	ret = Nanosic_chardev_register();
 	if (ret < 0)
-		goto _err1;
+		goto _err_cache;
 
 	/*initialize input module*/
 	ret = Nanosic_input_register();
@@ -213,19 +221,11 @@ static int nanosic_803_probe(struct i2c_client *client)
 	i2c_set_clientdata(client, I2client);
 	gI2c_client = I2client;
 	gI2c_client->dev = &(client->dev);
-	Nanosic_edge_filter_init(of_node);
 	device_init_wakeup(&client->dev, true);
 
 	ret = xiaomi_keyboard_init(I2client);
 	if (ret < 0)
 		goto _err_keyboard;
-	/*initialize timer for test*/
-
-	ret = Nanosic_cache_init();
-	if (ret < 0) {
-		dbgprint(ERROR_LEVEL, "Nanosic cache init ERROR!\n");
-		goto _err4;
-	}
 
 	initial = true;
 	/* create the input devices if the keyboard is already attached */
@@ -234,10 +234,9 @@ static int nanosic_803_probe(struct i2c_client *client)
 
 	return 0;
 
-_err4:
-	Nanosic_cache_release();
 _err_keyboard:
 	xiaomi_keyboard_remove();
+	Nanosic_PM_health_stop(I2client);
 _err3:
 	/* the wakeup interrupt uses gI2c_client, so free it first */
 	Nanosic_GPIO_release();
@@ -248,6 +247,8 @@ _err3:
 	Nanosic_input_release();
 _err2:
 	Nanosic_chardev_release();
+_err_cache:
+	Nanosic_cache_release();
 _err1:
 	Nanosic_switch_regulator(false);
 	return -1;
@@ -265,6 +266,8 @@ static void nanosic_803_remove(struct i2c_client *client)
 
 	/* Stop panel work before releasing its input and I2C devices. */
 	xiaomi_keyboard_remove();
+	/* and the controller check, which resets the 803x through the gpios */
+	Nanosic_PM_health_stop(I2client);
 
 	/*release chardev module*/
 	Nanosic_chardev_release();
@@ -380,12 +383,16 @@ static void keyboard_early_resume_work(struct work_struct *work)
 {
 	int ret = 0;
 	dbgprint(ALERT_LEVEL, "keyboard_early_resume_work: enter\n");
+	/*
+	 * Mark the panel on first, so a key the worker parses meanwhile is
+	 * sent after the cached ones instead of cached behind the flush.
+	 */
+	g_panel_status = true;
 	ret = Nanosic_cache_put();
 	if (ret < 0)
 		dbgprint(ERROR_LEVEL,
 			 "keyboard_early_resume_work: Nanosic_cache_put err:%d\n",
 			 ret);
-	g_panel_status = true;
 	Nanosic_GPIO_sleep(true);
 	Nanosic_workQueue_schedule(gI2c_client->worker);
 }
@@ -404,6 +411,9 @@ static void keyboard_resume_work(struct work_struct *work)
 		dbgprint(ERROR_LEVEL,
 			 "keyboard_resume_work: Nanosic_Hall_notify err:%d\n",
 			 ret);
+	/* a cover attached before suspend should still answer */
+	if (gHallStatus & 0x1)
+		Nanosic_PM_health_start(gI2c_client);
 }
 
 /* the screen is about to turn off, tell the keypad while the 803x is awake */

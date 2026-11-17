@@ -386,6 +386,12 @@ static void Nanosic_input_hall_work(struct work_struct *work)
 	}
 }
 
+/* whether the hid devices of the keyboard exist */
+bool Nanosic_input_attached(void)
+{
+	return READ_ONCE(gVirtualDevAttached);
+}
+
 /** ************************************************************************/ /**
  *  @func Nanosic_input_hall_changed
  *
