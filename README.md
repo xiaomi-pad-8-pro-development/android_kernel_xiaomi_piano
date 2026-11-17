@@ -14,8 +14,7 @@
 
 | Branch | What |
 | --- | --- |
-| `6.6` | Daily kernel, used by the ROM |
-| `6.12` | 6.12 bring-up, as patches on Qualcomm KP 5.0 |
-| `6.12-source` | The same 6.12 work as one full source tree |
+| `6.6` | 6.6 kernel, used by the 6.6 builds |
+| `6.12` | 6.12 kernel, a full Qualcomm KP 5.0 source tree, used by the 6.12 builds |
 
 Android Common Kernel contribution rules: [README.ACK.md](README.ACK.md)
